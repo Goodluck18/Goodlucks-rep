@@ -1,0 +1,185 @@
+export type UserRole = 'tenant' | 'landlord' | 'admin' | 'guest';
+
+export interface User {
+  id: string;
+  email: string;
+  name: string;
+  role: UserRole;
+  phone: string;
+  avatar: string;
+  address?: string;
+  bio?: string;
+  company?: string;
+  isVerified?: boolean;
+  preferredLocations?: string[];
+  budgetMin?: number;
+  budgetMax?: number;
+  preferredBedrooms?: number;
+  additionalNotes?: string;
+  createdAt: string;
+}
+
+export type PropertyStatus = 'active' | 'pending' | 'rejected' | 'rented' | 'deactivated';
+
+export type PropertyType = 
+  | 'Apartment' 
+  | 'Luxury Villa' 
+  | 'Townhouse' 
+  | 'Studio' 
+  | 'Duplex' 
+  | 'Penthouse' 
+  | 'Commercial';
+
+export interface NearbyPlace {
+  name: string;
+  type: string;
+  distance: string;
+}
+
+export interface Property {
+  id: string;
+  landlordId: string;
+  title: string;
+  location: string;
+  city: string;
+  rentGhs: number;
+  bedrooms: number;
+  bathrooms: number;
+  propertyType: PropertyType;
+  status: PropertyStatus;
+  images: string[];
+  description: string;
+  amenities: string[];
+  nearbyPlaces: NearbyPlace[];
+  availability: string;
+  featured?: boolean;
+  viewsCount: number;
+  enquiriesCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type RequestProgressStatus = 
+  | 'submitted' 
+  | 'searching' 
+  | 'matched' 
+  | 'viewing_scheduled' 
+  | 'completed' 
+  | 'cancelled';
+
+export interface TenantRequest {
+  id: string;
+  tenantId: string;
+  tenantName: string;
+  tenantPhone: string;
+  tenantEmail: string;
+  preferredLocations: string[];
+  budgetMin: number;
+  budgetMax: number;
+  bedrooms: number;
+  bathrooms: number;
+  propertyType: string;
+  moveInDate: string;
+  status: RequestProgressStatus;
+  matchedPropertyIds?: string[];
+  assignedAgent?: string;
+  notes?: string;
+  createdAt: string;
+}
+
+export interface MatchResult {
+  id: string;
+  tenantRequestId: string;
+  propertyId: string;
+  propertyTitle: string;
+  propertyLocation: string;
+  rentGhs: number;
+  matchScore: number;
+  aiMatchReason: string;
+  status: 'suggested' | 'confirmed' | 'rejected';
+  createdAt: string;
+}
+
+export interface ViewingSchedule {
+  id: string;
+  tenantRequestId: string;
+  tenantName: string;
+  tenantPhone: string;
+  propertyId: string;
+  propertyTitle: string;
+  propertyLocation: string;
+  date: string;
+  time: string;
+  assignedAgent: string;
+  status: 'scheduled' | 'completed' | 'cancelled';
+  viewingFeePaid: boolean;
+  feeAmountGhs: number;
+  outcomeNotes?: string;
+  createdAt: string;
+}
+
+export interface EmailLog {
+  id: string;
+  recipientEmail: string;
+  recipientName: string;
+  subject: string;
+  type: 
+    | 'registration' 
+    | 'login' 
+    | 'property_submission' 
+    | 'tenant_request' 
+    | 'property_approval' 
+    | 'property_rejection' 
+    | 'viewing_scheduled' 
+    | 'viewing_reminder' 
+    | 'match_found';
+  bodyPreview: string;
+  sentAt: string;
+  status: 'sent' | 'delivered';
+}
+
+export interface NotificationItem {
+  id: string;
+  userId: string;
+  title: string;
+  message: string;
+  type: 'info' | 'success' | 'warning' | 'viewing';
+  read: boolean;
+  createdAt: string;
+}
+
+export interface ToastNotification {
+  id: string;
+  type: 'success' | 'error' | 'info' | 'warning';
+  title: string;
+  message?: string;
+  duration?: number;
+}
+
+export interface TrafficDataPoint {
+  label: string;
+  visitors: number;
+  pageViews: number;
+}
+
+export interface AnalyticsStats {
+  visitorsToday: number;
+  visitorsYesterday: number;
+  visitorsLast7Days: number;
+  visitorsLast30Days: number;
+  visitorsLast12Months: number;
+  growthPercentage: number;
+  totalRegisteredUsers: number;
+  totalTenants: number;
+  totalLandlords: number;
+  newUsersToday: number;
+  newUsersThisWeek: number;
+  totalProperties: number;
+  approvedProperties: number;
+  pendingProperties: number;
+  rejectedProperties: number;
+  totalViewings: number;
+  physicalRevenueGhs: number;
+  dailyTraffic: TrafficDataPoint[];
+  monthlyTraffic: TrafficDataPoint[];
+}

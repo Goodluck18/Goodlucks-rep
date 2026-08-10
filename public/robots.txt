@@ -1,0 +1,16 @@
+# Goodlucks Housing Portal Robots File
+User-agent: *
+Allow: /
+Allow: /browse
+Allow: /property/
+Allow: /find-home
+Allow: /about
+
+Disallow: /admin
+Disallow: /admin-login
+Disallow: /*admin*
+Disallow: /*?admin=*
+Disallow: /*#admin*
+
+# XML Sitemap for Search Engine Crawlers
+Sitemap: /sitemap.xml

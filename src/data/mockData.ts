@@ -1,0 +1,466 @@
+import { Property, User, TenantRequest, ViewingSchedule, EmailLog, NotificationItem, AnalyticsStats } from '../types';
+
+export const INITIAL_USERS: User[] = [
+  {
+    id: 'user-tenant-1',
+    email: 'tenant@goodlucks.com',
+    name: 'Kofi Mensah',
+    role: 'tenant',
+    phone: '+233 24 412 3456',
+    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80',
+    address: 'Cantonments, Accra, Ghana',
+    preferredLocations: ['Cantonments', 'East Legon', 'Airport Residential'],
+    budgetMin: 3000,
+    budgetMax: 7500,
+    preferredBedrooms: 2,
+    additionalNotes: 'Prefers 24/7 standby generator and dedicated parking.',
+    createdAt: '2026-07-15T10:00:00Z',
+  },
+  {
+    id: 'user-landlord-1',
+    email: 'landlord@goodlucks.com',
+    name: 'Abena Osei',
+    role: 'landlord',
+    phone: '+233 20 899 7711',
+    avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=300&q=80',
+    address: 'East Legon, Accra, Ghana',
+    company: 'Prime Haven Properties Ltd',
+    isVerified: true,
+    bio: 'Premier luxury developer and residential property provider in Greater Accra.',
+    createdAt: '2026-06-10T09:30:00Z',
+  },
+  {
+    id: 'user-admin-1',
+    email: 'admin@goodlucks.com',
+    name: 'Goodlucks Admin',
+    role: 'admin',
+    phone: '+233 30 299 8800',
+    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=300&q=80',
+    address: 'Goodlucks HQ, Ridge, Accra',
+    createdAt: '2026-01-01T00:00:00Z',
+  },
+];
+
+export const INITIAL_PROPERTIES: Property[] = [
+  {
+    id: 'prop-1',
+    landlordId: 'user-landlord-1',
+    title: 'The Pearl Executive 3-Bedroom Apartment',
+    location: 'Cantonments, Accra',
+    city: 'Accra',
+    rentGhs: 6500,
+    bedrooms: 3,
+    bathrooms: 3,
+    propertyType: 'Apartment',
+    status: 'active',
+    featured: true,
+    viewsCount: 412,
+    enquiriesCount: 18,
+    availability: 'Available Now',
+    description: 'A masterpiece of modern West African architecture located in the elite diplomatic precinct of Cantonments. Features floor-to-ceiling soundproof glass, ultra-sleek fitted Italian kitchen, continuous solar back-up power, olympic-size swimming pool, and 24/7 armed private security guards.',
+    amenities: [
+      '24/7 Standby Generator',
+      'Swimming Pool',
+      'Fitted Kitchen',
+      'Air Conditioning',
+      'Gated Security',
+      'Balcony',
+      'Elevator',
+      'Gym & Spa',
+      'Underground Parking'
+    ],
+    nearbyPlaces: [
+      { name: 'U.S. Embassy Ghana', type: 'Embassy', distance: '3 mins' },
+      { name: 'Kotoka International Airport', type: 'Airport', distance: '8 mins' },
+      { name: 'Marina Mall', type: 'Shopping', distance: '6 mins' }
+    ],
+    images: [
+      'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=1200&q=80',
+      'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1200&q=80',
+      'https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3?auto=format&fit=crop&w=1200&q=80',
+      'https://images.unsplash.com/photo-1600566753376-12c8ab7fb75b?auto=format&fit=crop&w=1200&q=80'
+    ],
+    createdAt: '2026-07-20T14:20:00Z',
+    updatedAt: '2026-08-01T10:00:00Z',
+  },
+  {
+    id: 'prop-2',
+    landlordId: 'user-landlord-1',
+    title: 'Minimalist Modern Studio Loft',
+    location: 'Osu, Accra',
+    city: 'Accra',
+    rentGhs: 3200,
+    bedrooms: 1,
+    bathrooms: 1,
+    propertyType: 'Studio',
+    status: 'active',
+    featured: true,
+    viewsCount: 389,
+    enquiriesCount: 24,
+    availability: 'Available from Next Week',
+    description: 'Ultra-modern urban studio in heart of Osu close to Oxford Street. Perfect for young tech executives or expatriate consultants. Fully furnished with Smart TV, high-speed fiber Wi-Fi, inverter ACs, and sleek workstation.',
+    amenities: [
+      'High Speed Wi-Fi',
+      'Fully Furnished',
+      'Air Conditioning',
+      'Water Tank Storage',
+      'Keyless Entry',
+      'Balcony City View'
+    ],
+    nearbyPlaces: [
+      { name: 'Oxford Street Osu', type: 'Dining & Nightlife', distance: '2 mins' },
+      { name: 'Labadi Beach', type: 'Recreation', distance: '10 mins' },
+      { name: 'Ridge Hospital', type: 'Healthcare', distance: '5 mins' }
+    ],
+    images: [
+      'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?auto=format&fit=crop&w=1200&q=80',
+      'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?auto=format&fit=crop&w=1200&q=80',
+      'https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?auto=format&fit=crop&w=1200&q=80'
+    ],
+    createdAt: '2026-07-22T08:15:00Z',
+    updatedAt: '2026-08-05T12:00:00Z',
+  },
+  {
+    id: 'prop-3',
+    landlordId: 'user-landlord-1',
+    title: 'East Legon 4-Bedroom Glass Villa',
+    location: 'East Legon, Accra',
+    city: 'Accra',
+    rentGhs: 12500,
+    bedrooms: 4,
+    bathrooms: 4.5,
+    propertyType: 'Luxury Villa',
+    status: 'active',
+    featured: true,
+    viewsCount: 620,
+    enquiriesCount: 31,
+    availability: 'Available Now',
+    description: 'An architectural icon in East Legon featuring private infinity pool, automated smart home lighting, landscaped garden, staff quarters, double-garage, and highest security installations.',
+    amenities: [
+      'Private Swimming Pool',
+      'Smart Home Controls',
+      'Staff Quarters',
+      'Double Garage',
+      'Landscaped Garden',
+      '24/7 Standby Generator',
+      'Electric Fence & CCTV'
+    ],
+    nearbyPlaces: [
+      { name: 'A&C Mall', type: 'Shopping', distance: '4 mins' },
+      { name: 'University of Ghana', type: 'Education', distance: '7 mins' },
+      { name: 'Ancilla International School', type: 'School', distance: '5 mins' }
+    ],
+    images: [
+      'https://images.unsplash.com/photo-1613977257363-707ba9348227?auto=format&fit=crop&w=1200&q=80',
+      'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&w=1200&q=80',
+      'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=1200&q=80'
+    ],
+    createdAt: '2026-07-10T11:00:00Z',
+    updatedAt: '2026-08-08T15:30:00Z',
+  },
+  {
+    id: 'prop-4',
+    landlordId: 'user-landlord-1',
+    title: 'Airport Residential Sky Penthouse',
+    location: 'Airport Residential Area, Accra',
+    city: 'Accra',
+    rentGhs: 15000,
+    bedrooms: 3,
+    bathrooms: 3.5,
+    propertyType: 'Penthouse',
+    status: 'active',
+    featured: false,
+    viewsCount: 290,
+    enquiriesCount: 14,
+    availability: 'Available Now',
+    description: 'Panoramic views over Accra skyline. Double height ceilings, top-of-the-range Miele appliances, private rooftop terrace with jacuzzi, concierge services, and high-speed elevator access.',
+    amenities: [
+      'Rooftop Jacuzzi',
+      'Concierge Service',
+      'Panoramic Terrace',
+      'Miele Kitchen Appliances',
+      '24/7 Security & Power',
+      'Gym & Sauna'
+    ],
+    nearbyPlaces: [
+      { name: 'Kotoka Airport T3', type: 'Airport', distance: '4 mins' },
+      { name: 'Nyaho Medical Centre', type: 'Healthcare', distance: '3 mins' }
+    ],
+    images: [
+      'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=1200&q=80',
+      'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1200&q=80'
+    ],
+    createdAt: '2026-07-28T09:00:00Z',
+    updatedAt: '2026-08-09T09:00:00Z',
+  },
+  {
+    id: 'prop-5',
+    landlordId: 'user-landlord-1',
+    title: 'Labone Gated Luxury 3-Bed Townhouse',
+    location: 'Labone, Accra',
+    city: 'Accra',
+    rentGhs: 5800,
+    bedrooms: 3,
+    bathrooms: 3,
+    propertyType: 'Townhouse',
+    status: 'active',
+    featured: true,
+    viewsCount: 310,
+    enquiriesCount: 19,
+    availability: 'Available Now',
+    description: 'Charming 3-bedroom townhouse situated in serene Labone neighborhood. Private garden, fitted kitchen cabinets, quiet residential community, excellent water flow plus high-volume storage tanks.',
+    amenities: [
+      'Private Garden',
+      'Gated Community',
+      'Water Tank Storage',
+      'Air Conditioning',
+      'Pet Friendly'
+    ],
+    nearbyPlaces: [
+      { name: 'Labone Coffee Shop', type: 'Dining', distance: '2 mins' },
+      { name: 'Cantonments Hospital', type: 'Healthcare', distance: '4 mins' }
+    ],
+    images: [
+      'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&w=1200&q=80',
+      'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=1200&q=80'
+    ],
+    createdAt: '2026-08-01T16:00:00Z',
+    updatedAt: '2026-08-07T10:00:00Z',
+  },
+  {
+    id: 'prop-6',
+    landlordId: 'user-landlord-1',
+    title: 'Spintex Road 2-Bedroom Modern Duplex',
+    location: 'Spintex, Accra',
+    city: 'Accra',
+    rentGhs: 2800,
+    bedrooms: 2,
+    bathrooms: 2,
+    propertyType: 'Duplex',
+    status: 'active',
+    featured: false,
+    viewsCount: 195,
+    enquiriesCount: 11,
+    availability: 'Available from 1st Sept',
+    description: 'Spacious and affordable contemporary duplex off Spintex Coastal Road. Close to Palace Mall, well paved access road, solar street lights, and individual water/electricity meters.',
+    amenities: [
+      'Gated Yard',
+      'Water Tank',
+      'Paved Parking',
+      'Balcony',
+      'Air Conditioning'
+    ],
+    nearbyPlaces: [
+      { name: 'Palace Mall Spintex', type: 'Shopping', distance: '5 mins' },
+      { name: 'Tema Motorway Link', type: 'Transit', distance: '7 mins' }
+    ],
+    images: [
+      'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1200&q=80',
+      'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?auto=format&fit=crop&w=1200&q=80'
+    ],
+    createdAt: '2026-08-02T12:00:00Z',
+    updatedAt: '2026-08-08T11:00:00Z',
+  },
+  {
+    id: 'prop-7',
+    landlordId: 'user-landlord-1',
+    title: 'Kumasi Ahodwo Royal Heights 3-Bed Villa',
+    location: 'Ahodwo, Kumasi',
+    city: 'Kumasi',
+    rentGhs: 4200,
+    bedrooms: 3,
+    bathrooms: 3,
+    propertyType: 'Luxury Villa',
+    status: 'active',
+    featured: true,
+    viewsCount: 220,
+    enquiriesCount: 15,
+    availability: 'Available Now',
+    description: 'Exclusive villa located in prestigious Ahodwo district in Kumasi. High security wall, paved compound, standby plant, and landscaped palm lawns.',
+    amenities: [
+      'Standby Generator',
+      'Landscaped Lawns',
+      'Automated Gate',
+      'Water Borehole System',
+      'Gated Community'
+    ],
+    nearbyPlaces: [
+      { name: 'Golden Tulip Kumasi', type: 'Hotel', distance: '5 mins' },
+      { name: 'KNUST Campus', type: 'Education', distance: '12 mins' }
+    ],
+    images: [
+      'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=1200&q=80',
+      'https://images.unsplash.com/photo-1613977257363-707ba9348227?auto=format&fit=crop&w=1200&q=80'
+    ],
+    createdAt: '2026-08-03T10:00:00Z',
+    updatedAt: '2026-08-09T14:00:00Z',
+  },
+  {
+    id: 'prop-8',
+    landlordId: 'user-landlord-1',
+    title: 'Ridge Heights Executive Office & Residential',
+    location: 'Ridge, Accra',
+    city: 'Accra',
+    rentGhs: 8900,
+    bedrooms: 2,
+    bathrooms: 2,
+    propertyType: 'Apartment',
+    status: 'pending',
+    featured: false,
+    viewsCount: 85,
+    enquiriesCount: 4,
+    availability: 'Pending Admin Approval',
+    description: 'Brand new luxury residential apartment in Ridge commercial hub. Modern finishes, underground parking, generator backup.',
+    amenities: ['Standby Generator', 'Underground Parking', 'Gym', '24/7 Security'],
+    nearbyPlaces: [
+      { name: 'Financial Centre Ridge', type: 'Business', distance: '2 mins' }
+    ],
+    images: [
+      'https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?auto=format&fit=crop&w=1200&q=80'
+    ],
+    createdAt: '2026-08-09T18:00:00Z',
+    updatedAt: '2026-08-09T18:00:00Z',
+  }
+];
+
+export const INITIAL_TENANT_REQUESTS: TenantRequest[] = [
+  {
+    id: 'req-101',
+    tenantId: 'user-tenant-1',
+    tenantName: 'Kofi Mensah',
+    tenantPhone: '+233 24 412 3456',
+    tenantEmail: 'tenant@goodlucks.com',
+    preferredLocations: ['Cantonments', 'East Legon'],
+    budgetMin: 4000,
+    budgetMax: 7000,
+    bedrooms: 3,
+    bathrooms: 3,
+    propertyType: 'Apartment',
+    moveInDate: '2026-09-01',
+    status: 'viewing_scheduled',
+    matchedPropertyIds: ['prop-1', 'prop-5'],
+    assignedAgent: 'Michael Quarshie (Goodlucks Agent)',
+    notes: 'Requires 24/7 power backup and dedicated parking space.',
+    createdAt: '2026-08-02T11:00:00Z',
+  },
+  {
+    id: 'req-102',
+    tenantId: 'user-tenant-2',
+    tenantName: 'Esi Ansah',
+    tenantPhone: '+233 55 901 2388',
+    tenantEmail: 'esi.ansah@gmail.com',
+    preferredLocations: ['Osu', 'Labone'],
+    budgetMin: 2500,
+    budgetMax: 3500,
+    bedrooms: 1,
+    bathrooms: 1,
+    propertyType: 'Studio',
+    moveInDate: '2026-08-20',
+    status: 'searching',
+    matchedPropertyIds: ['prop-2'],
+    assignedAgent: 'Selah Adjei (Goodlucks Agent)',
+    notes: 'Expatriate consultant looking for fully furnished studio near Osu Oxford Street.',
+    createdAt: '2026-08-07T09:30:00Z',
+  }
+];
+
+export const INITIAL_VIEWING_SCHEDULES: ViewingSchedule[] = [
+  {
+    id: 'view-301',
+    tenantRequestId: 'req-101',
+    tenantName: 'Kofi Mensah',
+    tenantPhone: '+233 24 412 3456',
+    propertyId: 'prop-1',
+    propertyTitle: 'The Pearl Executive 3-Bedroom Apartment',
+    propertyLocation: 'Cantonments, Accra',
+    date: '2026-08-14',
+    time: '11:00 AM',
+    assignedAgent: 'Michael Quarshie (Goodlucks Lead Agent)',
+    status: 'scheduled',
+    viewingFeePaid: true,
+    feeAmountGhs: 100,
+    outcomeNotes: 'Viewing fee physically received at Goodlucks Cantonments Office. Tenant notified.',
+    createdAt: '2026-08-08T14:00:00Z',
+  }
+];
+
+export const INITIAL_EMAIL_LOGS: EmailLog[] = [
+  {
+    id: 'email-1',
+    recipientEmail: 'tenant@goodlucks.com',
+    recipientName: 'Kofi Mensah',
+    subject: 'Viewing Scheduled for The Pearl Executive Apartment - Goodlucks Homes',
+    type: 'viewing_scheduled',
+    bodyPreview: 'Dear Kofi, your property viewing for The Pearl Executive 3-Bedroom Apartment in Cantonments is confirmed for Aug 14 at 11:00 AM with Agent Michael.',
+    sentAt: '2026-08-08T14:05:00Z',
+    status: 'delivered',
+  },
+  {
+    id: 'email-2',
+    recipientEmail: 'landlord@goodlucks.com',
+    recipientName: 'Abena Osei',
+    subject: 'Property Submission Received - Under Goodlucks Review',
+    type: 'property_submission',
+    bodyPreview: 'Hello Abena, your listing Ridge Heights Executive Office & Residential has been received and is currently in the Admin approval queue.',
+    sentAt: '2026-08-09T18:02:00Z',
+    status: 'delivered',
+  }
+];
+
+export const INITIAL_NOTIFICATIONS: NotificationItem[] = [
+  {
+    id: 'notif-1',
+    userId: 'user-tenant-1',
+    title: 'Viewing Scheduled!',
+    message: 'Goodlucks Homes has scheduled your viewing for Aug 14, 2026 at 11:00 AM in Cantonments.',
+    type: 'viewing',
+    read: false,
+    createdAt: '2026-08-08T14:05:00Z',
+  },
+  {
+    id: 'notif-2',
+    userId: 'user-landlord-1',
+    title: 'Listing Under Review',
+    message: 'Your property "Ridge Heights Executive" is being reviewed by Goodlucks Admin.',
+    type: 'info',
+    read: true,
+    createdAt: '2026-08-09T18:02:00Z',
+  }
+];
+
+export const INITIAL_ANALYTICS: AnalyticsStats = {
+  visitorsToday: 1250,
+  visitorsYesterday: 980,
+  visitorsLast7Days: 8430,
+  visitorsLast30Days: 32500,
+  visitorsLast12Months: 248000,
+  growthPercentage: 18.5,
+  totalRegisteredUsers: 1420,
+  totalTenants: 1080,
+  totalLandlords: 340,
+  newUsersToday: 24,
+  newUsersThisWeek: 168,
+  totalProperties: 86,
+  approvedProperties: 74,
+  pendingProperties: 8,
+  rejectedProperties: 4,
+  totalViewings: 312,
+  physicalRevenueGhs: 31200, // GH₵ 100 per viewing fee paid physically
+  dailyTraffic: [
+    { label: 'Mon', visitors: 820, pageViews: 2400 },
+    { label: 'Tue', visitors: 940, pageViews: 2900 },
+    { label: 'Wed', visitors: 1100, pageViews: 3400 },
+    { label: 'Thu', visitors: 1050, pageViews: 3200 },
+    { label: 'Fri', visitors: 1300, pageViews: 4100 },
+    { label: 'Sat', visitors: 1420, pageViews: 4800 },
+    { label: 'Sun', visitors: 1250, pageViews: 3900 },
+  ],
+  monthlyTraffic: [
+    { label: 'Mar', visitors: 18000, pageViews: 52000 },
+    { label: 'Apr', visitors: 21000, pageViews: 63000 },
+    { label: 'May', visitors: 24500, pageViews: 71000 },
+    { label: 'Jun', visitors: 27000, pageViews: 81000 },
+    { label: 'Jul', visitors: 30200, pageViews: 92000 },
+    { label: 'Aug', visitors: 32500, pageViews: 104000 },
+  ]
+};

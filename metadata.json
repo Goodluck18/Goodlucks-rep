@@ -1,0 +1,6 @@
+{
+  "name": "Goodlucks Homes",
+  "description": "Premium AI-powered mobile-first rental platform connecting tenants and landlords via trusted intermediary services in Ghana.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

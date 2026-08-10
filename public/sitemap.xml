@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xmlns:image="http://www.google.com/schemas/sitemap-image/1.1"
+        xsi:schemaLocation="http://www.sitemaps.org/schemas/sitemap/0.9 http://www.sitemaps.org/schemas/sitemap/0.9/sitemap.xsd">
+
+  <!-- Homepage -->
+  <url>
+    <loc>https://goodluckshomes.com/</loc>
+    <lastmod>2026-08-10</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>1.0</priority>
+  </url>
+
+  <!-- Property Browse Page -->
+  <url>
+    <loc>https://goodluckshomes.com/?view=browse</loc>
+    <lastmod>2026-08-10</lastmod>
+    <changefreq>hourly</changefreq>
+    <priority>0.9</priority>
+  </url>
+
+  <!-- Find a Home / Requests -->
+  <url>
+    <loc>https://goodluckshomes.com/?view=find-home</loc>
+    <lastmod>2026-08-10</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+  </url>
+
+  <!-- List Property -->
+  <url>
+    <loc>https://goodluckshomes.com/?view=list-property</loc>
+    <lastmod>2026-08-10</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+
+  <!-- About Us -->
+  <url>
+    <loc>https://goodluckshomes.com/?view=about</loc>
+    <lastmod>2026-08-10</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+
+  <!-- Featured Real Estate Properties -->
+  <url>
+    <loc>https://goodluckshomes.com/?property=prop_01</loc>
+    <lastmod>2026-08-10</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.95</priority>
+    <image:image>
+      <image:loc>https://images.unsplash.com/photo-1545324418-cc1a3fa10c00</image:loc>
+      <image:title>Luxury 3-Bedroom Penthouse in Cantonments, Accra</image:title>
+    </image:image>
+  </url>
+
+  <url>
+    <loc>https://goodluckshomes.com/?property=prop_02</loc>
+    <lastmod>2026-08-10</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.95</priority>
+    <image:image>
+      <image:loc>https://images.unsplash.com/photo-1600585154340-be6161a56a0c</image:loc>
+      <image:title>Modern 2-Bedroom Apartment in Airport Residential Area</image:title>
+    </image:image>
+  </url>
+
+  <url>
+    <loc>https://goodluckshomes.com/?property=prop_03</loc>
+    <lastmod>2026-08-10</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.95</priority>
+    <image:image>
+      <image:loc>https://images.unsplash.com/photo-1512917774080-9991f1c4c750</image:loc>
+      <image:title>Executive 4-Bedroom House in East Legon, Accra</image:title>
+    </image:image>
+  </url>
+
+  <url>
+    <loc>https://goodluckshomes.com/?property=prop_04</loc>
+    <lastmod>2026-08-10</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.95</priority>
+    <image:image>
+      <image:loc>https://images.unsplash.com/photo-1502672260266-1c1ef2d93688</image:loc>
+      <image:title>Cosy Studio Apartment in Osu, Accra</image:title>
+    </image:image>
+  </url>
+
+  <url>
+    <loc>https://goodluckshomes.com/?property=prop_05</loc>
+    <lastmod>2026-08-10</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.95</priority>
+    <image:image>
+      <image:loc>https://images.unsplash.com/photo-1600596542815-ffad4c1539a9</image:loc>
+      <image:title>Spacious 3-Bedroom Townhouse in Spintex, Accra</image:title>
+    </image:image>
+  </url>
+
+  <url>
+    <loc>https://goodluckshomes.com/?property=prop_06</loc>
+    <lastmod>2026-08-10</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.95</priority>
+    <image:image>
+      <image:loc>https://images.unsplash.com/photo-1560448204-e02f11c3d0e2</image:loc>
+      <image:title>Modern 2-Bedroom Furnished Apartment in Labone, Accra</image:title>
+    </image:image>
+  </url>
+
+</urlset>
