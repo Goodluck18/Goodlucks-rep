@@ -6,7 +6,7 @@
 
   <!-- Homepage -->
   <url>
-    <loc>https://goodluckshomes.com/</loc>
+    <loc>https://rent.goodlucks.co/</loc>
     <lastmod>2026-08-10</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
@@ -14,7 +14,7 @@
 
   <!-- Property Browse Page -->
   <url>
-    <loc>https://goodluckshomes.com/?view=browse</loc>
+    <loc>https://rent.goodlucks.co/?view=browse</loc>
     <lastmod>2026-08-10</lastmod>
     <changefreq>hourly</changefreq>
     <priority>0.9</priority>
@@ -22,7 +22,7 @@
 
   <!-- Find a Home / Requests -->
   <url>
-    <loc>https://goodluckshomes.com/?view=find-home</loc>
+    <loc>https://rent.goodlucks.co/?view=find-home</loc>
     <lastmod>2026-08-10</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.8</priority>
@@ -30,7 +30,7 @@
 
   <!-- List Property -->
   <url>
-    <loc>https://goodluckshomes.com/?view=list-property</loc>
+    <loc>https://grent.goodlucks.co/?view=list-property</loc>
     <lastmod>2026-08-10</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
@@ -38,7 +38,7 @@
 
   <!-- About Us -->
   <url>
-    <loc>https://goodluckshomes.com/?view=about</loc>
+    <loc>https://rent.goodlucks.co/?view=about</loc>
     <lastmod>2026-08-10</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
@@ -46,7 +46,7 @@
 
   <!-- Featured Real Estate Properties -->
   <url>
-    <loc>https://goodluckshomes.com/?property=prop_01</loc>
+    <loc>https://rent.goodlucks.co/?property=prop_01</loc>
     <lastmod>2026-08-10</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.95</priority>
@@ -57,7 +57,7 @@
   </url>
 
   <url>
-    <loc>https://goodluckshomes.com/?property=prop_02</loc>
+    <loc>https://rent.goodlucks.co/?property=prop_02</loc>
     <lastmod>2026-08-10</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.95</priority>
@@ -68,7 +68,7 @@
   </url>
 
   <url>
-    <loc>https://goodluckshomes.com/?property=prop_03</loc>
+    <loc>https://rent.goodlucks.co/?property=prop_03</loc>
     <lastmod>2026-08-10</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.95</priority>
@@ -79,7 +79,7 @@
   </url>
 
   <url>
-    <loc>https://goodluckshomes.com/?property=prop_04</loc>
+    <loc>https://rent.goodlucks.co/?property=prop_04</loc>
     <lastmod>2026-08-10</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.95</priority>
@@ -90,7 +90,7 @@
   </url>
 
   <url>
-    <loc>https://goodluckshomes.com/?property=prop_05</loc>
+    <loc>https://rent.goodlucks.co/?property=prop_05</loc>
     <lastmod>2026-08-10</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.95</priority>
@@ -101,7 +101,7 @@
   </url>
 
   <url>
-    <loc>https://goodluckshomes.com/?property=prop_06</loc>
+    <loc>https://rent.goodlucks.co/?property=prop_06</loc>
     <lastmod>2026-08-10</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.95</priority>
