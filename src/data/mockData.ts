@@ -1,4 +1,4 @@
-import { Property, User, TenantRequest, ViewingSchedule, EmailLog, NotificationItem, AnalyticsStats } from '../types';
+import { Property, User, TenantRequest, ViewingSchedule, EmailLog, NotificationItem, AnalyticsStats, TenancyAgreement, RentReceipt } from '../types';
 
 export const INITIAL_USERS: User[] = [
   {
@@ -45,6 +45,9 @@ export const INITIAL_PROPERTIES: Property[] = [
   {
     id: 'prop-1',
     landlordId: 'user-landlord-1',
+    isLandlordVerified: true,
+    landlordName: 'Abena Osei',
+    landlordCompany: 'Prime Haven Properties Ltd',
     title: 'The Pearl Executive 3-Bedroom Apartment',
     location: 'Cantonments, Accra',
     city: 'Accra',
@@ -86,6 +89,9 @@ export const INITIAL_PROPERTIES: Property[] = [
   {
     id: 'prop-2',
     landlordId: 'user-landlord-1',
+    isLandlordVerified: true,
+    landlordName: 'Abena Osei',
+    landlordCompany: 'Prime Haven Properties Ltd',
     title: 'Minimalist Modern Studio Loft',
     location: 'Osu, Accra',
     city: 'Accra',
@@ -123,6 +129,9 @@ export const INITIAL_PROPERTIES: Property[] = [
   {
     id: 'prop-3',
     landlordId: 'user-landlord-1',
+    isLandlordVerified: true,
+    landlordName: 'Abena Osei',
+    landlordCompany: 'Prime Haven Properties Ltd',
     title: 'East Legon 4-Bedroom Glass Villa',
     location: 'East Legon, Accra',
     city: 'Accra',
@@ -161,6 +170,9 @@ export const INITIAL_PROPERTIES: Property[] = [
   {
     id: 'prop-4',
     landlordId: 'user-landlord-1',
+    isLandlordVerified: true,
+    landlordName: 'Abena Osei',
+    landlordCompany: 'Prime Haven Properties Ltd',
     title: 'Airport Residential Sky Penthouse',
     location: 'Airport Residential Area, Accra',
     city: 'Accra',
@@ -196,6 +208,9 @@ export const INITIAL_PROPERTIES: Property[] = [
   {
     id: 'prop-5',
     landlordId: 'user-landlord-1',
+    isLandlordVerified: true,
+    landlordName: 'Abena Osei',
+    landlordCompany: 'Prime Haven Properties Ltd',
     title: 'Labone Gated Luxury 3-Bed Townhouse',
     location: 'Labone, Accra',
     city: 'Accra',
@@ -230,6 +245,9 @@ export const INITIAL_PROPERTIES: Property[] = [
   {
     id: 'prop-6',
     landlordId: 'user-landlord-1',
+    isLandlordVerified: true,
+    landlordName: 'Abena Osei',
+    landlordCompany: 'Prime Haven Properties Ltd',
     title: 'Spintex Road 2-Bedroom Modern Duplex',
     location: 'Spintex, Accra',
     city: 'Accra',
@@ -464,3 +482,102 @@ export const INITIAL_ANALYTICS: AnalyticsStats = {
     { label: 'Aug', visitors: 32500, pageViews: 104000 },
   ]
 };
+
+export const INITIAL_AGREEMENTS: TenancyAgreement[] = [
+  {
+    id: 'agr-01',
+    propertyId: 'prop-1',
+    propertyTitle: 'The Pearl Executive 3-Bedroom Apartment',
+    propertyAddress: 'Unit 4B, Cantonments Executive Enclave',
+    city: 'Accra',
+    landlordName: 'Abena Osei',
+    landlordPhone: '+233 20 899 7711',
+    landlordGhanaCard: 'GHA-720199281-9',
+    tenantName: 'Kofi Mensah',
+    tenantPhone: '+233 24 412 3456',
+    tenantGhanaCard: 'GHA-908123412-3',
+    monthlyRentGhs: 6500,
+    durationMonths: 12,
+    totalRentGhs: 78000,
+    securityDepositGhs: 6500,
+    startDate: '2026-09-01',
+    endDate: '2027-08-31',
+    noticePeriodMonths: 3,
+    utilitiesResponsibility: 'Tenant pays ECG prepaid electricity & water usage. Landlord covers service charge & security.',
+    landlordSigned: true,
+    tenantSigned: true,
+    landlordSignatureDate: '2026-08-01T10:00:00Z',
+    tenantSignatureDate: '2026-08-02T14:30:00Z',
+    witnessName: 'Ebenezer Mensah (Goodlucks Officer)',
+    status: 'active',
+    verificationCode: 'GHL-AGR-2026-8812',
+    createdAt: '2026-08-01T09:00:00Z',
+  },
+  {
+    id: 'agr-02',
+    propertyId: 'prop-3',
+    propertyTitle: 'East Legon Modern 4-Bedroom Villa',
+    propertyAddress: '12 Lagos Avenue, East Legon',
+    city: 'Accra',
+    landlordName: 'Abena Osei',
+    landlordPhone: '+233 20 899 7711',
+    landlordGhanaCard: 'GHA-720199281-9',
+    tenantName: 'Kwame Mensah',
+    tenantPhone: '+233 20 111 2233',
+    tenantGhanaCard: 'GHA-551092837-1',
+    monthlyRentGhs: 12000,
+    durationMonths: 24,
+    totalRentGhs: 288000,
+    securityDepositGhs: 12000,
+    startDate: '2026-10-01',
+    endDate: '2028-09-30',
+    noticePeriodMonths: 3,
+    utilitiesResponsibility: 'Tenant covers all utility bills including standby generator fuel.',
+    landlordSigned: true,
+    tenantSigned: false,
+    landlordSignatureDate: '2026-08-05T11:00:00Z',
+    witnessName: 'Ebenezer Mensah',
+    status: 'pending_signatures',
+    verificationCode: 'GHL-AGR-2026-9943',
+    createdAt: '2026-08-05T10:30:00Z',
+  }
+];
+
+export const INITIAL_RECEIPTS: RentReceipt[] = [
+  {
+    id: 'rec-01',
+    receiptNo: 'GHL-REC-2026-1001',
+    propertyTitle: 'The Pearl Executive 3-Bedroom Apartment',
+    propertyAddress: 'Unit 4B, Cantonments Executive Enclave, Accra',
+    tenantName: 'Kofi Mensah',
+    tenantPhone: '+233 24 412 3456',
+    landlordName: 'Abena Osei',
+    amountGhs: 78000,
+    amountInWords: 'Seventy-Eight Thousand Ghana Cedis Only',
+    paymentPurpose: '1 Year Rent Advance (Sept 2026 - Aug 2027)',
+    paymentMethod: 'Bank Transfer',
+    transactionRef: 'GCB-TRX-20260801-9988',
+    paymentDate: '2026-08-01',
+    issuedBy: 'Goodlucks Homes Intermediary',
+    verificationCode: 'VERIFIED-REC-9081',
+    createdAt: '2026-08-01T10:15:00Z',
+  },
+  {
+    id: 'rec-02',
+    receiptNo: 'GHL-REC-2026-1002',
+    propertyTitle: 'The Pearl Executive 3-Bedroom Apartment',
+    propertyAddress: 'Unit 4B, Cantonments Executive Enclave, Accra',
+    tenantName: 'Kofi Mensah',
+    tenantPhone: '+233 24 412 3456',
+    landlordName: 'Abena Osei',
+    amountGhs: 6500,
+    amountInWords: 'Six Thousand Five Hundred Ghana Cedis Only',
+    paymentPurpose: 'Refundable Security & Caution Deposit',
+    paymentMethod: 'MTN MoMo',
+    transactionRef: 'MOMO-GH-20260801-4412',
+    paymentDate: '2026-08-01',
+    issuedBy: 'Goodlucks Homes Intermediary',
+    verificationCode: 'VERIFIED-REC-9082',
+    createdAt: '2026-08-01T10:20:00Z',
+  }
+];

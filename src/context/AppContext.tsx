@@ -9,7 +9,10 @@ import {
   AnalyticsStats, 
   PropertyStatus,
   UserRole,
-  ToastNotification
+  ToastNotification,
+  TenancyAgreement,
+  RentReceipt,
+  SearchAlertSubscription
 } from '../types';
 import { 
   INITIAL_USERS, 
@@ -18,7 +21,9 @@ import {
   INITIAL_VIEWING_SCHEDULES, 
   INITIAL_EMAIL_LOGS, 
   INITIAL_NOTIFICATIONS, 
-  INITIAL_ANALYTICS 
+  INITIAL_ANALYTICS,
+  INITIAL_AGREEMENTS,
+  INITIAL_RECEIPTS
 } from '../data/mockData';
 import { ToastContainer } from '../components/ToastContainer';
 import { sendEmailViaResend } from '../services/emailService';
@@ -30,9 +35,12 @@ interface AppContextType {
   tenantRequests: TenantRequest[];
   viewingSchedules: ViewingSchedule[];
   emailLogs: EmailLog[];
+  agreements: TenancyAgreement[];
+  receipts: RentReceipt[];
   notifications: NotificationItem[];
   analytics: AnalyticsStats;
   savedPropertyIds: string[];
+  searchAlerts: SearchAlertSubscription[];
   currentView: string;
   selectedPropertyId: string | null;
   toasts: ToastNotification[];
@@ -43,6 +51,10 @@ interface AppContextType {
   showErrorToast: (title: string, message?: string) => void;
   showInfoToast: (title: string, message?: string) => void;
   dismissToast: (id: string) => void;
+
+  // Search Alert Actions
+  subscribeToSearchAlerts: (subData: Omit<SearchAlertSubscription, 'id' | 'createdAt' | 'active'>) => SearchAlertSubscription;
+  unsubscribeFromSearchAlerts: (id: string) => void;
 
   // Navigation & View Actions
   setCurrentView: (view: string) => void;
@@ -69,6 +81,11 @@ interface AppContextType {
   scheduleViewing: (viewingData: Omit<ViewingSchedule, 'id' | 'createdAt'>) => void;
   updateViewingStatus: (id: string, status: ViewingSchedule['status'], feePaid?: boolean, notes?: string) => void;
   
+  // Tenancy Agreement & Receipt Actions
+  createAgreement: (agreementData: Omit<TenancyAgreement, 'id' | 'createdAt' | 'verificationCode'>) => TenancyAgreement;
+  signAgreement: (id: string, role: 'landlord' | 'tenant') => void;
+  createReceipt: (receiptData: Omit<RentReceipt, 'id' | 'createdAt' | 'receiptNo' | 'verificationCode'>) => RentReceipt;
+
   // Helper
   sendSimulatedEmail: (type: EmailLog['type'], recipientEmail: string, recipientName: string, subject: string, bodyPreview: string) => void;
   markNotificationRead: (id: string) => void;
@@ -83,6 +100,9 @@ const STORAGE_KEY_VIEWINGS = 'goodlucks_viewings';
 const STORAGE_KEY_SAVED = 'goodlucks_saved';
 const STORAGE_KEY_EMAILS = 'goodlucks_emails';
 const STORAGE_KEY_NOTIFS = 'goodlucks_notifs';
+const STORAGE_KEY_AGREEMENTS = 'goodlucks_agreements';
+const STORAGE_KEY_RECEIPTS = 'goodlucks_receipts';
+const STORAGE_KEY_SEARCH_ALERTS = 'goodlucks_search_alerts';
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Load from local storage or fallback to initial defaults
@@ -140,6 +160,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       try { return JSON.parse(saved); } catch (e) { console.error(e); }
     }
     return INITIAL_NOTIFICATIONS;
+  });
+
+  const [agreements, setAgreements] = useState<TenancyAgreement[]>(() => {
+    const saved = localStorage.getItem(STORAGE_KEY_AGREEMENTS);
+    if (saved) {
+      try { return JSON.parse(saved); } catch (e) { console.error(e); }
+    }
+    return INITIAL_AGREEMENTS;
+  });
+
+  const [receipts, setReceipts] = useState<RentReceipt[]>(() => {
+    const saved = localStorage.getItem(STORAGE_KEY_RECEIPTS);
+    if (saved) {
+      try { return JSON.parse(saved); } catch (e) { console.error(e); }
+    }
+    return INITIAL_RECEIPTS;
+  });
+
+  const [searchAlerts, setSearchAlerts] = useState<SearchAlertSubscription[]>(() => {
+    const saved = localStorage.getItem(STORAGE_KEY_SEARCH_ALERTS);
+    if (saved) {
+      try { return JSON.parse(saved); } catch (e) { console.error(e); }
+    }
+    return [];
   });
 
   const [analytics] = useState<AnalyticsStats>(INITIAL_ANALYTICS);
@@ -256,6 +300,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY_NOTIFS, JSON.stringify(notifications));
   }, [notifications]);
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY_AGREEMENTS, JSON.stringify(agreements));
+  }, [agreements]);
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY_RECEIPTS, JSON.stringify(receipts));
+  }, [receipts]);
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY_SEARCH_ALERTS, JSON.stringify(searchAlerts));
+  }, [searchAlerts]);
 
   const currentRole: UserRole = currentUser ? currentUser.role : 'guest';
 
@@ -591,6 +647,118 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
   };
 
+  const createAgreement = (agreementData: Omit<TenancyAgreement, 'id' | 'createdAt' | 'verificationCode'>) => {
+    const code = `GHL-AGR-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
+    const newAgreement: TenancyAgreement = {
+      ...agreementData,
+      id: `agr-${Date.now()}`,
+      verificationCode: code,
+      createdAt: new Date().toISOString(),
+    };
+    setAgreements(prev => [newAgreement, ...prev]);
+    showSuccessToast('Tenancy Agreement Created', `Agreement generated with verification code ${code}`);
+    return newAgreement;
+  };
+
+  const signAgreement = (id: string, role: 'landlord' | 'tenant') => {
+    const now = new Date().toISOString();
+    setAgreements(prev => prev.map(a => {
+      if (a.id === id) {
+        const updated = {
+          ...a,
+          landlordSigned: role === 'landlord' ? true : a.landlordSigned,
+          tenantSigned: role === 'tenant' ? true : a.tenantSigned,
+          landlordSignatureDate: role === 'landlord' ? now : a.landlordSignatureDate,
+          tenantSignatureDate: role === 'tenant' ? now : a.tenantSignatureDate,
+        };
+        if (updated.landlordSigned && updated.tenantSigned) {
+          updated.status = 'active';
+        }
+        return updated;
+      }
+      return a;
+    }));
+    showSuccessToast('Agreement Electronically Signed', `Signed as ${role === 'landlord' ? 'Landlord' : 'Tenant'}.`);
+  };
+
+  const createReceipt = (receiptData: Omit<RentReceipt, 'id' | 'createdAt' | 'receiptNo' | 'verificationCode'>) => {
+    const receiptNo = `GHL-REC-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
+    const verificationCode = `VERIFIED-REC-${Math.floor(1000 + Math.random() * 9000)}`;
+    const newReceipt: RentReceipt = {
+      ...receiptData,
+      id: `rec-${Date.now()}`,
+      receiptNo,
+      verificationCode,
+      createdAt: new Date().toISOString(),
+    };
+    setReceipts(prev => [newReceipt, ...prev]);
+    showSuccessToast('Official Receipt Issued', `Receipt No. ${receiptNo} issued successfully.`);
+    return newReceipt;
+  };
+
+  const subscribeToSearchAlerts = (subData: Omit<SearchAlertSubscription, 'id' | 'createdAt' | 'active'>) => {
+    const newSubscription: SearchAlertSubscription = {
+      ...subData,
+      id: `alert-${Date.now()}`,
+      createdAt: new Date().toISOString(),
+      active: true,
+    };
+
+    setSearchAlerts(prev => [newSubscription, ...prev]);
+
+    // Create Email Log for subscriber
+    const newEmailLog: EmailLog = {
+      id: `email-${Date.now()}`,
+      recipientEmail: subData.email,
+      recipientName: subData.name || subData.email.split('@')[0],
+      subject: `🔔 Goodlucks Search Alert Active: ${subData.location || 'Accra'} Listings`,
+      type: 'alert_subscription',
+      bodyPreview: `Listing alert activated for ${subData.location} (${subData.propertyType}) up to GH₵ ${subData.maxRentGhs.toLocaleString()}/mo.`,
+      sentAt: new Date().toISOString(),
+      status: 'delivered',
+    };
+    setEmailLogs(prev => [newEmailLog, ...prev]);
+
+    // Send real email via Resend / endpoint
+    sendEmailViaResend({
+      to: subData.email,
+      recipientName: subData.name || subData.email.split('@')[0],
+      subject: `🔔 Goodlucks Search Alert Active: ${subData.location || 'Accra'} Listings`,
+      type: 'alert_subscription',
+      data: {
+        location: subData.location,
+        propertyType: subData.propertyType,
+        maxRentGhs: subData.maxRentGhs,
+        bedrooms: subData.bedrooms,
+        frequency: subData.frequency,
+      },
+    });
+
+    // Push notification item
+    const notifItem: NotificationItem = {
+      id: `notif-${Date.now()}`,
+      userId: currentUser?.id || 'guest',
+      title: 'Search Alert Subscribed',
+      message: `You will receive ${subData.frequency} alerts for listings in ${subData.location || 'Accra'}.`,
+      type: 'success',
+      read: false,
+      createdAt: new Date().toISOString(),
+    };
+    setNotifications(prev => [notifItem, ...prev]);
+
+    showSuccessToast(
+      'Search Alert Activated!', 
+      `Alerts will be sent to ${subData.email} for matching listings.`
+    );
+
+    return newSubscription;
+  };
+
+  const unsubscribeFromSearchAlerts = (id: string) => {
+    setSearchAlerts(prev => prev.filter(s => s.id !== id));
+    showInfoToast('Alert Subscription Removed', 'You will no longer receive alerts for this search.');
+  };
+
   return (
     <AppContext.Provider
       value={{
@@ -600,6 +768,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         tenantRequests,
         viewingSchedules,
         emailLogs,
+        agreements,
+        receipts,
+        searchAlerts,
         notifications,
         analytics,
         savedPropertyIds,
@@ -611,6 +782,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         showErrorToast,
         showInfoToast,
         dismissToast,
+        subscribeToSearchAlerts,
+        unsubscribeFromSearchAlerts,
         setCurrentView,
         navigateToProperty,
         loginAsRole,
@@ -626,6 +799,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateTenantRequestStatus,
         scheduleViewing,
         updateViewingStatus,
+        createAgreement,
+        signAgreement,
+        createReceipt,
         sendSimulatedEmail,
         markNotificationRead,
       }}

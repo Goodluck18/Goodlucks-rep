@@ -36,9 +36,27 @@ export interface NearbyPlace {
   distance: string;
 }
 
+export interface LandlordVerificationInfo {
+  isVerified: boolean;
+  landlordName?: string;
+  landlordCompany?: string;
+  landlordAvatar?: string;
+  landlordPhone?: string;
+  verificationLevel?: 'verified' | 'gold' | 'institutional';
+  ghanaCardVerified?: boolean;
+  titleDeedVerified?: boolean;
+  physicalInspected?: boolean;
+  verifiedSince?: string;
+  responseRate?: string;
+}
+
 export interface Property {
   id: string;
   landlordId: string;
+  isLandlordVerified?: boolean;
+  landlordName?: string;
+  landlordCompany?: string;
+  landlordVerificationDetails?: LandlordVerificationInfo;
   title: string;
   location: string;
   city: string;
@@ -118,6 +136,22 @@ export interface ViewingSchedule {
   createdAt: string;
 }
 
+export interface SearchAlertSubscription {
+  id: string;
+  email: string;
+  name?: string;
+  phone?: string;
+  location: string;
+  propertyType: string;
+  bedrooms: number | 'All';
+  maxRentGhs: number;
+  searchQuery?: string;
+  frequency: 'instant' | 'daily' | 'weekly';
+  channels: ('email' | 'whatsapp')[];
+  createdAt: string;
+  active: boolean;
+}
+
 export interface EmailLog {
   id: string;
   recipientEmail: string;
@@ -132,7 +166,8 @@ export interface EmailLog {
     | 'property_rejection' 
     | 'viewing_scheduled' 
     | 'viewing_reminder' 
-    | 'match_found';
+    | 'match_found'
+    | 'alert_subscription';
   bodyPreview: string;
   sentAt: string;
   status: 'sent' | 'delivered';
@@ -182,4 +217,53 @@ export interface AnalyticsStats {
   physicalRevenueGhs: number;
   dailyTraffic: TrafficDataPoint[];
   monthlyTraffic: TrafficDataPoint[];
+}
+
+export interface TenancyAgreement {
+  id: string;
+  propertyId?: string;
+  propertyTitle: string;
+  propertyAddress: string;
+  city: string;
+  landlordName: string;
+  landlordPhone: string;
+  landlordGhanaCard: string;
+  tenantName: string;
+  tenantPhone: string;
+  tenantGhanaCard: string;
+  monthlyRentGhs: number;
+  durationMonths: number;
+  totalRentGhs: number;
+  securityDepositGhs: number;
+  startDate: string;
+  endDate: string;
+  noticePeriodMonths: number;
+  utilitiesResponsibility: string;
+  landlordSigned: boolean;
+  tenantSigned: boolean;
+  landlordSignatureDate?: string;
+  tenantSignatureDate?: string;
+  witnessName?: string;
+  status: 'draft' | 'pending_signatures' | 'active' | 'expired';
+  verificationCode: string;
+  createdAt: string;
+}
+
+export interface RentReceipt {
+  id: string;
+  receiptNo: string;
+  propertyTitle: string;
+  propertyAddress: string;
+  tenantName: string;
+  tenantPhone: string;
+  landlordName: string;
+  amountGhs: number;
+  amountInWords: string;
+  paymentPurpose: string;
+  paymentMethod: 'MTN MoMo' | 'Telecel Cash' | 'Bank Transfer' | 'Card' | 'Cash';
+  transactionRef: string;
+  paymentDate: string;
+  issuedBy: string;
+  verificationCode: string;
+  createdAt: string;
 }

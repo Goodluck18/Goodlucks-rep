@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { PropertyCard } from './PropertyCard';
 import { ViewingRequestModal } from './ViewingRequestModal';
+import { GetNotifiedModal } from './GetNotifiedModal';
 import { SEOHead } from './SEOHead';
 import { Property, PropertyType } from '../types';
 import { 
@@ -20,7 +21,11 @@ import {
   Check,
   RotateCcw,
   SlidersHorizontal,
-  Banknote
+  Banknote,
+  ShieldCheck,
+  Bell,
+  BellRing,
+  Mail
 } from 'lucide-react';
 
 interface CategoryItem {
@@ -41,7 +46,7 @@ const CATEGORIES: CategoryItem[] = [
 ];
 
 export const BrowseView: React.FC = () => {
-  const { properties } = useApp();
+  const { properties, searchAlerts } = useApp();
   
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedLocation, setSelectedLocation] = useState('All');
@@ -49,6 +54,7 @@ export const BrowseView: React.FC = () => {
   const [selectedBedrooms, setSelectedBedrooms] = useState<number | 'All'>('All');
   const [maxRent, setMaxRent] = useState(25000);
   const [selectedViewingProp, setSelectedViewingProp] = useState<Property | null>(null);
+  const [isNotifiedModalOpen, setIsNotifiedModalOpen] = useState(false);
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
@@ -67,7 +73,7 @@ export const BrowseView: React.FC = () => {
         "@type": "RealEstateListing",
         "name": p.title,
         "description": p.description,
-        "url": typeof window !== 'undefined' ? `${window.location.origin}/?property=${p.id}` : `https://goodluckshomes.com/?property=${p.id}`,
+        "url": typeof window !== 'undefined' ? `${window.location.origin}/?property=${p.id}` : `https://rent.goodlucks.co/?property=${p.id}`,
         "offers": {
           "@type": "Offer",
           "price": p.rentGhs,
@@ -135,7 +141,15 @@ export const BrowseView: React.FC = () => {
             </p>
           </div>
 
-          <div className="flex items-center gap-2 self-start md:self-auto">
+          <div className="flex items-center gap-2 self-start md:self-auto flex-wrap">
+            <button
+              onClick={() => setIsNotifiedModalOpen(true)}
+              className="text-xs font-black text-[#252A34] bg-[#08D9D6] hover:bg-[#08D9D6]/90 px-3.5 py-1.5 rounded-full transition-all shadow-md shadow-[#08D9D6]/20 flex items-center gap-1.5 active:scale-95 cursor-pointer"
+              title="Subscribe to email alerts for new listings matching these search filters"
+            >
+              <BellRing className="w-3.5 h-3.5 animate-pulse" />
+              <span>Get Notified</span>
+            </button>
             <span className="text-xs font-bold text-[#08D9D6] bg-[#08D9D6]/10 px-3.5 py-1.5 rounded-full border border-[#08D9D6]/30">
               Showing {filteredProperties.length} Properties
             </span>
@@ -287,7 +301,7 @@ export const BrowseView: React.FC = () => {
           {/* ================= PRICE RANGE SLIDER FILTER ================= */}
           <div className="pt-3 border-t border-white/10 space-y-2.5">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <SlidersHorizontal className="w-4 h-4 text-[#08D9D6]" />
                 <span className="text-xs font-bold text-white">Monthly Rent Budget</span>
                 <span className="text-xs text-[#08D9D6] font-extrabold bg-[#08D9D6]/10 px-2.5 py-0.5 rounded-full border border-[#08D9D6]/20">
@@ -339,6 +353,36 @@ export const BrowseView: React.FC = () => {
 
         </div>
 
+        {/* ================= GET NOTIFIED CALLOUT BANNER ================= */}
+        <div className="bg-gradient-to-r from-[#252A34] via-slate-900 to-[#1F242D] border border-[#08D9D6]/30 p-3.5 sm:p-4 rounded-2xl shadow-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-[#08D9D6]/10 rounded-full blur-2xl pointer-events-none" />
+          <div className="flex items-start sm:items-center gap-3 relative z-10">
+            <div className="p-2.5 rounded-xl bg-[#08D9D6]/15 border border-[#08D9D6]/30 text-[#08D9D6] shrink-0">
+              <Bell className="w-5 h-5 text-[#08D9D6]" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs font-black text-white">Never Miss a Listing in Greater Accra</span>
+                {searchAlerts.length > 0 && (
+                  <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/30 flex items-center gap-1">
+                    <Check className="w-3 h-3" /> {searchAlerts.length} Active Alert{searchAlerts.length > 1 ? 's' : ''}
+                  </span>
+                )}
+              </div>
+              <p className="text-[11px] sm:text-xs text-slate-300 mt-0.5">
+                Get instant email or WhatsApp alerts when a verified <strong className="text-[#08D9D6]">{selectedType === 'All' ? 'Property' : selectedType}</strong> in <strong className="text-white">{selectedLocation === 'All' ? 'Accra' : selectedLocation}</strong> (under GH₵ {maxRent.toLocaleString()}/mo) goes live.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => setIsNotifiedModalOpen(true)}
+            className="w-full sm:w-auto px-4 py-2 rounded-xl font-extrabold text-xs text-[#252A34] bg-[#08D9D6] hover:bg-[#08D9D6]/90 transition-all shadow-md shadow-[#08D9D6]/20 flex items-center justify-center gap-1.5 shrink-0 active:scale-95 cursor-pointer relative z-10"
+          >
+            <BellRing className="w-3.5 h-3.5" />
+            <span>Get Email Alerts</span>
+          </button>
+        </div>
+
         {/* PROPERTY GRID - STRICT REQUIREMENT: 2 CARDS PER ROW ON MOBILE */}
         {filteredProperties.length > 0 ? (
           <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6">
@@ -351,16 +395,29 @@ export const BrowseView: React.FC = () => {
             ))}
           </div>
         ) : (
-          <div className="text-center py-16 bg-[#252A34]/50 backdrop-blur-xl rounded-3xl border border-white/10 space-y-3">
+          <div className="text-center py-16 bg-[#252A34]/50 backdrop-blur-xl rounded-3xl border border-white/10 space-y-4 px-4">
             <Building2 className="w-12 h-12 text-slate-500 mx-auto" />
-            <div className="text-lg font-bold text-white">No Properties Matched Your Filter</div>
-            <p className="text-xs text-slate-400 max-w-sm mx-auto">Try resetting location or budget filters to explore active listings in Greater Accra.</p>
-            <button
-              onClick={() => { setSelectedLocation('All'); setSelectedType('All'); setSearchQuery(''); setSelectedBedrooms('All'); setMaxRent(25000); }}
-              className="px-4 py-2 rounded-xl bg-[#08D9D6] text-[#252A34] text-xs font-extrabold shadow-lg"
-            >
-              Reset All Filters
-            </button>
+            <div className="space-y-1">
+              <div className="text-lg font-bold text-white">No Properties Matched Your Search</div>
+              <p className="text-xs text-slate-400 max-w-md mx-auto">
+                No active listings match your criteria right now. Subscribe to instant alerts and we'll notify you as soon as a matching home is verified!
+              </p>
+            </div>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-2 pt-2">
+              <button
+                onClick={() => setIsNotifiedModalOpen(true)}
+                className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-[#08D9D6] text-[#252A34] text-xs font-black shadow-lg hover:bg-[#08D9D6]/90 transition-all flex items-center justify-center gap-2 active:scale-95 cursor-pointer"
+              >
+                <Bell className="w-4 h-4" />
+                <span>Get Notified When Listed</span>
+              </button>
+              <button
+                onClick={() => { setSelectedLocation('All'); setSelectedType('All'); setSearchQuery(''); setSelectedBedrooms('All'); setMaxRent(25000); }}
+                className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-semibold transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <RotateCcw className="w-3.5 h-3.5 text-[#08D9D6]" /> Reset All Filters
+              </button>
+            </div>
           </div>
         )}
 
@@ -371,6 +428,20 @@ export const BrowseView: React.FC = () => {
         <ViewingRequestModal 
           property={selectedViewingProp} 
           onClose={() => setSelectedViewingProp(null)} 
+        />
+      )}
+
+      {/* Get Notified Search Alerts Modal */}
+      {isNotifiedModalOpen && (
+        <GetNotifiedModal
+          onClose={() => setIsNotifiedModalOpen(false)}
+          initialFilters={{
+            location: selectedLocation,
+            propertyType: selectedType,
+            bedrooms: selectedBedrooms,
+            maxRent: maxRent,
+            searchQuery: searchQuery,
+          }}
         />
       )}
 

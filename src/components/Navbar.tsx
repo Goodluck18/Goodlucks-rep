@@ -21,7 +21,14 @@ interface NavbarProps {
 }
 
 export const Navbar: React.FC<NavbarProps> = ({ onOpenAuth }) => {
-  const { currentUser, currentRole, currentView, setCurrentView, logout, notifications } = useApp();
+  const { 
+    currentUser, 
+    currentRole, 
+    currentView, 
+    setCurrentView, 
+    logout, 
+    notifications
+  } = useApp();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const unreadCount = notifications.filter(n => !n.read).length;
@@ -85,6 +92,12 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAuth }) => {
                 List Property
               </button>
               <button 
+                onClick={() => handleNavClick('agreements')}
+                className={`px-3.5 py-2 rounded-lg transition-all ${currentView === 'agreements' || currentView === 'agreement-generator' ? 'text-[#08D9D6] bg-white/5 font-semibold' : 'text-slate-300 hover:text-white hover:bg-white/5'}`}
+              >
+                Agreements & Receipts
+              </button>
+              <button 
                 onClick={() => handleNavClick('about')}
                 className={`px-3.5 py-2 rounded-lg transition-all ${currentView === 'about' ? 'text-[#08D9D6] bg-white/5 font-semibold' : 'text-slate-300 hover:text-white hover:bg-white/5'}`}
               >
@@ -119,6 +132,12 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAuth }) => {
                 className={`px-3 py-2 rounded-lg transition-all ${currentView === 'find-home' ? 'text-[#08D9D6] bg-white/5 font-semibold' : 'text-slate-300 hover:text-white hover:bg-white/5'}`}
               >
                 Find a Home
+              </button>
+              <button 
+                onClick={() => handleNavClick('agreements')}
+                className={`px-3 py-2 rounded-lg transition-all ${currentView === 'agreements' || currentView === 'agreement-generator' ? 'text-[#08D9D6] bg-white/5 font-semibold' : 'text-slate-300 hover:text-white hover:bg-white/5'}`}
+              >
+                Agreements & Receipts
               </button>
               <button 
                 onClick={() => handleNavClick('dashboard')}
@@ -176,6 +195,12 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAuth }) => {
                 className={`px-3 py-2 rounded-lg transition-all ${currentView === 'my-properties' ? 'text-[#08D9D6] bg-white/5 font-semibold' : 'text-slate-300 hover:text-white hover:bg-white/5'}`}
               >
                 My Properties
+              </button>
+              <button 
+                onClick={() => handleNavClick('agreements')}
+                className={`px-3 py-2 rounded-lg transition-all ${currentView === 'agreements' || currentView === 'agreement-generator' ? 'text-[#08D9D6] bg-white/5 font-semibold' : 'text-slate-300 hover:text-white hover:bg-white/5'}`}
+              >
+                Agreements & Receipts
               </button>
               <button 
                 onClick={() => handleNavClick('profile')}

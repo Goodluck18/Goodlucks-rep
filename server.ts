@@ -63,7 +63,7 @@ app.post("/api/send-email", async (req, res) => {
     }
 
     // Default sender or custom Resend verified sender
-    const fromAddress = process.env.RESEND_FROM_EMAIL || "Goodlucks Homes <onboarding@resend.dev>";
+    const fromAddress = process.env.RESEND_FROM_EMAIL || "Goodlucks Homes <rentals@goodlucks.co>";
 
     const { data, error } = await resend.emails.send({
       from: fromAddress,

@@ -17,7 +17,10 @@ import {
   Bell,
   Sparkles,
   ChevronRight,
-  Check
+  Check,
+  FileCheck,
+  FileText,
+  Receipt
 } from 'lucide-react';
 
 export const LandlordDashboard: React.FC = () => {
@@ -170,6 +173,14 @@ export const LandlordDashboard: React.FC = () => {
               >
                 <Building2 className="w-3.5 h-3.5 text-[#08D9D6]" />
                 <span>View Public Catalog</span>
+              </button>
+
+              <button
+                onClick={() => setCurrentView('agreements')}
+                className="w-full py-2 px-3 rounded-xl bg-[#08D9D6]/10 hover:bg-[#08D9D6]/20 text-[#08D9D6] text-xs font-extrabold border border-[#08D9D6]/30 transition-colors flex items-center justify-center gap-1.5"
+              >
+                <FileCheck className="w-3.5 h-3.5 text-[#08D9D6]" />
+                <span>Agreements & Receipts</span>
               </button>
             </div>
           </div>
@@ -501,8 +512,11 @@ export const LandlordDashboard: React.FC = () => {
 
       {/* Delete Confirmation Modal */}
       {deleteModalPropId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fadeIn">
-          <div className="bg-[#252A34] border border-[#FF2E63]/40 rounded-3xl p-6 max-w-md w-full text-center space-y-4 shadow-2xl">
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/80 backdrop-blur-md animate-fadeIn p-2 sm:p-4 flex items-start sm:items-center justify-center">
+          <div 
+            className="bg-[#252A34] border border-[#FF2E63]/40 rounded-2xl sm:rounded-3xl p-5 sm:p-6 max-w-md w-full text-center space-y-4 shadow-2xl my-auto max-h-[88dvh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="w-12 h-12 rounded-full bg-[#FF2E63]/20 text-[#FF2E63] border border-[#FF2E63]/30 flex items-center justify-center mx-auto">
               <AlertTriangle className="w-6 h-6" />
             </div>

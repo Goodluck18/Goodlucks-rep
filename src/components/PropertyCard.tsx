@@ -42,7 +42,7 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({ property, onRequestV
         <div className="absolute inset-0 bg-gradient-to-t from-[#252A34] via-transparent to-black/30 opacity-80" />
 
         {/* Top Badges */}
-        <div className="absolute top-2 left-2 right-2 flex justify-between items-center z-10">
+        <div className="absolute top-2 left-2 right-2 flex justify-between items-center z-10 gap-1">
           <span className="px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full text-[10px] sm:text-xs font-bold uppercase tracking-wider bg-[#08D9D6] text-[#252A34] shadow-md backdrop-blur-md">
             {property.propertyType}
           </span>
@@ -54,7 +54,7 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({ property, onRequestV
               e.stopPropagation();
               toggleSaveProperty(property.id);
             }}
-            className={`p-1.5 sm:p-2 rounded-full backdrop-blur-md transition-transform duration-200 active:scale-125 ${
+            className={`p-1.5 sm:p-2 rounded-full backdrop-blur-md transition-transform duration-200 active:scale-125 shrink-0 ${
               isSaved 
                 ? 'bg-[#FF2E63] text-white' 
                 : 'bg-black/40 text-white hover:bg-black/60'
@@ -146,7 +146,7 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({ property, onRequestV
             className="py-1.5 sm:py-2 px-2 rounded-xl text-[10px] sm:text-xs font-semibold bg-[#08D9D6] text-[#252A34] hover:bg-[#08D9D6]/90 transition-all shadow-md shadow-[#08D9D6]/20 flex items-center justify-center gap-1 active:scale-95"
           >
             <CalendarCheck className="w-3 h-3" />
-            <span>View</span>
+            <span>Viewing</span>
           </button>
         </div>
 

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { PropertyCard } from './PropertyCard';
 import { ViewingRequestModal } from './ViewingRequestModal';
+import { GetNotifiedModal } from './GetNotifiedModal';
 import { SEOHead } from './SEOHead';
 import { Property } from '../types';
 import { 
@@ -15,7 +16,8 @@ import {
   ArrowRight, 
   Sparkles,
   Building2,
-  SlidersHorizontal
+  SlidersHorizontal,
+  BellRing
 } from 'lucide-react';
 
 export const HomeView: React.FC = () => {
@@ -25,6 +27,7 @@ export const HomeView: React.FC = () => {
   const [selectedType, setSelectedType] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedViewingProp, setSelectedViewingProp] = useState<Property | null>(null);
+  const [isNotifiedModalOpen, setIsNotifiedModalOpen] = useState(false);
 
   const activeProperties = properties.filter(p => p.status === 'active');
 
@@ -32,7 +35,7 @@ export const HomeView: React.FC = () => {
     "@context": "https://schema.org",
     "@type": "RealEstateAgent",
     "name": "Goodlucks Homes",
-    "url": typeof window !== 'undefined' ? window.location.origin : "https://goodluckshomes.com",
+    "url": typeof window !== 'undefined' ? window.location.origin : "https://rent.goodlucks.co",
     "logo": "https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=800&q=80",
     "description": "Ghana's premier property matching and verified rental platform in Greater Accra.",
     "address": {
@@ -46,7 +49,7 @@ export const HomeView: React.FC = () => {
       "latitude": 5.6037,
       "longitude": -0.1870
     },
-    "telephone": "+233201112233",
+    "telephone": "+233237690080",
     "priceRange": "GH₵ 1000 - 25000"
   };
 
@@ -136,13 +139,19 @@ export const HomeView: React.FC = () => {
           <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
             <button
               onClick={() => setCurrentView('browse')}
-              className="px-5 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-bold text-white transition-all border border-white/10 flex items-center gap-1.5"
+              className="px-5 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-bold text-white transition-all border border-white/10 flex items-center gap-1.5 cursor-pointer"
             >
               <Building2 className="w-4 h-4 text-[#08D9D6]" /> Browse Properties
             </button>
             <button
+              onClick={() => setIsNotifiedModalOpen(true)}
+              className="px-5 py-2.5 rounded-xl bg-[#08D9D6] text-[#252A34] text-xs font-black transition-all shadow-md shadow-[#08D9D6]/20 hover:bg-[#08D9D6]/90 flex items-center gap-1.5 cursor-pointer active:scale-95"
+            >
+              <BellRing className="w-4 h-4 animate-pulse" /> Get Search Alerts
+            </button>
+            <button
               onClick={() => setCurrentView('find-home')}
-              className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#08D9D6]/20 to-[#FF2E63]/20 hover:from-[#08D9D6]/30 hover:to-[#FF2E63]/30 text-xs font-bold text-white transition-all border border-[#08D9D6]/30 flex items-center gap-1.5"
+              className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#08D9D6]/20 to-[#FF2E63]/20 hover:from-[#08D9D6]/30 hover:to-[#FF2E63]/30 text-xs font-bold text-white transition-all border border-[#08D9D6]/30 flex items-center gap-1.5 cursor-pointer"
             >
               <Compass className="w-4 h-4 text-[#08D9D6]" /> Find a Home (AI Match)
             </button>
@@ -327,6 +336,18 @@ export const HomeView: React.FC = () => {
         <ViewingRequestModal 
           property={selectedViewingProp} 
           onClose={() => setSelectedViewingProp(null)} 
+        />
+      )}
+
+      {/* Get Notified Search Alerts Modal */}
+      {isNotifiedModalOpen && (
+        <GetNotifiedModal
+          onClose={() => setIsNotifiedModalOpen(false)}
+          initialFilters={{
+            location: selectedLocation,
+            propertyType: selectedType,
+            searchQuery: searchQuery,
+          }}
         />
       )}
 

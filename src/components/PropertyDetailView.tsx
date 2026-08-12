@@ -23,6 +23,13 @@ import {
   CalendarCheck
 } from 'lucide-react';
 
+const WhatsAppIcon: React.FC<{ className?: string }> = ({ className = "w-5 h-5" }) => (
+  <svg className={className} fill="currentColor" viewBox="0 0 24 24">
+    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.063 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414-.074-.124-.272-.198-.57-.347z"/>
+    <path d="M12 0C5.373 0 0 5.373 0 12c0 2.119.554 4.11 1.524 5.845L.05 23.55l5.856-1.503A11.95 11.95 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-1.83 0-3.556-.489-5.056-1.343l-.362-.208-3.473.891.91-3.385-.228-.363A9.957 9.957 0 012 12c0-5.514 4.486-10 10-10s10 4.486 10 10-4.486 10-10 10z"/>
+  </svg>
+);
+
 export const PropertyDetailView: React.FC = () => {
   const { 
     selectedPropertyId, 
@@ -52,6 +59,18 @@ export const PropertyDetailView: React.FC = () => {
 
   const isSaved = savedPropertyIds.includes(property.id);
 
+  const agentWhatsappNumber = "233237690080";
+  const whatsappText = encodeURIComponent(
+    `Hello Goodlucks Homes! I am interested in this listing:\n\n` +
+    `*${property.title}*\n` +
+    `📍 Location: ${property.location} (${property.city})\n` +
+    `💰 Price: GH₵ ${property.rentGhs.toLocaleString()}/mo\n` +
+    `🏠 Type: ${property.bedrooms} Bed / ${property.bathrooms} Bath ${property.propertyType}\n` +
+    `🆔 Ref: ${property.id}\n\n` +
+    `Is this property currently available for a physical viewing?`
+  );
+  const whatsappUrl = `https://wa.me/${agentWhatsappNumber}?text=${whatsappText}`;
+
   const pageTitle = `${property.title} in ${property.location} (GH₵ ${property.rentGhs.toLocaleString()}/mo) | Goodlucks Homes`;
   const metaDescription = `${property.bedrooms} Bed, ${property.bathrooms} Bath ${property.propertyType} for rent in ${property.location}, ${property.city}. Rent: GH₵ ${property.rentGhs.toLocaleString()}/mo. Verified listing on Goodlucks Homes Ghana.`;
   const metaKeywords = `${property.title}, ${property.location} apartment for rent, real estate ${property.city}, rent in ${property.location}, ${property.bedrooms} bedroom house Accra, Goodlucks Homes Ghana`;
@@ -61,7 +80,7 @@ export const PropertyDetailView: React.FC = () => {
     "@type": "RealEstateListing",
     "name": property.title,
     "description": property.description,
-    "url": typeof window !== 'undefined' ? window.location.href : `https://goodluckshomes.com/?property=${property.id}`,
+    "url": typeof window !== 'undefined' ? window.location.href : `https://rent.goodlucks.co/?property=${property.id}`,
     "image": property.images,
     "datePosted": property.createdAt || "2026-08-01T00:00:00Z",
     "offers": {
@@ -387,11 +406,11 @@ export const PropertyDetailView: React.FC = () => {
                 </button>
 
                 <a
-                  href="tel:+233302998800"
+                  href="tel:+233237690080"
                   className="w-full py-3.5 px-4 rounded-2xl bg-white/10 text-white font-bold text-sm hover:bg-white/20 transition-all flex items-center justify-center gap-2 text-center"
                 >
                   <Phone className="w-4 h-4 text-[#08D9D6]" />
-                  Call Goodlucks Homes (+233 30 299 8800)
+                  Call Goodlucks Homes (+233 23 769 0080)
                 </a>
               </div>
 
@@ -419,11 +438,11 @@ export const PropertyDetailView: React.FC = () => {
               <div className="space-y-1.5 font-medium text-white">
                 <div className="flex items-center gap-2">
                   <Mail className="w-4 h-4 text-[#08D9D6]" />
-                  enquiries@goodluckshomes.com
+                  rentals@goodlucks.co
                 </div>
                 <div className="flex items-center gap-2">
                   <Phone className="w-4 h-4 text-[#08D9D6]" />
-                  +233 30 299 8800 / +233 24 412 3456
+                  +233 23 769 0080
                 </div>
               </div>
             </div>
@@ -473,6 +492,28 @@ export const PropertyDetailView: React.FC = () => {
         )}
 
       </div>
+
+      {/* Floating WhatsApp Action Button */}
+      <a
+        href={whatsappUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="fixed bottom-20 right-4 sm:bottom-8 sm:right-8 z-40 group flex items-center gap-3 bg-[#25D366] hover:bg-[#20ba5a] text-white p-3.5 sm:px-5 sm:py-3.5 rounded-full shadow-2xl shadow-[#25D366]/40 transition-all duration-300 hover:scale-105 active:scale-95 border border-emerald-300/40 cursor-pointer"
+        title="Message Agent on WhatsApp"
+        aria-label="Message Agent on WhatsApp"
+      >
+        <div className="relative flex items-center justify-center">
+          <WhatsAppIcon className="w-6 h-6 fill-white shrink-0" />
+          <span className="absolute -top-1 -right-1 flex h-3 w-3">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-3 w-3 bg-white"></span>
+          </span>
+        </div>
+        <div className="hidden sm:flex flex-col text-left pr-1">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-100 leading-none">Quick Inquiry</span>
+          <span className="text-xs font-black tracking-tight leading-tight">Message on WhatsApp</span>
+        </div>
+      </a>
 
       {/* Viewing Modal */}
       {showViewingModal && (

@@ -15,6 +15,7 @@ import { AdminDashboard } from './components/AdminDashboard';
 import { AdminLoginView } from './components/AdminLoginView';
 import { AboutView } from './components/AboutView';
 import { ContactView } from './components/ContactView';
+import { TenancyAgreementView } from './components/TenancyAgreementView';
 import { AuthModal } from './components/AuthModal';
 
 const AppContent: React.FC = () => {
@@ -53,6 +54,10 @@ const AppContent: React.FC = () => {
         return <AboutView />;
       case 'contact':
         return <ContactView />;
+      case 'agreement-generator':
+      case 'agreements':
+      case 'receipts':
+        return <TenancyAgreementView />;
       case 'my-properties':
         return <LandlordDashboard />;
       case 'profile':

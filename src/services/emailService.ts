@@ -6,7 +6,7 @@ export interface SendEmailOptions {
   to: string;
   recipientName: string;
   subject: string;
-  type: 'property_listing' | 'rental_request' | 'viewing_schedule' | 'account_update';
+  type: 'property_listing' | 'rental_request' | 'viewing_schedule' | 'account_update' | 'alert_subscription';
   data: Record<string, any>;
 }
 
@@ -147,6 +147,43 @@ function buildEmailHtml(options: SendEmailOptions): string {
         </div>
       `;
       break;
+
+    case 'alert_subscription':
+      contentHtml = `
+        <div style="background-color: #1E222A; border: 1px solid #08D9D6; border-radius: 12px; padding: 20px; margin-bottom: 20px;">
+          <h2 style="color: #08D9D6; margin-top: 0; font-size: 20px;">🔔 Search Alert Subscription Activated!</h2>
+          <p style="color: #E2E8F0; font-size: 15px; line-height: 1.6;">Hello <strong>${recipientName}</strong>,</p>
+          <p style="color: #CBD5E1; font-size: 14px; line-height: 1.6;">
+            You have successfully subscribed to automated property alerts on Goodlucks Homes. As soon as a new listing matching your criteria is verified, you will be notified!
+          </p>
+          <table style="width: 100%; border-collapse: collapse; margin-top: 15px; background: #252A34; border-radius: 8px; overflow: hidden;">
+            <tr>
+              <td style="padding: 10px 14px; color: #94A3B8; font-size: 13px;">Location Filter:</td>
+              <td style="padding: 10px 14px; color: #FFFFFF; font-weight: bold; font-size: 13px;">${data.location || 'All Suburbs'}</td>
+            </tr>
+            <tr style="border-top: 1px solid #333A48;">
+              <td style="padding: 10px 14px; color: #94A3B8; font-size: 13px;">Property Type:</td>
+              <td style="padding: 10px 14px; color: #FFFFFF; font-weight: bold; font-size: 13px;">${data.propertyType || 'All Types'}</td>
+            </tr>
+            <tr style="border-top: 1px solid #333A48;">
+              <td style="padding: 10px 14px; color: #94A3B8; font-size: 13px;">Max Rent Budget:</td>
+              <td style="padding: 10px 14px; color: #08D9D6; font-weight: bold; font-size: 13px;">Up to GH₵ ${Number(data.maxRentGhs).toLocaleString()}/mo</td>
+            </tr>
+            <tr style="border-top: 1px solid #333A48;">
+              <td style="padding: 10px 14px; color: #94A3B8; font-size: 13px;">Bedrooms:</td>
+              <td style="padding: 10px 14px; color: #FFFFFF; font-weight: bold; font-size: 13px;">${data.bedrooms === 'All' ? 'Any Bedrooms' : `${data.bedrooms} Bed`}</td>
+            </tr>
+            <tr style="border-top: 1px solid #333A48;">
+              <td style="padding: 10px 14px; color: #94A3B8; font-size: 13px;">Alert Frequency:</td>
+              <td style="padding: 10px 14px; color: #08D9D6; font-weight: bold; font-size: 13px;">${data.frequency ? data.frequency.toUpperCase() : 'INSTANT'}</td>
+            </tr>
+          </table>
+          <p style="color: #94A3B8; font-size: 13px; margin-top: 15px;">
+            Goodlucks Homes verifies every listing physically before publishing. You can manage or pause your alert notifications anytime from your tenant dashboard.
+          </p>
+        </div>
+      `;
+      break;
   }
 
   return `
@@ -175,7 +212,7 @@ function buildEmailHtml(options: SendEmailOptions): string {
           <!-- Footer -->
           <div style="border-top: 1px solid #2E3542; padding-top: 16px; margin-top: 24px; text-align: center; color: #64748B; font-size: 12px;">
             <p style="margin: 0 0 6px 0; font-weight: bold; color: #94A3B8;">Goodlucks Homes Intermediary Services Ltd.</p>
-            <p style="margin: 0 0 6px 0;">East Legon & Spintex Road, Accra - Ghana | +233 24 000 0000</p>
+            <p style="margin: 0 0 6px 0;">East Legon & Spintex Road, Accra - Ghana | +233 23 769 0080</p>
             <p style="margin: 0; font-size: 11px; color: #475569;">You received this automated notification for actions performed on your Goodlucks Homes account.</p>
           </div>
         </div>

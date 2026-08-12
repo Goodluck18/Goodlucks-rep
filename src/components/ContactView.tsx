@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Mail, Phone, MapPin, Building2, Send, CheckCircle2 } from 'lucide-react';
+import { Mail, Phone, MapPin, Building2, Send, CheckCircle2, Share2, Instagram, Linkedin, Twitter, Facebook } from 'lucide-react';
+import { SEOHead } from './SEOHead';
 
 export const ContactView: React.FC = () => {
   const [name, setName] = useState('');
@@ -14,6 +15,10 @@ export const ContactView: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#252A34] text-white py-12 px-4 sm:px-6 lg:px-8">
+      <SEOHead
+        title="Contact Goodlucks Homes - Accra Rental Support & Inquiries"
+        description="Get in touch with Goodlucks Homes in Ridge, Accra. Speak with our rental agents for property viewing bookings, listings support, or general enquiries."
+      />
       <div className="max-w-4xl mx-auto space-y-10 animate-fadeIn">
         
         {/* Header */}
@@ -46,7 +51,7 @@ export const ContactView: React.FC = () => {
                 <Mail className="w-5 h-5 text-[#08D9D6] shrink-0 mt-0.5" />
                 <div>
                   <div className="font-bold text-white">Email Address</div>
-                  <div className="text-xs text-slate-400">enquiries@goodluckshomes.com</div>
+                  <div className="text-xs text-slate-400">rentals@goodlucks.co</div>
                 </div>
               </div>
 
@@ -54,7 +59,29 @@ export const ContactView: React.FC = () => {
                 <Phone className="w-5 h-5 text-[#08D9D6] shrink-0 mt-0.5" />
                 <div>
                   <div className="font-bold text-white">Telephone Support</div>
-                  <div className="text-xs text-slate-400">+233 30 299 8800 / +233 24 412 3456</div>
+                  <div className="text-xs text-slate-400">+233 23 769 0080</div>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3">
+                <Share2 className="w-5 h-5 text-[#08D9D6] shrink-0 mt-0.5" />
+                <div>
+                  <div className="font-bold text-white">Social Media</div>
+                  <div className="text-xs text-[#08D9D6] font-semibold mb-1">@GoodlucksHomes on all platforms</div>
+                  <div className="flex items-center gap-2 pt-1 text-slate-300">
+                    <a href="https://instagram.com/GoodlucksHomes" target="_blank" rel="noopener noreferrer" className="p-1.5 rounded-lg bg-slate-900 hover:text-[#08D9D6] transition-colors" title="Instagram">
+                      <Instagram className="w-4 h-4" />
+                    </a>
+                    <a href="https://linkedin.com/company/GoodlucksHomes" target="_blank" rel="noopener noreferrer" className="p-1.5 rounded-lg bg-slate-900 hover:text-[#08D9D6] transition-colors" title="LinkedIn">
+                      <Linkedin className="w-4 h-4" />
+                    </a>
+                    <a href="https://x.com/GoodlucksHomes" target="_blank" rel="noopener noreferrer" className="p-1.5 rounded-lg bg-slate-900 hover:text-[#08D9D6] transition-colors" title="X / Twitter">
+                      <Twitter className="w-4 h-4" />
+                    </a>
+                    <a href="https://facebook.com/GoodlucksHomes" target="_blank" rel="noopener noreferrer" className="p-1.5 rounded-lg bg-slate-900 hover:text-[#08D9D6] transition-colors" title="Facebook">
+                      <Facebook className="w-4 h-4" />
+                    </a>
+                  </div>
                 </div>
               </div>
             </div>

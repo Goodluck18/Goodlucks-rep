@@ -32,35 +32,64 @@ export const Footer: React.FC = () => {
         {/* Direct Contact Info */}
         <div className="flex flex-wrap justify-center items-center gap-6 text-sm font-medium text-slate-200 pt-2">
           <a 
-            href="mailto:enquiries@goodluckshomes.com" 
+            href="mailto:rentals@goodlucks.co" 
             className="flex items-center gap-2 hover:text-[#08D9D6] transition-colors"
           >
             <Mail className="w-4 h-4 text-[#08D9D6]" />
-            enquiries@goodluckshomes.com
+            rentals@goodlucks.co
           </a>
           <a 
-            href="tel:+233302998800" 
+            href="tel:+233237690080" 
             className="flex items-center gap-2 hover:text-[#08D9D6] transition-colors"
           >
             <Phone className="w-4 h-4 text-[#08D9D6]" />
-            +233 30 299 8800
+            +233 23 769 0080
           </a>
         </div>
 
-        {/* Social Media Icons */}
-        <div className="flex items-center gap-4 text-slate-400 pt-2">
-          <a href="#" className="p-2 rounded-lg bg-white/5 hover:text-[#08D9D6] hover:bg-white/10 transition-colors" title="Instagram">
-            <Instagram className="w-5 h-5" />
-          </a>
-          <a href="#" className="p-2 rounded-lg bg-white/5 hover:text-[#08D9D6] hover:bg-white/10 transition-colors" title="LinkedIn">
-            <Linkedin className="w-5 h-5" />
-          </a>
-          <a href="#" className="p-2 rounded-lg bg-white/5 hover:text-[#08D9D6] hover:bg-white/10 transition-colors" title="Twitter">
-            <Twitter className="w-5 h-5" />
-          </a>
-          <a href="#" className="p-2 rounded-lg bg-white/5 hover:text-[#08D9D6] hover:bg-white/10 transition-colors" title="Facebook">
-            <Facebook className="w-5 h-5" />
-          </a>
+        {/* Social Media Icons & Handle */}
+        <div className="flex flex-col items-center gap-2 pt-2">
+          <span className="text-xs font-semibold text-[#08D9D6]">
+            @GoodlucksHomes
+          </span>
+          <div className="flex items-center gap-3 text-slate-400">
+            <a 
+              href="https://instagram.com/GoodlucksHomes" 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              className="p-2 rounded-lg bg-white/5 hover:text-[#08D9D6] hover:bg-white/10 transition-colors" 
+              title="Instagram @GoodlucksHomes"
+            >
+              <Instagram className="w-5 h-5" />
+            </a>
+            <a 
+              href="https://linkedin.com/company/GoodlucksHomes" 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              className="p-2 rounded-lg bg-white/5 hover:text-[#08D9D6] hover:bg-white/10 transition-colors" 
+              title="LinkedIn @GoodlucksHomes"
+            >
+              <Linkedin className="w-5 h-5" />
+            </a>
+            <a 
+              href="https://x.com/GoodlucksHomes" 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              className="p-2 rounded-lg bg-white/5 hover:text-[#08D9D6] hover:bg-white/10 transition-colors" 
+              title="X / Twitter @GoodlucksHomes"
+            >
+              <Twitter className="w-5 h-5" />
+            </a>
+            <a 
+              href="https://facebook.com/GoodlucksHomes" 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              className="p-2 rounded-lg bg-white/5 hover:text-[#08D9D6] hover:bg-white/10 transition-colors" 
+              title="Facebook @GoodlucksHomes"
+            >
+              <Facebook className="w-5 h-5" />
+            </a>
+          </div>
         </div>
 
         {/* Copyright */}

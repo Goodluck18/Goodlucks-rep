@@ -38,6 +38,7 @@ export const AdminDashboard: React.FC = () => {
     viewingSchedules, 
     emailLogs, 
     analytics, 
+    setCurrentView,
     updatePropertyStatus, 
     updateTenantRequestStatus, 
     scheduleViewing, 
@@ -217,6 +218,13 @@ export const AdminDashboard: React.FC = () => {
             }`}
           >
             <Mail className="w-4 h-4" /> Transactional Emails ({emailLogs.length})
+          </button>
+
+          <button
+            onClick={() => setCurrentView('agreements')}
+            className="px-4 py-2.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-2 bg-[#08D9D6]/10 text-[#08D9D6] border border-[#08D9D6]/30 hover:bg-[#08D9D6]/20"
+          >
+            <FileText className="w-4 h-4 text-[#08D9D6]" /> Agreements & Receipts Vault
           </button>
         </div>
 
@@ -566,9 +574,12 @@ export const AdminDashboard: React.FC = () => {
 
       {/* Admin Schedule Viewing Modal */}
       {showScheduleModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-[#252A34] border border-white/10 rounded-3xl p-6 max-w-lg w-full space-y-5 text-white shadow-2xl">
-            <h3 className="text-xl font-bold text-white">Schedule Physical Viewing (Goodlucks Intermediary)</h3>
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/80 backdrop-blur-md animate-fadeIn p-2 sm:p-4 flex items-start sm:items-center justify-center">
+          <div 
+            className="bg-[#252A34] border border-white/10 rounded-2xl sm:rounded-3xl p-4 sm:p-6 max-w-lg w-full space-y-4 text-white shadow-2xl my-auto max-h-[88dvh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg sm:text-xl font-bold text-white">Schedule Physical Viewing (Goodlucks Intermediary)</h3>
 
             <form onSubmit={handleScheduleViewingAdmin} className="space-y-4">
               <div>
@@ -576,7 +587,7 @@ export const AdminDashboard: React.FC = () => {
                 <select
                   value={selectedReqId}
                   onChange={(e) => setSelectedReqId(e.target.value)}
-                  className="w-full bg-slate-900 border border-white/10 rounded-xl p-3 text-sm text-white"
+                  className="w-full bg-slate-900 border border-white/10 rounded-xl p-3 text-xs sm:text-sm text-white"
                 >
                   {tenantRequests.map(r => (
                     <option key={r.id} value={r.id}>{r.tenantName} ({r.preferredLocations.join(', ')})</option>
@@ -589,7 +600,7 @@ export const AdminDashboard: React.FC = () => {
                 <select
                   value={selectedPropId}
                   onChange={(e) => setSelectedPropId(e.target.value)}
-                  className="w-full bg-slate-900 border border-white/10 rounded-xl p-3 text-sm text-white"
+                  className="w-full bg-slate-900 border border-white/10 rounded-xl p-3 text-xs sm:text-sm text-white"
                 >
                   {properties.map(p => (
                     <option key={p.id} value={p.id}>{p.title} ({p.location}) - GH₵ {p.rentGhs}/mo</option>
@@ -597,7 +608,7 @@ export const AdminDashboard: React.FC = () => {
                 </select>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-slate-300 mb-1">Viewing Date</label>
                   <input
@@ -605,7 +616,7 @@ export const AdminDashboard: React.FC = () => {
                     required
                     value={viewDate}
                     onChange={(e) => setViewDate(e.target.value)}
-                    className="w-full bg-slate-900 border border-white/10 rounded-xl p-3 text-sm text-white"
+                    className="w-full bg-slate-900 border border-white/10 rounded-xl p-3 text-xs sm:text-sm text-white"
                   />
                 </div>
 
@@ -614,7 +625,7 @@ export const AdminDashboard: React.FC = () => {
                   <select
                     value={viewTime}
                     onChange={(e) => setViewTime(e.target.value)}
-                    className="w-full bg-slate-900 border border-white/10 rounded-xl p-3 text-sm text-white"
+                    className="w-full bg-slate-900 border border-white/10 rounded-xl p-3 text-xs sm:text-sm text-white"
                   >
                     <option value="09:00 AM">09:00 AM</option>
                     <option value="11:00 AM">11:00 AM</option>
@@ -631,7 +642,7 @@ export const AdminDashboard: React.FC = () => {
                   required
                   value={assignedAgent}
                   onChange={(e) => setAssignedAgent(e.target.value)}
-                  className="w-full bg-slate-900 border border-white/10 rounded-xl p-3 text-sm text-white"
+                  className="w-full bg-slate-900 border border-white/10 rounded-xl p-3 text-xs sm:text-sm text-white"
                 />
               </div>
 
@@ -657,8 +668,11 @@ export const AdminDashboard: React.FC = () => {
 
       {/* Admin Property Inspection & Authenticity Modal */}
       {viewPropertyModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fadeIn overflow-y-auto">
-          <div className="bg-[#252A34] border border-white/10 rounded-3xl p-6 sm:p-8 max-w-3xl w-full text-white shadow-2xl space-y-6 my-8 max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/80 backdrop-blur-md animate-fadeIn p-2 sm:p-4 flex items-start sm:items-center justify-center">
+          <div 
+            className="bg-[#252A34] border border-white/10 rounded-2xl sm:rounded-3xl p-4 sm:p-8 max-w-3xl w-full text-white shadow-2xl my-auto max-h-[88dvh] overflow-y-auto space-y-6"
+            onClick={(e) => e.stopPropagation()}
+          >
             
             {/* Modal Header */}
             <div className="flex items-start justify-between border-b border-white/10 pb-4 gap-4">

@@ -63,18 +63,24 @@ export const ViewingRequestModal: React.FC<ViewingRequestModalProps> = ({ proper
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
-      <div className="relative w-full max-w-lg bg-[#252A34] border border-white/10 rounded-3xl p-6 sm:p-8 shadow-2xl text-white overflow-hidden">
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/80 backdrop-blur-md animate-fadeIn p-2 sm:p-4 flex items-start sm:items-center justify-center">
+      <div 
+        className="relative w-full max-w-lg bg-[#252A34] border border-white/10 rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-2xl text-white max-h-[88dvh] flex flex-col overflow-hidden my-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
         
         {/* Close Button */}
         <button 
           onClick={onClose}
-          className="absolute top-4 right-4 p-2 rounded-full bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
+          className="absolute top-4 right-4 p-2 rounded-full bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-colors z-10"
+          aria-label="Close modal"
         >
           <X className="w-5 h-5" />
         </button>
 
-        {isLandlord ? (
+        {/* Scrollable Content Body */}
+        <div className="overflow-y-auto flex-1 pr-1 space-y-4 pt-1 pb-1">
+          {isLandlord ? (
           <div className="text-center py-4 space-y-5">
             <div className="w-16 h-16 rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center mx-auto">
               <ShieldAlert className="w-8 h-8" />
@@ -260,6 +266,7 @@ export const ViewingRequestModal: React.FC<ViewingRequestModalProps> = ({ proper
             </button>
           </div>
         )}
+        </div>
 
       </div>
     </div>

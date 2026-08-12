@@ -189,7 +189,7 @@ export const AboutView: React.FC = () => {
               </p>
             </div>
             <a
-              href="tel:+233302998800"
+              href="tel:+233237690080"
               className="px-5 py-2.5 rounded-xl bg-[#08D9D6] text-[#252A34] font-extrabold text-xs hover:bg-[#08D9D6]/90 transition-all shrink-0"
             >
               Contact Support

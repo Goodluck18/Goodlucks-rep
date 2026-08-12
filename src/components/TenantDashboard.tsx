@@ -18,7 +18,8 @@ import {
   Plus,
   Activity,
   Search,
-  Check
+  Check,
+  FileCheck
 } from 'lucide-react';
 
 export const TenantDashboard: React.FC = () => {
@@ -28,13 +29,15 @@ export const TenantDashboard: React.FC = () => {
     properties, 
     viewingSchedules, 
     savedPropertyIds, 
+    searchAlerts,
+    unsubscribeFromSearchAlerts,
     notifications,
     setCurrentView,
     updateUserProfile,
     navigateToProperty
   } = useApp();
 
-  const [activeTab, setActiveTab] = useState<'requests' | 'matches' | 'viewings' | 'saved' | 'profile'>('requests');
+  const [activeTab, setActiveTab] = useState<'requests' | 'matches' | 'viewings' | 'saved' | 'alerts' | 'profile'>('requests');
   const [profileName, setProfileName] = useState(currentUser?.name || 'Kofi Mensah');
   const [profilePhone, setProfilePhone] = useState(currentUser?.phone || '+233 24 412 3456');
   const [profileEmail, setProfileEmail] = useState(currentUser?.email || 'tenant@goodlucks.com');
@@ -184,6 +187,14 @@ export const TenantDashboard: React.FC = () => {
               >
                 <Search className="w-3.5 h-3.5 text-[#08D9D6]" />
                 <span>Browse All Properties</span>
+              </button>
+
+              <button
+                onClick={() => setCurrentView('agreements')}
+                className="w-full py-2 px-3 rounded-xl bg-[#08D9D6]/10 hover:bg-[#08D9D6]/20 text-[#08D9D6] text-xs font-extrabold border border-[#08D9D6]/30 transition-colors flex items-center justify-center gap-1.5"
+              >
+                <FileCheck className="w-3.5 h-3.5 text-[#08D9D6]" />
+                <span>My Agreements & Receipts</span>
               </button>
             </div>
           </div>
@@ -341,6 +352,15 @@ export const TenantDashboard: React.FC = () => {
               }`}
             >
               <Heart className="w-4 h-4" /> Saved Homes ({savedProps.length})
+            </button>
+
+            <button
+              onClick={() => setActiveTab('alerts')}
+              className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-2 ${
+                activeTab === 'alerts' ? 'bg-[#08D9D6] text-[#252A34] shadow-md' : 'bg-white/5 text-slate-300 hover:bg-white/10'
+              }`}
+            >
+              <Bell className="w-4 h-4" /> Search Alerts ({searchAlerts.length})
             </button>
 
             <button
@@ -519,7 +539,107 @@ export const TenantDashboard: React.FC = () => {
             </div>
           )}
 
-          {/* Tab 5: Profile Management */}
+          {/* Tab 5: Search Alert Subscriptions */}
+          {activeTab === 'alerts' && (
+            <div className="space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-xl font-black text-white flex items-center gap-2">
+                    <Bell className="w-5 h-5 text-[#08D9D6]" />
+                    Subscribed Search Alerts
+                  </h2>
+                  <p className="text-xs text-slate-300 mt-0.5">
+                    Manage active email and WhatsApp listing subscriptions for Ghana real estate.
+                  </p>
+                </div>
+
+                <button
+                  onClick={() => setCurrentView('browse')}
+                  className="px-4 py-2 rounded-xl bg-[#08D9D6] text-[#252A34] text-xs font-black hover:bg-[#08D9D6]/90 transition-all flex items-center gap-1.5 self-start sm:self-auto cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" /> Add New Search Alert
+                </button>
+              </div>
+
+              {searchAlerts.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {searchAlerts.map((alert) => (
+                    <div 
+                      key={alert.id}
+                      className="bg-slate-900/80 border border-white/10 rounded-2xl p-5 space-y-4 hover:border-white/20 transition-all relative overflow-hidden"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2.5 rounded-xl bg-[#08D9D6]/15 text-[#08D9D6] border border-[#08D9D6]/30">
+                            <Bell className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <div className="text-sm font-black text-white">
+                              {alert.location === 'All' ? 'Greater Accra' : alert.location} ({alert.propertyType})
+                            </div>
+                            <div className="text-xs text-slate-400 mt-0.5">
+                              Alert sent to: <strong className="text-slate-200">{alert.email}</strong>
+                            </div>
+                          </div>
+                        </div>
+
+                        <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                          Active
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2 text-xs bg-[#252A34] p-3 rounded-xl border border-white/5">
+                        <div>
+                          <span className="block text-[10px] text-slate-400 font-bold uppercase">Max Rent Budget</span>
+                          <span className="font-extrabold text-[#08D9D6]">GH₵ {alert.maxRentGhs.toLocaleString()}/mo</span>
+                        </div>
+                        <div>
+                          <span className="block text-[10px] text-slate-400 font-bold uppercase">Bedrooms</span>
+                          <span className="font-bold text-white">{alert.bedrooms === 'All' ? 'Any Bedrooms' : `${alert.bedrooms} Bed`}</span>
+                        </div>
+                        <div>
+                          <span className="block text-[10px] text-slate-400 font-bold uppercase">Frequency</span>
+                          <span className="font-bold text-slate-200 capitalize">{alert.frequency}</span>
+                        </div>
+                        <div>
+                          <span className="block text-[10px] text-slate-400 font-bold uppercase">Subscribed On</span>
+                          <span className="font-bold text-slate-300">{new Date(alert.createdAt).toLocaleDateString()}</span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between pt-1">
+                        <span className="text-[11px] text-slate-400 flex items-center gap-1">
+                          <Mail className="w-3.5 h-3.5 text-[#08D9D6]" /> Verified Resend Dispatch
+                        </span>
+                        <button
+                          onClick={() => unsubscribeFromSearchAlerts(alert.id)}
+                          className="text-xs font-bold text-[#FF2E63] hover:underline"
+                        >
+                          Remove Alert
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-12 bg-slate-900/50 rounded-3xl border border-white/10 space-y-3">
+                  <Bell className="w-12 h-12 text-slate-500 mx-auto" />
+                  <div className="text-base font-bold text-white">No Active Search Alerts</div>
+                  <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                    Subscribe to listing alerts on the Browse Properties page to get notified whenever new matching homes are verified.
+                  </p>
+                  <button
+                    onClick={() => setCurrentView('browse')}
+                    className="px-5 py-2.5 rounded-xl bg-[#08D9D6] text-[#252A34] text-xs font-black shadow-lg hover:bg-[#08D9D6]/90 transition-all cursor-pointer"
+                  >
+                    Set Up Search Alert
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Tab 6: Profile Management */}
           {activeTab === 'profile' && (
             <div className="max-w-2xl bg-slate-900/80 border border-white/10 rounded-3xl p-6 sm:p-8 space-y-6">
               <div className="flex items-center justify-between">
