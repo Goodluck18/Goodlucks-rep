@@ -267,3 +267,18 @@ export interface RentReceipt {
   verificationCode: string;
   createdAt: string;
 }
+
+export interface PriceDropAlert {
+  id: string;
+  propertyId: string;
+  propertyTitle: string;
+  propertyLocation: string;
+  currentRentGhs: number;
+  targetRentGhs?: number;
+  email: string;
+  name?: string;
+  phone?: string;
+  notifyOnAnyDrop: boolean;
+  createdAt: string;
+  active: boolean;
+}

@@ -1,0 +1,29 @@
+# Goodlucks Homes - Root cPanel Apache Configuration (.htaccess)
+# Place this file in your cPanel public_html directory
+
+RewriteEngine On
+RewriteBase /
+
+# 1. Do NOT rewrite requests directed to the PHP API backend folder
+RewriteCond %{REQUEST_URI} ^/api/ [NC]
+RewriteRule ^ - [L]
+
+# 2. Allow direct access to real existing files or directories (JS, CSS, images, etc.)
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+
+# 3. Route all other frontend URLs to index.html for smooth client-side React routing
+RewriteRule ^ index.html [L]
+
+# 4. Security: Prevent viewing dotfiles and directories
+Options -Indexes
+<FilesMatch "^\.">
+    Order allow,deny
+    Deny from all
+</FilesMatch>
+
+# 5. Compression & Caching for fast performance
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/html text/plain text/xml text/css text/javascript application/javascript application/json
+</IfModule>

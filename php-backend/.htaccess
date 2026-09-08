@@ -1,0 +1,21 @@
+# Goodlucks Homes - API Directory .htaccess
+RewriteEngine On
+
+# Allow direct file execution
+RewriteCond %{REQUEST_FILENAME} -f
+RewriteRule ^ - [L]
+
+# Route clean URLs to PHP files
+RewriteRule ^health/?$ health.php [L,QSA]
+RewriteRule ^properties/?$ properties.php [L,QSA]
+RewriteRule ^price-alerts/?$ price_alerts.php [L,QSA]
+RewriteRule ^price_alerts/?$ price_alerts.php [L,QSA]
+RewriteRule ^viewing-request/?$ viewing_request.php [L,QSA]
+RewriteRule ^viewing_request/?$ viewing_request.php [L,QSA]
+RewriteRule ^tenant-requests/?$ tenant_requests.php [L,QSA]
+RewriteRule ^tenant_requests/?$ tenant_requests.php [L,QSA]
+RewriteRule ^send-email/?$ send_email.php [L,QSA]
+RewriteRule ^send_email/?$ send_email.php [L,QSA]
+
+# Security: Disable directory browsing
+Options -Indexes
