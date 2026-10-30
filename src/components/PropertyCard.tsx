@@ -35,6 +35,8 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({ property, onRequestV
           itemProp="image"
           src={property.images[0] || 'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=800&q=80'} 
           alt={`${property.title} in ${property.location}`}
+          loading="lazy"
+          decoding="async"
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ease-out" 
         />
         

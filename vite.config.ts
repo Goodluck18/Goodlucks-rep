@@ -11,6 +11,17 @@ export default defineConfig(() => {
         '@': path.resolve(__dirname, '.'),
       },
     },
+    build: {
+      rollupOptions: {
+        output: {
+          // React itself changes far less often than app code, so keeping it in
+          // its own chunk lets browsers reuse it across deploys.
+          manualChunks: {
+            'react-vendor': ['react', 'react-dom', 'react-helmet-async'],
+          },
+        },
+      },
+    },
     server: {
       // HMR is disabled in AI Studio via DISABLE_HMR env var.
       // Do not modifyâfile watching is disabled to prevent flickering during agent edits.

@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Property } from '../types';
+import { useModalA11y } from '../hooks/useModalA11y';
 import { useApp } from '../context/AppContext';
 import { Calendar, Clock, User, Phone, Mail, ShieldCheck, CheckCircle2, X, AlertCircle, ShieldAlert } from 'lucide-react';
 import { messageForError } from '../services/apiService';
@@ -11,6 +12,8 @@ interface ViewingRequestModalProps {
 
 export const ViewingRequestModal: React.FC<ViewingRequestModalProps> = ({ property, onClose }) => {
   const { currentUser, scheduleViewing, setCurrentView } = useApp();
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const dialogProps = useModalA11y(dialogRef, onClose);
   
   const defaultViewingDate = (() => {
     const d = new Date(Date.now() + 2 * 86400_000);
@@ -66,7 +69,10 @@ export const ViewingRequestModal: React.FC<ViewingRequestModalProps> = ({ proper
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-black/80 backdrop-blur-md animate-fadeIn p-2 sm:p-4 flex items-start sm:items-center justify-center">
       <div 
-        className="relative w-full max-w-lg bg-[#252A34] border border-white/10 rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-2xl text-white max-h-[88dvh] flex flex-col overflow-hidden my-auto"
+        ref={dialogRef}
+        {...dialogProps}
+        aria-labelledby="viewing-modal-title"
+        className="relative w-full max-w-lg bg-[#252A34] border border-white/10 rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-2xl text-white max-h-[88dvh] flex flex-col overflow-hidden my-auto focus:outline-none"
         onClick={(e) => e.stopPropagation()}
       >
         
@@ -117,7 +123,7 @@ export const ViewingRequestModal: React.FC<ViewingRequestModalProps> = ({ proper
                 <ShieldCheck className="w-4 h-4" />
                 Goodlucks Intermediary Service
               </div>
-              <h2 className="text-xl sm:text-2xl font-bold text-white">
+              <h2 id="viewing-modal-title" className="text-xl sm:text-2xl font-bold text-white">
                 Request Property Viewing
               </h2>
               <p className="text-xs sm:text-sm text-slate-300 mt-1">

@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { Property, PriceDropAlert } from '../types';
+import { useModalA11y } from '../hooks/useModalA11y';
 import { useApp } from '../context/AppContext';
 import { 
   Bell, 
@@ -27,6 +28,8 @@ export const PriceDropModal: React.FC<PriceDropModalProps> = ({
   onClose,
 }) => {
   const { currentUser, showSuccessToast } = useApp();
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const dialogProps = useModalA11y(dialogRef, onClose, isOpen);
 
   const [email, setEmail] = useState('');
   const [userName, setUserName] = useState('');
@@ -53,17 +56,6 @@ export const PriceDropModal: React.FC<PriceDropModalProps> = ({
       }
     }
   }, [isOpen, currentUser, property]);
-
-  // Handle escape key
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen) {
-        onClose();
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
 
   if (!isOpen || !property) return null;
 
@@ -114,13 +106,13 @@ export const PriceDropModal: React.FC<PriceDropModalProps> = ({
     <div 
       className="fixed inset-0 z-50 overflow-y-auto bg-black/80 backdrop-blur-md animate-fadeIn p-2 sm:p-4 flex items-center justify-center"
       onClick={onClose}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="price-drop-modal-title"
     >
       <div 
+        ref={dialogRef}
+        {...dialogProps}
         id="price-drop-modal-container"
-        className="relative w-full max-w-md bg-[#252A34] border border-white/10 rounded-2xl sm:rounded-3xl p-5 sm:p-6 shadow-2xl text-white my-auto overflow-hidden"
+        aria-labelledby="price-drop-modal-title"
+        className="relative w-full max-w-md bg-[#252A34] border border-white/10 rounded-2xl sm:rounded-3xl p-5 sm:p-6 shadow-2xl text-white my-auto overflow-hidden focus:outline-none"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Subtle decorative glow */}
@@ -205,6 +197,8 @@ export const PriceDropModal: React.FC<PriceDropModalProps> = ({
               <img 
                 src={property.images[0]} 
                 alt={property.title} 
+                loading="lazy"
+                decoding="async"
                 className="w-14 h-14 rounded-lg object-cover shrink-0 border border-white/5" 
               />
               <div className="min-w-0 flex-1">

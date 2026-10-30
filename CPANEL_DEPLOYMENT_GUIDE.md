@@ -237,7 +237,7 @@ hand in phpMyAdmin occasionally.
 npm install
 npm run dev        # PHP API on :8090 (SQLite) + Vite host on :3000 proxying /api
 npm run api:dev    # PHP API only
-npm run test:api   # 74 API tests against a throwaway SQLite database
+npm run test:api   # 80 API tests against a throwaway SQLite database
 npm run build      # production bundle
 ```
 
@@ -266,6 +266,9 @@ Local data lives in `.data/dev.sqlite` (git-ignored) and is seeded from
 | Reset link says "expired or already used" | Reset links work once and expire after 60 minutes; request a fresh one from the sign-in dialog. |
 | Listing edits fail with "changed by someone else" | Expected 409 conflict: another admin saved the listing first. The console reloads the current version — reopen the editor and re-apply the change. |
 | Refresh on `/browse` gives 404 | Root `.htaccess` missing — upload `public/.htaccess`. |
+| `/sitemap.xml` returns the SPA HTML or 404 | The root `.htaccess` is out of date — the current one rewrites `/sitemap.xml` to `api/index.php` so the catalogue drives it. |
+| Link previews show no image | `public/og-image.jpg` was not uploaded, or `APP_URL` does not match the live domain (the tags are absolute URLs). |
+| Deep link `/property/<id>` shows the home page | Root `.htaccess` missing the SPA fallback rule, or the browser cached an old bundle. |
 | "Too many attempts" after failed logins | Database-backed rate limit; wait for the window or clear `rate_limits`. |
 
 ---
@@ -290,4 +293,6 @@ Local data lives in `.data/dev.sqlite` (git-ignored) and is seeded from
 3. Replace `public_html/api/lib/` and `public_html/api/index.php`.
 4. If `database.sql` changed, run `php api/migrate.php` and then
    `php api/migrate.php --apply`.
+5. Re-upload the root `.htaccess` when it changes: it serves the dynamic
+   `/sitemap.xml` and the `/property/<id>` deep links.
 5. Re-run the four `curl` checks in section 8.

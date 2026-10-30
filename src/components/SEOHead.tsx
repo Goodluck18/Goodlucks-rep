@@ -25,7 +25,7 @@ export const SEOHead: React.FC<SEOHeadProps> = ({
   jsonLd
 }) => {
   const currentUrl = canonicalUrl || (typeof window !== 'undefined' ? window.location.href : 'https://rent.goodlucks.co');
-  const defaultImage = ogImage || 'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=1200&q=80';
+  const defaultImage = ogImage || 'https://rent.goodlucks.co/og-image.jpg';
 
   return (
     <Helmet>

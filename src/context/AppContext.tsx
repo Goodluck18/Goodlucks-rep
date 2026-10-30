@@ -146,6 +146,7 @@ interface AppContextType {
 
   // Misc
   markNotificationRead: (id: string) => Promise<void>;
+  markAllNotificationsRead: () => Promise<void>;
   refreshAdminData: () => Promise<void>;
 }
 
@@ -175,6 +176,9 @@ function initialView(): string {
   const pathname = window.location.pathname.toLowerCase();
   const hash = window.location.hash.toLowerCase();
   const search = window.location.search.toLowerCase();
+  if (/^\/property\//.test(pathname) || hash.includes('/property/')) {
+    return 'property-detail';
+  }
   if (
     pathname.includes('/admin-login') ||
     pathname.includes('/admin') ||
@@ -388,6 +392,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return;
       }
       const pathname = window.location.pathname.toLowerCase();
+      // Clean, shareable listing URLs: /property/<id>
+      const pathMatch = pathname.match(/^\/property\/([a-z0-9\-_]+)/);
+      if (pathMatch) {
+        setSelectedPropertyId(pathMatch[1]);
+        setCurrentViewState('property-detail');
+        return;
+      }
       if (pathname.includes('/admin-login') || pathname.includes('/admin')) {
         setCurrentViewState('admin-login');
       }
@@ -442,7 +453,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             window.location.hash = '#/admin-login';
           }
         }
-      } else if (window.location.pathname.includes('/admin-login')) {
+      } else if (
+        window.location.pathname.includes('/admin-login') ||
+        window.location.pathname.toLowerCase().startsWith('/property/')
+      ) {
         try {
           window.history.pushState({}, '', '/');
         } catch {
@@ -461,9 +475,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (local) setSelectedProperty(local);
       if (typeof window !== 'undefined') {
         try {
-          const url = new URL(window.location.href);
-          url.searchParams.set('property', propertyId);
-          window.history.pushState({}, '', url.toString());
+          window.history.pushState({}, '', `/property/${encodeURIComponent(propertyId)}`);
         } catch {
           window.location.hash = `#/property/${propertyId}`;
         }
@@ -856,6 +868,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   }, []);
 
+  /**
+   * Clear the unread badge. Called when the notifications view opens, so the
+   * bell stops advertising alerts the member has already looked at.
+   */
+  const markAllNotificationsRead = useCallback(async () => {
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    const result = await api.markAllNotificationsRead().catch(() => null);
+    if (result) {
+      setNotifications(result.notifications);
+    }
+  }, []);
+
   const refreshAdminData = useCallback(async () => {
     if (!user_is_admin(currentUser)) return;
     await loadAccountData(currentUser);
@@ -917,6 +941,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       unsubscribeFromSearchAlerts,
       sendEnquiry,
       markNotificationRead,
+      markAllNotificationsRead,
       refreshAdminData,
     }),
     [
@@ -973,6 +998,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       unsubscribeFromSearchAlerts,
       sendEnquiry,
       markNotificationRead,
+      markAllNotificationsRead,
       refreshAdminData,
     ]
   );

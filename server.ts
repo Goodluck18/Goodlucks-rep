@@ -75,6 +75,16 @@ const apiProxy = (req: express.Request, res: express.Response) => {
 
 app.use("/api", apiProxy);
 
+/**
+ * The dynamic sitemap is served by PHP at /api/sitemap.xml in this dev server
+ * (Apache rewrites /sitemap.xml there in production), so crawlers and local
+ * checks can hit the same URL they will in production.
+ */
+app.get("/sitemap.xml", (req, _res, next) => {
+  req.url = "/api/sitemap.xml";
+  next();
+}, apiProxy);
+
 app.use(express.json({ limit: "25mb" }));
 
 async function setupViteOrStatic() {

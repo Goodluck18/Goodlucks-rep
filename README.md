@@ -39,7 +39,7 @@ the bundled `@php-wasm/cli` dev dependency is used.
 | --- | --- |
 | `npm run dev` | PHP API + Vite host (proxies `/api` to PHP) |
 | `npm run api:dev` | PHP API only, on `API_PORT` (default 8090) |
-| `npm run test:api` | 74 API tests against a throwaway SQLite database |
+| `npm run test:api` | 80 API tests against a throwaway SQLite database |
 | `npm run build` | Production bundle in `dist/` |
 | `npm run lint` | `tsc --noEmit` |
 
@@ -167,6 +167,14 @@ and concurrent requests are all idempotent.
   current listing, so two people editing one advert can never silently overwrite
   each other. `updated_at` has one-second resolution on MySQL, so edits made in
   the same second as another save are not distinguished.
+- Match scores are real. `GET /api/matches` scores every live listing against
+  the signed-in tenant's rental request with the same engine `/ai/match` uses;
+  staff-curated picks (set on the request) sort first, then best score. The
+  dashboard shows "Chosen for you" or the actual percentage — never a fixed 96%.
+  Admins can score any request with `?requestId=`.
+- The unread badge clears: opening the notifications view calls
+  `POST /api/notifications/read-all` once, so the bell stops counting alerts the
+  member has already seen.
 - Password reset: `/api/auth/password-reset/request` always answers with the same
   generic message (no account enumeration), stores only a SHA-256 hash of a
   single-use token that expires after 60 minutes, and
@@ -180,9 +188,10 @@ and concurrent requests are all idempotent.
 `properties` (+ `/{id}`, `/{id}/status`, `/{id}/feature`) · `uploads` ·
 `enquiries` · `tenant-requests` · `viewing-requests` · `viewings` ·
 `price-alerts` · `search-alerts` · `saved-properties` · `agreements`
-(+ `/{id}/sign`, `/{id}/email`) · `receipts` · `notifications` ·
+(+ `/{id}/sign`, `/{id}/email`) · `receipts` · `notifications`
+(+ `/read-all`) · `matches` ·
 `admin/{stats,properties,enquiries,tenant-requests,viewings,price-alerts,email-logs,alerts/run}` ·
-`track/pageview` · `ai/{describe,match}`
+`track/pageview` · `ai/{describe,match}` · `sitemap.xml` (XML, not JSON)
 
 ### Security notes
 
@@ -199,13 +208,29 @@ and concurrent requests are all idempotent.
 ## Testing
 
 ```bash
-npm run test:api     # 74 tests / 18 suites
+npm run test:api     # 80 tests / 19 suites
 npm run lint
 npm run build
 ```
 
 The suite boots the real PHP API on a random port with a throwaway SQLite file,
 so it exercises the same handlers the production site uses.
+
+### Performance & SEO
+
+- Views are code-split (`React.lazy`): the landing page ships ~135 kB gzipped of
+  app code, and dashboards load as separate chunks (the admin console alone is
+  48 kB that guests never download).
+- Catalogue images below the fold are `loading="lazy" decoding="async"`; the
+  property hero image is marked `fetchPriority="high"` as the LCP candidate.
+- Modals trap focus, close on Escape and restore focus to their trigger
+  (`src/hooks/useModalA11y.ts`).
+- `index.html` carries static Open Graph/Twitter tags, a favicon set, a web
+  manifest and `RealEstateAgent` JSON-LD, so link previews work for crawlers
+  that never run JavaScript. `SEOHead` still injects per-page values.
+- `/sitemap.xml` is generated from the live database (core pages plus every
+  published listing, with real `lastmod` values); `robots.txt` points at the
+  absolute URL. Listing links are clean paths: `/property/<id>`.
 
 ---
 

@@ -16,6 +16,9 @@ DirectoryIndex index.html index.php
     RewriteCond %{REQUEST_URI} ^/api(/|$) [NC]
     RewriteRule ^ - [L]
 
+    # 2b. The sitemap is generated from the live catalogue by the PHP API.
+    RewriteRule ^sitemap\.xml$ api/index.php [L,QSA]
+
     # 3. Real files and directories (JS, CSS, images, uploads) are served as-is.
     RewriteCond %{REQUEST_FILENAME} -f [OR]
     RewriteCond %{REQUEST_FILENAME} -d

@@ -1388,3 +1388,153 @@ describe('Password reset', () => {
     assert.equal(missing.status, 422);
   });
 });
+
+// ---------------------------------------------------------------------------
+describe('Match scoring, notifications & SEO', () => {
+  const matcher = { client: null, email: '', requestId: '' };
+
+  test('guest cannot read match scores', async () => {
+    const res = await guest.get('/api/matches');
+    assert.equal(res.status, 401);
+  });
+
+  test('a tenant gets real scored matches for their own request', async () => {
+    matcher.client = new ApiClient(baseUrl);
+    matcher.email = uniqueEmail('matcher');
+    const registered = await matcher.client.post('/api/auth/register', {
+      email: matcher.email,
+      password: 'Matcher-Password-123',
+      name: 'Match Tester',
+      phone: '+233 20 999 0000',
+      role: 'tenant',
+    });
+    assert.equal(registered.status, 201);
+
+    const request = await matcher.client.post('/api/tenant-requests', {
+      tenantName: 'Match Tester',
+      tenantPhone: '+233 20 999 0000',
+      tenantEmail: matcher.email,
+      preferredLocations: ['East Legon'],
+      budgetMin: 2000,
+      budgetMax: 8000,
+      bedrooms: 2,
+      moveInDate: new Date(Date.now() + 21 * 86400_000).toISOString().slice(0, 10),
+      notes: 'Used to check match scores.',
+    });
+    assert.equal(request.status, 201);
+    matcher.requestId = request.body.requestId;
+
+    const res = await matcher.client.get('/api/matches');
+    assert.equal(res.status, 200);
+    assert.equal(res.body.requestId, matcher.requestId);
+    assert.ok(res.body.matches.length > 0, 'live listings must produce a shortlist');
+
+    for (const match of res.body.matches) {
+      assert.ok(match.property?.id, 'each match must carry the listing');
+      assert.equal(typeof match.score, 'number');
+      assert.ok(match.score >= 40 && match.score <= 98, `score ${match.score} out of range`);
+      assert.ok(match.reason.length > 10, 'the score must explain itself');
+      assert.equal(typeof match.curated, 'boolean');
+    }
+
+    assert.equal(res.body.topScore, res.body.matches[0].score);
+
+    const scored = res.body.matches.filter((m) => !m.curated).map((m) => m.score);
+    const sorted = [...scored].sort((a, b) => b - a);
+    assert.deepEqual(scored, sorted, 'shortlist must be ordered best first');
+  });
+
+  test('a request inside the budget scores higher than one outside it', async () => {
+    const inBudget = await matcher.client.get('/api/matches');
+    const best = inBudget.body.matches.find((m) => !m.curated);
+    assert.ok(best);
+
+    const comparison = await guest.post('/api/ai/match', {
+      tenantRequest: { budgetMin: 2000, budgetMax: 8000, bedrooms: 2, preferredLocations: ['East Legon'] },
+      property: { rentGhs: 7400, bedrooms: 2, location: 'East Legon, Accra', propertyType: 'Apartment' },
+    });
+    assert.equal(comparison.status, 200);
+    assert.ok(comparison.body.matchScore >= 90, 'a listing inside budget must score at least 90');
+
+    const tooPricey = await guest.post('/api/ai/match', {
+      tenantRequest: { budgetMin: 2000, budgetMax: 8000, bedrooms: 2, preferredLocations: ['East Legon'] },
+      property: { rentGhs: 40000, bedrooms: 2, location: 'East Legon, Accra', propertyType: 'Apartment' },
+    });
+    assert.ok(tooPricey.body.matchScore < comparison.body.matchScore, 'over-budget listings must score lower');
+  });
+
+  test('another tenant cannot read someone else\'s matches; admin can', async () => {
+    const other = new ApiClient(baseUrl);
+    await other.post('/api/auth/register', {
+      email: uniqueEmail('nosy-tenant'),
+      password: 'Nosy-Tenant-123',
+      name: 'Nosy Tenant',
+      phone: '+233 20 111 0000',
+      role: 'tenant',
+    });
+
+    const forbidden = await other.get(`/api/matches?requestId=${matcher.requestId}`);
+    assert.equal(forbidden.status, 403);
+
+    const asAdmin = await admin.get(`/api/matches?requestId=${matcher.requestId}`);
+    assert.equal(asAdmin.status, 200);
+    assert.ok(asAdmin.body.matches.length > 0);
+
+    const missing = await admin.get('/api/matches?requestId=req-does-not-exist');
+    assert.equal(missing.status, 404);
+  });
+
+  test('read-all clears the unread badge for the caller only', async () => {
+    const before = await matcher.client.get('/api/notifications');
+    assert.equal(before.status, 200);
+
+    const res = await matcher.client.post('/api/notifications/read-all', {});
+    assert.equal(res.status, 200);
+    assert.equal(typeof res.body.updated, 'number');
+    assert.ok(Array.isArray(res.body.notifications));
+    assert.ok(res.body.notifications.every((n) => n.read === true));
+
+    const after = await matcher.client.get('/api/notifications');
+    assert.ok(after.body.notifications.every((n) => n.read === true), 'no unread rows may survive');
+
+    const unauthorised = await guest.post('/api/notifications/read-all', {});
+    assert.equal(unauthorised.status, 401);
+  });
+
+  test('the sitemap lists published listings and hides pending ones', async () => {
+    const res = await guest.get('/api/sitemap.xml');
+    assert.equal(res.status, 200);
+    assert.match(String(res.headers.get('content-type')), /xml/);
+    assert.ok(res.body.raw ? res.body.raw.includes('<urlset') : true);
+
+    const xml = res.body.raw;
+    assert.ok(xml.includes('https://rent.goodlucks.co/'));
+    assert.ok(xml.includes('/browse'));
+    assert.ok(xml.includes(`/property/${state.seededPropertyId}`));
+
+    // Landlord submissions start pending, so they are the honest negative case.
+    const created = await landlord.post('/api/properties', {
+      title: 'Sitemap Visibility Test Villa',
+      location: 'Teshie, Accra',
+      city: 'Accra',
+      rentGhs: 3100,
+      bedrooms: 2,
+      bathrooms: 1,
+      propertyType: 'Apartment',
+      description: 'Listing created only to verify sitemap visibility rules for pending and active adverts.',
+      images: ['https://images.unsplash.com/photo-1502672260266-1c1ef2d93688'],
+    });
+    assert.equal(created.status, 201);
+    assert.equal(created.body.property.status, 'pending');
+    const propertyId = created.body.property.id;
+
+    const whilePending = await guest.get('/api/sitemap.xml');
+    assert.ok(!whilePending.body.raw.includes(`/property/${propertyId}`), 'pending listings must stay out of the sitemap');
+
+    await admin.post(`/api/properties/${propertyId}/status`, { status: 'active' });
+    const whenLive = await guest.get('/api/sitemap.xml');
+    assert.ok(whenLive.body.raw.includes(`/property/${propertyId}`), 'published listings must appear');
+
+    await admin.delete(`/api/properties/${propertyId}`);
+  });
+});

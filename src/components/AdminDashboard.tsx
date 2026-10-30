@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-import { ApiError, api, messageForError } from '../services/apiService';
+import { ApiError, PropertyMatch, api, messageForError } from '../services/apiService';
 import { Property } from '../types';
 import { 
   ShieldCheck, 
@@ -136,6 +136,10 @@ export const AdminDashboard: React.FC = () => {
   const activeProps = properties.filter(p => p.status === 'active');
 
   const [isRunningAlerts, setIsRunningAlerts] = useState(false);
+  // Real match scores per tenant request, fetched from the backend so the
+  // console shows the same numbers the tenant sees.
+  const [requestMatches, setRequestMatches] = useState<Record<string, PropertyMatch[]>>({});
+  const [matchesLoading, setMatchesLoading] = useState(false);
   const [editProperty, setEditProperty] = useState<Property | null>(null);
   const [editForm, setEditForm] = useState<Record<string, any>>({});
   const [isSavingEdit, setIsSavingEdit] = useState(false);
@@ -195,6 +199,31 @@ export const AdminDashboard: React.FC = () => {
       images: property.images.join('\n'),
     });
   };
+
+  useEffect(() => {
+    if (activeAdminTab !== 'matching' || tenantRequests.length === 0) return;
+
+    let cancelled = false;
+    setMatchesLoading(true);
+
+    Promise.all(
+      tenantRequests.slice(0, 20).map(req =>
+        api.matches(req.id)
+          .then(result => [req.id, result.matches] as const)
+          .catch(() => [req.id, [] as PropertyMatch[]] as const)
+      )
+    )
+      .then(entries => {
+        if (!cancelled) setRequestMatches(Object.fromEntries(entries));
+      })
+      .finally(() => {
+        if (!cancelled) setMatchesLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeAdminTab, tenantRequests]);
 
   const handleSavePropertyEdit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -562,7 +591,7 @@ export const AdminDashboard: React.FC = () => {
                 {pendingProps.map(prop => (
                   <div key={prop.id} className="bg-slate-800 p-5 rounded-2xl border border-white/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                     <div className="flex items-center gap-4">
-                      <img src={prop.images[0]} alt="" className="w-20 h-20 rounded-xl object-cover border border-white/10 shrink-0" />
+                      <img src={prop.images[0]} alt="" loading="lazy" decoding="async" className="w-20 h-20 rounded-xl object-cover border border-white/10 shrink-0" />
                       <div>
                         <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider">Pending Review</span>
                         <h3 className="font-bold text-base text-white">{prop.title}</h3>
@@ -632,6 +661,8 @@ export const AdminDashboard: React.FC = () => {
                     <img
                       src={property.images[0] || 'https://images.unsplash.com/photo-1560518883-ce09059eeffa?auto=format&fit=crop&w=200&q=60'}
                       alt=""
+                      loading="lazy"
+                      decoding="async"
                       className="w-14 h-14 rounded-xl object-cover border border-white/10 shrink-0"
                     />
                     <div className="min-w-0">
@@ -857,31 +888,45 @@ export const AdminDashboard: React.FC = () => {
                   <div className="space-y-2">
                     <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">Top AI Property Matches for {req.tenantName}:</div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      {activeProps.slice(0, 2).map((prop, idx) => {
-                        const score = 96 - (idx * 4);
-                        return (
-                          <div key={prop.id} className="bg-slate-900 p-4 rounded-2xl border border-white/10 flex items-center justify-between gap-3">
-                            <div>
-                              <div className="flex items-center gap-1.5">
-                                <span className="px-2 py-0.5 rounded text-[10px] font-black bg-emerald-500 text-slate-950">
-                                  {score}% AI Match
-                                </span>
-                                <span className="text-xs font-bold text-white">{prop.title}</span>
-                              </div>
-                              <div className="text-[11px] text-slate-400 mt-1">
-                                {prop.location} • GH₵ {prop.rentGhs.toLocaleString()}/mo
-                              </div>
+                      {(requestMatches[req.id] ?? []).slice(0, 2).map(({ property: prop, score, reason, curated }) => (
+                        <div key={prop.id} className="bg-slate-900 p-4 rounded-2xl border border-white/10 flex items-center justify-between gap-3">
+                          <div>
+                            <div className="flex items-center gap-1.5">
+                              <span
+                                title={reason}
+                                className={`px-2 py-0.5 rounded text-[10px] font-black ${
+                                  curated ? 'bg-[#08D9D6] text-[#252A34]' : 'bg-emerald-500 text-slate-950'
+                                }`}
+                              >
+                                {curated ? 'Chosen' : `${score}% match`}
+                              </span>
+                              <span className="text-xs font-bold text-white">{prop.title}</span>
                             </div>
+                            <div className="text-[11px] text-slate-400 mt-1">
+                              {prop.location} • GH₵ {prop.rentGhs.toLocaleString()}/mo
+                            </div>
+                          </div>
 
+                          {!curated && (
                             <button
                               onClick={() => handleConfirmMatch(req.id, prop.id)}
                               className="px-3 py-1.5 rounded-lg bg-[#08D9D6] text-[#252A34] font-bold text-xs hover:bg-[#08D9D6]/90 transition-all shadow-md shrink-0"
                             >
                               Confirm Match
                             </button>
-                          </div>
-                        );
-                      })}
+                          )}
+                        </div>
+                      ))}
+                      {!matchesLoading && (requestMatches[req.id] ?? []).length === 0 && (
+                        <p className="text-[11px] text-slate-400 bg-slate-900/60 border border-white/10 rounded-2xl p-4">
+                          No live listing scores against this request yet — the tenant will see new homes as soon as they pass verification.
+                        </p>
+                      )}
+                      {matchesLoading && (requestMatches[req.id] ?? []).length === 0 && (
+                        <p className="text-[11px] text-slate-400 bg-slate-900/60 border border-white/10 rounded-2xl p-4">
+                          Scoring live listings…
+                        </p>
+                      )}
                     </div>
                   </div>
 
@@ -1096,6 +1141,8 @@ export const AdminDashboard: React.FC = () => {
                 <img 
                   src={viewPropertyModal.images[activeModalImage] || viewPropertyModal.images[0]} 
                   alt={viewPropertyModal.title} 
+                  loading="lazy"
+                  decoding="async" 
                   className="w-full h-full object-cover"
                 />
                 <div className="absolute bottom-3 right-3 bg-black/70 backdrop-blur-md px-3 py-1 rounded-lg text-xs font-semibold text-white">
@@ -1113,7 +1160,7 @@ export const AdminDashboard: React.FC = () => {
                         activeModalImage === idx ? 'border-[#08D9D6] scale-105' : 'border-transparent opacity-60 hover:opacity-100'
                       }`}
                     >
-                      <img src={img} alt="" className="w-full h-full object-cover" />
+                      <img src={img} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
                     </button>
                   ))}
                 </div>

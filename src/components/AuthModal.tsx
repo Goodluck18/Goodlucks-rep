@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { useApp } from '../context/AppContext';
+import { useModalA11y } from '../hooks/useModalA11y';
 import { api } from '../services/apiService';
 import { X, Building2, ShieldCheck, User, Mail, Lock, Phone, ArrowRight, MailCheck } from 'lucide-react';
 
@@ -13,6 +14,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ initialMode = 'login', ini
   const { login, register } = useApp();
   const [mode, setMode] = useState<'login' | 'register' | 'forgot'>(initialMode);
   const [resetSent, setResetSent] = useState<string | null>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const dialogProps = useModalA11y(dialogRef, onClose);
   const [selectedRole, setSelectedRole] = useState<'tenant' | 'landlord'>(initialRole);
 
   const [email, setEmail] = useState('');
@@ -68,7 +71,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({ initialMode = 'login', ini
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-black/80 backdrop-blur-md animate-fadeIn p-2 sm:p-4 flex items-start sm:items-center justify-center">
       <div 
-        className="relative w-full max-w-md bg-[#252A34] border border-white/10 rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-2xl text-white max-h-[85vh] overflow-y-auto flex flex-col my-auto"
+        ref={dialogRef}
+        {...dialogProps}
+        aria-labelledby="auth-modal-title"
+        className="relative w-full max-w-md bg-[#252A34] border border-white/10 rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-2xl text-white max-h-[85vh] overflow-y-auto flex flex-col my-auto focus:outline-none"
         onClick={(e) => e.stopPropagation()}
       >
         
@@ -89,7 +95,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ initialMode = 'login', ini
             <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-[#08D9D6] p-0.5 mx-auto flex items-center justify-center text-[#252A34] shadow-lg shadow-[#08D9D6]/20 font-extrabold">
               <Building2 className="w-6 h-6 sm:w-7 sm:h-7" />
             </div>
-            <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight">
+            <h2 id="auth-modal-title" className="text-xl sm:text-2xl font-black text-white tracking-tight">
               {mode === 'login' ? 'Welcome Back' : mode === 'register' ? 'Create Goodlucks Account' : 'Reset Your Password'}
             </h2>
             <p className="text-xs text-slate-400">

@@ -134,6 +134,13 @@ export interface AdminStats extends AnalyticsStats {
   totalTenantRequests: number;
 }
 
+export interface PropertyMatch {
+  property: Property;
+  score: number;
+  reason: string;
+  curated: boolean;
+}
+
 export interface PropertyInput {
   title: string;
   location: string;
@@ -410,6 +417,12 @@ export const api = {
   markNotificationRead: (id: string) =>
     request<{ success: boolean }>(`/notifications/${encodeURIComponent(id)}`, { method: 'PATCH', body: {} }),
 
+  markAllNotificationsRead: () =>
+    request<{ success: boolean; updated: number; notifications: NotificationItem[] }>('/notifications/read-all', {
+      method: 'POST',
+      body: {},
+    }),
+
   adminStats: () => request<{ stats: AdminStats }>('/admin/stats'),
 
   adminEmailLogs: () => request<{ logs: EmailLog[] }>('/admin/email-logs'),
@@ -425,6 +438,12 @@ export const api = {
     rentGhs: number;
     amenities: string[];
   }) => request<{ description: string; ai: boolean }>('/ai/describe', { method: 'POST', body: data }),
+
+  // Scored shortlist from the backend (same engine as /ai/match).
+  matches: (requestId?: string) =>
+    request<{ success: boolean; requestId: string | null; topScore?: number; matches: PropertyMatch[] }>(
+      requestId ? `/matches?requestId=${encodeURIComponent(requestId)}` : '/matches'
+    ),
 
   aiMatch: (tenantRequest: Partial<TenantRequest>, property: Partial<Property>) =>
     request<{ matchScore: number; aiMatchReason: string }>('/ai/match', {

@@ -995,6 +995,15 @@ function mark_notification_read(string $id, array $user): bool
     return $affected > 0;
 }
 
+/** Mark every unread notification for a user as read. Returns the row count. */
+function mark_all_notifications_read(array $user): int
+{
+    return db_exec(
+        'UPDATE notifications SET is_read = 1 WHERE user_id = :uid AND is_read = 0',
+        [':uid' => $user['id']]
+    );
+}
+
 function list_email_logs(int $limit = 200): array
 {
     $rows = db_all('SELECT * FROM email_logs ORDER BY sent_at DESC' . db_limit_clause($limit, 0));

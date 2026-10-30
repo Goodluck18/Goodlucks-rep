@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Goodlucks Homes">
+  <title>Goodlucks Homes</title>
+  <rect width="64" height="64" rx="14" fill="#08D9D6"/>
+  <path d="M12 52h40" stroke="#252A34" stroke-width="4" stroke-linecap="round"/>
+  <path d="M17 52V21.5a2.5 2.5 0 0 1 2.5-2.5h13a2.5 2.5 0 0 1 2.5 2.5V52" fill="#252A34"/>
+  <path d="M35 52V30.5a2.5 2.5 0 0 1 2.5-2.5h9A2.5 2.5 0 0 1 49 30.5V52" fill="#252A34" opacity="0.78"/>
+  <g fill="#08D9D6">
+    <rect x="21" y="25" width="4" height="4" rx="1"/>
+    <rect x="28" y="25" width="4" height="4" rx="1"/>
+    <rect x="21" y="33" width="4" height="4" rx="1"/>
+    <rect x="28" y="33" width="4" height="4" rx="1"/>
+    <rect x="21" y="41" width="4" height="4" rx="1"/>
+    <rect x="28" y="41" width="4" height="4" rx="1"/>
+    <rect x="39" y="34" width="3.5" height="3.5" rx="1"/>
+    <rect x="44.5" y="34" width="3.5" height="3.5" rx="1"/>
+    <rect x="39" y="41" width="3.5" height="3.5" rx="1"/>
+    <rect x="44.5" y="41" width="3.5" height="3.5" rx="1"/>
+  </g>
+</svg>

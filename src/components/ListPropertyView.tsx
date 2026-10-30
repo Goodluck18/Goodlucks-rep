@@ -354,7 +354,7 @@ export const ListPropertyView: React.FC<ListPropertyViewProps> = ({ onOpenAuth }
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
                   {images.map((img, idx) => (
                     <div key={idx} className="relative aspect-[4/3] rounded-xl overflow-hidden group border border-white/10">
-                      <img src={img} alt={`Preview ${idx}`} className="w-full h-full object-cover" />
+                      <img src={img} alt={`Preview ${idx}`} loading="lazy" decoding="async" className="w-full h-full object-cover" />
                       <button
                         type="button"
                         onClick={() => removeImage(idx)}

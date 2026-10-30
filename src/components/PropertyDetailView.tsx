@@ -294,6 +294,8 @@ export const PropertyDetailView: React.FC = () => {
             <img 
               src={property.images[activeImageIndex] || property.images[0]} 
               alt={property.title}
+              fetchPriority="high"
+              decoding="async"
               className="w-full h-full object-cover transition-all duration-300"
             />
             <div className="absolute bottom-4 right-4 bg-black/60 backdrop-blur-md px-3 py-1.5 rounded-xl text-xs font-semibold text-white">
@@ -312,7 +314,7 @@ export const PropertyDetailView: React.FC = () => {
                     activeImageIndex === idx ? 'border-[#08D9D6] scale-105' : 'border-transparent opacity-60 hover:opacity-100'
                   }`}
                 >
-                  <img src={img} alt="" className="w-full h-full object-cover" />
+                  <img src={img} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
                 </button>
               ))}
             </div>

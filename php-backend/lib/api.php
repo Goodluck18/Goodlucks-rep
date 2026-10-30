@@ -57,6 +57,7 @@ function resolve_route(string $method, string $path): ?array
         ['PUT',  '#^/profile$#', 'handle_update_profile'],
 
         // --- Properties -------------------------------------------------
+        ['GET',  '#^/matches$#', 'handle_matches'],
         ['GET',  '#^/properties$#', 'handle_list_properties'],
         ['POST', '#^/properties$#', 'handle_create_property'],
         ['GET',  '#^/properties/([A-Za-z0-9\-_]+)$#', 'handle_get_property'],
@@ -115,11 +116,14 @@ function resolve_route(string $method, string $path): ?array
         // --- Notifications ----------------------------------------------
         ['GET',  '#^/notifications$#', 'handle_list_notifications'],
         ['PATCH', '#^/notifications/([A-Za-z0-9\-_]+)$#', 'handle_mark_notification'],
+        ['POST', '#^/notifications/read-all$#', 'handle_mark_all_notifications'],
 
         // --- Admin ------------------------------------------------------
         ['GET',  '#^/admin/stats$#', 'handle_admin_stats'],
         ['GET',  '#^/admin/email-logs$#', 'handle_admin_email_logs'],
         ['POST', '#^/admin/alerts/run$#', 'handle_run_alert_digest'],
+
+        ['GET',  '#^/sitemap\.xml$#', 'handle_sitemap'],
 
         // --- Utility ----------------------------------------------------
         ['POST', '#^/track/pageview$#', 'handle_track_pageview'],
@@ -1917,6 +1921,19 @@ function handle_mark_notification(array $params): void
     json_response(['success' => true]);
 }
 
+/**
+ * Mark every notification as read in one request.
+ *
+ * The badge counts unread rows, so opening the notifications view calls this
+ * instead of firing one PATCH per row.
+ */
+function handle_mark_all_notifications(): void
+{
+    $user = require_auth();
+    $updated = mark_all_notifications_read($user);
+    json_response(['success' => true, 'updated' => $updated, 'notifications' => list_notifications($user)]);
+}
+
 // ===========================================================================
 // Admin
 // ===========================================================================
@@ -1953,6 +1970,69 @@ function handle_admin_email_logs(): void
 {
     require_admin();
     json_response(['success' => true, 'logs' => list_email_logs(300)]);
+}
+
+// ===========================================================================
+// SEO
+// ===========================================================================
+/**
+ * Dynamic XML sitemap.
+ *
+ * The SPA build cannot know the catalogue at build time, so /sitemap.xml is
+ * generated from the live database: core pages plus every published listing,
+ * with real last-modified dates.
+ */
+function handle_sitemap(): void
+{
+    $core = [
+        ['loc' => SITE_URL . '/', 'priority' => '1.0', 'changefreq' => 'daily'],
+        ['loc' => SITE_URL . '/browse', 'priority' => '0.9', 'changefreq' => 'daily'],
+        ['loc' => SITE_URL . '/find-home', 'priority' => '0.8', 'changefreq' => 'weekly'],
+        ['loc' => SITE_URL . '/about', 'priority' => '0.5', 'changefreq' => 'monthly'],
+        ['loc' => SITE_URL . '/contact', 'priority' => '0.5', 'changefreq' => 'monthly'],
+    ];
+
+    $entries = [];
+    foreach ($core as $page) {
+        $entries[] = [
+            'loc'        => $page['loc'],
+            'lastmod'    => gmdate('Y-m-d'),
+            'changefreq' => $page['changefreq'],
+            'priority'   => $page['priority'],
+        ];
+    }
+
+    $result = query_properties(['status' => 'active', 'perPage' => 500]);
+    foreach ($result['items'] as $property) {
+        $updated = (string)($property['updatedAt'] ?? '');
+        $timestamp = $updated !== '' ? strtotime($updated) : false;
+        $entries[] = [
+            'loc'        => SITE_URL . '/property/' . rawurlencode((string)$property['id']),
+            'lastmod'    => gmdate('Y-m-d', $timestamp !== false ? $timestamp : time()),
+            'changefreq' => 'weekly',
+            'priority'   => '0.8',
+        ];
+    }
+
+    $xml = '<?xml version="1.0" encoding="UTF-8"?>' . "\n"
+        . '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' . "\n";
+    foreach ($entries as $entry) {
+        $xml .= "  <url>\n"
+            . '    <loc>' . htmlspecialchars($entry['loc'], ENT_XML1) . "</loc>\n"
+            . '    <lastmod>' . $entry['lastmod'] . "</lastmod>\n"
+            . '    <changefreq>' . $entry['changefreq'] . "</changefreq>\n"
+            . '    <priority>' . $entry['priority'] . "</priority>\n"
+            . "  </url>\n";
+    }
+    $xml .= '</urlset>' . "\n";
+
+    if (ob_get_length()) {
+        @ob_clean();
+    }
+    header('Content-Type: application/xml; charset=utf-8');
+    header('Cache-Control: public, max-age=3600');
+    echo $xml;
+    exit;
 }
 
 // ===========================================================================
@@ -2017,15 +2097,16 @@ function handle_ai_describe(): void
 }
 
 /** AI match score between a tenant request and a property. */
-function handle_ai_match(): void
+/**
+ * Score a listing against a tenant's rental request.
+ *
+ * Shared by /ai/match (one property at a time) and /matches (the signed-in
+ * tenant's whole shortlist) so both always report the same number.
+ *
+ * @return array{score: int, reason: string}
+ */
+function match_score(array $request, array $property): array
 {
-    $input = request_json();
-    $request = $input['tenantRequest'] ?? null;
-    $property = $input['property'] ?? null;
-    if (!is_array($request) || !is_array($property)) {
-        error_response('Both tenantRequest and property objects are required.', 422);
-    }
-
     $rent = (float)($property['rentGhs'] ?? 0);
     $budgetMin = (float)($request['budgetMin'] ?? 0);
     $budgetMax = (float)($request['budgetMax'] ?? PHP_INT_MAX);
@@ -2060,7 +2141,85 @@ function handle_ai_match(): void
         (string)($property['location'] ?? 'Accra')
     );
 
-    json_response(['success' => true, 'matchScore' => $score, 'aiMatchReason' => $reason]);
+    return ['score' => $score, 'reason' => $reason];
+}
+
+function handle_ai_match(): void
+{
+    $input = request_json();
+    $request = $input['tenantRequest'] ?? null;
+    $property = $input['property'] ?? null;
+    if (!is_array($request) || !is_array($property)) {
+        error_response('Both tenantRequest and property objects are required.', 422);
+    }
+
+    $result = match_score($request, $property);
+    json_response(['success' => true, 'matchScore' => $result['score'], 'aiMatchReason' => $result['reason']]);
+}
+
+/**
+ * The signed-in tenant's shortlist, scored against their own rental request.
+ *
+ * Replaces the hardcoded percentages the dashboard used to show: staff-curated
+ * matches (set on the request) stay first, then the best-scoring live listings.
+ */
+function handle_matches(): void
+{
+    $user = require_auth();
+    $requestId = clean_string(query_param('requestId', ''), 64);
+
+    if ($requestId !== '') {
+        // Staff score any request; a tenant may only score their own.
+        $request = find_tenant_request($requestId);
+        if (!$request) {
+            error_response('Tenant request not found.', 404);
+        }
+        $owns = (string)($request['tenantId'] ?? '') === (string)$user['id']
+            || strcasecmp((string)($request['tenantEmail'] ?? ''), (string)($user['email'] ?? '')) === 0;
+        if (!$owns && !is_admin($user)) {
+            error_response('You do not have permission to view these matches.', 403);
+        }
+    } else {
+        $requests = list_tenant_requests(['tenantId' => (string)$user['id']], 1);
+        if (!$requests && !empty($user['email'])) {
+            $requests = list_tenant_requests(['email' => (string)$user['email']], 1);
+        }
+        $request = $requests[0] ?? null;
+    }
+
+    if (!$request) {
+        json_response(['success' => true, 'requestId' => null, 'matches' => []]);
+    }
+
+    $curated = array_map('strval', (array)($request['matchedPropertyIds'] ?? []));
+    $result = query_properties(['status' => 'active', 'perPage' => 120]);
+
+    $scored = [];
+    foreach ($result['items'] as $property) {
+        $scoredScore = match_score($request, $property);
+        $scored[] = [
+            'property' => $property,
+            'score'    => $scoredScore['score'],
+            'reason'   => $scoredScore['reason'],
+            'curated'  => in_array((string)$property['id'], $curated, true),
+        ];
+    }
+
+    usort($scored, static function (array $a, array $b): int {
+        if ($a['curated'] !== $b['curated']) {
+            return $a['curated'] ? -1 : 1;
+        }
+        return $b['score'] <=> $a['score'];
+    });
+
+    $matches = array_slice($scored, 0, 12);
+
+    json_response([
+        'success'      => true,
+        'requestId'    => (string)$request['id'],
+        'topScore'     => $matches ? (int)$matches[0]['score'] : 0,
+        'matches'      => $matches,
+    ]);
 }
 
 /** Low-level Gemini REST call (returns null on any failure). */

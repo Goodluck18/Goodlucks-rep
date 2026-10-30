@@ -154,6 +154,8 @@ export const LandlordDashboard: React.FC = () => {
                   <img 
                     src={currentUser?.avatar || 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=300&q=80'} 
                     alt={currentUser?.name}
+                    loading="lazy"
+                    decoding="async"
                     className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl object-cover border-2 border-[#08D9D6] shadow-xl" 
                   />
                   <div className="absolute -bottom-1 -right-1 bg-[#08D9D6] text-[#252A34] p-1 rounded-lg text-[10px] font-black">
@@ -380,6 +382,8 @@ export const LandlordDashboard: React.FC = () => {
                       <img 
                         src={prop.images[0] || 'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=300&q=80'} 
                         alt={prop.title}
+                        loading="lazy"
+                        decoding="async"
                         className="w-20 h-20 rounded-xl object-cover border border-white/10 shrink-0" 
                       />
                       <div className="space-y-1">

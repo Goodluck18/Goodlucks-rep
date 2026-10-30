@@ -1,27 +1,56 @@
-import React, { useState } from 'react';
+import React, { Suspense, lazy, useEffect, useState } from 'react';
 import { HelmetProvider } from 'react-helmet-async';
 import { AppProvider, useApp } from './context/AppContext';
 import { Navbar } from './components/Navbar';
 import { Footer } from './components/Footer';
 import { MobileBottomNav } from './components/MobileBottomNav';
-import { HomeView } from './components/HomeView';
-import { BrowseView } from './components/BrowseView';
-import { PropertyDetailView } from './components/PropertyDetailView';
-import { FindAHomeView } from './components/FindAHomeView';
-import { ListPropertyView } from './components/ListPropertyView';
-import { TenantDashboard } from './components/TenantDashboard';
-import { LandlordDashboard } from './components/LandlordDashboard';
-import { AdminDashboard } from './components/AdminDashboard';
-import { AdminLoginView } from './components/AdminLoginView';
-import { AboutView } from './components/AboutView';
-import { ContactView } from './components/ContactView';
-import { TenancyAgreementView } from './components/TenancyAgreementView';
 import { AuthModal } from './components/AuthModal';
 import { ResetPasswordView } from './components/ResetPasswordView';
+import { HomeView } from './components/HomeView';
+
+// Everything below the home page is split into its own chunk: the landing view
+// stays instantly interactive while dashboards (the heaviest screens) load on
+// demand instead of bloating the initial bundle.
+const BrowseView = lazy(() => import('./components/BrowseView').then((m) => ({ default: m.BrowseView })));
+const PropertyDetailView = lazy(() => import('./components/PropertyDetailView').then((m) => ({ default: m.PropertyDetailView })));
+const FindAHomeView = lazy(() => import('./components/FindAHomeView').then((m) => ({ default: m.FindAHomeView })));
+const ListPropertyView = lazy(() => import('./components/ListPropertyView').then((m) => ({ default: m.ListPropertyView })));
+const TenantDashboard = lazy(() => import('./components/TenantDashboard').then((m) => ({ default: m.TenantDashboard })));
+const LandlordDashboard = lazy(() => import('./components/LandlordDashboard').then((m) => ({ default: m.LandlordDashboard })));
+const AdminDashboard = lazy(() => import('./components/AdminDashboard').then((m) => ({ default: m.AdminDashboard })));
+const AdminLoginView = lazy(() => import('./components/AdminLoginView').then((m) => ({ default: m.AdminLoginView })));
+const AboutView = lazy(() => import('./components/AboutView').then((m) => ({ default: m.AboutView })));
+const ContactView = lazy(() => import('./components/ContactView').then((m) => ({ default: m.ContactView })));
+const TenancyAgreementView = lazy(() => import('./components/TenancyAgreementView').then((m) => ({ default: m.TenancyAgreementView })));
+
+/** Lightweight placeholder shown while a lazy view chunk downloads. */
+const ViewFallback: React.FC = () => (
+  <div className="min-h-[60vh] flex flex-col items-center justify-center gap-3 text-center px-6">
+    <span className="w-8 h-8 border-2 border-[#08D9D6]/30 border-t-[#08D9D6] rounded-full animate-spin" />
+    <p className="text-xs text-slate-400">Loading…</p>
+  </div>
+);
 
 const AppContent: React.FC = () => {
-  const { currentRole, currentView, isBooting, bootError, retryBootstrap } = useApp();
+  const {
+    currentRole,
+    currentView,
+    isBooting,
+    bootError,
+    retryBootstrap,
+    currentUser,
+    notifications,
+    markAllNotificationsRead,
+  } = useApp();
   const [authModalOpen, setAuthModalOpen] = useState(false);
+  // Opening the notifications view clears the badge: anything the member has
+  // just looked at should not keep counting as unread.
+  useEffect(() => {
+    if (currentView !== 'notifications' || !currentUser) return;
+    if (!notifications.some((notification) => !notification.read)) return;
+    void markAllNotificationsRead();
+  }, [currentView, currentUser, notifications, markAllNotificationsRead]);
+
   // Emailed reset links land on /?reset=<token>; that view replaces the whole site.
   const [resetToken, setResetToken] = useState<string | null>(() => {
     if (typeof window === 'undefined') return null;
@@ -132,7 +161,7 @@ const AppContent: React.FC = () => {
 
       {/* Main Content Area */}
       <main className="flex-grow pb-12 md:pb-0">
-        {renderView()}
+        <Suspense fallback={<ViewFallback />}>{renderView()}</Suspense>
       </main>
 
       {/* Footer (Clean & minimal per specs) */}

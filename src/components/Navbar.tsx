@@ -251,6 +251,8 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAuth }) => {
                 <img 
                   src={currentUser?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80'} 
                   alt={currentUser?.name}
+                  loading="lazy"
+                  decoding="async"
                   className="w-9 h-9 rounded-full object-cover border-2 border-[#08D9D6]/50 shadow-sm" 
                 />
                 <div className="flex flex-col text-left">
