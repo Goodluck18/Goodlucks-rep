@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { SEOHead } from './SEOHead';
+import { api } from '../services/apiService';
 import { TenancyAgreement, RentReceipt } from '../types';
 import { 
   FileText, 
@@ -80,8 +81,8 @@ export const TenancyAgreementView: React.FC = () => {
     signAgreement, 
     createReceipt,
     showSuccessToast,
-    showInfoToast,
-    sendSimulatedEmail
+    showErrorToast,
+    showInfoToast
   } = useApp();
 
   const [activeTab, setActiveTab] = useState<'agreement' | 'receipt' | 'vault'>('agreement');
@@ -161,59 +162,78 @@ export const TenancyAgreementView: React.FC = () => {
   // Search vault
   const [vaultSearchQuery, setVaultSearchQuery] = useState('');
 
+  const [isSavingAgreement, setIsSavingAgreement] = useState(false);
+  const [isSavingReceipt, setIsSavingReceipt] = useState(false);
+
   // Handle Save Agreement
-  const handleGenerateAgreement = (e: React.FormEvent) => {
+  const handleGenerateAgreement = async (e: React.FormEvent) => {
     e.preventDefault();
-    const newAgr = createAgreement({
-      propertyId: selectedPropId,
-      propertyTitle: propTitle,
-      propertyAddress: propAddress,
-      city: propCity,
-      landlordName,
-      landlordPhone,
-      landlordGhanaCard,
-      tenantName,
-      tenantPhone,
-      tenantGhanaCard,
-      monthlyRentGhs,
-      durationMonths,
-      totalRentGhs,
-      securityDepositGhs,
-      startDate,
-      endDate,
-      noticePeriodMonths,
-      utilitiesResponsibility,
-      witnessName,
-      landlordSigned: true,
-      tenantSigned: currentUser?.role === 'tenant',
-      landlordSignatureDate: new Date().toISOString(),
-      tenantSignatureDate: currentUser?.role === 'tenant' ? new Date().toISOString() : undefined,
-      status: currentUser?.role === 'tenant' ? 'active' : 'pending_signatures',
-    });
-    setPreviewAgreement(newAgr);
-    showSuccessToast('Tenancy Agreement Generated!', 'Available now for printing, download, and e-signing.');
+    setIsSavingAgreement(true);
+    try {
+      const created = await createAgreement({
+        propertyId: selectedPropId,
+        propertyTitle: propTitle,
+        propertyAddress: propAddress,
+        city: propCity,
+        landlordName,
+        landlordPhone,
+        landlordGhanaCard,
+        tenantName,
+        tenantPhone,
+        tenantGhanaCard,
+        monthlyRentGhs,
+        durationMonths,
+        securityDepositGhs,
+        startDate,
+        endDate,
+        noticePeriodMonths,
+        utilitiesResponsibility,
+        witnessName,
+      });
+
+      // Record the signature of the party who generated the document.
+      let saved = created;
+      if (currentUser?.role === 'landlord' || currentUser?.role === 'tenant') {
+        await signAgreement(created.id, currentUser.role);
+        saved = { ...created, [`${currentUser.role}Signed`]: true } as typeof created;
+      }
+
+      setPreviewAgreement(saved);
+      showSuccessToast('Tenancy Agreement Generated!', 'Available now for printing, download, and e-signing.');
+    } catch (err) {
+      showErrorToast('Could not save the agreement', err instanceof Error ? err.message : 'Please try again.');
+    } finally {
+      setIsSavingAgreement(false);
+    }
   };
 
   // Handle Save Receipt
-  const handleGenerateReceipt = (e: React.FormEvent) => {
+  const handleGenerateReceipt = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsSavingReceipt(true);
     const words = numberToWordsGhs(recAmountGhs);
-    const newRec = createReceipt({
-      propertyTitle: recPropertyTitle,
-      propertyAddress: recPropertyAddress,
-      tenantName: recTenantName,
-      tenantPhone: recTenantPhone,
-      landlordName: recLandlordName,
-      amountGhs: recAmountGhs,
-      amountInWords: words,
-      paymentPurpose: recPaymentPurpose,
-      paymentMethod: recPaymentMethod,
-      transactionRef: recTransactionRef,
-      paymentDate: recPaymentDate,
-      issuedBy: recIssuedBy,
-    });
-    setPreviewReceipt(newRec);
-    showSuccessToast('Official Receipt Generated!', 'Formatted for printing and digital download.');
+    try {
+      const newRec = await createReceipt({
+        propertyTitle: recPropertyTitle,
+        propertyAddress: recPropertyAddress,
+        tenantName: recTenantName,
+        tenantPhone: recTenantPhone,
+        landlordName: recLandlordName,
+        amountGhs: recAmountGhs,
+        amountInWords: words,
+        paymentPurpose: recPaymentPurpose,
+        paymentMethod: recPaymentMethod,
+        transactionRef: recTransactionRef,
+        paymentDate: recPaymentDate,
+        issuedBy: recIssuedBy,
+      });
+      setPreviewReceipt(newRec);
+      showSuccessToast('Official Receipt Generated!', 'Formatted for printing and digital download.');
+    } catch (err) {
+      showErrorToast('Could not issue the receipt', err instanceof Error ? err.message : 'Please try again.');
+    } finally {
+      setIsSavingReceipt(false);
+    }
   };
 
   // Print Document Function
@@ -222,15 +242,13 @@ export const TenancyAgreementView: React.FC = () => {
   };
 
   // Email Document Function
-  const handleEmailAgreement = (agreement: TenancyAgreement) => {
-    sendSimulatedEmail(
-      'property_approval',
-      tenantPhone || 'tenant@goodlucks.co',
-      agreement.tenantName,
-      `Official Tenancy Agreement: ${agreement.propertyTitle}`,
-      `Dear ${agreement.tenantName}, your tenancy agreement for ${agreement.propertyTitle} (Ref: ${agreement.verificationCode}) is ready.`
-    );
-    showSuccessToast('Email Dispatched', `Copy sent to ${agreement.tenantName} and ${agreement.landlordName}.`);
+  const handleEmailAgreement = async (agreement: TenancyAgreement) => {
+    try {
+      await api.emailAgreement(agreement.id);
+      showSuccessToast('Email Dispatched', `A copy was sent for ${agreement.propertyTitle} (Ref: ${agreement.verificationCode}).`);
+    } catch (err) {
+      showErrorToast('Could not send the email', err instanceof Error ? err.message : 'Please try again.');
+    }
   };
 
   const handleCopyLink = (code: string) => {

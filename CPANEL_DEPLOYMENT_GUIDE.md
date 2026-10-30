@@ -1,162 +1,253 @@
-# Goodlucks Homes - cPanel & phpMyAdmin Deployment Guide (Option 1)
+# Goodlucks Homes — cPanel Deployment Guide
 
-This guide walks you through deploying **Goodlucks Homes** to any standard **cPanel hosting** account with **phpMyAdmin (MySQL)**.
-
----
-
-## 🏗️ Architecture Overview
-
-Your website uses the industry-standard architecture for high-performance web apps on shared hosting:
-1. **Frontend (Fast & Interactive)**: React + Tailwind CSS compiled into lightweight static HTML, JavaScript, and CSS files.
-2. **Backend (cPanel PHP & MySQL)**: PHP REST API scripts (`/api/*`) connected to your MySQL database managed via phpMyAdmin.
-3. **Apache Routing (`.htaccess`)**: Automatically routes API requests to PHP scripts and web page visits to `index.html`.
+This guide deploys the **React website** and the **PHP + MySQL API** to a standard
+cPanel account (phpMyAdmin available). It matches what is actually in the
+repository today — there is no Node server in production.
 
 ---
 
-## 📋 Directory Structure on cPanel (`public_html`)
+## 1. Architecture
 
-Once uploaded, your cPanel `public_html` folder will look like this:
+| Layer | Technology | Where it runs |
+| --- | --- | --- |
+| Frontend | React 19 + Vite + Tailwind, compiled to static files | `public_html/` |
+| API | PHP 8.1+ front controller (`api/index.php`) | `public_html/api/` |
+| Database | MySQL 8 / MariaDB via PDO | cPanel MySQL |
+| Routing | Apache `mod_rewrite` (`.htaccess`) | `public_html/` and `public_html/api/` |
+| Uploads | Images written to `api/uploads/` (never executed) | file system |
+| Email | Resend API, falling back to PHP `mail()` | outbound |
+
+The browser only talks to `/api/...` on the same domain. There is no CORS
+wildcard, no API key in the frontend bundle and no business data in
+`localStorage` — the database is the single source of truth.
+
+**Requirements:** PHP 8.1+ with `pdo_mysql`, `openssl`, `curl`, `fileinfo`,
+`mbstring`; Apache with `mod_rewrite`; HTTPS (free AutoSSL is fine).
+
+---
+
+## 2. Repository → server mapping
 
 ```text
-public_html/
-│
-├── index.html                  <-- Frontend entry page (from dist/)
-├── .htaccess                   <-- Apache routing file (ensures React & API routes work)
-├── assets/                     <-- Compiled JS & CSS files (from dist/assets/)
-│   ├── index-xxxx.js
-│   └── index-xxxx.css
-│
-└── api/                        <-- PHP Backend folder (from php-backend/)
-    ├── config.php              <-- Database credentials (HOST, DB, USER, PASS)
-    ├── database.sql            <-- Database backup file
-    ├── health.php              <-- API health check (tests MySQL connection)
-    ├── properties.php          <-- Listing & searching properties
-    ├── price_alerts.php        <-- "Notify me if price drops" subscriptions
-    ├── viewing_request.php     <-- Physical viewing booking (GH₵ 100 on-site)
-    ├── tenant_requests.php     <-- Tenant match requests
-    ├── send_email.php          <-- Automated email notifications
-    └── .htaccess               <-- API routing rules
+public_html/                 <- contents of dist/ after `npm run build`
+├── index.html
+├── .htaccess                <- from public/.htaccess
+├── assets/                  <- hashed JS/CSS
+├── favicon.svg, robots.txt
+└── api/                     <- entire php-backend/ folder
+    ├── index.php            <- front controller (all routes)
+    ├── .htaccess            <- rewrite + hardening
+    ├── .env                 <- YOUR secrets (never committed)
+    ├── config.php           <- reads .env / config.local.php
+    ├── lib/                 <- http, db, auth, validate, repository, mailer, api
+    ├── database.sql         <- MySQL schema (idempotent)
+    ├── admin_bootstrap.php  <- CLI: create/reset the admin user
+    ├── migrate.php          <- CLI: additive schema upgrade
+    ├── uploads/             <- writable, 0755
+    └── logs/                <- writable, 0755 (php-error.log)
 ```
 
----
-
-## 🚀 Step-by-Step Deployment Instructions
-
-### Step 1: Create Database & User in cPanel
-1. Log in to your **cPanel Dashboard**.
-2. Under the **Databases** section, click **MySQL® Database Wizard** (or **MySQL® Databases**).
-3. **Create a Database**:
-   - Enter a name, e.g., `goodlucks` (full name will be like `cpaneluser_goodlucks`).
-   - Click **Next Step**.
-4. **Create a Database User**:
-   - Enter a username, e.g., `dbuser` (full name will be like `cpaneluser_dbuser`).
-   - Generate a strong password and **copy it down**.
-   - Click **Create User**.
-5. **Assign Privileges**:
-   - Check the box for **ALL PRIVILEGES**.
-   - Click **Make Changes**.
+The legacy files `properties.php`, `tenant_requests.php`, `price_alerts.php`,
+`viewing_request.php`, `send_email.php`, `health.php` are 4-line shims that
+require `index.php`; old links keep working but there is only one router.
 
 ---
 
-### Step 2: Import `database.sql` in phpMyAdmin
-1. In cPanel, navigate to **phpMyAdmin** (under Databases).
-2. In the left sidebar, click on the database you just created (e.g., `cpaneluser_goodlucks`).
-3. Click the **Import** tab at the top.
-4. Click **Choose File** and select `php-backend/database.sql` from your project folder.
-5. Click **Import** (or **Go** at the bottom).
-6. ✅ You will see green checkmarks confirming the creation of 9 tables:
-   - `properties` (pre-seeded with Accra luxury listings: Cantonments, East Legon, Airport Residential, Dzorwulu)
-   - `price_drop_alerts` (stores email alerts for price drops)
-   - `viewing_schedules`
-   - `tenant_requests`
-   - `users`
-   - `tenancy_agreements`
-   - `rent_receipts`
-   - `email_logs`
-   - `notifications`
+## 3. Step 1 — Database
+
+1. cPanel → **MySQL® Databases** → create a database, e.g. `goodlucks`
+   (full name `cpuser_goodlucks`).
+2. Create a user with a strong password and grant **ALL PRIVILEGES** on it.
+3. Open **phpMyAdmin** → select the database → **Import** → choose
+   `php-backend/database.sql` → **Go**.
+
+`database.sql` is idempotent (`CREATE TABLE IF NOT EXISTS` + guarded seeds), so
+re-importing it after an update is safe. It creates every table the app uses
+(users, sessions, properties, enquiries, tenant_requests, viewings, agreements,
+receipts, alerts, notifications, page_views, email_logs, rate_limits, uploads)
+and seeds a demo landlord, a demo tenant and properties `prop-1` … `prop-4`.
+
+> Upgrading an older install? Run `php api/migrate.php` (dry run) and then
+> `php api/migrate.php --apply` from cPanel → Terminal. It only adds what is
+> missing and never drops data.
 
 ---
 
-### Step 3: Configure `config.php`
-Open `php-backend/config.php` on your computer (or in cPanel File Manager) and update lines 13–16:
+## 4. Step 2 — Configure the API
 
-```php
-define('DB_HOST', 'localhost');                  // Keep as localhost on cPanel
-define('DB_NAME', 'cpaneluser_goodlucks');        // Your full cPanel DB name
-define('DB_USER', 'cpaneluser_dbuser');           // Your full cPanel DB user
-define('DB_PASS', 'your_actual_password_here');   // Your database password
+Copy `php-backend/.env.example` to `public_html/api/.env` and fill in:
+
+```ini
+APP_ENV=production
+APP_URL=https://rent.goodlucks.co
+
+DB_DRIVER=mysql
+DB_HOST=localhost
+DB_NAME=cpuser_goodlucks
+DB_USER=cpuser_gluser
+DB_PASS=<your strong password>
+
+RESEND_API_KEY=re_xxx            # recommended, enables reliable email
+RESEND_FROM_EMAIL=rentals@goodlucks.co
+OFFICIAL_EMAIL=rentals@goodlucks.co
+
+GEMINI_API_KEY=                  # optional: AI descriptions & match scores
+ADMIN_ACCESS_KEY=<long random>   # required second factor for the admin login
 ```
 
-> **Note**: In cPanel, database and usernames almost always have your cPanel account username as a prefix (e.g., `account_dbname`).
+Notes:
+
+* `.env` must not be web-accessible — the shipped `.htaccess` blocks dotfiles.
+* Instead of `.env` you can use `api/config.local.php` returning an array:
+  `<?php return ['DB_NAME' => '…', 'DB_PASS' => '…'];`
+* Empty `RESEND_API_KEY` simply falls back to PHP `mail()`; the attempt is
+  still recorded in the admin email log.
 
 ---
 
-### Step 4: Build the Frontend (or Download ZIP)
-In your development environment, run:
+## 5. Step 3 — Build the frontend
+
+On your computer:
+
 ```bash
-npm run build
+npm install
+npm run build          # writes dist/
 ```
-This builds production files into the `dist/` folder. It automatically includes the optimized `public_html` `.htaccess` file.
+
+`npm run build` also compiles `server.ts` to `dist/server.cjs`; that file is only
+used for local/Node hosting and is **not** uploaded to cPanel. Upload:
+
+* everything inside `dist/` **except** `server.cjs` / `server.cjs.map`, to `public_html/`
+* `public/.htaccess` to `public_html/.htaccess`
+
+Keep `index.html` and `assets/` at the same level; the HTML requests
+`/assets/…` with a hashed name, so it is safe to cache them for a year.
 
 ---
 
-### Step 5: Upload Files to cPanel `public_html`
-1. In cPanel, open **File Manager** and go to `public_html/`.
-2. Upload all files from the `dist/` folder directly into `public_html/`:
-   - `index.html`
-   - `.htaccess`
-   - `assets/` folder
-   - Any public icons/images
-3. In `public_html/`, create a new folder named **`api`**.
-4. Upload all files from `php-backend/` into `public_html/api/`:
-   - `config.php`
-   - `health.php`
-   - `properties.php`
-   - `price_alerts.php`
-   - `viewing_request.php`
-   - `tenant_requests.php`
-   - `send_email.php`
-   - `.htaccess`
+## 6. Step 4 — Upload the API
 
----
-
-### Step 6: Test Your Live Installation!
-1. **Test the Database & API**:
-   Visit in your browser:
+1. Upload the whole `php-backend/` folder as `public_html/api/`.
+2. Do **not** upload `admin_bootstrap.php`, `migrate.php`, or `*.sql` to a
+   public folder if your host does not honour `.htaccess` denies; keep them
+   outside `public_html` and run them with an absolute path in that case.
+3. Set permissions:
    ```text
-   https://yourdomain.com/api/health.php
+   api/            0755
+   api/uploads/    0755  (must be writable by PHP)
+   api/logs/       0755  (must be writable by PHP)
+   api/.env        0600
    ```
-   You should see a JSON response confirming:
-   ```json
-   {
-     "status": "ok",
-     "platform": "Goodlucks Homes cPanel PHP Backend",
-     "database_connected": true,
-     "properties_count": 4,
-     "tables": ["email_logs", "notifications", "price_drop_alerts", "properties", ...]
-   }
-   ```
-
-2. **Test the Frontend**:
-   Visit `https://yourdomain.com`.
-   - Browse properties.
-   - Click on any property (e.g. Cantonments 3-Bed).
-   - Click **"Notify me if price drops"**, enter your email, and submit.
-   - The alert will immediately save to your MySQL `price_drop_alerts` table in phpMyAdmin!
+4. Make sure the uploads folder cannot execute PHP — `api/uploads/.htaccess`
+   already removes PHP handlers and denies script extensions.
 
 ---
 
-## 🛠️ Common cPanel Questions & Solutions
+## 7. Step 5 — Create the admin user
 
-### 1. "Page shows 404 when refreshed on internal routes"
-- Make sure `.htaccess` is uploaded to the root of `public_html`.
-- In cPanel File Manager, click **Settings** (top right) and check **"Show Hidden Files (dotfiles)"** so `.htaccess` is visible.
+There is no default admin and no "bypass" button. Create one from
+**cPanel → Terminal** (or SSH):
 
-### 2. "Database connection failed in health.php"
-- Check that the database user is added to the database in **cPanel MySQL Databases** with **ALL PRIVILEGES**.
-- Ensure the password in `api/config.php` matches the password set when creating the database user.
+```bash
+cd ~/public_html/api
+php admin_bootstrap.php --email=admin@goodlucks.co --name="Goodlucks Admin" --phone=+233237690080
+```
 
-### 3. "Where can I view submitted price drop alerts?"
-- Open phpMyAdmin in cPanel.
-- Click your database.
-- Click the table **`price_drop_alerts`** to browse all subscriber emails, target budgets, and property IDs.
+You will be prompted for a password (minimum 10 characters) — or set
+`ADMIN_INITIAL_PASSWORD` in `.env` before running so it can be scripted:
+
+```bash
+ADMIN_INITIAL_PASSWORD='Str0ng-Admin-Pass' php admin_bootstrap.php --email=admin@goodlucks.co
+```
+
+The script prints whether `ADMIN_ACCESS_KEY` is configured. Admin sign-in uses
+`/api/auth/admin-login` and needs **email + password + access key**; admins
+cannot sign in through the public login form, and tenants cannot enter the
+admin console.
+
+Use `--reset` to rotate an existing admin password later.
+
+---
+
+## 8. Step 6 — Verify the deployment
+
+```bash
+# 1. API + database connectivity
+curl -s https://rent.goodlucks.co/api/health | jq
+
+# 2. Public listing feed
+curl -s "https://rent.goodlucks.co/api/properties?limit=2" | jq '.total'
+
+# 3. Admin routes must be closed without a session
+curl -s -o /dev/null -w "%{http_code}\n" https://rent.goodlucks.co/api/admin/stats   # 401
+
+# 4. Deep link must return the SPA, not a 404
+curl -s -o /dev/null -w "%{http_code}\n" https://rent.goodlucks.co/browse            # 200
+```
+
+Then in the browser:
+
+1. Browse listings — cards come from `prop-1`…`prop-4`.
+2. Submit a viewing request → check `viewing_schedules` in phpMyAdmin.
+3. Register a landlord, list a property with photos → status must be `pending`.
+4. Sign in to `/admin` → approve the listing → it appears on the public site and
+   the landlord gets a notification + email log entry.
+5. Submit the contact form → the message appears in **Admin → Website Enquiries**.
+
+---
+
+## 9. Local development
+
+```bash
+npm install
+npm run dev        # PHP API on :8090 (SQLite) + Vite host on :3000 proxying /api
+npm run api:dev    # PHP API only
+npm run test:api   # 55 API tests against a throwaway SQLite database
+npm run build      # production bundle
+```
+
+`npm run dev` needs PHP 8.1+ on your PATH; without it the bundled
+`@php-wasm/cli` dev dependency is used, so no PHP install is strictly required.
+Local data lives in `.data/dev.sqlite` (git-ignored) and is seeded from
+`php-backend/schema.sqlite.sql` on first run.
+
+---
+
+## 10. Troubleshooting
+
+| Symptom | Cause / fix |
+| --- | --- |
+| `/api/health` returns HTML | `public_html/api/.htaccess` missing or `mod_rewrite` off — the SPA fallback caught the request. |
+| `500` on every API call | PHP 8.0 or missing `pdo_mysql`; check `api/logs/php-error.log`. |
+| `500` mentioning `php_flag` | Host runs PHP-FPM; the shipped `.htaccess` already wraps `php_flag` in `<IfModule mod_php.c>`. |
+| API says "Database is not configured" | `DB_NAME` / `DB_USER` empty in `.env`, or `.env` not readable by PHP. |
+| Images upload but show a broken icon | `api/uploads/` is not writable (needs 0755, owner = PHP user). |
+| "Origin not allowed" (403) | `APP_URL` does not match the domain you browse. Set it exactly, e.g. `https://rent.goodlucks.co`. |
+| Admin login says "access key required" | `ADMIN_ACCESS_KEY` is set in `.env`; the console requires it as the third field. |
+| Emails never arrive | No `RESEND_API_KEY` and the server's `mail()` is blocked. Add a Resend key and a verified sender domain. |
+| Refresh on `/browse` gives 404 | Root `.htaccess` missing — upload `public/.htaccess`. |
+| "Too many attempts" after failed logins | Database-backed rate limit; wait for the window or clear `rate_limits`. |
+
+---
+
+## 11. Security checklist
+
+- [ ] HTTPS enforced (uncomment the redirect in `public/.htaccess`).
+- [ ] `ADMIN_ACCESS_KEY` set to a long random value.
+- [ ] `api/.env` (or `config.local.php`) present, `0600`, and not downloadable.
+- [ ] `api/logs/` and `api/uploads/` not browsable (`Options -Indexes`).
+- [ ] `database.sql` not reachable from the web.
+- [ ] Resend domain verified so email passes SPF/DKIM.
+- [ ] Admin password rotated after first sign-in (`admin_bootstrap.php --reset`).
+
+---
+
+## 12. Updating a live site
+
+1. `npm run build` locally.
+2. Upload the new `assets/` folder and `index.html` (the old hashed bundles can
+   be deleted afterwards).
+3. Replace `public_html/api/lib/` and `public_html/api/index.php`.
+4. If `database.sql` changed, run `php api/migrate.php` and then
+   `php api/migrate.php --apply`.
+5. Re-run the four `curl` checks in section 8.

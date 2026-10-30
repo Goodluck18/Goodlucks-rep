@@ -15,15 +15,17 @@ import {
   Bed,
   Bath,
   ArrowRight,
-  Lock
+  Lock,
+  AlertCircle
 } from 'lucide-react';
+import { api, messageForError } from '../services/apiService';
 
 interface ListPropertyViewProps {
   onOpenAuth?: (mode?: 'login' | 'register', role?: 'tenant' | 'landlord') => void;
 }
 
 export const ListPropertyView: React.FC<ListPropertyViewProps> = ({ onOpenAuth }) => {
-  const { currentUser, currentRole, loginAsRole, addProperty, setCurrentView } = useApp();
+  const { currentUser, currentRole, addProperty, setCurrentView } = useApp();
 
   const [title, setTitle] = useState('');
   const [location, setLocation] = useState('Cantonments, Accra');
@@ -47,6 +49,10 @@ export const ListPropertyView: React.FC<ListPropertyViewProps> = ({ onOpenAuth }
   ]);
   const [generatingAi, setGeneratingAi] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+  const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 
   const ALL_AMENITIES = [
     '24/7 Standby Generator', 'Swimming Pool', 'Fitted Kitchen', 
@@ -55,20 +61,42 @@ export const ListPropertyView: React.FC<ListPropertyViewProps> = ({ onOpenAuth }
     'Smart Home Controls', 'Staff Quarters', 'Electric Fence & CCTV'
   ];
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files) return;
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const fileList = e.target.files;
+    if (!fileList || fileList.length === 0) return;
 
-    // Convert local files to base64 Data URLs for live display & storage
-    Array.from(files).forEach((file: File) => {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        if (reader.result) {
-          setImages(prev => [...prev, reader.result as string]);
-        }
-      };
-      reader.readAsDataURL(file);
-    });
+    setFormError(null);
+    const accepted: File[] = [];
+    const candidates: File[] = Array.from(fileList as unknown as ArrayLike<File>);
+    for (const file of candidates) {
+      if (!file.type.startsWith('image/')) {
+        setFormError(`"${file.name}" is not an image. Use JPG, PNG, WEBP or GIF.`);
+        continue;
+      }
+      if (file.size > MAX_IMAGE_BYTES) {
+        setFormError(`"${file.name}" is larger than 8 MB.`);
+        continue;
+      }
+      accepted.push(file);
+    }
+
+    if (accepted.length === 0) {
+      e.target.value = '';
+      return;
+    }
+
+    setIsUploading(true);
+    try {
+      // Images are uploaded and stored on the server immediately; only the
+      // returned URLs are kept (never base64 blobs in browser storage).
+      const result = await api.uploadImages(accepted);
+      setImages(prev => [...prev, ...result.urls]);
+    } catch (err) {
+      setFormError(messageForError(err));
+    } finally {
+      setIsUploading(false);
+      e.target.value = '';
+    }
   };
 
   const removeImage = (index: number) => {
@@ -89,55 +117,67 @@ export const ListPropertyView: React.FC<ListPropertyViewProps> = ({ onOpenAuth }
       return;
     }
     setGeneratingAi(true);
+    setFormError(null);
     try {
-      const res = await fetch('/api/ai/describe', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title,
-          location,
-          propertyType,
-          bedrooms,
-          rentGhs,
-          amenities: selectedAmenities,
-        }),
+      const data = await api.aiDescribe({
+        title,
+        location,
+        propertyType,
+        bedrooms,
+        rentGhs,
+        amenities: selectedAmenities,
       });
-      const data = await res.json();
       if (data.description) {
         setDescription(data.description);
       }
     } catch (err) {
-      console.error(err);
-      setDescription(`Luxurious ${bedrooms}-bedroom ${propertyType} situated in high-demand ${location}. Outstanding security, constant power backup, and pristine finishes guaranteed through Goodlucks Homes.`);
+      setFormError(messageForError(err));
     } finally {
       setGeneratingAi(false);
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title || images.length === 0) return;
+    setFormError(null);
 
-    addProperty({
-      landlordId: currentUser?.id || 'user-landlord-1',
-      title,
-      location,
-      city,
-      rentGhs,
-      bedrooms,
-      bathrooms,
-      propertyType,
-      status: 'pending',
-      images,
-      description: description || `Modern ${propertyType} in ${location}. Managed via Goodlucks Homes.`,
-      amenities: selectedAmenities,
-      nearbyPlaces: [
-        { name: 'City Center', type: 'Commercial Hub', distance: '5 mins' }
-      ],
-      availability,
-    });
+    if (!title.trim() || !location.trim()) {
+      setFormError('Please add a property title and location.');
+      return;
+    }
+    if (images.length === 0) {
+      setFormError('Please upload at least one property image.');
+      return;
+    }
+    if (isUploading) {
+      setFormError('Please wait for the images to finish uploading.');
+      return;
+    }
 
-    setSubmitted(true);
+    setIsSubmitting(true);
+    try {
+      await addProperty({
+        title: title.trim(),
+        location: location.trim(),
+        city,
+        rentGhs,
+        bedrooms,
+        bathrooms,
+        propertyType,
+        images,
+        description: description.trim() || `Modern ${propertyType} in ${location}. Managed via Goodlucks Homes.`,
+        amenities: selectedAmenities,
+        nearbyPlaces: [
+          { name: 'City Center', type: 'Commercial Hub', distance: '5 mins' }
+        ],
+        availability,
+      });
+      setSubmitted(true);
+    } catch (err) {
+      setFormError(messageForError(err));
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   // Landlord Auth Guard Check
@@ -196,7 +236,7 @@ export const ListPropertyView: React.FC<ListPropertyViewProps> = ({ onOpenAuth }
               <>
                 <button
                   type="button"
-                  onClick={() => onOpenAuth ? onOpenAuth('login', 'landlord') : loginAsRole('landlord')}
+                  onClick={() => onOpenAuth && onOpenAuth('login', 'landlord')}
                   className="w-full py-3.5 rounded-2xl bg-[#08D9D6] text-[#252A34] font-extrabold text-sm hover:bg-[#08D9D6]/90 transition-all shadow-xl shadow-[#08D9D6]/20 flex items-center justify-center gap-2 active:scale-98"
                 >
                   <Lock className="w-4 h-4" />
@@ -206,16 +246,16 @@ export const ListPropertyView: React.FC<ListPropertyViewProps> = ({ onOpenAuth }
                 <div className="flex flex-col sm:flex-row gap-2 pt-1">
                   <button
                     type="button"
-                    onClick={() => loginAsRole('landlord')}
+                    onClick={() => onOpenAuth && onOpenAuth('login', 'landlord')}
                     className="flex-1 py-2.5 rounded-xl bg-slate-900 text-[#08D9D6] border border-[#08D9D6]/30 hover:bg-slate-800 font-bold text-xs transition-colors flex items-center justify-center gap-1.5"
                   >
-                    <Sparkles className="w-3.5 h-3.5" />
-                    <span>Quick Demo Landlord Sign-In</span>
+                    <Lock className="w-3.5 h-3.5" />
+                    <span>Existing Landlord Sign-In</span>
                   </button>
 
                   <button
                     type="button"
-                    onClick={() => onOpenAuth ? onOpenAuth('register', 'landlord') : loginAsRole('landlord')}
+                    onClick={() => onOpenAuth && onOpenAuth('register', 'landlord')}
                     className="flex-1 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-semibold text-xs transition-colors"
                   >
                     Register New Account
@@ -226,7 +266,7 @@ export const ListPropertyView: React.FC<ListPropertyViewProps> = ({ onOpenAuth }
               <div className="flex flex-col sm:flex-row gap-3">
                 <button
                   type="button"
-                  onClick={() => loginAsRole('landlord')}
+                  onClick={() => onOpenAuth && onOpenAuth('login', 'landlord')}
                   className="flex-1 py-3 rounded-2xl bg-[#08D9D6] text-[#252A34] font-extrabold text-sm hover:bg-[#08D9D6]/90 transition-all shadow-lg"
                 >
                   Switch to Landlord Account
@@ -282,7 +322,9 @@ export const ListPropertyView: React.FC<ListPropertyViewProps> = ({ onOpenAuth }
                   </h2>
                   <p className="text-xs text-slate-400">Drag & drop or select real high-res images of your property</p>
                 </div>
-                <span className="text-xs text-slate-400 font-semibold">{images.length} images selected</span>
+                <span className="text-xs text-slate-400 font-semibold">
+                  {isUploading ? 'Uploading images…' : `${images.length} images selected`}
+                </span>
               </div>
 
               {/* Upload Dropzone */}
@@ -302,7 +344,7 @@ export const ListPropertyView: React.FC<ListPropertyViewProps> = ({ onOpenAuth }
                     Click to Upload or Drag Images Here
                   </div>
                   <div className="text-xs text-slate-400">
-                    Supports JPG, PNG, WEBP (Max 10MB per file)
+                    Supports JPG, PNG, WEBP or GIF (max 8MB per file)
                   </div>
                 </div>
               </div>
@@ -488,12 +530,29 @@ export const ListPropertyView: React.FC<ListPropertyViewProps> = ({ onOpenAuth }
               </div>
             </div>
 
+            {formError && (
+              <div role="alert" className="p-3 rounded-xl bg-[#FF2E63]/15 border border-[#FF2E63]/30 text-[#FF8FA8] text-xs flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                <span>{formError}</span>
+              </div>
+            )}
+
             <button
               type="submit"
-              className="w-full py-4 rounded-2xl bg-[#08D9D6] text-[#252A34] font-extrabold text-base hover:bg-[#08D9D6]/90 transition-all shadow-xl shadow-[#08D9D6]/20 flex items-center justify-center gap-2 active:scale-[0.99]"
+              disabled={isSubmitting || isUploading}
+              className="w-full py-4 rounded-2xl bg-[#08D9D6] text-[#252A34] font-extrabold text-base hover:bg-[#08D9D6]/90 transition-all shadow-xl shadow-[#08D9D6]/20 flex items-center justify-center gap-2 active:scale-[0.99] disabled:opacity-60"
             >
-              <span>Submit Property for Approval</span>
-              <ArrowRight className="w-5 h-5" />
+              {isSubmitting ? (
+                <>
+                  <span className="w-5 h-5 border-2 border-[#252A34]/30 border-t-[#252A34] rounded-full animate-spin" />
+                  <span>Submitting Listing...</span>
+                </>
+              ) : (
+                <>
+                  <span>Submit Property for Approval</span>
+                  <ArrowRight className="w-5 h-5" />
+                </>
+              )}
             </button>
 
           </form>

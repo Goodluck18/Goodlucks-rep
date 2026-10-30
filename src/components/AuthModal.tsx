@@ -9,19 +9,44 @@ interface AuthModalProps {
 }
 
 export const AuthModal: React.FC<AuthModalProps> = ({ initialMode = 'login', initialRole = 'tenant', onClose }) => {
-  const { loginAsRole } = useApp();
+  const { login, register } = useApp();
   const [mode, setMode] = useState<'login' | 'register'>(initialMode);
   const [selectedRole, setSelectedRole] = useState<'tenant' | 'landlord'>(initialRole);
-  
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
 
-  const handleLoginSubmit = (e: React.FormEvent) => {
+  const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    loginAsRole(selectedRole);
-    onClose();
+    setError(null);
+    setFieldErrors({});
+    setIsSubmitting(true);
+
+    const result =
+      mode === 'login'
+        ? await login(email.trim(), password, selectedRole)
+        : await register({
+            name: name.trim(),
+            email: email.trim(),
+            phone: phone.trim(),
+            password,
+            role: selectedRole,
+          });
+
+    setIsSubmitting(false);
+
+    if (result.ok) {
+      onClose();
+      return;
+    }
+    setError(result.error || 'Sign in failed. Please try again.');
+    setFieldErrors(result.fields || {});
   };
 
   return (
@@ -82,26 +107,26 @@ export const AuthModal: React.FC<AuthModalProps> = ({ initialMode = 'login', ini
             </div>
           </div>
 
-          {/* Quick Role Demo Login Bar */}
-          <div className="bg-slate-800/80 p-3 rounded-2xl border border-white/10 text-xs text-slate-300 space-y-2">
+          {/* Secure access notice */}
+          <div className="bg-slate-800/80 p-3 rounded-2xl border border-white/10 text-xs text-slate-300 space-y-1.5">
             <div className="font-bold text-white flex items-center gap-1">
               <ShieldCheck className="w-4 h-4 text-[#08D9D6]" />
-              Quick Demo Auto-Login as <span className="text-[#08D9D6] uppercase font-bold">{selectedRole}</span>
+              Secure {selectedRole} {mode === 'login' ? 'sign-in' : 'registration'}
             </div>
             <p className="text-[11px] text-slate-400 leading-tight">
-              Click below to instantly sign in with full {selectedRole} privileges and sample data.
+              Your account is protected by Goodlucks Homes. Sign in to manage
+              {selectedRole === 'landlord' ? ' your listings and viewing requests.' : ' saved homes, viewings and rental requests.'}
             </p>
-            <button
-              type="button"
-              onClick={() => { loginAsRole(selectedRole); onClose(); }}
-              className="w-full py-2.5 rounded-xl bg-[#08D9D6] text-[#252A34] font-extrabold text-xs hover:bg-[#08D9D6]/90 transition-all shadow-md shadow-[#08D9D6]/20 cursor-pointer"
-            >
-              Sign In As {selectedRole.toUpperCase()} Demo
-            </button>
           </div>
 
+          {error && (
+            <div role="alert" className="p-3 rounded-xl bg-[#FF2E63]/15 border border-[#FF2E63]/30 text-[#FF8FA8] text-xs">
+              {error}
+            </div>
+          )}
+
           {/* Form */}
-          <form onSubmit={handleLoginSubmit} className="space-y-3 pt-1">
+          <form onSubmit={handleSubmit} className="space-y-3 pt-1">
             {mode === 'register' && (
               <>
                 <div>
@@ -117,6 +142,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ initialMode = 'login', ini
                       className="w-full bg-slate-900 border border-white/10 rounded-xl pl-9 pr-3 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-[#08D9D6]"
                     />
                   </div>
+                  {fieldErrors.name && <p className="text-[11px] text-[#FF8FA8] mt-1">{fieldErrors.name}</p>}
                 </div>
 
                 <div>
@@ -132,6 +158,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ initialMode = 'login', ini
                       className="w-full bg-slate-900 border border-white/10 rounded-xl pl-9 pr-3 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-[#08D9D6]"
                     />
                   </div>
+                  {fieldErrors.phone && <p className="text-[11px] text-[#FF8FA8] mt-1">{fieldErrors.phone}</p>}
                 </div>
               </>
             )}
@@ -149,6 +176,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ initialMode = 'login', ini
                   className="w-full bg-slate-900 border border-white/10 rounded-xl pl-9 pr-3 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-[#08D9D6]"
                 />
               </div>
+              {fieldErrors.email && <p className="text-[11px] text-[#FF8FA8] mt-1">{fieldErrors.email}</p>}
             </div>
 
             <div>
@@ -158,20 +186,36 @@ export const AuthModal: React.FC<AuthModalProps> = ({ initialMode = 'login', ini
                 <input
                   type="password"
                   required
+                  minLength={8}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
+                  autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
                   className="w-full bg-slate-900 border border-white/10 rounded-xl pl-9 pr-3 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-[#08D9D6]"
                 />
               </div>
+              {fieldErrors.password && <p className="text-[11px] text-[#FF8FA8] mt-1">{fieldErrors.password}</p>}
+              {mode === 'register' && !fieldErrors.password && (
+                <p className="text-[10px] text-slate-500 mt-1">Use at least 8 characters.</p>
+              )}
             </div>
 
             <button
               type="submit"
-              className="w-full py-3 rounded-2xl bg-[#08D9D6] text-[#252A34] font-black hover:bg-[#08D9D6]/90 transition-all text-xs flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-[#08D9D6]/20"
+              disabled={isSubmitting}
+              className="w-full py-3 rounded-2xl bg-[#08D9D6] text-[#252A34] font-black hover:bg-[#08D9D6]/90 transition-all text-xs flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-[#08D9D6]/20 disabled:opacity-60"
             >
-              <span>{mode === 'login' ? 'Sign In' : 'Create Account'}</span>
-              <ArrowRight className="w-4 h-4" />
+              {isSubmitting ? (
+                <>
+                  <span className="w-3.5 h-3.5 border-2 border-[#252A34]/30 border-t-[#252A34] rounded-full animate-spin" />
+                  <span>{mode === 'login' ? 'Signing In...' : 'Creating Account...'}</span>
+                </>
+              ) : (
+                <>
+                  <span>{mode === 'login' ? 'Sign In' : 'Create Account'}</span>
+                  <ArrowRight className="w-4 h-4" />
+                </>
+              )}
             </button>
           </form>
 
@@ -180,14 +224,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({ initialMode = 'login', ini
             {mode === 'login' ? (
               <span>
                 Don't have an account?{' '}
-                <button onClick={() => setMode('register')} className="text-[#08D9D6] font-bold hover:underline cursor-pointer">
+                <button onClick={() => { setMode('register'); setError(null); }} className="text-[#08D9D6] font-bold hover:underline cursor-pointer">
                   Register Now
                 </button>
               </span>
             ) : (
               <span>
                 Already have an account?{' '}
-                <button onClick={() => setMode('login')} className="text-[#08D9D6] font-bold hover:underline cursor-pointer">
+                <button onClick={() => { setMode('login'); setError(null); }} className="text-[#08D9D6] font-bold hover:underline cursor-pointer">
                   Sign In
                 </button>
               </span>

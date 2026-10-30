@@ -1,0 +1,4 @@
+# Tenant/landlord uploaded images live here at runtime (never committed).
+*
+!.gitignore
+!.htaccess

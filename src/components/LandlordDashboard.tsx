@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { 
   Building2, 
@@ -32,42 +32,80 @@ export const LandlordDashboard: React.FC = () => {
     setCurrentView,
     updateUserProfile,
     viewingSchedules,
-    notifications
+    notifications,
+    showErrorToast,
+    showSuccessToast
   } = useApp();
 
   const [activeTab, setActiveTab] = useState<'my-properties' | 'viewings' | 'profile'>('my-properties');
   const [deleteModalPropId, setDeleteModalPropId] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   // Landlord Profile Edit
-  const [profileName, setProfileName] = useState(currentUser?.name || 'Abena Osei');
-  const [profileCompany, setProfileCompany] = useState(currentUser?.company || 'Prime Haven Properties Ltd');
-  const [profilePhone, setProfilePhone] = useState(currentUser?.phone || '+233 20 899 7711');
-  const [profileEmail, setProfileEmail] = useState(currentUser?.email || 'landlord@goodlucks.com');
-  const [profileBio, setProfileBio] = useState(currentUser?.bio || 'Premier luxury developer in Greater Accra.');
+  const [profileName, setProfileName] = useState(currentUser?.name || '');
+  const [profileCompany, setProfileCompany] = useState(currentUser?.company || '');
+  const [profilePhone, setProfilePhone] = useState(currentUser?.phone || '');
+  const [profileEmail, setProfileEmail] = useState(currentUser?.email || '');
+  const [profileBio, setProfileBio] = useState(currentUser?.bio || '');
 
-  // My Properties
-  const myProperties = properties.filter(p => p.landlordId === currentUser?.id || currentUser?.role === 'landlord');
+  // Keep the profile form in sync with the record returned by the API.
+  useEffect(() => {
+    if (!currentUser) return;
+    setProfileName(currentUser.name || '');
+    setProfileCompany(currentUser.company || '');
+    setProfilePhone(currentUser.phone || '');
+    setProfileEmail(currentUser.email || '');
+    setProfileBio(currentUser.bio || '');
+  }, [currentUser]);
+
+  // My Properties — only the listings this landlord owns
+  const myProperties = currentUser ? properties.filter(p => p.landlordId === currentUser.id) : [];
 
   const totalViews = myProperties.reduce((acc, p) => acc + (p.viewsCount || 0), 0);
 
-  const handleDeleteConfirm = () => {
-    if (deleteModalPropId) {
-      deleteProperty(deleteModalPropId);
+  const handleDeleteConfirm = async () => {
+    if (!deleteModalPropId) return;
+    setIsDeleting(true);
+    setActionError(null);
+    try {
+      await deleteProperty(deleteModalPropId);
       setDeleteModalPropId(null);
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Could not delete the listing.');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
-  const handleSaveProfile = (e: React.FormEvent) => {
+  const handleStatusChange = async (id: string, status: 'active' | 'deactivated' | 'rented') => {
+    setActionError(null);
+    try {
+      await updatePropertyStatus(id, status);
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Could not update the listing.');
+    }
+  };
+
+  const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
-    updateUserProfile({
+    setIsSavingProfile(true);
+    const result = await updateUserProfile({
       name: profileName,
       company: profileCompany,
       phone: profilePhone,
       email: profileEmail,
       bio: profileBio,
     });
+    setIsSavingProfile(false);
+    if (!result.ok) {
+      showErrorToast('Profile not saved', result.error || 'Please check your details and try again.');
+      return;
+    }
     setSaveSuccess(true);
+    showSuccessToast('Profile updated', 'Your contact details were saved.');
     setTimeout(() => setSaveSuccess(false), 3000);
   };
 
@@ -76,6 +114,14 @@ export const LandlordDashboard: React.FC = () => {
   return (
     <div className="min-h-screen bg-[#1F242D] text-white py-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-7xl mx-auto space-y-6 animate-fadeIn">
+
+        {actionError && (
+          <div role="alert" className="p-3 rounded-xl bg-[#FF2E63]/15 border border-[#FF2E63]/30 text-[#FF8FA8] text-xs flex items-start gap-2">
+            <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+            <span className="flex-1">{actionError}</span>
+            <button type="button" onClick={() => setActionError(null)} className="font-bold">Dismiss</button>
+          </div>
+        )}
         
         {/* Header Title */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/10 pb-4">
@@ -363,7 +409,7 @@ export const LandlordDashboard: React.FC = () => {
                     <div className="flex flex-wrap items-center gap-2 self-end sm:self-center w-full sm:w-auto pt-2 sm:pt-0 border-t sm:border-0 border-white/10">
                       {prop.status === 'active' ? (
                         <button
-                          onClick={() => updatePropertyStatus(prop.id, 'deactivated')}
+                          onClick={() => void handleStatusChange(prop.id, 'deactivated')}
                           className="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300 hover:text-white text-xs font-semibold flex items-center gap-1 border border-white/5"
                           title="Deactivate temporarily"
                         >
@@ -371,7 +417,7 @@ export const LandlordDashboard: React.FC = () => {
                         </button>
                       ) : (
                         <button
-                          onClick={() => updatePropertyStatus(prop.id, 'active')}
+                          onClick={() => void handleStatusChange(prop.id, 'active')}
                           className="px-3 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 text-xs font-semibold flex items-center gap-1 border border-emerald-500/30"
                           title="Reactivate listing"
                         >
@@ -380,7 +426,7 @@ export const LandlordDashboard: React.FC = () => {
                       )}
 
                       <button
-                        onClick={() => updatePropertyStatus(prop.id, 'rented')}
+                        onClick={() => void handleStatusChange(prop.id, 'rented')}
                         className="px-3 py-1.5 rounded-lg bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 text-xs font-semibold flex items-center gap-1 border border-blue-500/30"
                       >
                         Mark Rented
@@ -532,7 +578,7 @@ export const LandlordDashboard: React.FC = () => {
                 Cancel
               </button>
               <button
-                onClick={handleDeleteConfirm}
+                onClick={() => void handleDeleteConfirm()}
                 className="flex-1 py-2.5 rounded-xl bg-[#FF2E63] text-white font-bold text-xs hover:bg-[#FF2E63]/90 shadow-md"
               >
                 Delete Permanently
