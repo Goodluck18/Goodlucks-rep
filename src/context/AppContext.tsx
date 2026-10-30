@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import {
   EmailLog,
+  EmailOutboxSummary,
   Enquiry,
   NotificationItem,
   Property,
@@ -74,6 +75,7 @@ interface AppContextType {
   tenantRequests: TenantRequest[];
   viewingSchedules: ViewingSchedule[];
   emailLogs: EmailLog[];
+  emailOutbox: EmailOutboxSummary;
   agreements: TenancyAgreement[];
   receipts: RentReceipt[];
   notifications: NotificationItem[];
@@ -147,6 +149,7 @@ interface AppContextType {
   // Misc
   markNotificationRead: (id: string) => Promise<void>;
   markAllNotificationsRead: () => Promise<void>;
+  runEmailOutbox: () => Promise<void>;
   refreshAdminData: () => Promise<void>;
 }
 
@@ -203,6 +206,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [tenantRequests, setTenantRequests] = useState<TenantRequest[]>([]);
   const [viewingSchedules, setViewingSchedules] = useState<ViewingSchedule[]>([]);
   const [emailLogs, setEmailLogs] = useState<EmailLog[]>([]);
+  const [emailOutbox, setEmailOutbox] = useState<EmailOutboxSummary>({
+    pending: 0,
+    failed: 0,
+    sentToday: 0,
+    oldestPendingAt: null,
+  });
   const [agreements, setAgreements] = useState<TenancyAgreement[]>([]);
   const [receipts, setReceipts] = useState<RentReceipt[]>([]);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
@@ -277,6 +286,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setAgreements([]);
       setReceipts([]);
       setEmailLogs([]);
+      setEmailOutbox({ pending: 0, failed: 0, sentToday: 0, oldestPendingAt: null });
       setEnquiries([]);
       setAnalytics(EMPTY_STATS);
       return;
@@ -295,6 +305,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setViewingSchedules(viewings.viewings);
       setTenantRequests(requests.requests);
       setEmailLogs(logs.logs);
+      setEmailOutbox(logs.outbox);
       setEnquiries(enquiryResult.enquiries);
       setSearchAlerts(alerts.alerts);
       const [agreementResult, receiptResult] = await Promise.all([
@@ -872,6 +883,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
    * Clear the unread badge. Called when the notifications view opens, so the
    * bell stops advertising alerts the member has already looked at.
    */
+  /**
+   * Drain the email outbox on demand (no shell cron on shared hosting).
+   * Refreshes the audit log afterwards so statuses flip from queued to sent.
+   */
+  const runEmailOutbox = useCallback(async () => {
+    const result = await api.runEmailOutbox();
+    setEmailOutbox(result.outbox);
+    const logs = await api.adminEmailLogs().catch(() => null);
+    if (logs) {
+      setEmailLogs(logs.logs);
+      setEmailOutbox(logs.outbox);
+    }
+    showSuccessToast('Email queue processed', result.message);
+  }, [showSuccessToast]);
+
   const markAllNotificationsRead = useCallback(async () => {
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
     const result = await api.markAllNotificationsRead().catch(() => null);
@@ -942,6 +968,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       sendEnquiry,
       markNotificationRead,
       markAllNotificationsRead,
+      emailOutbox,
+      runEmailOutbox,
       refreshAdminData,
     }),
     [
@@ -999,6 +1027,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       sendEnquiry,
       markNotificationRead,
       markAllNotificationsRead,
+      emailOutbox,
+      runEmailOutbox,
       refreshAdminData,
     ]
   );

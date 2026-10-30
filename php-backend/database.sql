@@ -404,3 +404,25 @@ CREATE TABLE IF NOT EXISTS `submission_dedupe` (
   PRIMARY KEY (`fingerprint`),
   KEY `idx_dedupe_created` (`created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 19. Email outbox (durable queue: delivery happens after the response, retried
+--     with backoff by cron.php until it succeeds or the attempt cap is reached)
+CREATE TABLE IF NOT EXISTS `email_outbox` (
+  `id` VARCHAR(64) NOT NULL,
+  `recipient_email` VARCHAR(255) NOT NULL,
+  `recipient_name` VARCHAR(255) NOT NULL DEFAULT '',
+  `subject` VARCHAR(255) NOT NULL,
+  `body_html` MEDIUMTEXT NOT NULL,
+  `type` VARCHAR(64) NOT NULL DEFAULT 'notification',
+  `body_preview` VARCHAR(500) NOT NULL DEFAULT '',
+  `status` VARCHAR(16) NOT NULL DEFAULT 'pending',
+  `attempts` INT NOT NULL DEFAULT 0,
+  `last_error` VARCHAR(500) DEFAULT NULL,
+  `next_attempt_at` DATETIME NOT NULL,
+  `email_log_id` VARCHAR(64) DEFAULT NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `sent_at` DATETIME DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_outbox_due` (`status`, `next_attempt_at`),
+  KEY `idx_outbox_created` (`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

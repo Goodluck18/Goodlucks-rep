@@ -170,7 +170,15 @@ export interface EmailLog {
     | 'alert_subscription';
   bodyPreview: string;
   sentAt: string;
-  status: 'sent' | 'delivered';
+  /** `queued` = waiting for the outbox worker, `failed` = gave up after retries. */
+  status: 'queued' | 'delivered' | 'failed';
+}
+
+export interface EmailOutboxSummary {
+  pending: number;
+  failed: number;
+  sentToday: number;
+  oldestPendingAt: string | null;
 }
 
 export interface NotificationItem {

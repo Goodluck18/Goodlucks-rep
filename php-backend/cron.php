@@ -9,9 +9,12 @@
  *                               their search goes live. Idempotent: the
  *                               `alert_deliveries` unique key means a property
  *                               is never emailed to the same alert twice.
- *   2. Retention pruning      - trims page views, email logs, expired sessions
- *                               and stale rate-limit rows so the database does
- *                               not grow forever on shared hosting.
+ *   2. Email outbox           - delivers queued mail and retries anything that
+ *                               failed, with exponential backoff (1m, 5m, 15m,
+ *                               1h, 4h, 12h) before parking it as failed.
+ *   3. Retention pruning      - trims page views, email logs, delivered outbox
+ *                               rows, expired sessions and stale rate-limit
+ *                               rows so the database does not grow forever.
  *
  * Usage:
  *   php /home/cpuser/public_html/api/cron.php              # run everything
@@ -63,7 +66,25 @@ try {
 }
 
 // ---------------------------------------------------------------------------
-// 2. Retention pruning
+// 2. Email outbox delivery & retries
+// ---------------------------------------------------------------------------
+try {
+    if ($dryRun) {
+        $summary = email_outbox_summary();
+        echo "Email outbox: {$summary['pending']} pending, {$summary['failed']} failed\n";
+    } else {
+        $outbox = process_email_outbox(50, 60.0);
+        echo "Email outbox: {$outbox['checked']} due, {$outbox['sent']} sent, "
+            . "{$outbox['retried']} retrying, {$outbox['failed']} failed\n";
+        $prunedOutbox = prune_email_outbox();
+        echo "Email outbox: {$prunedOutbox} delivered row(s) pruned\n";
+    }
+} catch (Throwable $e) {
+    fwrite(STDERR, 'Email outbox step failed: ' . $e->getMessage() . "\n");
+}
+
+// ---------------------------------------------------------------------------
+// 3. Retention pruning
 // ---------------------------------------------------------------------------
 $retention = [
     'page_views'  => ['column' => 'created_at', 'days' => (int)cfg('RETENTION_PAGE_VIEW_DAYS', 365)],

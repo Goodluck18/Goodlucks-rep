@@ -135,6 +135,7 @@ require_once GL_ROOT . '/lib/db.php';
 require_once GL_ROOT . '/lib/validate.php';
 require_once GL_ROOT . '/lib/auth.php';
 require_once GL_ROOT . '/lib/mailer.php';
+require_once GL_ROOT . '/lib/outbox.php';
 require_once GL_ROOT . '/lib/repository.php';
 require_once GL_ROOT . '/lib/alerts.php';
 require_once GL_ROOT . '/lib/api.php';

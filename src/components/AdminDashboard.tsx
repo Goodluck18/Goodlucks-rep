@@ -36,7 +36,9 @@ export const AdminDashboard: React.FC = () => {
     properties, 
     tenantRequests, 
     viewingSchedules, 
-    emailLogs, 
+    emailLogs,
+    emailOutbox,
+    runEmailOutbox, 
     enquiries,
     analytics, 
     setCurrentView,
@@ -985,7 +987,41 @@ export const AdminDashboard: React.FC = () => {
         {/* TAB 5: Email Transactional Logs */}
         {activeAdminTab === 'email-logs' && (
           <div className="space-y-4">
-            <h2 className="text-xl font-bold text-white">Transactional Email Audit Logs</h2>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h2 className="text-xl font-bold text-white">Transactional Email Audit Logs</h2>
+                <p className="text-xs text-slate-400 mt-1">
+                  Mail is queued during the request and delivered after it, so a slow mail provider never delays a submit.
+                </p>
+              </div>
+              <button
+                onClick={() => void runEmailOutbox().catch(error => showErrorToast('Could not process the queue', messageForError(error)))}
+                className="px-4 py-2.5 rounded-xl bg-[#08D9D6] text-[#252A34] font-bold text-xs hover:bg-[#08D9D6]/90 transition-all shrink-0"
+              >
+                Send queued email now
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+              <div className="bg-slate-800 border border-white/10 rounded-2xl p-4">
+                <div className="text-[10px] uppercase tracking-wider text-slate-400">Queued</div>
+                <div className="text-xl font-black text-amber-400">{emailOutbox.pending}</div>
+              </div>
+              <div className="bg-slate-800 border border-white/10 rounded-2xl p-4">
+                <div className="text-[10px] uppercase tracking-wider text-slate-400">Failed</div>
+                <div className="text-xl font-black text-[#FF8FA8]">{emailOutbox.failed}</div>
+              </div>
+              <div className="bg-slate-800 border border-white/10 rounded-2xl p-4">
+                <div className="text-[10px] uppercase tracking-wider text-slate-400">Sent today</div>
+                <div className="text-xl font-black text-emerald-400">{emailOutbox.sentToday}</div>
+              </div>
+              <div className="bg-slate-800 border border-white/10 rounded-2xl p-4">
+                <div className="text-[10px] uppercase tracking-wider text-slate-400">Oldest waiting</div>
+                <div className="text-xs font-bold text-slate-200 mt-1">
+                  {emailOutbox.oldestPendingAt ? new Date(emailOutbox.oldestPendingAt).toLocaleString() : '—'}
+                </div>
+              </div>
+            </div>
             <div className="bg-slate-800 rounded-2xl border border-white/10 overflow-hidden">
               <div className="divide-y divide-white/10 text-xs">
                 {emailLogs.map(log => (
@@ -1000,8 +1036,16 @@ export const AdminDashboard: React.FC = () => {
                       <p className="text-slate-300 mt-1">{log.bodyPreview}</p>
                       <span className="text-[10px] text-slate-500">To: {log.recipientName} ({log.recipientEmail}) • Sent: {new Date(log.sentAt).toLocaleString()}</span>
                     </div>
-                    <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-400 shrink-0">
-                      Delivered
+                    <span
+                      className={`px-2.5 py-1 rounded-full text-[10px] font-bold shrink-0 ${
+                        log.status === 'delivered'
+                          ? 'bg-emerald-500/20 text-emerald-400'
+                          : log.status === 'failed'
+                            ? 'bg-[#FF2E63]/20 text-[#FF8FA8]'
+                            : 'bg-amber-500/20 text-amber-400'
+                      }`}
+                    >
+                      {log.status === 'delivered' ? 'Delivered' : log.status === 'failed' ? 'Failed' : 'Queued'}
                     </span>
                   </div>
                 ))}

@@ -7,12 +7,13 @@
  *      from shared hosting, where outbound SMTP is often blocked.
  *   2. The cPanel mail agent (PHP mail()) as a fallback.
  *
- * Every send attempt is recorded in `email_logs` so the admin console can show
- * what was actually dispatched.
+ * Sends never happen inline: `send_email()` queues the message (see
+ * lib/outbox.php) so a slow or failing transport cannot delay an enquiry,
+ * viewing request or agreement submit. The queue is drained after the response
+ * and retried by cron.php with exponential backoff.
  *
- * Email failures never break a customer-facing action: the record is still
- * saved and the failure is logged. The API response reflects the database
- * result, and the email status is visible in the admin audit log.
+ * Set EMAIL_TRANSPORT to `none` to disable delivery entirely (tests, staging):
+ * messages still queue and log, but every attempt deliberately fails.
  */
 
 declare(strict_types=1);
@@ -70,15 +71,38 @@ function log_email(string $recipientEmail, string $recipientName, string $subjec
  */
 function send_email(string $to, string $recipientName, string $subject, string $html, string $type = 'notification', string $preview = ''): bool
 {
+    // Queueing always succeeds for a valid address: the actual network call
+    // happens after the response is sent, and retries are cron's job.
+    return queue_email($to, $recipientName, $subject, $html, $type, $preview) !== null;
+}
+
+/**
+ * Make one delivery attempt with the configured transport(s).
+ *
+ * Called by the outbox worker only. Sets `$error` to a short, human-readable
+ * reason when delivery fails, so the admin console can explain it.
+ */
+function deliver_email_now(
+    string $to,
+    string $recipientName,
+    string $subject,
+    string $html,
+    string $type = 'notification',
+    ?string &$error = null
+): bool {
     $to = valid_email($to) ?? '';
     if ($to === '') {
-        gl_log('warning', 'Skipped email with invalid recipient', ['type' => $type]);
+        $error = 'Invalid recipient address';
+        return false;
+    }
+
+    $transport = strtolower(trim((string)cfg('EMAIL_TRANSPORT', 'auto')));
+    if ($transport === 'none') {
+        $error = 'Email delivery disabled (EMAIL_TRANSPORT=none)';
         return false;
     }
 
     $subjectLine = clean_string($subject, 200);
-    $preview = $preview !== '' ? $preview : clean_string(strip_tags($html), 240);
-
     $headers = [
         'MIME-Version: 1.0',
         'Content-Type: text/html; charset=UTF-8',
@@ -89,24 +113,36 @@ function send_email(string $to, string $recipientName, string $subject, string $
 
     $accepted = false;
 
-    if (trim((string)cfg('RESEND_API_KEY', '')) !== '') {
+    if ($transport !== 'mail' && trim((string)cfg('RESEND_API_KEY', '')) !== '') {
         $accepted = send_email_via_resend($to, $subjectLine, $html, $type);
+        if (!$accepted) {
+            $error = 'Resend did not accept the message';
+        }
     }
 
-    if (!$accepted) {
+    if (!$accepted && $transport !== 'resend') {
         try {
             $accepted = @mail($to, $subjectLine, $html, implode("\r\n", $headers));
         } catch (Throwable $e) {
             gl_log('error', 'mail() threw: ' . $e->getMessage(), ['to' => $to, 'type' => $type]);
+            $error = 'Mail agent error: ' . $e->getMessage();
+        }
+        if (!$accepted) {
+            $error = $error ?? 'The server mail agent did not accept the message';
         }
     }
 
     if (!$accepted) {
-        gl_log('warning', 'No mail transport accepted the message', ['to' => $to, 'type' => $type]);
+        gl_log('warning', 'No mail transport accepted the message', [
+            'to'      => $to,
+            'type'    => $type,
+            'error'   => $error,
+        ]);
+        return false;
     }
 
-    log_email($to, $recipientName, $subjectLine, $type, $preview, $accepted ? 'delivered' : 'queued');
-    return (bool)$accepted;
+    $error = null;
+    return true;
 }
 
 /**

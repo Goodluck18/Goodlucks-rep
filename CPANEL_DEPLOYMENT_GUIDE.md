@@ -89,6 +89,7 @@ DB_PASS=<your strong password>
 
 RESEND_API_KEY=re_xxx            # recommended, enables reliable email
 RESEND_FROM_EMAIL=rentals@goodlucks.co
+EMAIL_TRANSPORT=auto             # auto | resend | mail | none
 OFFICIAL_EMAIL=rentals@goodlucks.co
 
 GEMINI_API_KEY=                  # optional: AI descriptions & match scores
@@ -102,6 +103,11 @@ Notes:
   `<?php return ['DB_NAME' => '…', 'DB_PASS' => '…'];`
 * Empty `RESEND_API_KEY` simply falls back to PHP `mail()`; the attempt is
   still recorded in the admin email log.
+* Mail never blocks a request: it is queued in `email_outbox` and delivered after
+  the response, then retried by cron with backoff. Until the phpMyAdmin/cron step
+  below has run once, queued rows simply wait — the admin console shows how many.
+* `EMAIL_TRANSPORT=none` disables delivery but keeps queueing and logging (use it
+  on staging so testers cannot mail real tenants).
 
 ---
 
@@ -227,9 +233,9 @@ admin console with **Send Alert Digests**; the retention steps can be run by
 hand in phpMyAdmin occasionally.
 
 > Additions since the first release (`alert_deliveries`, `password_resets`,
-> `submission_dedupe`) are applied by `php api/migrate.php --apply`. Run it after
-> every deploy — password reset emails and duplicate-submission guards both rely
-> on those tables and degrade quietly (no reset link, no dedupe) without them.
+> `submission_dedupe`, `email_outbox`) are applied by `php api/migrate.php --apply`.
+> Run it after every deploy — password resets, duplicate-submission guards and
+> queued email all rely on those tables and degrade quietly without them.
 
 ## 9. Local development
 
@@ -237,7 +243,7 @@ hand in phpMyAdmin occasionally.
 npm install
 npm run dev        # PHP API on :8090 (SQLite) + Vite host on :3000 proxying /api
 npm run api:dev    # PHP API only
-npm run test:api   # 80 API tests against a throwaway SQLite database
+npm run test:api   # 84 API tests against a throwaway SQLite database
 npm run build      # production bundle
 ```
 
@@ -260,6 +266,9 @@ Local data lives in `.data/dev.sqlite` (git-ignored) and is seeded from
 | "Origin not allowed" (403) | `APP_URL` does not match the domain you browse. Set it exactly, e.g. `https://rent.goodlucks.co`. |
 | Admin login says "access key required" | `ADMIN_ACCESS_KEY` is set in `.env`; the console requires it as the third field. |
 | Emails never arrive | No `RESEND_API_KEY` and the server's `mail()` is blocked. Add a Resend key and a verified sender domain. |
+| Email log rows sit on "Queued" | Nothing is draining the outbox: the cron entry is missing (see Step 7), or the last attempts failed — press **Send queued email now** on the Transactional Emails tab and read `email_outbox.last_error`. |
+| Email marked "Failed" | Six delivery attempts all failed. Check the Resend key/sender domain, then re-send from the console once fixed. |
+| "Email outbox" table missing errors | Run `php api/migrate.php --apply` — it creates `email_outbox`. |
 | Price-drop / saved-search emails never send | Check the cron entry above, run `php api/cron.php`, then look at **Admin → Email Logs** for `price_drop_alert` / `search_alert` rows. |
 | "Could not record alert delivery" in logs | The `alert_deliveries` table is missing — run `php api/migrate.php --apply`. |
 | "Forgot password" sends nothing | The `password_resets` table is missing (run `php api/migrate.php --apply`) or no mail transport is configured — see "Emails never arrive". |

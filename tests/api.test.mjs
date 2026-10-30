@@ -48,6 +48,9 @@ before(async () => {
     APP_ENV: 'development',
     ADMIN_ACCESS_KEY,
     OFFICIAL_EMAIL: 'rentals@goodlucks.co',
+    // Delivery is disabled so every attempt fails deterministically; the queue
+    // still records what would be sent, which is what these tests assert.
+    EMAIL_TRANSPORT: 'none',
   };
   server = await startApiServer({ port, env, quiet: true });
   baseUrl = server.baseUrl;
@@ -1536,5 +1539,138 @@ describe('Match scoring, notifications & SEO', () => {
     assert.ok(whenLive.body.raw.includes(`/property/${propertyId}`), 'published listings must appear');
 
     await admin.delete(`/api/properties/${propertyId}`);
+  });
+});
+
+// ---------------------------------------------------------------------------
+describe('Email reliability (outbox)', () => {
+  const cliEnv = () => ({
+    DB_DRIVER: 'sqlite',
+    DB_SQLITE_PATH: dbPath,
+    APP_ENV: 'development',
+    ADMIN_ACCESS_KEY,
+    OFFICIAL_EMAIL: 'rentals@goodlucks.co',
+    EMAIL_TRANSPORT: 'none',
+  });
+
+  const outbox = (action, extraArgs = []) => {
+    const result = runPhpScript('tests/outbox.php', [`--action=${action}`, ...extraArgs], cliEnv());
+    assert.equal(result.status, 0, `outbox ${action} failed: ${result.stdout} ${result.stderr}`);
+    const line = result.stdout.trim().split('\n').filter(Boolean).pop() || '{}';
+    return JSON.parse(line);
+  };
+
+  test('a submit queues the email instead of blocking on the transport', async () => {
+    const payload = {
+      name: 'Queue Tester',
+      email: uniqueEmail('queue'),
+      phone: '+233 24 909 0909',
+      message: 'Please confirm this apartment is still available for a weekend viewing.',
+      propertyId: state.seededPropertyId,
+      source: 'property_page',
+    };
+
+    const started = Date.now();
+    const res = await guest.post('/api/enquiries', payload);
+    const elapsed = Date.now() - started;
+    assert.equal(res.status, 201);
+    assert.ok(elapsed < 5000, `submit should not wait on mail delivery (took ${elapsed}ms)`);
+
+    const logs = await admin.get('/api/admin/email-logs');
+    assert.equal(logs.status, 200);
+    assert.ok(logs.body.outbox, 'the console needs outbox counts');
+    assert.ok(logs.body.outbox.pending >= 1, 'the enquiry email must be queued');
+
+    const queued = logs.body.logs.find(
+      (log) => log.recipientEmail === payload.email && log.status === 'queued'
+    );
+    assert.ok(queued, 'the audit log records the message as queued straight away');
+  });
+
+  test('only an admin can drain the queue', async () => {
+    const asGuest = await guest.post('/api/admin/emails/run', {});
+    assert.equal(asGuest.status, 401);
+    // A fresh tenant client: the shared one was signed out by the password
+    // reset suite (confirming a reset revokes every session).
+    const signedInTenant = new ApiClient(baseUrl);
+    await signedInTenant.post('/api/auth/register', {
+      email: uniqueEmail('outbox-tenant'),
+      password: 'Outbox-Tenant-123',
+      name: 'Outbox Tenant',
+      phone: '+233 20 909 0000',
+      role: 'tenant',
+    });
+    const asTenant = await signedInTenant.post('/api/admin/emails/run', {});
+    assert.equal(asTenant.status, 403);
+
+    const asAdmin = await admin.post('/api/admin/emails/run', {});
+    assert.equal(asAdmin.status, 200);
+    for (const key of ['checked', 'sent', 'retried', 'failed', 'skipped']) {
+      assert.equal(typeof asAdmin.body.result[key], 'number', `result.${key} missing`);
+    }
+    assert.equal(asAdmin.body.result.sent, 0, 'delivery is disabled in tests');
+    assert.ok(asAdmin.body.outbox.pending >= 0);
+    assert.ok(asAdmin.body.message.length > 0);
+  });
+
+  test('failed sends retry with backoff and stop after the attempt cap', () => {
+    outbox('reset');
+    const seeded = outbox('seed', ['--count=1']);
+    assert.equal(seeded.ids.length, 1);
+
+    const first = outbox('process');
+    assert.equal(first.checked, 1);
+    assert.equal(first.sent, 0);
+    assert.equal(first.retried, 1);
+
+    let rows = outbox('dump');
+    assert.equal(rows[0].status, 'pending');
+    assert.equal(rows[0].attempts, 1);
+    assert.ok(rows[0].next_attempt_at > new Date().toISOString().slice(0, 19).replace('T', ' '), 'backoff must push the next try out');
+    assert.ok(String(rows[0].last_error).length > 0, 'the failure reason is kept for admins');
+
+    // Still backing off: the row is not due yet.
+    const tooSoon = outbox('process');
+    assert.equal(tooSoon.checked, 0);
+
+    // Force every retry through to the cap.
+    for (let attempt = 2; attempt <= 6; attempt++) {
+      outbox('force-due');
+      outbox('process');
+      rows = outbox('dump');
+      assert.equal(rows[0].attempts, attempt);
+    }
+
+    assert.equal(rows[0].status, 'failed', 'after 6 attempts the message is parked');
+
+    const afterCap = outbox('process');
+    assert.equal(afterCap.checked, 0, 'failed rows are never retried again');
+
+    const summary = outbox('summary');
+    assert.equal(summary.failed, 1);
+    assert.equal(summary.pending, 0);
+
+    outbox('reset');
+  });
+
+  test('cron reports and drains the outbox', () => {
+    outbox('reset');
+    outbox('seed', ['--count=2']);
+
+    const dry = runPhpScript('php-backend/cron.php', ['--dry-run'], cliEnv());
+    assert.equal(dry.status, 0, dry.stderr);
+    assert.match(dry.stdout, /Email outbox: \d+ pending/);
+
+    const apply = runPhpScript('php-backend/cron.php', [], cliEnv());
+    assert.equal(apply.status, 0, apply.stderr);
+    // The digest step can queue its own mail first, so only the shape and the
+    // "nothing was delivered, everything retries" outcome are asserted.
+    const outboxLine = apply.stdout.split('\n').find((line) => line.startsWith('Email outbox: ') && line.includes('due'));
+    assert.ok(outboxLine, 'cron must report the outbox step');
+    assert.match(outboxLine, /^Email outbox: \d+ due, 0 sent, \d+ retrying, 0 failed$/);
+    const dueCount = Number(outboxLine.match(/(\d+) due/)[1]);
+    assert.ok(dueCount >= 2, `expected at least the 2 seeded messages, got ${dueCount}`);
+
+    outbox('reset');
   });
 });

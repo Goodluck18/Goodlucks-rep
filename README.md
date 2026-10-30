@@ -39,7 +39,7 @@ the bundled `@php-wasm/cli` dev dependency is used.
 | --- | --- |
 | `npm run dev` | PHP API + Vite host (proxies `/api` to PHP) |
 | `npm run api:dev` | PHP API only, on `API_PORT` (default 8090) |
-| `npm run test:api` | 80 API tests against a throwaway SQLite database |
+| `npm run test:api` | 84 API tests against a throwaway SQLite database |
 | `npm run build` | Production bundle in `dist/` |
 | `npm run lint` | `tsc --noEmit` |
 
@@ -119,12 +119,14 @@ server.ts                    dev-only static host that proxies /api to PHP
 
 ### Background work (cron)
 
-Two features are email-driven and must be scheduled, or they deliver nothing:
+Scheduled work — if cron is not running, saved searches and queued mail deliver
+nothing:
 
 | Job | What it does | Trigger |
 | --- | --- | --- |
 | Saved-search matching | Emails subscribers when a listing that matches their search goes live | Runs automatically when a listing is approved; `cron.php` catches anything else |
-| Retention pruning | Trims `page_views`, `email_logs`, expired sessions and stale rate-limit rows | `cron.php` |
+| Email outbox | Delivers queued mail and retries failures with backoff (1m, 5m, 15m, 1h, 4h, 12h; parked as `failed` after 6 attempts) | After every response, then `cron.php` |
+| Retention pruning | Trims `page_views`, `email_logs`, delivered outbox rows, expired sessions and stale rate-limit rows | `cron.php` |
 
 ```bash
 # every 15 minutes on cPanel
@@ -135,7 +137,23 @@ php php-backend/cron.php --dry-run
 ```
 
 Admins can also deliver pending matches on demand from the console
-("Send Alert Digests"), which helps when shell cron is unavailable.
+("Send Alert Digests"), and push queued mail with "Send queued email now" on the
+Transactional Emails tab — both help when shell cron is unavailable.
+
+### Email delivery
+
+No request ever blocks on the mail provider. `send_email()` writes the message to
+`email_outbox` and returns immediately; a shutdown hook calls
+`fastcgi_finish_request()` (when the SAPI supports it) and only then talks to
+Resend, so a 15-second provider stall can no longer become a 15-second enquiry
+submit. Anything that fails is retried by `cron.php` with exponential backoff and
+parked as `failed` after six attempts, with the reason recorded in
+`email_outbox.last_error` and on the `email_logs` row (which now shows queued /
+delivered / failed instead of always "delivered"). Rows are claimed with a
+conditional `UPDATE`, so the shutdown flush and cron can never double-send.
+
+Set `EMAIL_TRANSPORT=auto` (default: Resend then PHP `mail()`), `resend`, `mail`,
+or `none` to disable delivery while still queueing and logging (tests, staging).
 
 Price-drop emails fire when a listing's rent is reduced through the API — one
 email per new price, never a duplicate for the same value. Both alert types
@@ -190,7 +208,7 @@ and concurrent requests are all idempotent.
 `price-alerts` · `search-alerts` · `saved-properties` · `agreements`
 (+ `/{id}/sign`, `/{id}/email`) · `receipts` · `notifications`
 (+ `/read-all`) · `matches` ·
-`admin/{stats,properties,enquiries,tenant-requests,viewings,price-alerts,email-logs,alerts/run}` ·
+`admin/{stats,properties,enquiries,tenant-requests,viewings,price-alerts,email-logs,alerts/run,emails/run}` ·
 `track/pageview` · `ai/{describe,match}` · `sitemap.xml` (XML, not JSON)
 
 ### Security notes
@@ -208,7 +226,7 @@ and concurrent requests are all idempotent.
 ## Testing
 
 ```bash
-npm run test:api     # 80 tests / 19 suites
+npm run test:api     # 84 tests / 20 suites
 npm run lint
 npm run build
 ```

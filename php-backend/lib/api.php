@@ -122,6 +122,7 @@ function resolve_route(string $method, string $path): ?array
         ['GET',  '#^/admin/stats$#', 'handle_admin_stats'],
         ['GET',  '#^/admin/email-logs$#', 'handle_admin_email_logs'],
         ['POST', '#^/admin/alerts/run$#', 'handle_run_alert_digest'],
+        ['POST', '#^/admin/emails/run$#', 'handle_run_email_outbox'],
 
         ['GET',  '#^/sitemap\.xml$#', 'handle_sitemap'],
 
@@ -1969,7 +1970,40 @@ function handle_run_alert_digest(): void
 function handle_admin_email_logs(): void
 {
     require_admin();
-    json_response(['success' => true, 'logs' => list_email_logs(300)]);
+    json_response([
+        'success' => true,
+        'logs'    => list_email_logs(300),
+        'outbox'  => email_outbox_summary(),
+    ]);
+}
+
+/**
+ * Drain the email outbox immediately.
+ *
+ * Shared hosting often has no shell cron; this lets an admin push queued mail
+ * (and retry failures) from the console. cron.php runs the same worker.
+ */
+function handle_run_email_outbox(): void
+{
+    require_admin();
+    enforce_rate_limit('email-outbox-run', 20, 3600);
+
+    $result = process_email_outbox(50, 25.0);
+
+    $message = $result['sent'] . ' email(s) sent';
+    if ($result['retried'] > 0) {
+        $message .= ', ' . $result['retried'] . ' will retry later';
+    }
+    if ($result['failed'] > 0) {
+        $message .= ', ' . $result['failed'] . ' given up on';
+    }
+
+    json_response([
+        'success' => true,
+        'result'  => $result,
+        'outbox'  => email_outbox_summary(),
+        'message' => $message,
+    ]);
 }
 
 // ===========================================================================
@@ -2263,6 +2297,8 @@ function handle_send_email(): void
         error_response('Missing required fields: to, subject, html.', 400);
     }
 
-    $delivered = send_email($to, clean_string($input['recipientName'] ?? '', 120), $subject, $html, clean_string($input['type'] ?? 'notification', 64));
-    json_response(['success' => true, 'delivered' => $delivered]);
+    // Queued, not sent: delivery happens after the response and is retried by
+    // the outbox worker, so this endpoint never blocks on the mail transport.
+    $queued = send_email($to, clean_string($input['recipientName'] ?? '', 120), $subject, $html, clean_string($input['type'] ?? 'notification', 64));
+    json_response(['success' => true, 'queued' => $queued, 'delivered' => false]);
 }

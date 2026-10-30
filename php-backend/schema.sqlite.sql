@@ -306,3 +306,22 @@ CREATE TABLE IF NOT EXISTS `submission_dedupe` (
   `created_at` TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`fingerprint`)
 );
+
+CREATE TABLE IF NOT EXISTS email_outbox (
+  id TEXT PRIMARY KEY,
+  recipient_email TEXT NOT NULL,
+  recipient_name TEXT NOT NULL DEFAULT '',
+  subject TEXT NOT NULL,
+  body_html TEXT NOT NULL,
+  type TEXT NOT NULL DEFAULT 'notification',
+  body_preview TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'pending',
+  attempts INTEGER NOT NULL DEFAULT 0,
+  last_error TEXT,
+  next_attempt_at TEXT NOT NULL,
+  email_log_id TEXT,
+  created_at TEXT NOT NULL,
+  sent_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_outbox_due ON email_outbox (status, next_attempt_at);

@@ -13,6 +13,7 @@ import type {
   AnalyticsStats,
   Enquiry,
   EmailLog,
+  EmailOutboxSummary,
   NotificationItem,
   Property,
   PropertyStatus,
@@ -425,7 +426,17 @@ export const api = {
 
   adminStats: () => request<{ stats: AdminStats }>('/admin/stats'),
 
-  adminEmailLogs: () => request<{ logs: EmailLog[] }>('/admin/email-logs'),
+  adminEmailLogs: () =>
+    request<{ logs: EmailLog[]; outbox: EmailOutboxSummary }>('/admin/email-logs'),
+
+  // Delivers queued mail now instead of waiting for cron.php.
+  runEmailOutbox: () =>
+    request<{
+      success: boolean;
+      result: { checked: number; sent: number; retried: number; failed: number; skipped: number };
+      outbox: EmailOutboxSummary;
+      message: string;
+    }>('/admin/emails/run', { method: 'POST', body: {} }),
 
   // -------------------------------------------------------------------------
   // AI helpers
