@@ -897,6 +897,23 @@ describe('Abuse protection', () => {
     assert.equal(sawRateLimit, true, 'expected HTTP 429 after repeated failures');
   });
 
+  test('a successful sign-in clears the failure counter, other accounts stay usable', async () => {
+    // Fail a few times for one address...
+    for (let attempt = 0; attempt < 4; attempt++) {
+      const res = await guest.post('/api/auth/login', { email: 'lockout@example.com', password: 'nope' });
+      assert.equal(res.status, 401);
+    }
+
+    // ...the correct credentials still work and reset that account's counter.
+    const ok = await guest.post('/api/auth/login', { email: state.tenantEmail, password: 'Tenant-Password-123' });
+    assert.equal(ok.status, 200);
+
+    for (let attempt = 0; attempt < 4; attempt++) {
+      const res = await guest.post('/api/auth/login', { email: 'lockout@example.com', password: 'nope' });
+      assert.equal(res.status, 401, 'another account must not be locked out by unrelated failures');
+    }
+  });
+
   test('unknown endpoints return a clean 404', async () => {
     const res = await guest.get('/api/not-a-real-endpoint');
     assert.equal(res.status, 404);

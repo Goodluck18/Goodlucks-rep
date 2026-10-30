@@ -264,10 +264,21 @@ function client_ip(): string
 /**
  * Enforce a sliding-window rate limit. Returns silently when allowed.
  */
-function enforce_rate_limit(string $bucket, int $maxAttempts, int $windowSeconds): void
+function rate_limit_key(string $bucket, string $suffix = ''): string
 {
-    $identity = $bucket . '|' . client_ip();
-    $key = hash('sha256', $identity);
+    return hash('sha256', $bucket . '|' . client_ip() . '|' . strtolower($suffix));
+}
+
+/**
+ * Count an attempt against a bucket and abort with 429 once the ceiling is hit.
+ *
+ * @param string $suffix extra identity (e.g. the email being tried) so one
+ *                       person's failures do not lock out everyone behind the
+ *                       same IP address. Leave empty for an IP-wide bucket.
+ */
+function enforce_rate_limit(string $bucket, int $maxAttempts, int $windowSeconds, string $suffix = ''): void
+{
+    $key = rate_limit_key($bucket, $suffix);
     $windowStart = intdiv(time(), $windowSeconds) * $windowSeconds;
 
     try {
@@ -296,5 +307,22 @@ function enforce_rate_limit(string $bucket, int $maxAttempts, int $windowSeconds
     } catch (Throwable $e) {
         // Never let rate limiting take the whole site down; log and continue.
         gl_log('error', 'Rate limit check failed: ' . $e->getMessage());
+    }
+}
+
+/**
+ * Clear a bucket after a successful sign-in, so normal use never locks an
+ * account out. Only the current window is cleared.
+ */
+function clear_rate_limit(string $bucket, int $windowSeconds, string $suffix = ''): void
+{
+    $key = rate_limit_key($bucket, $suffix);
+    $windowStart = intdiv(time(), $windowSeconds) * $windowSeconds;
+
+    try {
+        db()->prepare('DELETE FROM rate_limits WHERE rl_key = :k')
+            ->execute([':k' => $key]);
+    } catch (Throwable $e) {
+        gl_log('error', 'Rate limit reset failed: ' . $e->getMessage());
     }
 }

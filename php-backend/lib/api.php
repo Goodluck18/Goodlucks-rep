@@ -230,7 +230,6 @@ function handle_register(): void
 
 function handle_login(): void
 {
-    enforce_rate_limit('login', 12, 900);
     $input = request_json();
 
     $email = valid_email($input['email'] ?? null);
@@ -239,6 +238,11 @@ function handle_login(): void
     if ($email === null || $password === '') {
         error_response('Enter your email address and password.', 422);
     }
+
+    // Two buckets: a generous per-IP ceiling (stops credential stuffing across
+    // many emails) and a tight per-email one (stops guessing one password).
+    enforce_rate_limit('login-ip', 60, 900);
+    enforce_rate_limit('login', 12, 900, $email);
 
     $user = find_user_by_email($email);
 
@@ -265,6 +269,9 @@ function handle_login(): void
         );
     }
 
+    // Genuine credentials wipe the failed-attempt counter for this account.
+    clear_rate_limit('login', 900, $email);
+
     issue_session((string)$user['id']);
     gl_log('info', 'User signed in', ['user_id' => $user['id'], 'role' => $user['role']]);
 
@@ -273,7 +280,6 @@ function handle_login(): void
 
 function handle_admin_login(): void
 {
-    enforce_rate_limit('admin-login', 6, 900);
     $input = request_json();
 
     $email = valid_email($input['email'] ?? null);
@@ -283,6 +289,9 @@ function handle_admin_login(): void
     if ($email === null || $password === '') {
         error_response('Enter your administrator email and password.', 422);
     }
+
+    enforce_rate_limit('admin-login-ip', 40, 900);
+    enforce_rate_limit('admin-login', 6, 900, $email);
 
     $user = find_user_by_email($email);
     $storedHash = $user['password_hash'] ?? '$2y$12$invalidinvalidinvalidinvalidinvalidinvalidinvalidinvalidinvalidinv';
@@ -295,6 +304,8 @@ function handle_admin_login(): void
         gl_log('warning', 'Failed admin login attempt', ['email' => $email, 'key_required' => $requiredAccessKey !== '']);
         error_response('Invalid administrator credentials.', 401);
     }
+
+    clear_rate_limit('admin-login', 900, $email);
 
     issue_session((string)$user['id']);
     gl_log('info', 'Administrator signed in', ['user_id' => $user['id']]);
