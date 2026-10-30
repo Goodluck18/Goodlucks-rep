@@ -39,7 +39,7 @@ the bundled `@php-wasm/cli` dev dependency is used.
 | --- | --- |
 | `npm run dev` | PHP API + Vite host (proxies `/api` to PHP) |
 | `npm run api:dev` | PHP API only, on `API_PORT` (default 8090) |
-| `npm run test:api` | 56 API tests against a throwaway SQLite database |
+| `npm run test:api` | 63 API tests against a throwaway SQLite database |
 | `npm run build` | Production bundle in `dist/` |
 | `npm run lint` | `tsc --noEmit` |
 
@@ -117,10 +117,39 @@ scripts/{php,dev,api-dev}.mjs  run the PHP API, locally or in CI
 server.ts                    dev-only static host that proxies /api to PHP
 ```
 
+### Background work (cron)
+
+Two features are email-driven and must be scheduled, or they deliver nothing:
+
+| Job | What it does | Trigger |
+| --- | --- | --- |
+| Saved-search matching | Emails subscribers when a listing that matches their search goes live | Runs automatically when a listing is approved; `cron.php` catches anything else |
+| Retention pruning | Trims `page_views`, `email_logs`, expired sessions and stale rate-limit rows | `cron.php` |
+
+```bash
+# every 15 minutes on cPanel
+*/15 * * * * /usr/local/bin/php /home/cpuser/public_html/api/cron.php >/dev/null 2>&1
+
+# see what it would do
+php php-backend/cron.php --dry-run
+```
+
+Admins can also deliver pending matches on demand from the console
+("Send Alert Digests"), which helps when shell cron is unavailable.
+
+Price-drop emails fire when a listing's rent is reduced through the API — one
+email per new price, never a duplicate for the same value. Both alert types
+record every send in `alert_deliveries` (unique key), so repeated runs, retries
+and concurrent requests are all idempotent.
+
 ### Business rules encoded in the API
 
-- Landlord submissions are created as `pending`; only an admin can approve or
-  reject them, and the landlord is notified + emailed either way.
+- Landlord submissions are created as `pending` and **unverified**; only an
+  admin can approve or reject them, and the landlord is notified + emailed
+  either way. The "verified landlord" badge is earned through a staff
+  inspection (`POST /properties/{id}/verify`), never assumed.
+- Enquiries move through `new → contacted → closed`, so the dashboard's "new
+  enquiries" figure is a real work queue rather than a synonym for the total.
 - `DELETE /api/properties/{id}` deactivates a listing (`?purge=1`, admin only,
   hard-deletes).
 - Viewings are scheduled by Goodlucks staff; the GH₵ 100 viewing fee is paid in
@@ -137,7 +166,7 @@ server.ts                    dev-only static host that proxies /api to PHP
 `enquiries` · `tenant-requests` · `viewing-requests` · `viewings` ·
 `price-alerts` · `search-alerts` · `saved-properties` · `agreements`
 (+ `/{id}/sign`, `/{id}/email`) · `receipts` · `notifications` ·
-`admin/{stats,properties,enquiries,tenant-requests,viewings,price-alerts,email-logs}` ·
+`admin/{stats,properties,enquiries,tenant-requests,viewings,price-alerts,email-logs,alerts/run}` ·
 `track/pageview` · `ai/{describe,match}`
 
 ### Security notes
@@ -155,7 +184,7 @@ server.ts                    dev-only static host that proxies /api to PHP
 ## Testing
 
 ```bash
-npm run test:api     # 56 tests / 12 suites
+npm run test:api     # 63 tests / 15 suites
 npm run lint
 npm run build
 ```

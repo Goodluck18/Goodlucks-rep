@@ -65,7 +65,7 @@ CREATE TABLE IF NOT EXISTS `properties` (
   `landlord_id` VARCHAR(64) DEFAULT NULL,
   `landlord_name` VARCHAR(255) DEFAULT NULL,
   `landlord_company` VARCHAR(255) DEFAULT NULL,
-  `is_landlord_verified` TINYINT(1) NOT NULL DEFAULT 1,
+  `is_landlord_verified` TINYINT(1) NOT NULL DEFAULT 0,
   `title` VARCHAR(255) NOT NULL,
   `location` VARCHAR(255) NOT NULL,
   `city` VARCHAR(100) NOT NULL DEFAULT 'Accra',
@@ -366,3 +366,17 @@ INSERT IGNORE INTO `properties` (`id`, `landlord_id`, `landlord_name`, `landlord
  'Smart minimalist studio flat curated with designer finishes, ambient lighting, high-speed fiber internet, and sleek space-saving architecture. Located 3 minutes stroll from Perez Chapel and Bloomsbury.', 
  '[\"Air Conditioning\", \"Fitted Kitchen\", \"24/7 Standby Generator\", \"Gated Security\", \"Water Reservoir (Polytank)\", \"Balcony\"]', 
  'Available Now', 0, 510, 22);
+
+-- 16. Alert delivery log (idempotency for price-drop & search-alert emails)
+CREATE TABLE IF NOT EXISTS `alert_deliveries` (
+  `id` VARCHAR(64) NOT NULL,
+  `alert_type` VARCHAR(32) NOT NULL,
+  `alert_id` VARCHAR(64) NOT NULL,
+  `property_id` VARCHAR(64) NOT NULL,
+  `context` VARCHAR(64) NOT NULL DEFAULT '',
+  `email` VARCHAR(255) NOT NULL,
+  `sent_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `idx_alert_delivery_once` (`alert_type`, `alert_id`, `property_id`, `context`),
+  KEY `idx_alert_delivery_alert` (`alert_type`, `alert_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

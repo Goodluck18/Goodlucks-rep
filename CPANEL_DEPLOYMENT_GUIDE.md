@@ -204,6 +204,31 @@ Then in the browser:
 
 ---
 
+## 8b. Step 7 — Schedule the background job
+
+Saved-search emails and data retention need one cron entry. Without it those
+features store rows but never send anything.
+
+cPanel → **Cron Jobs** → *Add New Cron Job*, every 15 minutes:
+
+```bash
+*/15 * * * * /usr/local/bin/php /home/cpuser/public_html/api/cron.php >/dev/null 2>&1
+```
+
+Check it before trusting it:
+
+```bash
+php /home/cpuser/public_html/api/cron.php --dry-run   # reports, changes nothing
+php /home/cpuser/public_html/api/cron.php             # runs the jobs
+```
+
+If your host has no shell cron, staff can deliver saved-search matches from the
+admin console with **Send Alert Digests**; the retention steps can be run by
+hand in phpMyAdmin occasionally.
+
+> Additions since the first release (`alert_deliveries`) are applied by
+> `php api/migrate.php --apply`. Run it after every deploy.
+
 ## 9. Local development
 
 ```bash
@@ -233,6 +258,8 @@ Local data lives in `.data/dev.sqlite` (git-ignored) and is seeded from
 | "Origin not allowed" (403) | `APP_URL` does not match the domain you browse. Set it exactly, e.g. `https://rent.goodlucks.co`. |
 | Admin login says "access key required" | `ADMIN_ACCESS_KEY` is set in `.env`; the console requires it as the third field. |
 | Emails never arrive | No `RESEND_API_KEY` and the server's `mail()` is blocked. Add a Resend key and a verified sender domain. |
+| Price-drop / saved-search emails never send | Check the cron entry above, run `php api/cron.php`, then look at **Admin → Email Logs** for `price_drop_alert` / `search_alert` rows. |
+| "Could not record alert delivery" in logs | The `alert_deliveries` table is missing — run `php api/migrate.php --apply`. |
 | Refresh on `/browse` gives 404 | Root `.htaccess` missing — upload `public/.htaccess`. |
 | "Too many attempts" after failed logins | Database-backed rate limit; wait for the window or clear `rate_limits`. |
 

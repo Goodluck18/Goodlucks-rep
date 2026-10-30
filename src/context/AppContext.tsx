@@ -114,6 +114,7 @@ interface AppContextType {
   updatePropertyStatus: (id: string, status: PropertyStatus) => Promise<void>;
   deleteProperty: (id: string) => Promise<void>;
   toggleFeatured: (id: string, featured: boolean) => Promise<void>;
+  verifyProperty: (id: string, verified: boolean) => Promise<void>;
   toggleSaveProperty: (id: string) => Promise<void>;
   incrementPropertyViews: (id: string) => void;
   refreshProperties: () => Promise<void>;
@@ -121,6 +122,7 @@ interface AppContextType {
   // Requests & viewings
   submitTenantRequest: (data: TenantRequestInput) => Promise<void>;
   updateTenantRequestStatus: (id: string, status: string, matchedPropertyIds?: string[]) => Promise<void>;
+  setEnquiryStatus: (id: string, status: Enquiry['status']) => Promise<void>;
   scheduleViewing: (data: ViewingInput) => Promise<ViewingSchedule>;
   updateViewingStatus: (id: string, status: ViewingSchedule['status'], feePaid?: boolean, notes?: string) => Promise<void>;
 
@@ -626,6 +628,37 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     [showSuccessToast]
   );
 
+  const verifyProperty = useCallback(
+    async (id: string, verified: boolean) => {
+      const result = await api.verifyProperty(id, verified);
+      setProperties((prev) => prev.map((p) => (p.id === id ? result.property : p)));
+      setSelectedProperty((prev) => (prev && prev.id === id ? result.property : prev));
+      showSuccessToast(
+        verified ? 'Landlord Verified' : 'Verification Removed',
+        verified ? 'This listing now shows the verified badge.' : 'The verified badge was removed from this listing.'
+      );
+    },
+    [showSuccessToast]
+  );
+
+  const setEnquiryStatus = useCallback(
+    async (id: string, status: Enquiry['status']) => {
+      const result = await api.updateEnquiryStatus(id, status);
+      setEnquiries((prev) => prev.map((item) => (item.id === id ? result.enquiry : item)));
+
+      // Keep the dashboard KPI ("new enquiries") honest after triage.
+      try {
+        const stats = await api.adminStats();
+        setAnalytics(stats.stats);
+      } catch {
+        /* the status change itself already succeeded */
+      }
+
+      showSuccessToast('Enquiry Updated', result.message);
+    },
+    [showSuccessToast]
+  );
+
   const toggleSaveProperty = useCallback(
     async (id: string) => {
       const isSaved = savedPropertyIds.includes(id);
@@ -858,11 +891,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       updatePropertyStatus,
       deleteProperty,
       toggleFeatured,
+      verifyProperty,
       toggleSaveProperty,
       incrementPropertyViews,
       refreshProperties,
       submitTenantRequest,
       updateTenantRequestStatus,
+      setEnquiryStatus,
       scheduleViewing,
       updateViewingStatus,
       createAgreement,
@@ -912,11 +947,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       updatePropertyStatus,
       deleteProperty,
       toggleFeatured,
+      verifyProperty,
       toggleSaveProperty,
       incrementPropertyViews,
       refreshProperties,
       submitTenantRequest,
       updateTenantRequestStatus,
+      setEnquiryStatus,
       scheduleViewing,
       updateViewingStatus,
       createAgreement,

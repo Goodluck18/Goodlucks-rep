@@ -266,6 +266,12 @@ export const api = {
       body: { status },
     }),
 
+  verifyProperty: (id: string, verified: boolean) =>
+    request<{ property: Property; message: string }>(`/properties/${encodeURIComponent(id)}/verify`, {
+      method: 'POST',
+      body: { verified },
+    }),
+
   toggleFeatured: (id: string, featured: boolean) =>
     request<{ property: Property }>(`/properties/${encodeURIComponent(id)}/feature`, {
       method: 'POST',
@@ -285,6 +291,18 @@ export const api = {
     request<{ success: boolean; message: string; enquiryId: string }>('/enquiries', { method: 'POST', body: data }),
 
   listEnquiries: () => request<{ enquiries: Enquiry[] }>('/admin/enquiries'),
+
+  updateEnquiryStatus: (id: string, status: Enquiry['status']) =>
+    request<{ enquiry: Enquiry; message: string }>(`/admin/enquiries/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: { status },
+    }),
+
+  runAlertDigest: () =>
+    request<{ success: boolean; properties: number; emails: number; message: string }>('/admin/alerts/run', {
+      method: 'POST',
+      body: {},
+    }),
 
   // -------------------------------------------------------------------------
   // Tenant requests

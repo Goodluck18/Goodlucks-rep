@@ -275,3 +275,15 @@ INSERT INTO `properties` (`id`, `landlord_id`, `landlord_name`, `landlord_compan
  'Smart minimalist studio flat curated with designer finishes, ambient lighting, high-speed fiber internet, and sleek space-saving architecture. Located 3 minutes stroll from Perez Chapel and Bloomsbury.', 
  '["Air Conditioning", "Fitted Kitchen", "24/7 Standby Generator", "Gated Security", "Water Reservoir (Polytank)", "Balcony"]', 
  'Available Now', 0, 510, 22);
+
+CREATE TABLE IF NOT EXISTS `alert_deliveries` (
+  `id` TEXT NOT NULL,
+  `alert_type` TEXT NOT NULL,
+  `alert_id` TEXT NOT NULL,
+  `property_id` TEXT NOT NULL,
+  `context` TEXT NOT NULL DEFAULT '',
+  `email` TEXT NOT NULL,
+  `sent_at` TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE (`alert_type`, `alert_id`, `property_id`, `context`)
+);

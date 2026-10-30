@@ -807,6 +807,220 @@ describe('Agreements & receipts', () => {
 });
 
 // ---------------------------------------------------------------------------
+describe('Alert delivery', () => {
+  test('a price drop emails subscribers exactly once per new price', async () => {
+    // Landlord publishes a listing...
+    const created = await landlord.post('/api/properties', {
+      title: 'Alert Delivery Test Apartment',
+      location: 'Labone, Accra',
+      city: 'Accra',
+      rentGhs: 7000,
+      bedrooms: 2,
+      bathrooms: 2,
+      propertyType: 'Apartment',
+      description: 'Listing used to verify price drop alert delivery end to end.',
+      images: [state.uploadedUrl],
+    });
+    assert.equal(created.status, 201);
+    const propertyId = created.body.property.id;
+
+    // ...a visitor subscribes to any drop...
+    const subscriberEmail = uniqueEmail('pricedrop');
+    const alert = await guest.post('/api/price-alerts', {
+      email: subscriberEmail,
+      propertyId,
+      notifyOnAnyDrop: true,
+    });
+    assert.equal(alert.status, 200);
+
+    // ...and the rent is reduced.
+    const droppped = await admin.put(`/api/properties/${propertyId}`, { rentGhs: 6200 });
+    assert.equal(droppped.status, 200);
+    assert.equal(droppped.body.property.rentGhs, 6200);
+
+    const logs = await admin.get('/api/admin/email-logs');
+    const priceDropEmails = logs.body.logs.filter(
+      (log) => log.type === 'price_drop_alert' && log.recipientEmail === subscriberEmail
+    );
+    assert.equal(priceDropEmails.length, 1, 'subscriber should receive exactly one email');
+
+    // Re-saving the same price must not send again.
+    await admin.put(`/api/properties/${propertyId}`, { rentGhs: 6200, title: 'Alert Delivery Test Apartment' });
+    const afterRepeat = await admin.get('/api/admin/email-logs');
+    assert.equal(
+      afterRepeat.body.logs.filter((log) => log.type === 'price_drop_alert' && log.recipientEmail === subscriberEmail).length,
+      1,
+      'idempotency: the same price must not email twice'
+    );
+
+    // A second, deeper drop is a new event and does notify.
+    await admin.put(`/api/properties/${propertyId}`, { rentGhs: 5500 });
+    const afterSecondDrop = await admin.get('/api/admin/email-logs');
+    assert.equal(
+      afterSecondDrop.body.logs.filter((log) => log.type === 'price_drop_alert' && log.recipientEmail === subscriberEmail).length,
+      2,
+      'a further reduction should notify again'
+    );
+  });
+
+  test('a rent increase does not email price-drop subscribers', async () => {
+    const before = await admin.get('/api/admin/email-logs');
+    const countBefore = before.body.logs.filter((log) => log.type === 'price_drop_alert').length;
+
+    await admin.put(`/api/properties/${state.seededPropertyId}`, { rentGhs: 999999 });
+
+    const after = await admin.get('/api/admin/email-logs');
+    assert.equal(after.body.logs.filter((log) => log.type === 'price_drop_alert').length, countBefore);
+  });
+
+  test('saved searches are matched when a listing goes live', async () => {
+    const subscriberEmail = uniqueEmail('searchalert');
+    const created = await guest.post('/api/search-alerts', {
+      email: subscriberEmail,
+      name: 'Search Alert Subscriber',
+      location: 'Tema',
+      propertyType: 'Apartment',
+      bedrooms: 2,
+      maxRentGhs: 5000,
+      frequency: 'instant',
+      channels: ['email'],
+    });
+    assert.equal(created.status, 201);
+
+    // A landlord lists a matching property (goes to moderation)...
+    const listing = await landlord.post('/api/properties', {
+      title: 'Tema Harbour View Apartment',
+      location: 'Tema Community 25',
+      city: 'Tema',
+      rentGhs: 4500,
+      bedrooms: 2,
+      bathrooms: 2,
+      propertyType: 'Apartment',
+      description: 'Two bedroom apartment in Tema used for saved-search matching tests.',
+      images: [state.uploadedUrl],
+    });
+    assert.equal(listing.status, 201);
+    const propertyId = listing.body.property.id;
+
+    const beforeApproval = await admin.get('/api/admin/email-logs');
+    assert.equal(
+      beforeApproval.body.logs.filter((log) => log.type === 'search_alert' && log.recipientEmail === subscriberEmail).length,
+      0,
+      'a pending listing must not be matched'
+    );
+
+    // ...and once approved the subscriber hears about it.
+    const approved = await admin.post(`/api/properties/${propertyId}/status`, { status: 'active' });
+    assert.equal(approved.status, 200);
+
+    const afterApproval = await admin.get('/api/admin/email-logs');
+    assert.equal(
+      afterApproval.body.logs.filter((log) => log.type === 'search_alert' && log.recipientEmail === subscriberEmail).length,
+      1
+    );
+
+    // Running the digest again must not duplicate the email.
+    const run = await admin.post('/api/admin/alerts/run', {});
+    assert.equal(run.status, 200);
+    assert.equal(typeof run.body.emails, 'number');
+
+    const afterRun = await admin.get('/api/admin/email-logs');
+    assert.equal(
+      afterRun.body.logs.filter((log) => log.type === 'search_alert' && log.recipientEmail === subscriberEmail).length,
+      1,
+      'the cron/digest pass must be idempotent'
+    );
+  });
+
+  test('only admins can trigger the alert digest', async () => {
+    const asTenant = await tenant.post('/api/admin/alerts/run', {});
+    assert.equal(asTenant.status, 403);
+
+    const asGuest = await guest.post('/api/admin/alerts/run', {});
+    assert.equal(asGuest.status, 401);
+  });
+});
+
+// ---------------------------------------------------------------------------
+describe('Landlord verification', () => {
+  test('new listings start unverified and only an admin can verify them', async () => {
+    const created = await landlord.post('/api/properties', {
+      title: 'Verification State Test',
+      location: 'Spintex, Accra',
+      city: 'Accra',
+      rentGhs: 3800,
+      bedrooms: 1,
+      bathrooms: 1,
+      propertyType: 'Studio',
+      description: 'Listing used to assert that the verified badge is earned, never assumed.',
+      images: [state.uploadedUrl],
+    });
+    assert.equal(created.status, 201);
+    const propertyId = created.body.property.id;
+    assert.equal(created.body.property.isLandlordVerified, false, 'a brand-new landlord must not appear verified');
+
+    const byLandlord = await landlord.post(`/api/properties/${propertyId}/verify`, { verified: true });
+    assert.equal(byLandlord.status, 403, 'landlords cannot verify themselves');
+
+    const byAdmin = await admin.post(`/api/properties/${propertyId}/verify`, { verified: true });
+    assert.equal(byAdmin.status, 200);
+    assert.equal(byAdmin.body.property.isLandlordVerified, true);
+
+    // Pending listings stay hidden from the public feed, so read it as staff.
+    const fetched = await admin.get(`/api/properties/${propertyId}`);
+    assert.equal(fetched.body.property.isLandlordVerified, true);
+
+    const hiddenFromPublic = await guest.get(`/api/properties/${propertyId}`);
+    assert.equal(hiddenFromPublic.status, 404, 'an unapproved listing must not be public');
+
+    const revoked = await admin.post(`/api/properties/${propertyId}/verify`, { verified: false });
+    assert.equal(revoked.status, 200);
+    assert.equal(revoked.body.property.isLandlordVerified, false);
+
+    const missing = await admin.post('/api/properties/nope-nope/verify', { verified: true });
+    assert.equal(missing.status, 404);
+  });
+});
+
+// ---------------------------------------------------------------------------
+describe('Enquiry workflow', () => {
+  test('enquiries move through new -> contacted -> closed and feed the KPI', async () => {
+    const created = await guest.post('/api/enquiries', {
+      name: 'Workflow Tester',
+      email: uniqueEmail('workflow'),
+      phone: '+233 20 000 0000',
+      message: 'Please contact me about a two bedroom apartment in East Legon.',
+      source: 'contact_form',
+    });
+    assert.equal(created.status, 201);
+    const enquiryId = created.body.enquiryId;
+
+    const before = await admin.get('/api/admin/stats');
+    const newBefore = before.body.stats.newEnquiries;
+
+    const contacted = await admin.patch(`/api/admin/enquiries/${enquiryId}`, { status: 'contacted' });
+    assert.equal(contacted.status, 200);
+    assert.equal(contacted.body.enquiry.status, 'contacted');
+
+    const after = await admin.get('/api/admin/stats');
+    assert.equal(after.body.stats.newEnquiries, newBefore - 1, 'the "new enquiries" KPI must actually move');
+
+    const closed = await admin.patch(`/api/admin/enquiries/${enquiryId}`, { status: 'closed' });
+    assert.equal(closed.status, 200);
+    assert.equal(closed.body.enquiry.status, 'closed');
+
+    const invalid = await admin.patch(`/api/admin/enquiries/${enquiryId}`, { status: 'banana' });
+    assert.equal(invalid.status, 422);
+
+    const asTenant = await tenant.patch(`/api/admin/enquiries/${enquiryId}`, { status: 'closed' });
+    assert.equal(asTenant.status, 403);
+
+    const missing = await admin.patch('/api/admin/enquiries/nope-nope', { status: 'closed' });
+    assert.equal(missing.status, 404);
+  });
+});
+
+// ---------------------------------------------------------------------------
 describe('Notifications & analytics', () => {
   test('page views are recorded and exposed as real analytics', async () => {
     for (const page of ['/', '/browse', '/about']) {

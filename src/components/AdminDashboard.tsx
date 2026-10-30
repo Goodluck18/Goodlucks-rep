@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
+import { api, messageForError } from '../services/apiService';
 import { Property } from '../types';
 import { 
   ShieldCheck, 
@@ -45,6 +46,8 @@ export const AdminDashboard: React.FC = () => {
     updateViewingStatus,
     deleteProperty,
     toggleFeatured,
+    verifyProperty,
+    setEnquiryStatus,
     updateProperty,
     showSuccessToast,
     showErrorToast
@@ -132,6 +135,7 @@ export const AdminDashboard: React.FC = () => {
   const pendingProps = properties.filter(p => p.status === 'pending');
   const activeProps = properties.filter(p => p.status === 'active');
 
+  const [isRunningAlerts, setIsRunningAlerts] = useState(false);
   const [editProperty, setEditProperty] = useState<Property | null>(null);
   const [editForm, setEditForm] = useState<Record<string, any>>({});
   const [isSavingEdit, setIsSavingEdit] = useState(false);
@@ -158,6 +162,21 @@ export const AdminDashboard: React.FC = () => {
 
   const handleConfirmMatch = (reqId: string, propId: string) => {
     void runAction(() => updateTenantRequestStatus(reqId, 'matched', [propId]), 'Could not confirm the match.');
+  };
+
+  const handleRunAlertDigest = async () => {
+    setIsRunningAlerts(true);
+    setActionError(null);
+    try {
+      const result = await api.runAlertDigest();
+      showSuccessToast('Alert digests sent', result.message);
+    } catch (error) {
+      const message = messageForError(error);
+      setActionError(message);
+      showErrorToast('Could not send alerts', message);
+    } finally {
+      setIsRunningAlerts(false);
+    }
   };
 
   const openEditProperty = (property: Property) => {
@@ -267,6 +286,16 @@ export const AdminDashboard: React.FC = () => {
               <Database className="w-4 h-4 text-[#08D9D6]" />
               <Download className="w-3.5 h-3.5 text-slate-300" />
               <span>Export Listings (CSV)</span>
+            </button>
+
+            <button
+              onClick={() => void handleRunAlertDigest()}
+              disabled={isRunningAlerts}
+              className="px-3.5 py-2.5 rounded-xl bg-slate-700/80 hover:bg-slate-700 text-white font-bold text-xs border border-white/10 transition-all shadow-md flex items-center gap-1.5 disabled:opacity-60"
+              title="Email saved searches that match a new listing"
+            >
+              <Bell className="w-4 h-4 text-[#08D9D6]" />
+              <span>{isRunningAlerts ? 'Sending…' : 'Send Alert Digests'}</span>
             </button>
 
             <button 
@@ -613,6 +642,15 @@ export const AdminDashboard: React.FC = () => {
                             FEATURED
                           </span>
                         )}
+                        <span
+                          className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                            property.isLandlordVerified
+                              ? 'bg-emerald-500/20 text-emerald-400'
+                              : 'bg-slate-600/40 text-slate-300'
+                          }`}
+                        >
+                          {property.isLandlordVerified ? 'LANDLORD VERIFIED' : 'NOT VERIFIED'}
+                        </span>
                         <span className="text-[10px] text-slate-500 font-mono">{property.id}</span>
                       </div>
                       <h3 className="font-bold text-sm text-white truncate">{property.title}</h3>
@@ -646,6 +684,23 @@ export const AdminDashboard: React.FC = () => {
                         Archive
                       </button>
                     )}
+
+                    <button
+                      onClick={() =>
+                        void runAction(
+                          () => verifyProperty(property.id, !property.isLandlordVerified),
+                          'Could not update the verification state.'
+                        )
+                      }
+                      className={`px-3 py-1.5 rounded-lg font-bold text-[11px] ${
+                        property.isLandlordVerified
+                          ? 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30'
+                          : 'bg-white/10 text-white hover:bg-white/20'
+                      }`}
+                      title="Only mark this after Goodlucks staff have inspected the property"
+                    >
+                      {property.isLandlordVerified ? 'Unverify' : 'Verify'}
+                    </button>
 
                     <button
                       onClick={() => void runAction(() => toggleFeatured(property.id, !property.featured), 'Could not update the featured flag.')}
@@ -696,6 +751,17 @@ export const AdminDashboard: React.FC = () => {
                       <span className="font-bold text-white text-sm">{enquiry.name}</span>
                       <span className="text-[11px] text-slate-400">{enquiry.email}</span>
                       {enquiry.phone && <span className="text-[11px] text-slate-400">• {enquiry.phone}</span>}
+                      <span
+                        className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                          enquiry.status === 'new'
+                            ? 'bg-amber-500/20 text-amber-300'
+                            : enquiry.status === 'contacted'
+                              ? 'bg-sky-500/20 text-sky-300'
+                              : 'bg-slate-600/40 text-slate-300'
+                        }`}
+                      >
+                        {enquiry.status.replace('_', ' ')}
+                      </span>
                       <span className="text-[10px] text-slate-500 ml-auto">
                         {new Date(enquiry.createdAt).toLocaleString()}
                       </span>
@@ -704,6 +770,45 @@ export const AdminDashboard: React.FC = () => {
                       <div className="text-[11px] text-[#08D9D6]">Re: {enquiry.propertyTitle}</div>
                     )}
                     <p className="text-xs text-slate-300 whitespace-pre-line">{enquiry.message}</p>
+
+                    <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                      {enquiry.status !== 'contacted' && (
+                        <button
+                          onClick={() =>
+                            void runAction(() => setEnquiryStatus(enquiry.id, 'contacted'), 'Could not update the enquiry.')
+                          }
+                          className="px-3 py-1.5 rounded-lg bg-sky-500/20 text-sky-300 hover:bg-sky-500/30 font-bold text-[11px]"
+                        >
+                          Mark contacted
+                        </button>
+                      )}
+                      {enquiry.status !== 'closed' && (
+                        <button
+                          onClick={() =>
+                            void runAction(() => setEnquiryStatus(enquiry.id, 'closed'), 'Could not update the enquiry.')
+                          }
+                          className="px-3 py-1.5 rounded-lg bg-slate-700/70 text-slate-200 hover:bg-slate-700 font-bold text-[11px]"
+                        >
+                          Close
+                        </button>
+                      )}
+                      {enquiry.status !== 'new' && (
+                        <button
+                          onClick={() =>
+                            void runAction(() => setEnquiryStatus(enquiry.id, 'new'), 'Could not update the enquiry.')
+                          }
+                          className="px-3 py-1.5 rounded-lg bg-white/10 text-white hover:bg-white/20 font-bold text-[11px]"
+                        >
+                          Reopen
+                        </button>
+                      )}
+                      <a
+                        href={`mailto:${enquiry.email}?subject=${encodeURIComponent('Re: your enquiry with Goodlucks Homes')}`}
+                        className="px-3 py-1.5 rounded-lg bg-[#08D9D6]/15 text-[#08D9D6] hover:bg-[#08D9D6]/25 font-bold text-[11px]"
+                      >
+                        Reply by email
+                      </a>
+                    </div>
                   </div>
                 ))}
               </div>

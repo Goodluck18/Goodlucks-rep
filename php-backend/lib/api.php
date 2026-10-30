@@ -62,6 +62,7 @@ function resolve_route(string $method, string $path): ?array
         ['DELETE', '#^/properties/([A-Za-z0-9\-_]+)$#', 'handle_delete_property'],
         ['POST', '#^/properties/([A-Za-z0-9\-_]+)/status$#', 'handle_property_status'],
         ['POST', '#^/properties/([A-Za-z0-9\-_]+)/feature$#', 'handle_property_feature'],
+        ['POST', '#^/properties/([A-Za-z0-9\-_]+)/verify$#', 'handle_property_verify'],
         ['GET',  '#^/admin/properties$#', 'handle_admin_properties'],
 
         // --- Uploads ----------------------------------------------------
@@ -71,6 +72,7 @@ function resolve_route(string $method, string $path): ?array
         // --- Enquiries --------------------------------------------------
         ['POST', '#^/enquiries$#', 'handle_create_enquiry'],
         ['GET',  '#^/admin/enquiries$#', 'handle_admin_enquiries'],
+        ['PATCH', '#^/admin/enquiries/([A-Za-z0-9\-_]+)$#', 'handle_update_enquiry'],
 
         // --- Tenant requests -------------------------------------------
         ['POST', '#^/tenant-requests$#', 'handle_create_tenant_request'],
@@ -115,6 +117,7 @@ function resolve_route(string $method, string $path): ?array
         // --- Admin ------------------------------------------------------
         ['GET',  '#^/admin/stats$#', 'handle_admin_stats'],
         ['GET',  '#^/admin/email-logs$#', 'handle_admin_email_logs'],
+        ['POST', '#^/admin/alerts/run$#', 'handle_run_alert_digest'],
 
         // --- Utility ----------------------------------------------------
         ['POST', '#^/track/pageview$#', 'handle_track_pageview'],
@@ -560,10 +563,22 @@ function handle_create_property(): void
         : (string)$user['id'];
     $data['landlord_name'] = (string)$user['name'];
     $data['landlord_company'] = (string)($user['company'] ?? '');
-    $data['is_landlord_verified'] = $user['role'] === 'admin' ? 1 : (int)($user['is_verified'] ?? 0);
+    // Verification is earned: staff inspect the property, then tick it off in
+    // the console. Admin-created listings are trusted on creation.
+    $data['is_landlord_verified'] = $user['role'] === 'admin' ? 1 : 0;
 
     $id = create_property($data);
     $created = find_property($id);
+
+    // An admin can publish immediately; landlords go to the queue and are
+    // matched when approved.
+    if ($created && ($created['status'] ?? '') === 'active') {
+        try {
+            dispatch_search_alert_matches($created);
+        } catch (Throwable $e) {
+            gl_log('error', 'Search alert dispatch failed: ' . $e->getMessage(), ['property' => $id]);
+        }
+    }
 
     if ($user['role'] === 'landlord') {
         send_email(
@@ -633,8 +648,22 @@ function handle_update_property(array $params): void
         $data['status'] = one_of(request_json()['status'], PROPERTY_STATUSES, (string)$row['status']);
     }
 
+    $oldRent = (float)($row['rent_ghs'] ?? 0);
+
     update_property($id, $data);
     $updated = find_property($id);
+
+    // A rent reduction is the one event price-drop subscribers care about.
+    if ($updated) {
+        $newRent = (float)($updated['rent_ghs'] ?? 0);
+        if ($newRent > 0 && $newRent < $oldRent) {
+            try {
+                dispatch_price_drop_alerts($updated, $oldRent, $newRent);
+            } catch (Throwable $e) {
+                gl_log('error', 'Price drop dispatch failed: ' . $e->getMessage(), ['property' => $id]);
+            }
+        }
+    }
 
     json_response(['success' => true, 'property' => $updated ? shape_property($updated) : null]);
 }
@@ -679,7 +708,21 @@ function handle_property_status(array $params): void
         error_response('Invalid property status.', 422, ['status' => 'Choose one of: ' . implode(', ', PROPERTY_STATUSES)]);
     }
 
+    $wasActive = ((string)($row['status'] ?? '')) === 'active';
+
     update_property($id, ['status' => $status]);
+
+    // Going live is the moment saved searches should hear about it.
+    if ($status === 'active' && !$wasActive) {
+        $live = find_property($id);
+        if ($live) {
+            try {
+                dispatch_search_alert_matches($live);
+            } catch (Throwable $e) {
+                gl_log('error', 'Search alert dispatch failed: ' . $e->getMessage(), ['property' => $id]);
+            }
+        }
+    }
 
     // Tell the landlord what happened.
     $landlord = find_user_by_id((string)$row['landlord_id']);
@@ -719,6 +762,38 @@ function handle_property_status(array $params): void
 
     $updated = find_property($id);
     json_response(['success' => true, 'property' => $updated ? shape_property($updated) : null]);
+}
+
+/**
+ * Mark a listing's landlord as verified (admin only).
+ *
+ * "Verified" is a physical-inspection claim made by Goodlucks staff, so it is
+ * never set by the client and never defaults to true.
+ */
+function handle_property_verify(array $params): void
+{
+    require_admin();
+
+    $id = (string)($params[0] ?? '');
+    $row = find_property($id);
+    if (!$row) {
+        error_response('Property not found.', 404);
+    }
+
+    $input = request_json();
+    $verified = filter_var($input['verified'] ?? true, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+    if ($verified === null) {
+        error_response('Send verified=true or verified=false.', 422, ['verified' => 'Invalid value.']);
+    }
+
+    update_property($id, ['is_landlord_verified' => $verified ? 1 : 0]);
+    $updated = find_property($id);
+
+    json_response([
+        'success'  => true,
+        'property' => $updated ? shape_property($updated) : null,
+        'message'  => $verified ? 'Landlord marked as verified.' : 'Verification removed.',
+    ]);
 }
 
 function handle_property_feature(array $params): void
@@ -893,6 +968,38 @@ function handle_serve_upload(array $params): void
 // ===========================================================================
 // Enquiries
 // ===========================================================================
+/**
+ * Move an enquiry through the follow-up workflow (admin only).
+ *
+ * Without this, every enquiry stayed 'new' forever and the dashboard KPI
+ * "new enquiries" could never differ from the total.
+ */
+function handle_update_enquiry(array $params): void
+{
+    require_admin();
+
+    $id = (string)($params[0] ?? '');
+    $row = db_one('SELECT * FROM enquiries WHERE id = :id LIMIT 1', [':id' => $id]);
+    if (!$row) {
+        error_response('Enquiry not found.', 404);
+    }
+
+    $input = request_json();
+    $status = one_of($input['status'] ?? '', ENQUIRY_STATUSES, null);
+    if ($status === null) {
+        error_response('Invalid enquiry status.', 422, ['status' => 'Choose one of: ' . implode(', ', ENQUIRY_STATUSES)]);
+    }
+
+    db_exec('UPDATE enquiries SET status = :status WHERE id = :id', [':status' => $status, ':id' => $id]);
+    $updated = db_one('SELECT * FROM enquiries WHERE id = :id LIMIT 1', [':id' => $id]);
+
+    json_response([
+        'success' => true,
+        'enquiry' => $updated ? shape_enquiry($updated) : null,
+        'message' => 'Enquiry marked as ' . str_replace('_', ' ', $status) . '.',
+    ]);
+}
+
 function handle_create_enquiry(): void
 {
     enforce_rate_limit('enquiry', 15, 3600);
@@ -1660,6 +1767,29 @@ function handle_admin_stats(): void
 {
     require_admin();
     json_response(['success' => true, 'stats' => analytics_stats()]);
+}
+
+/**
+ * Run the saved-search matcher on demand (admin only).
+ *
+ * Shared hosting often has no shell cron; this lets staff deliver pending
+ * matches from the console. The cron script calls the same function.
+ */
+function handle_run_alert_digest(): void
+{
+    require_admin();
+    enforce_rate_limit('alert-digest', 12, 3600);
+
+    $result = run_search_alert_digest();
+
+    json_response([
+        'success'    => true,
+        'properties' => $result['properties'],
+        'emails'     => $result['emails'],
+        'message'    => $result['emails'] === 0
+            ? 'No new matches to send.'
+            : 'Sent ' . $result['emails'] . ' match email(s).',
+    ]);
 }
 
 function handle_admin_email_logs(): void

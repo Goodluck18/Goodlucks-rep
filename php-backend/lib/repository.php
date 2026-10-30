@@ -22,7 +22,7 @@ function shape_property(array $row): array
     return [
         'id'                      => (string)$row['id'],
         'landlordId'              => (string)($row['landlord_id'] ?? ''),
-        'isLandlordVerified'      => (bool)($row['is_landlord_verified'] ?? true),
+        'isLandlordVerified'      => (bool)($row['is_landlord_verified'] ?? false),
         'landlordName'            => $landlordName,
         'landlordCompany'         => (string)($row['landlord_company'] ?? ''),
         'title'                   => (string)$row['title'],

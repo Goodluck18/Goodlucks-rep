@@ -277,7 +277,7 @@ export interface Enquiry {
   phone: string;
   message: string;
   source: 'contact_form' | 'property_page' | string;
-  status: 'new' | 'handled' | string;
+  status: 'new' | 'contacted' | 'closed';
   createdAt: string;
 }
 

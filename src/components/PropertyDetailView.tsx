@@ -482,8 +482,14 @@ export const PropertyDetailView: React.FC = () => {
                   <span>Zero Direct Landlord Solicitations</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#08D9D6]" />
-                  <span>100% Verified Property Documentation</span>
+                  <span
+                    className={`w-1.5 h-1.5 rounded-full ${property.isLandlordVerified ? 'bg-emerald-400' : 'bg-amber-400'}`}
+                  />
+                  <span>
+                    {property.isLandlordVerified
+                      ? 'Landlord identity verified by our team'
+                      : 'Landlord verification in progress'}
+                  </span>
                 </div>
               </div>
 
