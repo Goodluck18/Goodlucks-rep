@@ -36,7 +36,13 @@ echo "Driver : " . db_driver() . "\n";
 echo "Mode   : " . ($apply ? "APPLY (changes will be written)\n" : "DRY RUN (no changes)\n");
 echo str_repeat('-', 64) . "\n";
 
-$pdo = db();
+try {
+    $pdo = db();
+} catch (Throwable $e) {
+    fwrite(STDERR, "Could not connect to the database: " . $e->getMessage() . "\n");
+    fwrite(STDERR, "Check DB_* in php-backend/.env (see .env.example).\n");
+    exit(1);
+}
 
 if (db_driver() === 'sqlite') {
     echo "SQLite databases are created complete from schema.sqlite.sql.\n";

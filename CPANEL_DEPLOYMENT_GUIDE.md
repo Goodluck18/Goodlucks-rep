@@ -145,7 +145,12 @@ Keep `index.html` and `assets/` at the same level; the HTML requests
 
 ## 7. Step 5 — Create the admin user
 
-There is no default admin and no "bypass" button. Create one from
+The schema seeds `admin@goodlucks.com`, `landlord@goodlucks.com` and
+`tenant@goodlucks.com` as **passwordless rows**: they exist so demo listings have
+an owner, but nobody can sign in to them. That is intentional — a known password
+for an account that owns listings would be a security hole. Do not add one.
+
+There is no default admin and no "bypass" button. Create a real admin from
 **cPanel → Terminal** (or SSH):
 
 ```bash
@@ -165,7 +170,10 @@ The script prints whether `ADMIN_ACCESS_KEY` is configured. Admin sign-in uses
 cannot sign in through the public login form, and tenants cannot enter the
 admin console.
 
-Use `--reset` to rotate an existing admin password later.
+Running it again for the same email rotates the password, which is how you
+recover a lost admin login. If the command exits immediately with
+"Could not connect to the database", the `DB_*` values in `api/.env` are wrong —
+the message now says so instead of failing silently.
 
 ---
 

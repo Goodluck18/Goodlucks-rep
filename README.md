@@ -39,7 +39,7 @@ the bundled `@php-wasm/cli` dev dependency is used.
 | --- | --- |
 | `npm run dev` | PHP API + Vite host (proxies `/api` to PHP) |
 | `npm run api:dev` | PHP API only, on `API_PORT` (default 8090) |
-| `npm run test:api` | 55 API tests against a throwaway SQLite database |
+| `npm run test:api` | 56 API tests against a throwaway SQLite database |
 | `npm run build` | Production bundle in `dist/` |
 | `npm run lint` | `tsc --noEmit` |
 
@@ -61,9 +61,25 @@ ADMIN_ACCESS_KEY=           # second factor for /api/auth/admin-login
 Nothing secret is committed. Real environment variables always take precedence
 over `.env`, and `.env` is git-ignored.
 
+### Demo accounts (local only)
+
+The schema seeds a tenant, a landlord and an admin so there is something to look
+at. **Those rows deliberately ship without a password** — publishing one for an
+account that owns listings would be a security hole on a live site. `npm run dev`
+runs `php-backend/dev_accounts.php`, which sets a local password and prints:
+
+```text
+admin@goodlucks.com     / Goodlucks-Dev-123   →  /admin-login
+landlord@goodlucks.com  / Goodlucks-Dev-123
+tenant@goodlucks.com    / Goodlucks-Dev-123
+```
+
+The helper refuses to run unless `APP_ENV=development` **and** `DB_DRIVER=sqlite`,
+so it can never touch production.
+
 ### Creating the admin user
 
-There is no default admin account:
+There is no default admin account on a real deployment:
 
 ```bash
 npm run api:dev -- --help                     # or, directly:
@@ -139,7 +155,7 @@ server.ts                    dev-only static host that proxies /api to PHP
 ## Testing
 
 ```bash
-npm run test:api     # 55 tests / 12 suites
+npm run test:api     # 56 tests / 12 suites
 npm run lint
 npm run build
 ```

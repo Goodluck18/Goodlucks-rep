@@ -41,6 +41,18 @@ function cli_option(string $name, ?string $default = null): ?string
 echo "Goodlucks Homes - administrator bootstrap\n";
 echo "Database driver: " . db_driver() . "\n";
 
+// Connect immediately so a bad configuration fails loudly instead of exiting
+// silently (display_errors is off, so PDO errors are otherwise invisible).
+try {
+    db();
+} catch (Throwable $e) {
+    fwrite(STDERR, "Could not connect to the database.\n");
+    fwrite(STDERR, '  ' . $e->getMessage() . "\n");
+    fwrite(STDERR, "  Configure DB_* in php-backend/.env (see .env.example),\n");
+    fwrite(STDERR, "  or for local development run with DB_DRIVER=sqlite DB_SQLITE_PATH=.data/dev.sqlite\n");
+    exit(1);
+}
+
 $email = strtolower(trim((string)(cli_option('email') ?? getenv('ADMIN_EMAIL') ?: 'admin@goodlucks.co')));
 $name = trim((string)(cli_option('name') ?? getenv('ADMIN_NAME') ?: 'Goodlucks Admin'));
 $phone = trim((string)(cli_option('phone') ?? getenv('ADMIN_PHONE') ?: '+233 23 769 0080'));

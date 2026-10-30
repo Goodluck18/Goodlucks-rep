@@ -865,6 +865,22 @@ describe('Notifications & analytics', () => {
 
 // ---------------------------------------------------------------------------
 describe('Abuse protection', () => {
+  test('seeded demo accounts cannot sign in until a password is set', async () => {
+    // The schema seeds tenant/landlord/admin rows without a password hash: a
+    // published password for an account that owns listings would be a hole.
+    for (const email of ['tenant@goodlucks.com', 'landlord@goodlucks.com']) {
+      const res = await guest.post('/api/auth/login', { email, password: '' });
+      assert.ok([401, 422].includes(res.status), `${email} unexpectedly accepted an empty password (${res.status})`);
+    }
+
+    const admin = await guest.post('/api/auth/admin-login', {
+      email: 'admin@goodlucks.com',
+      password: '',
+      accessKey: '',
+    });
+    assert.ok([401, 422].includes(admin.status));
+  });
+
   test('repeated failed logins are rate limited', async () => {
     const client = new ApiClient(baseUrl);
     let sawRateLimit = false;
