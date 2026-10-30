@@ -50,6 +50,8 @@ function resolve_route(string $method, string $path): ?array
         ['POST', '#^/auth/register$#', 'handle_register'],
         ['POST', '#^/auth/login$#', 'handle_login'],
         ['POST', '#^/auth/admin-login$#', 'handle_admin_login'],
+        ['POST', '#^/auth/password-reset/request$#', 'handle_password_reset_request'],
+        ['POST', '#^/auth/password-reset/confirm$#', 'handle_password_reset_confirm'],
         ['POST', '#^/auth/logout$#', 'handle_logout'],
         ['GET',  '#^/auth/me$#', 'handle_me'],
         ['PUT',  '#^/profile$#', 'handle_update_profile'],
@@ -314,6 +316,100 @@ function handle_admin_login(): void
     gl_log('info', 'Administrator signed in', ['user_id' => $user['id']]);
 
     json_response(['success' => true, 'user' => public_user($user)]);
+}
+
+/**
+ * Start a password reset.
+ *
+ * The response is always the same, whether or not the address is registered, so
+ * this endpoint cannot be used to discover who has an account.
+ */
+function handle_password_reset_request(): void
+{
+    $input = request_json();
+    $email = valid_email($input['email'] ?? null);
+
+    if ($email === null) {
+        error_response('Enter the email address on your account.', 422, ['email' => 'Enter a valid email address.']);
+    }
+
+    enforce_rate_limit('password-reset-ip', 20, 3600);
+    enforce_rate_limit('password-reset', 5, 3600, $email);
+
+    $user = find_user_by_email($email);
+    $genericMessage = 'If that email is registered with Goodlucks Homes, a reset link is on its way. It expires in one hour.';
+
+    if (!$user) {
+        gl_log('info', 'Password reset requested for unknown email');
+        json_response(['success' => true, 'message' => $genericMessage]);
+    }
+
+    $reset = create_password_reset((string)$user['id']);
+    $link = SITE_URL . '/?reset=' . urlencode($reset['token']);
+
+    $body = '<p style="color:#CBD5E1;font-size:14px;">Hello ' . e((string)$user['name']) . ',</p>'
+        . '<p style="color:#CBD5E1;font-size:14px;">We received a request to reset the password on your Goodlucks Homes account.</p>'
+        . '<p style="margin:22px 0;"><a href="' . e($link) . '" style="background:#08D9D6;color:#252A34;padding:12px 22px;border-radius:10px;'
+        . 'font-weight:bold;text-decoration:none;font-size:14px;">Set a new password</a></p>'
+        . '<p style="color:#94A3B8;font-size:12px;">This link expires in one hour and can only be used once. '
+        . 'If you did not request it, you can ignore this email — your password has not changed.</p>'
+        . '<p style="color:#94A3B8;font-size:11px;word-break:break-all;">' . e($link) . '</p>';
+
+    send_email(
+        $email,
+        (string)$user['name'],
+        'Reset your Goodlucks Homes password',
+        email_html_template('Password reset', $body),
+        'password_reset',
+        'Password reset requested'
+    );
+
+    gl_log('info', 'Password reset token issued', ['user_id' => $user['id']]);
+
+    json_response(['success' => true, 'message' => $genericMessage]);
+}
+
+/** Finish a password reset with a valid token. */
+function handle_password_reset_confirm(): void
+{
+    $input = request_json();
+    $token = trim((string)($input['token'] ?? ''));
+    $password = is_string($input['password'] ?? null) ? (string)$input['password'] : '';
+
+    if ($token === '') {
+        error_response('This reset link is incomplete. Request a new one.', 422, ['token' => 'Missing token.']);
+    }
+
+    if (!password_is_strong_enough($password)) {
+        error_response('Please correct the highlighted fields.', 422, [
+            'password' => 'Password must be at least 8 characters.',
+        ]);
+    }
+
+    enforce_rate_limit('password-reset-confirm', 20, 3600);
+
+    $reset = find_password_reset($token);
+    if (!$reset) {
+        error_response('This reset link has expired or was already used. Request a new one.', 400, [
+            'token' => 'Invalid or expired token.',
+        ]);
+    }
+
+    $user = find_user_by_id((string)$reset['user_id']);
+    if (!$user) {
+        error_response('This reset link is no longer valid.', 400);
+    }
+
+    update_user((string)$user['id'], ['password_hash' => password_hash($password, PASSWORD_BCRYPT)]);
+    consume_password_reset($reset);
+
+    create_notification((string)$user['id'], 'Password changed', 'Your password was reset. All other devices were signed out.', 'success');
+    gl_log('info', 'Password reset completed', ['user_id' => $user['id']]);
+
+    json_response([
+        'success' => true,
+        'message' => 'Your password has been updated. Please sign in with the new password.',
+    ]);
 }
 
 function handle_logout(): void
@@ -631,6 +727,25 @@ function handle_update_property(array $params): void
     }
     if (!can_manage_property($user, $row)) {
         error_response('You do not have permission to edit this property.', 403);
+    }
+
+    // Optimistic concurrency: if the client is editing a copy of the record that
+    // has since changed, refuse the write instead of silently overwriting the
+    // other editor's work.
+    $expectedUpdatedAt = trim((string)(request_json()['updatedAt'] ?? ''));
+    if ($expectedUpdatedAt !== '') {
+        $currentUpdatedAt = (string)($row['updated_at'] ?? '');
+        $expectedTs = strtotime($expectedUpdatedAt);
+        $currentTs = $currentUpdatedAt !== '' ? strtotime($currentUpdatedAt) : false;
+
+        if ($expectedTs !== false && $currentTs !== false && $expectedTs !== $currentTs) {
+            json_response([
+                'success' => false,
+                'error'   => 'This listing was changed by someone else while you were editing it. Reload and try again.',
+                'code'    => 'stale_property',
+                'property' => shape_property($row),
+            ], 409);
+        }
     }
 
     [$data, $validator] = property_payload(request_json(), true);
@@ -1005,6 +1120,17 @@ function handle_create_enquiry(): void
     enforce_rate_limit('enquiry', 15, 3600);
     $input = request_json();
 
+    // Double clicks and retried requests must not create two enquiries.
+    $fingerprint = submission_fingerprint('enquiry', $input);
+    if ($recent = recent_submission($fingerprint, 120)) {
+        json_response([
+            'success'   => true,
+            'duplicate' => true,
+            'message'   => 'We already received this message — our team is on it.',
+            'enquiryId' => (string)$recent['resource_id'],
+        ]);
+    }
+
     $validator = new Validator();
     $validator->required('name', $input['name'] ?? '', 'Your name', 2);
     $validator->email('email', $input['email'] ?? '');
@@ -1066,6 +1192,8 @@ function handle_create_enquiry(): void
         ['enquiry_id' => $enquiryId]
     );
 
+    remember_submission($fingerprint, 'enquiry', $enquiryId);
+
     json_response([
         'success'   => true,
         'message'   => 'Thank you for your message. A Goodlucks Homes specialist will be in touch shortly.',
@@ -1087,6 +1215,17 @@ function handle_create_tenant_request(): void
     enforce_rate_limit('tenant-request', 10, 3600);
     $input = request_json();
     $user = auth_user();
+
+    // Same form submitted twice in a row = one rental request.
+    $fingerprint = submission_fingerprint('tenant_request', $input);
+    if ($recent = recent_submission($fingerprint, 120)) {
+        json_response([
+            'success'   => true,
+            'duplicate' => true,
+            'message'   => 'We already have this rental request.',
+            'requestId' => (string)$recent['resource_id'],
+        ]);
+    }
 
     $validator = new Validator();
     $validator->required('tenantName', $input['tenantName'] ?? '', 'Your name', 2);
@@ -1155,6 +1294,8 @@ function handle_create_tenant_request(): void
     if ($user) {
         create_notification((string)$user['id'], 'Rental request submitted', 'Our team is matching verified properties to your request.', 'info');
     }
+
+    remember_submission($fingerprint, 'tenant_request', $requestId);
 
     json_response([
         'success'   => true,
@@ -1246,6 +1387,20 @@ function handle_create_viewing(): void
 {
     enforce_rate_limit('viewing', 12, 3600);
     $input = request_json();
+
+    // Pressing "Confirm Viewing" twice must not book two appointments.
+    $fingerprint = submission_fingerprint('viewing', $input);
+    if ($recent = recent_submission($fingerprint, 120)) {
+        $existing = find_viewing((string)$recent['resource_id']);
+        json_response([
+            'success'      => true,
+            'duplicate'    => true,
+            'message'      => 'This viewing request was already received.',
+            'viewingId'    => (string)$recent['resource_id'],
+            'feeAmountGhs' => VIEWING_FEE_GHS,
+            'viewing'      => $existing,
+        ]);
+    }
     $user = auth_user();
 
     $validator = new Validator();
@@ -1335,6 +1490,8 @@ function handle_create_viewing(): void
             'viewing'
         );
     }
+
+    remember_submission($fingerprint, 'viewing', $viewingId);
 
     json_response([
         'success'      => true,

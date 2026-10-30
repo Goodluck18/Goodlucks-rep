@@ -210,6 +210,68 @@ function host_of(string $url): string
  * Combined with SameSite=Lax session cookies this removes the CSRF risk for
  * this API without needing per-form tokens.
  */
+/**
+ * Fingerprint a submission so an accidental double-click (or a retried request
+ * caused by a flaky connection) cannot create a second identical record.
+ *
+ * The fingerprint covers the endpoint, the caller's address and the payload, so
+ * two different visitors submitting the same words are still two records.
+ */
+function submission_fingerprint(string $type, array $payload): string
+{
+    $normalised = $payload;
+    ksort($normalised);
+
+    return hash('sha256', $type . '|' . client_ip() . '|' . json_encode($normalised));
+}
+
+/**
+ * Return the resource id created by an identical submission inside the window,
+ * or null when this is a genuinely new request.
+ */
+function recent_submission(string $fingerprint, int $windowSeconds): ?array
+{
+    try {
+        $row = db_one(
+            'SELECT resource_type, resource_id, created_at FROM submission_dedupe WHERE fingerprint = :f LIMIT 1',
+            [':f' => $fingerprint]
+        );
+    } catch (Throwable $e) {
+        gl_log('error', 'Dedupe lookup failed: ' . $e->getMessage());
+        return null;
+    }
+
+    if (!$row) {
+        return null;
+    }
+
+    $created = strtotime((string)$row['created_at']) ?: 0;
+    if ($created === 0 || (time() - $created) > $windowSeconds) {
+        return null;
+    }
+
+    return $row;
+}
+
+/** Record a successful submission so the next identical one is recognised. */
+function remember_submission(string $fingerprint, string $type, string $resourceId): void
+{
+    try {
+        // Opportunistic cleanup keeps the table small without needing cron.
+        db_exec('DELETE FROM submission_dedupe WHERE created_at < :cutoff', [
+            ':cutoff' => gmdate('Y-m-d H:i:s', time() - 86400),
+        ]);
+        db_exec(
+            'INSERT INTO submission_dedupe (fingerprint, resource_type, resource_id, created_at)
+             VALUES (:f, :type, :rid, :created)',
+            [':f' => $fingerprint, ':type' => $type, ':rid' => $resourceId, ':created' => db_now()]
+        );
+    } catch (Throwable $e) {
+        // A failed insert must never block a legitimate submission.
+        gl_log('warning', 'Could not record submission fingerprint: ' . $e->getMessage());
+    }
+}
+
 function require_trusted_origin(): void
 {
     $origin = request_header('origin');

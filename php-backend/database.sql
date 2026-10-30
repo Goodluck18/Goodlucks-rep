@@ -380,3 +380,27 @@ CREATE TABLE IF NOT EXISTS `alert_deliveries` (
   UNIQUE KEY `idx_alert_delivery_once` (`alert_type`, `alert_id`, `property_id`, `context`),
   KEY `idx_alert_delivery_alert` (`alert_type`, `alert_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 17. Password reset tokens (hashed; single use, 60 minute expiry)
+CREATE TABLE IF NOT EXISTS `password_resets` (
+  `id` VARCHAR(64) NOT NULL,
+  `user_id` VARCHAR(64) NOT NULL,
+  `token_hash` VARCHAR(64) NOT NULL,
+  `expires_at` DATETIME NOT NULL,
+  `used_at` DATETIME DEFAULT NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `idx_pwreset_token` (`token_hash`),
+  KEY `idx_pwreset_user` (`user_id`),
+  KEY `idx_pwreset_expiry` (`expires_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 18. Duplicate-submission guard (double clicks, retried requests)
+CREATE TABLE IF NOT EXISTS `submission_dedupe` (
+  `fingerprint` VARCHAR(64) NOT NULL,
+  `resource_type` VARCHAR(32) NOT NULL,
+  `resource_id` VARCHAR(64) NOT NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`fingerprint`),
+  KEY `idx_dedupe_created` (`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

@@ -221,6 +221,18 @@ export const api = {
 
   logout: () => request<{ success: boolean }>('/auth/logout', { method: 'POST' }),
 
+  requestPasswordReset: (email: string) =>
+    request<{ success: boolean; message: string }>('/auth/password-reset/request', {
+      method: 'POST',
+      body: { email },
+    }),
+
+  confirmPasswordReset: (token: string, password: string) =>
+    request<{ success: boolean; message: string }>('/auth/password-reset/confirm', {
+      method: 'POST',
+      body: { token, password },
+    }),
+
   updateProfile: (data: Partial<User> & { password?: string }) =>
     request<{ user: User }>('/profile', { method: 'PUT', body: data }),
 
@@ -254,7 +266,7 @@ export const api = {
   createProperty: (data: PropertyInput) =>
     request<{ property: Property; message: string }>('/properties', { method: 'POST', body: data }),
 
-  updateProperty: (id: string, data: Partial<PropertyInput>) =>
+  updateProperty: (id: string, data: Partial<PropertyInput> & { updatedAt?: string }) =>
     request<{ property: Property }>(`/properties/${encodeURIComponent(id)}`, { method: 'PUT', body: data }),
 
   deleteProperty: (id: string) =>

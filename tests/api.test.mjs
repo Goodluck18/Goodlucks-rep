@@ -1140,3 +1140,251 @@ describe('Abuse protection', () => {
     assert.ok(Array.isArray(res.body.properties));
   });
 });
+
+// ---------------------------------------------------------------------------
+describe('Duplicate submission guards', () => {
+  const enquiryPayload = () => ({
+    name: 'Dedupe Tester',
+    email: uniqueEmail('dedupe-enquiry'),
+    phone: '+233 24 000 1111',
+    message: 'Please confirm whether this listing is still available for a weekend viewing.',
+    propertyId: state.seededPropertyId,
+    source: 'property_page',
+  });
+
+  test('re-posting the same enquiry returns the original enquiry instead of creating a second', async () => {
+    const payload = enquiryPayload();
+
+    const first = await guest.post('/api/enquiries', payload);
+    assert.equal(first.status, 201);
+    assert.ok(first.body.enquiryId);
+
+    const second = await guest.post('/api/enquiries', payload);
+    assert.equal(second.status, 200, 'a double submit must not be reported as an error');
+    assert.equal(second.body.duplicate, true);
+    assert.equal(second.body.enquiryId, first.body.enquiryId);
+
+    const list = await admin.get('/api/admin/enquiries');
+    const matches = list.body.enquiries.filter((e) => e.id === first.body.enquiryId);
+    assert.equal(matches.length, 1);
+  });
+
+  test('a genuine follow-up enquiry with different text is still created', async () => {
+    const payload = enquiryPayload();
+    const first = await guest.post('/api/enquiries', payload);
+    assert.equal(first.status, 201);
+
+    const followUp = await guest.post('/api/enquiries', {
+      ...payload,
+      message: 'Following up on my previous message - could you call me this afternoon?',
+    });
+    assert.equal(followUp.status, 201, 'different content must not be treated as a duplicate');
+    assert.notEqual(followUp.body.enquiryId, first.body.enquiryId);
+  });
+
+  test('re-posting the same viewing request returns the original booking', async () => {
+    const payload = {
+      tenantName: 'Dedupe Viewer',
+      tenantPhone: '+233 24 222 3333',
+      tenantEmail: uniqueEmail('dedupe-viewing'),
+      propertyId: state.seededPropertyId,
+      date: new Date(Date.now() + 9 * 86400_000).toISOString().slice(0, 10),
+      time: '11:00',
+      notes: 'Double click test booking.',
+    };
+
+    const first = await guest.post('/api/viewing-requests', payload);
+    assert.equal(first.status, 201);
+    const second = await guest.post('/api/viewing-requests', payload);
+    assert.equal(second.status, 200);
+    assert.equal(second.body.duplicate, true);
+    assert.equal(second.body.viewingId, first.body.viewingId);
+  });
+
+  test('re-posting the same rental request returns the original request', async () => {
+    const payload = {
+      tenantName: 'Dedupe Tenant',
+      tenantPhone: '+233 24 444 5555',
+      tenantEmail: uniqueEmail('dedupe-tenant'),
+      preferredLocations: ['Osu'],
+      budgetMin: 2500,
+      budgetMax: 6000,
+      bedrooms: 1,
+      moveInDate: new Date(Date.now() + 20 * 86400_000).toISOString().slice(0, 10),
+      notes: 'Double click test request.',
+    };
+
+    const first = await guest.post('/api/tenant-requests', payload);
+    assert.equal(first.status, 201);
+    const second = await guest.post('/api/tenant-requests', payload);
+    assert.equal(second.status, 200);
+    assert.equal(second.body.duplicate, true);
+    assert.equal(second.body.requestId, first.body.requestId);
+  });
+});
+
+// ---------------------------------------------------------------------------
+describe('Optimistic concurrency on listings', () => {
+  test('editing a stale copy of a listing is rejected with 409', async () => {
+    const created = await admin.post('/api/properties', {
+      title: 'Concurrency Test Apartment',
+      location: 'Osu, Accra',
+      city: 'Accra',
+      rentGhs: 4200,
+      bedrooms: 2,
+      bathrooms: 2,
+      propertyType: 'Apartment',
+      description: 'Listing used to verify that concurrent edits cannot silently overwrite each other.',
+      images: ['https://images.unsplash.com/photo-1502672260266-1c1ef2d93688'],
+    });
+    assert.equal(created.status, 201);
+    const propertyId = created.body.property.id;
+    const version1 = created.body.property.updatedAt;
+    assert.ok(version1);
+
+    // updated_at has one-second resolution, so let the clock move before editing.
+    await new Promise((resolve) => setTimeout(resolve, 1100));
+
+    const saved = await admin.put(`/api/properties/${propertyId}`, {
+      rentGhs: 4300,
+      updatedAt: version1,
+    });
+    assert.equal(saved.status, 200, 'a current version must be accepted');
+    const version2 = saved.body.property.updatedAt;
+    assert.notEqual(version2, version1);
+
+    const stale = await admin.put(`/api/properties/${propertyId}`, {
+      rentGhs: 4400,
+      updatedAt: version1,
+    });
+    assert.equal(stale.status, 409);
+    assert.equal(stale.body.code, 'stale_property');
+    assert.ok(stale.body.property, 'the response should carry the version that won');
+    assert.equal(stale.body.property.rentGhs, 4300);
+
+    const unchanged = await guest.get(`/api/properties/${propertyId}`);
+    assert.equal(unchanged.status, 200);
+    assert.equal(unchanged.body.property.rentGhs, 4300, 'the rejected write must not be applied');
+
+    const retried = await admin.put(`/api/properties/${propertyId}`, {
+      rentGhs: 4400,
+      updatedAt: version2,
+    });
+    assert.equal(retried.status, 200, 'reloading and retrying must succeed');
+
+    const removed = await admin.delete(`/api/properties/${propertyId}`);
+    assert.equal(removed.status, 200);
+  });
+
+  test('edits without a version still work for API clients', async () => {
+    const res = await admin.put(`/api/properties/${state.seededPropertyId}`, { rentGhs: 6000 });
+    assert.equal(res.status, 200);
+    assert.equal(res.body.property.rentGhs, 6000);
+  });
+});
+
+// ---------------------------------------------------------------------------
+describe('Password reset', () => {
+  const genericMessage = /if that email is registered/i;
+  const resetToken = 'a'.repeat(64);
+
+  const plantToken = (email, token, expiresIn = 3600) => {
+    const result = runPhpScript(
+      'tests/reset-token.php',
+      [`--email=${email}`, `--token=${token}`, `--expires-in=${expiresIn}`],
+      {
+        DB_DRIVER: 'sqlite',
+        DB_SQLITE_PATH: dbPath,
+        APP_ENV: 'development',
+        ADMIN_ACCESS_KEY,
+        OFFICIAL_EMAIL: 'rentals@goodlucks.co',
+      }
+    );
+    assert.equal(result.status, 0, `token seeding failed: ${result.stdout} ${result.stderr}`);
+  };
+
+  test('unknown emails get the same response as real accounts', async () => {
+    const unknown = await guest.post('/api/auth/password-reset/request', {
+      email: uniqueEmail('nobody'),
+    });
+    assert.equal(unknown.status, 200);
+    assert.equal(unknown.body.success, true);
+    assert.match(unknown.body.message, genericMessage);
+    assert.equal(unknown.body.token, undefined, 'the token must never be returned to the caller');
+
+    const real = await guest.post('/api/auth/password-reset/request', { email: state.tenantEmail });
+    assert.equal(real.status, 200);
+    assert.match(real.body.message, genericMessage);
+    assert.equal(real.body.message, unknown.body.message, 'responses must be indistinguishable');
+  });
+
+  test('a reset email is logged for a real account', async () => {
+    const before = await admin.get('/api/admin/email-logs');
+    assert.equal(before.status, 200);
+    const countBefore = before.body.logs.filter((l) => l.type === 'password_reset').length;
+
+    await guest.post('/api/auth/password-reset/request', { email: state.tenantEmail });
+
+    const after = await admin.get('/api/admin/email-logs');
+    const countAfter = after.body.logs.filter((l) => l.type === 'password_reset').length;
+    assert.equal(countAfter, countBefore + 1);
+  });
+
+  test('invalid email addresses are rejected', async () => {
+    const res = await guest.post('/api/auth/password-reset/request', { email: 'not-an-email' });
+    assert.equal(res.status, 422);
+    assert.ok(res.body.fields.email);
+  });
+
+  test('a valid token resets the password exactly once', async () => {
+    plantToken(state.tenantEmail, resetToken);
+
+    const weak = await guest.post('/api/auth/password-reset/confirm', { token: resetToken, password: 'short' });
+    assert.equal(weak.status, 422);
+    assert.ok(weak.body.fields.password);
+
+    const ok = await guest.post('/api/auth/password-reset/confirm', {
+      token: resetToken,
+      password: 'Brand-New-Tenant-Password-9',
+    });
+    assert.equal(ok.status, 200);
+    assert.equal(ok.body.success, true);
+
+    const login = await new ApiClient(baseUrl).post('/api/auth/login', {
+      email: state.tenantEmail,
+      password: 'Brand-New-Tenant-Password-9',
+    });
+    assert.equal(login.status, 200, 'the new password must work');
+
+    const oldPassword = await new ApiClient(baseUrl).post('/api/auth/login', {
+      email: state.tenantEmail,
+      password: 'Tenant-Password-123',
+    });
+    assert.equal(oldPassword.status, 401, 'the old password must stop working');
+
+    const reuse = await guest.post('/api/auth/password-reset/confirm', {
+      token: resetToken,
+      password: 'Another-Password-123',
+    });
+    assert.equal(reuse.status, 400, 'a token must not be usable twice');
+  });
+
+  test('expired and unknown tokens are rejected', async () => {
+    plantToken(state.landlordEmail, 'b'.repeat(64), -60);
+
+    const expired = await guest.post('/api/auth/password-reset/confirm', {
+      token: 'b'.repeat(64),
+      password: 'Whatever-Password-123',
+    });
+    assert.equal(expired.status, 400);
+
+    const unknown = await guest.post('/api/auth/password-reset/confirm', {
+      token: 'c'.repeat(64),
+      password: 'Whatever-Password-123',
+    });
+    assert.equal(unknown.status, 400);
+
+    const missing = await guest.post('/api/auth/password-reset/confirm', { password: 'Whatever-Password-123' });
+    assert.equal(missing.status, 422);
+  });
+});

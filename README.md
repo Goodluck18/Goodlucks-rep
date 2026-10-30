@@ -39,7 +39,7 @@ the bundled `@php-wasm/cli` dev dependency is used.
 | --- | --- |
 | `npm run dev` | PHP API + Vite host (proxies `/api` to PHP) |
 | `npm run api:dev` | PHP API only, on `API_PORT` (default 8090) |
-| `npm run test:api` | 63 API tests against a throwaway SQLite database |
+| `npm run test:api` | 74 API tests against a throwaway SQLite database |
 | `npm run build` | Production bundle in `dist/` |
 | `npm run lint` | `tsc --noEmit` |
 
@@ -158,10 +158,25 @@ and concurrent requests are all idempotent.
   signed-in user and can be removed.
 - Property views and visitor analytics are recorded from real requests, not
   generated numbers.
+- Double submits (double clicks, retried fetches) are collapsed: an enquiry,
+  viewing request or rental request that repeats an identical payload from the
+  same device within two minutes returns the original record with `duplicate: true`
+  instead of creating a second one.
+- Listing edits are optimistic: the client sends the `updatedAt` it loaded, and a
+  stale write is refused with HTTP 409 (`code: "stale_property"`) carrying the
+  current listing, so two people editing one advert can never silently overwrite
+  each other. `updated_at` has one-second resolution on MySQL, so edits made in
+  the same second as another save are not distinguished.
+- Password reset: `/api/auth/password-reset/request` always answers with the same
+  generic message (no account enumeration), stores only a SHA-256 hash of a
+  single-use token that expires after 60 minutes, and
+  `/api/auth/password-reset/confirm` sets the new password and signs out every
+  other session. The emailed link is `/?reset=<token>`, which opens a dedicated
+  reset screen in the SPA.
 
 ### API surface (all under `/api`)
 
-`health` · `auth/{register,login,admin-login,logout,me}` · `profile` ·
+`health` · `auth/{register,login,admin-login,logout,me,password-reset/request,password-reset/confirm}` · `profile` ·
 `properties` (+ `/{id}`, `/{id}/status`, `/{id}/feature`) · `uploads` ·
 `enquiries` · `tenant-requests` · `viewing-requests` · `viewings` ·
 `price-alerts` · `search-alerts` · `saved-properties` · `agreements`
@@ -184,7 +199,7 @@ and concurrent requests are all idempotent.
 ## Testing
 
 ```bash
-npm run test:api     # 63 tests / 15 suites
+npm run test:api     # 74 tests / 18 suites
 npm run lint
 npm run build
 ```

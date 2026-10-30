@@ -17,10 +17,16 @@ import { AboutView } from './components/AboutView';
 import { ContactView } from './components/ContactView';
 import { TenancyAgreementView } from './components/TenancyAgreementView';
 import { AuthModal } from './components/AuthModal';
+import { ResetPasswordView } from './components/ResetPasswordView';
 
 const AppContent: React.FC = () => {
   const { currentRole, currentView, isBooting, bootError, retryBootstrap } = useApp();
   const [authModalOpen, setAuthModalOpen] = useState(false);
+  // Emailed reset links land on /?reset=<token>; that view replaces the whole site.
+  const [resetToken, setResetToken] = useState<string | null>(() => {
+    if (typeof window === 'undefined') return null;
+    return new URLSearchParams(window.location.search).get('reset');
+  });
   const [authInitialMode, setAuthInitialMode] = useState<'login' | 'register'>('login');
   const [authInitialRole, setAuthInitialRole] = useState<'tenant' | 'landlord'>('tenant');
 
@@ -79,6 +85,10 @@ const AppContent: React.FC = () => {
         return <HomeView />;
     }
   };
+
+  if (resetToken) {
+    return <ResetPasswordView token={resetToken} onDone={() => setResetToken(null)} />;
+  }
 
   if (isBooting) {
     return (

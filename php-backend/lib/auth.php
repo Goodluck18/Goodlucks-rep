@@ -52,6 +52,73 @@ function password_is_strong_enough(string $password): bool
 /**
  * Create a new session for a user and set the cookie.
  */
+/**
+ * Create a single-use password reset token.
+ *
+ * Only the SHA-256 hash is stored, so a database dump cannot be replayed to
+ * take over accounts. Requesting a new token invalidates any previous one.
+ *
+ * @return array{token: string, expiresAt: string}
+ */
+function create_password_reset(string $userId): array
+{
+    $token = bin2hex(random_bytes(32));
+    $expiresAt = gmdate('Y-m-d H:i:s', time() + 3600);
+
+    db_exec('DELETE FROM password_resets WHERE user_id = :uid', [':uid' => $userId]);
+    db_exec('DELETE FROM password_resets WHERE expires_at < :now', [':now' => db_now()]);
+    db_exec(
+        'INSERT INTO password_resets (id, user_id, token_hash, expires_at, created_at)
+         VALUES (:id, :uid, :hash, :expires, :created)',
+        [
+            ':id'      => new_id('pwreset'),
+            ':uid'     => $userId,
+            ':hash'    => hash('sha256', $token),
+            ':expires' => $expiresAt,
+            ':created' => db_now(),
+        ]
+    );
+
+    return ['token' => $token, 'expiresAt' => $expiresAt];
+}
+
+/** Look up an unused, unexpired reset token by its raw value. */
+function find_password_reset(string $token): ?array
+{
+    if (strlen($token) < 32) {
+        return null;
+    }
+
+    $row = db_one(
+        'SELECT * FROM password_resets WHERE token_hash = :hash AND used_at IS NULL LIMIT 1',
+        [':hash' => hash('sha256', $token)]
+    );
+    if (!$row) {
+        return null;
+    }
+
+    $expires = strtotime((string)$row['expires_at']) ?: 0;
+    if ($expires === 0 || $expires < time()) {
+        return null;
+    }
+
+    return $row;
+}
+
+/** Mark a reset token as used and revoke every existing session for the user. */
+function consume_password_reset(array $reset): void
+{
+    db_exec('UPDATE password_resets SET used_at = :now WHERE id = :id', [
+        ':now' => db_now(),
+        ':id'  => (string)$reset['id'],
+    ]);
+    db_exec('UPDATE password_resets SET used_at = :now WHERE user_id = :uid AND used_at IS NULL', [
+        ':now' => db_now(),
+        ':uid' => (string)$reset['user_id'],
+    ]);
+    db_exec('DELETE FROM auth_sessions WHERE user_id = :uid', [':uid' => (string)$reset['user_id']]);
+}
+
 function issue_session(string $userId): string
 {
     $token = bin2hex(random_bytes(32));

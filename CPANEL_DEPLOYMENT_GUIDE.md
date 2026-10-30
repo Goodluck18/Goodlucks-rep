@@ -226,8 +226,10 @@ If your host has no shell cron, staff can deliver saved-search matches from the
 admin console with **Send Alert Digests**; the retention steps can be run by
 hand in phpMyAdmin occasionally.
 
-> Additions since the first release (`alert_deliveries`) are applied by
-> `php api/migrate.php --apply`. Run it after every deploy.
+> Additions since the first release (`alert_deliveries`, `password_resets`,
+> `submission_dedupe`) are applied by `php api/migrate.php --apply`. Run it after
+> every deploy — password reset emails and duplicate-submission guards both rely
+> on those tables and degrade quietly (no reset link, no dedupe) without them.
 
 ## 9. Local development
 
@@ -235,7 +237,7 @@ hand in phpMyAdmin occasionally.
 npm install
 npm run dev        # PHP API on :8090 (SQLite) + Vite host on :3000 proxying /api
 npm run api:dev    # PHP API only
-npm run test:api   # 55 API tests against a throwaway SQLite database
+npm run test:api   # 74 API tests against a throwaway SQLite database
 npm run build      # production bundle
 ```
 
@@ -260,6 +262,9 @@ Local data lives in `.data/dev.sqlite` (git-ignored) and is seeded from
 | Emails never arrive | No `RESEND_API_KEY` and the server's `mail()` is blocked. Add a Resend key and a verified sender domain. |
 | Price-drop / saved-search emails never send | Check the cron entry above, run `php api/cron.php`, then look at **Admin → Email Logs** for `price_drop_alert` / `search_alert` rows. |
 | "Could not record alert delivery" in logs | The `alert_deliveries` table is missing — run `php api/migrate.php --apply`. |
+| "Forgot password" sends nothing | The `password_resets` table is missing (run `php api/migrate.php --apply`) or no mail transport is configured — see "Emails never arrive". |
+| Reset link says "expired or already used" | Reset links work once and expire after 60 minutes; request a fresh one from the sign-in dialog. |
+| Listing edits fail with "changed by someone else" | Expected 409 conflict: another admin saved the listing first. The console reloads the current version — reopen the editor and re-apply the change. |
 | Refresh on `/browse` gives 404 | Root `.htaccess` missing — upload `public/.htaccess`. |
 | "Too many attempts" after failed logins | Database-backed rate limit; wait for the window or clear `rate_limits`. |
 

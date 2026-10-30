@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-import { api, messageForError } from '../services/apiService';
+import { ApiError, api, messageForError } from '../services/apiService';
 import { Property } from '../types';
 import { 
   ShieldCheck, 
@@ -206,6 +206,8 @@ export const AdminDashboard: React.FC = () => {
         .map((line) => line.trim())
         .filter(Boolean);
       await updateProperty(editProperty.id, {
+        // Optimistic concurrency: send the version this form was built from.
+        updatedAt: editProperty.updatedAt,
         title: editForm.title,
         location: editForm.location,
         city: editForm.city,
@@ -219,7 +221,17 @@ export const AdminDashboard: React.FC = () => {
       });
       setEditProperty(null);
     } catch (error) {
-      showErrorToast('Could not save changes', error instanceof Error ? error.message : 'Please try again.');
+      if (error instanceof ApiError && error.status === 409) {
+        // The listing changed under us; close the stale form so reopening it
+        // loads the version that actually won.
+        setEditProperty(null);
+        showErrorToast(
+          'Listing changed while you were editing',
+          'Someone else saved this listing first. The latest version has been loaded - reopen the editor to continue.'
+        );
+      } else {
+        showErrorToast('Could not save changes', error instanceof Error ? error.message : 'Please try again.');
+      }
     } finally {
       setIsSavingEdit(false);
     }

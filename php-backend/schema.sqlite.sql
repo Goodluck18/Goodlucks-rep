@@ -287,3 +287,22 @@ CREATE TABLE IF NOT EXISTS `alert_deliveries` (
   PRIMARY KEY (`id`),
   UNIQUE (`alert_type`, `alert_id`, `property_id`, `context`)
 );
+
+CREATE TABLE IF NOT EXISTS `password_resets` (
+  `id` TEXT NOT NULL,
+  `user_id` TEXT NOT NULL,
+  `token_hash` TEXT NOT NULL,
+  `expires_at` TEXT NOT NULL,
+  `used_at` TEXT DEFAULT NULL,
+  `created_at` TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE (`token_hash`)
+);
+
+CREATE TABLE IF NOT EXISTS `submission_dedupe` (
+  `fingerprint` TEXT NOT NULL,
+  `resource_type` TEXT NOT NULL,
+  `resource_id` TEXT NOT NULL,
+  `created_at` TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`fingerprint`)
+);

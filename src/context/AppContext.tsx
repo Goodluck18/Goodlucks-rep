@@ -21,6 +21,7 @@ import {
   SearchAlertInput,
   TenantRequestInput,
   ViewingInput,
+  ApiError,
   api,
   messageForError,
 } from '../services/apiService';
@@ -110,7 +111,7 @@ interface AppContextType {
 
   // Properties
   addProperty: (data: PropertyInput) => Promise<Property>;
-  updateProperty: (id: string, data: Partial<PropertyInput>) => Promise<void>;
+  updateProperty: (id: string, data: Partial<PropertyInput> & { updatedAt?: string }) => Promise<void>;
   updatePropertyStatus: (id: string, status: PropertyStatus) => Promise<void>;
   deleteProperty: (id: string) => Promise<void>;
   toggleFeatured: (id: string, featured: boolean) => Promise<void>;
@@ -589,13 +590,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   );
 
   const updateProperty = useCallback(
-    async (id: string, data: Partial<PropertyInput>) => {
-      const result = await api.updateProperty(id, data);
-      setProperties((prev) => prev.map((p) => (p.id === id ? result.property : p)));
-      if (selectedProperty?.id === id) setSelectedProperty(result.property);
-      showSuccessToast('Property Listing Updated', 'Changes to the property details were saved.');
+    async (id: string, data: Partial<PropertyInput> & { updatedAt?: string }) => {
+      try {
+        const result = await api.updateProperty(id, data);
+        setProperties((prev) => prev.map((p) => (p.id === id ? result.property : p)));
+        if (selectedProperty?.id === id) setSelectedProperty(result.property);
+        showSuccessToast('Property Listing Updated', 'Changes to the property details were saved.');
+      } catch (error) {
+        // 409 = someone else edited this listing first. Pull the current version
+        // so the caller can show what changed instead of clobbering it.
+        if (error instanceof ApiError && error.status === 409) {
+          await loadProperties(currentUser).catch(() => undefined);
+        }
+        throw error;
+      }
     },
-    [selectedProperty, showSuccessToast]
+    [currentUser, loadProperties, selectedProperty, showSuccessToast]
   );
 
   const updatePropertyStatus = useCallback(
