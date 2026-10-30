@@ -1,14 +1,15 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { SEOHead } from './SEOHead';
-import { Compass, MapPin, DollarSign, Bed, Calendar, ShieldCheck, CheckCircle2, Sparkles, ArrowRight, ShieldAlert, Building2, PlusCircle, LogIn, UserCheck } from 'lucide-react';
+import { Compass, MapPin, DollarSign, Bed, Calendar, ShieldCheck, CheckCircle2, Sparkles, ArrowRight, ShieldAlert, Building2, PlusCircle, LogIn, UserCheck, AlertCircle } from 'lucide-react';
+import { messageForError } from '../services/apiService';
 
 interface FindAHomeViewProps {
   onOpenAuth?: (mode?: 'login' | 'register') => void;
 }
 
 export const FindAHomeView: React.FC<FindAHomeViewProps> = ({ onOpenAuth }) => {
-  const { currentUser, currentRole, submitTenantRequest, setCurrentView, loginAsRole } = useApp();
+  const { currentUser, currentRole, submitTenantRequest, setCurrentView } = useApp();
 
   // Guard Condition 1: User is NOT logged in (guest / no account)
   if (!currentUser || currentRole === 'guest') {
@@ -53,13 +54,7 @@ export const FindAHomeView: React.FC<FindAHomeViewProps> = ({ onOpenAuth }) => {
 
           <div className="flex flex-col sm:flex-row gap-3 justify-center pt-2">
             <button
-              onClick={() => {
-                if (onOpenAuth) {
-                  onOpenAuth('login');
-                } else {
-                  loginAsRole('tenant');
-                }
-              }}
+              onClick={() => onOpenAuth && onOpenAuth('login')}
               className="px-6 py-3.5 rounded-2xl bg-[#08D9D6] text-[#252A34] font-black text-xs sm:text-sm hover:bg-[#08D9D6]/90 transition-all shadow-lg shadow-[#08D9D6]/20 flex items-center justify-center gap-2"
             >
               <UserCheck className="w-4 h-4" />
@@ -112,13 +107,7 @@ export const FindAHomeView: React.FC<FindAHomeViewProps> = ({ onOpenAuth }) => {
 
           <div className="flex flex-col sm:flex-row gap-3 justify-center pt-2">
             <button
-              onClick={() => {
-                if (onOpenAuth) {
-                  onOpenAuth('login');
-                } else {
-                  loginAsRole('tenant');
-                }
-              }}
+              onClick={() => onOpenAuth && onOpenAuth('login')}
               className="px-6 py-3 rounded-2xl bg-[#08D9D6] text-[#252A34] font-extrabold text-xs sm:text-sm hover:bg-[#08D9D6]/90 transition-all shadow-lg shadow-[#08D9D6]/20 flex items-center justify-center gap-2"
             >
               <UserCheck className="w-4 h-4" />
@@ -166,25 +155,39 @@ export const FindAHomeView: React.FC<FindAHomeViewProps> = ({ onOpenAuth }) => {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!tenantName || !tenantPhone || selectedLocations.length === 0) return;
+    setFormError(null);
 
-    submitTenantRequest({
-      tenantName,
-      tenantPhone,
-      tenantEmail: tenantEmail || 'tenant@goodlucks.com',
-      preferredLocations: selectedLocations,
-      budgetMin,
-      budgetMax,
-      bedrooms,
-      bathrooms,
-      propertyType,
-      moveInDate,
-      notes,
-    });
+    if (!tenantName || !tenantPhone || selectedLocations.length === 0) {
+      setFormError('Please add your name, phone number and at least one preferred location.');
+      return;
+    }
 
-    setSubmitted(true);
+    setIsSubmitting(true);
+    try {
+      await submitTenantRequest({
+        tenantName,
+        tenantPhone,
+        tenantEmail: tenantEmail || (currentUser?.email ?? ''),
+        preferredLocations: selectedLocations,
+        budgetMin,
+        budgetMax,
+        bedrooms,
+        bathrooms,
+        propertyType,
+        moveInDate,
+        notes,
+      });
+      setSubmitted(true);
+    } catch (err) {
+      setFormError(messageForError(err));
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -401,11 +404,28 @@ export const FindAHomeView: React.FC<FindAHomeViewProps> = ({ onOpenAuth }) => {
 
             <button
               type="submit"
-              className="w-full py-4 rounded-2xl bg-[#08D9D6] text-[#252A34] font-extrabold text-base hover:bg-[#08D9D6]/90 transition-all shadow-xl shadow-[#08D9D6]/20 flex items-center justify-center gap-2 active:scale-[0.99]"
+              disabled={isSubmitting}
+              className="w-full py-4 rounded-2xl bg-[#08D9D6] text-[#252A34] font-extrabold text-base hover:bg-[#08D9D6]/90 transition-all shadow-xl shadow-[#08D9D6]/20 flex items-center justify-center gap-2 active:scale-[0.99] disabled:opacity-60"
             >
-              <span>Submit Rental Request & Match Properties</span>
-              <ArrowRight className="w-5 h-5" />
+              {isSubmitting ? (
+                <>
+                  <span className="w-5 h-5 border-2 border-[#252A34]/30 border-t-[#252A34] rounded-full animate-spin" />
+                  <span>Submitting Request...</span>
+                </>
+              ) : (
+                <>
+                  <span>Submit Rental Request & Match Properties</span>
+                  <ArrowRight className="w-5 h-5" />
+                </>
+              )}
             </button>
+
+            {formError && (
+              <div role="alert" className="p-3 rounded-xl bg-[#FF2E63]/15 border border-[#FF2E63]/30 text-[#FF8FA8] text-xs flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                <span>{formError}</span>
+              </div>
+            )}
 
           </form>
         ) : (

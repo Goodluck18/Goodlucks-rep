@@ -1,816 +1,946 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { 
-  User, 
-  Property, 
-  TenantRequest, 
-  ViewingSchedule, 
-  EmailLog, 
-  NotificationItem, 
-  AnalyticsStats, 
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  EmailLog,
+  Enquiry,
+  NotificationItem,
+  Property,
   PropertyStatus,
-  UserRole,
-  ToastNotification,
-  TenancyAgreement,
   RentReceipt,
-  SearchAlertSubscription
+  SearchAlertSubscription,
+  TenancyAgreement,
+  TenantRequest,
+  ToastNotification,
+  User,
+  UserRole,
+  ViewingSchedule,
 } from '../types';
-import { 
-  INITIAL_USERS, 
-  INITIAL_PROPERTIES, 
-  INITIAL_TENANT_REQUESTS, 
-  INITIAL_VIEWING_SCHEDULES, 
-  INITIAL_EMAIL_LOGS, 
-  INITIAL_NOTIFICATIONS, 
-  INITIAL_ANALYTICS,
-  INITIAL_AGREEMENTS,
-  INITIAL_RECEIPTS
-} from '../data/mockData';
 import { ToastContainer } from '../components/ToastContainer';
-import { sendEmailViaResend } from '../services/emailService';
+import {
+  AdminStats,
+  PropertyInput,
+  SearchAlertInput,
+  TenantRequestInput,
+  ViewingInput,
+  api,
+  messageForError,
+} from '../services/apiService';
+
+const GUEST_SAVED_KEY = 'goodlucks_guest_saved_properties';
+
+const EMPTY_STATS: AdminStats = {
+  visitorsToday: 0,
+  visitorsYesterday: 0,
+  visitorsLast7Days: 0,
+  visitorsLast30Days: 0,
+  visitorsLast12Months: 0,
+  growthPercentage: 0,
+  totalRegisteredUsers: 0,
+  totalTenants: 0,
+  totalLandlords: 0,
+  newUsersToday: 0,
+  newUsersThisWeek: 0,
+  totalProperties: 0,
+  approvedProperties: 0,
+  pendingProperties: 0,
+  rejectedProperties: 0,
+  totalViewings: 0,
+  completedViewings: 0,
+  physicalRevenueGhs: 0,
+  totalEnquiries: 0,
+  newEnquiries: 0,
+  totalTenantRequests: 0,
+  dailyTraffic: Array.from({ length: 7 }, () => ({ label: '-', visitors: 0, pageViews: 0 })),
+  monthlyTraffic: Array.from({ length: 6 }, () => ({ label: '-', visitors: 0, pageViews: 0 })),
+};
+
+interface SignInResult {
+  ok: boolean;
+  error?: string;
+  fields?: Record<string, string>;
+}
 
 interface AppContextType {
+  // Session state
   currentUser: User | null;
   currentRole: UserRole;
+  isBooting: boolean;
+  bootError: string | null;
+  retryBootstrap: () => void;
+
+  // Data
   properties: Property[];
+  selectedProperty: Property | null;
   tenantRequests: TenantRequest[];
   viewingSchedules: ViewingSchedule[];
   emailLogs: EmailLog[];
   agreements: TenancyAgreement[];
   receipts: RentReceipt[];
   notifications: NotificationItem[];
-  analytics: AnalyticsStats;
+  enquiries: Enquiry[];
+  analytics: AdminStats;
   savedPropertyIds: string[];
   searchAlerts: SearchAlertSubscription[];
+
+  // Navigation
   currentView: string;
   selectedPropertyId: string | null;
+  setCurrentView: (view: string) => void;
+  navigateToProperty: (propertyId: string) => void;
+
+  // Toasts
   toasts: ToastNotification[];
-  
-  // Toast Actions
   showToast: (toast: Omit<ToastNotification, 'id'>) => void;
   showSuccessToast: (title: string, message?: string) => void;
   showErrorToast: (title: string, message?: string) => void;
   showInfoToast: (title: string, message?: string) => void;
   dismissToast: (id: string) => void;
 
-  // Search Alert Actions
-  subscribeToSearchAlerts: (subData: Omit<SearchAlertSubscription, 'id' | 'createdAt' | 'active'>) => SearchAlertSubscription;
-  unsubscribeFromSearchAlerts: (id: string) => void;
+  // Auth
+  login: (email: string, password: string, role?: 'tenant' | 'landlord') => Promise<SignInResult>;
+  register: (data: {
+    name: string;
+    email: string;
+    phone: string;
+    password: string;
+    role: 'tenant' | 'landlord';
+  }) => Promise<SignInResult>;
+  adminLogin: (email: string, password: string, accessKey: string) => Promise<SignInResult>;
+  logout: () => Promise<void>;
+  updateUserProfile: (data: Partial<User> & { password?: string }) => Promise<SignInResult>;
 
-  // Navigation & View Actions
-  setCurrentView: (view: string) => void;
-  navigateToProperty: (propertyId: string) => void;
-  
-  // Auth Actions
-  loginAsRole: (role: 'tenant' | 'landlord' | 'admin') => void;
-  logout: () => void;
-  updateUserProfile: (data: Partial<User>) => void;
-  
-  // Property Actions
-  addProperty: (propertyData: Omit<Property, 'id' | 'createdAt' | 'updatedAt' | 'viewsCount' | 'enquiriesCount'>) => Property;
-  updateProperty: (id: string, propertyData: Partial<Property>) => void;
-  updatePropertyStatus: (id: string, status: PropertyStatus) => void;
-  deleteProperty: (id: string) => void;
-  toggleSaveProperty: (id: string) => void;
+  // Properties
+  addProperty: (data: PropertyInput) => Promise<Property>;
+  updateProperty: (id: string, data: Partial<PropertyInput>) => Promise<void>;
+  updatePropertyStatus: (id: string, status: PropertyStatus) => Promise<void>;
+  deleteProperty: (id: string) => Promise<void>;
+  toggleFeatured: (id: string, featured: boolean) => Promise<void>;
+  toggleSaveProperty: (id: string) => Promise<void>;
   incrementPropertyViews: (id: string) => void;
-  
-  // Tenant Request Actions
-  submitTenantRequest: (requestData: Omit<TenantRequest, 'id' | 'createdAt' | 'status' | 'tenantId'>) => TenantRequest;
-  updateTenantRequestStatus: (id: string, status: TenantRequest['status'], matchedPropertyIds?: string[]) => void;
-  
-  // Viewing Actions
-  scheduleViewing: (viewingData: Omit<ViewingSchedule, 'id' | 'createdAt'>) => void;
-  updateViewingStatus: (id: string, status: ViewingSchedule['status'], feePaid?: boolean, notes?: string) => void;
-  
-  // Tenancy Agreement & Receipt Actions
-  createAgreement: (agreementData: Omit<TenancyAgreement, 'id' | 'createdAt' | 'verificationCode'>) => TenancyAgreement;
-  signAgreement: (id: string, role: 'landlord' | 'tenant') => void;
-  createReceipt: (receiptData: Omit<RentReceipt, 'id' | 'createdAt' | 'receiptNo' | 'verificationCode'>) => RentReceipt;
+  refreshProperties: () => Promise<void>;
 
-  // Helper
-  sendSimulatedEmail: (type: EmailLog['type'], recipientEmail: string, recipientName: string, subject: string, bodyPreview: string) => void;
-  markNotificationRead: (id: string) => void;
+  // Requests & viewings
+  submitTenantRequest: (data: TenantRequestInput) => Promise<void>;
+  updateTenantRequestStatus: (id: string, status: string, matchedPropertyIds?: string[]) => Promise<void>;
+  scheduleViewing: (data: ViewingInput) => Promise<ViewingSchedule>;
+  updateViewingStatus: (id: string, status: ViewingSchedule['status'], feePaid?: boolean, notes?: string) => Promise<void>;
+
+  // Agreements & receipts
+  createAgreement: (data: Record<string, unknown>) => Promise<TenancyAgreement>;
+  signAgreement: (id: string, role: 'landlord' | 'tenant') => Promise<void>;
+  createReceipt: (data: Record<string, unknown>) => Promise<RentReceipt>;
+
+  // Alerts & enquiries
+  subscribeToSearchAlerts: (data: SearchAlertInput) => Promise<SearchAlertSubscription>;
+  unsubscribeFromSearchAlerts: (id: string) => Promise<void>;
+  sendEnquiry: (data: {
+    name: string;
+    email: string;
+    phone?: string;
+    message: string;
+    propertyId?: string;
+    source?: string;
+  }) => Promise<void>;
+
+  // Misc
+  markNotificationRead: (id: string) => Promise<void>;
+  refreshAdminData: () => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
-const STORAGE_KEY_USER = 'goodlucks_user';
-const STORAGE_KEY_PROPERTIES = 'goodlucks_properties';
-const STORAGE_KEY_REQUESTS = 'goodlucks_requests';
-const STORAGE_KEY_VIEWINGS = 'goodlucks_viewings';
-const STORAGE_KEY_SAVED = 'goodlucks_saved';
-const STORAGE_KEY_EMAILS = 'goodlucks_emails';
-const STORAGE_KEY_NOTIFS = 'goodlucks_notifs';
-const STORAGE_KEY_AGREEMENTS = 'goodlucks_agreements';
-const STORAGE_KEY_RECEIPTS = 'goodlucks_receipts';
-const STORAGE_KEY_SEARCH_ALERTS = 'goodlucks_search_alerts';
+function readGuestSaved(): string[] {
+  try {
+    const raw = localStorage.getItem(GUEST_SAVED_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((id) => typeof id === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeGuestSaved(ids: string[]) {
+  try {
+    localStorage.setItem(GUEST_SAVED_KEY, JSON.stringify(ids));
+  } catch {
+    /* storage may be unavailable (private mode) - non critical */
+  }
+}
+
+function initialView(): string {
+  if (typeof window === 'undefined') return 'home';
+  const pathname = window.location.pathname.toLowerCase();
+  const hash = window.location.hash.toLowerCase();
+  const search = window.location.search.toLowerCase();
+  if (
+    pathname.includes('/admin-login') ||
+    pathname.includes('/admin') ||
+    hash.includes('admin-login') ||
+    hash.includes('admin') ||
+    search.includes('admin=1') ||
+    search.includes('admin=true')
+  ) {
+    return 'admin-login';
+  }
+  return 'home';
+}
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Load from local storage or fallback to initial defaults
-  const [currentUser, setCurrentUser] = useState<User | null>(() => {
-    const saved = localStorage.getItem(STORAGE_KEY_USER);
-    if (saved) {
-      try { return JSON.parse(saved); } catch (e) { console.error(e); }
-    }
-    return null; // Guest by default, user can log in as Tenant, Landlord or Admin easily
-  });
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [isBooting, setIsBooting] = useState(true);
+  const [bootError, setBootError] = useState<string | null>(null);
+  const [bootAttempt, setBootAttempt] = useState(0);
 
-  const [properties, setProperties] = useState<Property[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEY_PROPERTIES);
-    if (saved) {
-      try { return JSON.parse(saved); } catch (e) { console.error(e); }
-    }
-    return INITIAL_PROPERTIES;
-  });
+  const [properties, setProperties] = useState<Property[]>([]);
+  const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
+  const [tenantRequests, setTenantRequests] = useState<TenantRequest[]>([]);
+  const [viewingSchedules, setViewingSchedules] = useState<ViewingSchedule[]>([]);
+  const [emailLogs, setEmailLogs] = useState<EmailLog[]>([]);
+  const [agreements, setAgreements] = useState<TenancyAgreement[]>([]);
+  const [receipts, setReceipts] = useState<RentReceipt[]>([]);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [enquiries, setEnquiries] = useState<Enquiry[]>([]);
+  const [analytics, setAnalytics] = useState<AdminStats>(EMPTY_STATS);
+  const [searchAlerts, setSearchAlerts] = useState<SearchAlertSubscription[]>([]);
+  const [savedPropertyIds, setSavedPropertyIds] = useState<string[]>(() => readGuestSaved());
 
-  const [tenantRequests, setTenantRequests] = useState<TenantRequest[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEY_REQUESTS);
-    if (saved) {
-      try { return JSON.parse(saved); } catch (e) { console.error(e); }
-    }
-    return INITIAL_TENANT_REQUESTS;
+  const [currentView, setCurrentViewState] = useState<string>(() => initialView());
+  const [selectedPropertyId, setSelectedPropertyId] = useState<string | null>(() => {
+    if (typeof window === 'undefined') return null;
+    const params = new URLSearchParams(window.location.search);
+    return params.get('property') || params.get('p') || null;
   });
-
-  const [viewingSchedules, setViewingSchedules] = useState<ViewingSchedule[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEY_VIEWINGS);
-    if (saved) {
-      try { return JSON.parse(saved); } catch (e) { console.error(e); }
-    }
-    return INITIAL_VIEWING_SCHEDULES;
-  });
-
-  const [savedPropertyIds, setSavedPropertyIds] = useState<string[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEY_SAVED);
-    if (saved) {
-      try { return JSON.parse(saved); } catch (e) { console.error(e); }
-    }
-    return ['prop-1', 'prop-3'];
-  });
-
-  const [emailLogs, setEmailLogs] = useState<EmailLog[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEY_EMAILS);
-    if (saved) {
-      try { return JSON.parse(saved); } catch (e) { console.error(e); }
-    }
-    return INITIAL_EMAIL_LOGS;
-  });
-
-  const [notifications, setNotifications] = useState<NotificationItem[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEY_NOTIFS);
-    if (saved) {
-      try { return JSON.parse(saved); } catch (e) { console.error(e); }
-    }
-    return INITIAL_NOTIFICATIONS;
-  });
-
-  const [agreements, setAgreements] = useState<TenancyAgreement[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEY_AGREEMENTS);
-    if (saved) {
-      try { return JSON.parse(saved); } catch (e) { console.error(e); }
-    }
-    return INITIAL_AGREEMENTS;
-  });
-
-  const [receipts, setReceipts] = useState<RentReceipt[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEY_RECEIPTS);
-    if (saved) {
-      try { return JSON.parse(saved); } catch (e) { console.error(e); }
-    }
-    return INITIAL_RECEIPTS;
-  });
-
-  const [searchAlerts, setSearchAlerts] = useState<SearchAlertSubscription[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEY_SEARCH_ALERTS);
-    if (saved) {
-      try { return JSON.parse(saved); } catch (e) { console.error(e); }
-    }
-    return [];
-  });
-
-  const [analytics] = useState<AnalyticsStats>(INITIAL_ANALYTICS);
-  const [currentView, setCurrentViewState] = useState<string>(() => {
-    if (typeof window !== 'undefined') {
-      const pathname = window.location.pathname.toLowerCase();
-      const hash = window.location.hash.toLowerCase();
-      const search = window.location.search.toLowerCase();
-      if (
-        pathname.includes('/admin-login') || 
-        pathname.includes('/admin') ||
-        hash.includes('admin-login') || 
-        hash.includes('admin') ||
-        search.includes('admin=1') ||
-        search.includes('admin=true')
-      ) {
-        return 'admin-login';
-      }
-    }
-    return 'home';
-  });
-  const [selectedPropertyId, setSelectedPropertyId] = useState<string | null>(null);
-
-  // Toast Notification State
   const [toasts, setToasts] = useState<ToastNotification[]>([]);
 
-  const showToast = (toast: Omit<ToastNotification, 'id'>) => {
+  const viewedPropertyIds = useRef<Set<string>>(new Set());
+
+  const currentRole: UserRole = currentUser ? currentUser.role : 'guest';
+
+  // -------------------------------------------------------------------------
+  // Toasts
+  // -------------------------------------------------------------------------
+  const showToast = useCallback((toast: Omit<ToastNotification, 'id'>) => {
     const id = `toast-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
-    setToasts(prev => [...prev, { ...toast, id }]);
-  };
+    setToasts((prev) => [...prev, { ...toast, id }]);
+  }, []);
 
-  const showSuccessToast = (title: string, message?: string) => {
-    showToast({ type: 'success', title, message });
-  };
+  const showSuccessToast = useCallback(
+    (title: string, message?: string) => showToast({ type: 'success', title, message }),
+    [showToast]
+  );
+  const showErrorToast = useCallback(
+    (title: string, message?: string) => showToast({ type: 'error', title, message }),
+    [showToast]
+  );
+  const showInfoToast = useCallback(
+    (title: string, message?: string) => showToast({ type: 'info', title, message }),
+    [showToast]
+  );
+  const dismissToast = useCallback((id: string) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  }, []);
 
-  const showErrorToast = (title: string, message?: string) => {
-    showToast({ type: 'error', title, message });
-  };
+  // -------------------------------------------------------------------------
+  // Data loading
+  // -------------------------------------------------------------------------
+  const loadProperties = useCallback(async (user: User | null) => {
+    if (user?.role === 'admin') {
+      const result = await api.adminProperties({ perPage: 100 });
+      setProperties(result.properties);
+      return;
+    }
 
-  const showInfoToast = (title: string, message?: string) => {
-    showToast({ type: 'info', title, message });
-  };
+    const result = await api.listProperties({ perPage: 100 });
+    let list = result.properties;
 
-  const dismissToast = (id: string) => {
-    setToasts(prev => prev.filter(t => t.id !== id));
-  };
+    if (user?.role === 'landlord') {
+      const mine = await api.listProperties({ mine: 1, perPage: 100 });
+      const seen = new Set(list.map((p) => p.id));
+      list = [...list, ...mine.properties.filter((p) => !seen.has(p.id))];
+    }
+    setProperties(list);
+  }, []);
 
-  // Sync /admin-login path & hash & property deep-linking query parameters
+  const loadAccountData = useCallback(async (user: User | null) => {
+    if (!user) {
+      setTenantRequests([]);
+      setViewingSchedules([]);
+      setNotifications([]);
+      setSearchAlerts([]);
+      setAgreements([]);
+      setReceipts([]);
+      setEmailLogs([]);
+      setEnquiries([]);
+      setAnalytics(EMPTY_STATS);
+      return;
+    }
+
+    if (user.role === 'admin') {
+      const [stats, viewings, requests, logs, enquiryResult, alerts] = await Promise.all([
+        api.adminStats(),
+        api.listAllViewings(),
+        api.listAllTenantRequests(),
+        api.adminEmailLogs(),
+        api.listEnquiries(),
+        api.listSearchAlerts().catch(() => ({ alerts: [] })),
+      ]);
+      setAnalytics(stats.stats);
+      setViewingSchedules(viewings.viewings);
+      setTenantRequests(requests.requests);
+      setEmailLogs(logs.logs);
+      setEnquiries(enquiryResult.enquiries);
+      setSearchAlerts(alerts.alerts);
+      const [agreementResult, receiptResult] = await Promise.all([
+        api.listAgreements().catch(() => ({ agreements: [] })),
+        api.listReceipts().catch(() => ({ receipts: [] })),
+      ]);
+      setAgreements(agreementResult.agreements);
+      setReceipts(receiptResult.receipts);
+      return;
+    }
+
+    if (user.role === 'landlord') {
+      const [viewings, notificationsResult, savedResult, agreementResult, receiptResult] = await Promise.all([
+        api.listViewings().catch(() => ({ viewings: [] })),
+        api.listNotifications().catch(() => ({ notifications: [] })),
+        api.listSaved().catch(() => ({ propertyIds: [] })),
+        api.listAgreements().catch(() => ({ agreements: [] })),
+        api.listReceipts().catch(() => ({ receipts: [] })),
+      ]);
+      setViewingSchedules(viewings.viewings);
+      setNotifications(notificationsResult.notifications);
+      setSavedPropertyIds(savedResult.propertyIds);
+      setAgreements(agreementResult.agreements);
+      setReceipts(receiptResult.receipts);
+      setTenantRequests([]);
+      return;
+    }
+
+    const [requests, viewings, notificationsResult, alerts, savedResult, agreementResult] = await Promise.all([
+      api.listTenantRequests().catch(() => ({ requests: [] })),
+      api.listViewings().catch(() => ({ viewings: [] })),
+      api.listNotifications().catch(() => ({ notifications: [] })),
+      api.listSearchAlerts().catch(() => ({ alerts: [] })),
+      api.listSaved().catch(() => ({ propertyIds: [] })),
+      api.listAgreements().catch(() => ({ agreements: [] })),
+    ]);
+    setTenantRequests(requests.requests);
+    setViewingSchedules(viewings.viewings);
+    setNotifications(notificationsResult.notifications);
+    setSearchAlerts(alerts.alerts);
+    setSavedPropertyIds(savedResult.propertyIds);
+    setAgreements(agreementResult.agreements);
+  }, []);
+
+  const refreshAll = useCallback(
+    async (user: User | null) => {
+      await Promise.all([loadProperties(user), loadAccountData(user)]);
+    },
+    [loadProperties, loadAccountData]
+  );
+
+  // -------------------------------------------------------------------------
+  // Bootstrap
+  // -------------------------------------------------------------------------
   useEffect(() => {
-    const checkPath = () => {
-      if (typeof window === 'undefined') return;
-      const pathname = window.location.pathname.toLowerCase();
-      const hash = window.location.hash.toLowerCase();
-      const search = window.location.search.toLowerCase();
-      
-      const urlParams = new URLSearchParams(window.location.search);
-      const propertyParam = urlParams.get('property') || urlParams.get('p');
+    let cancelled = false;
 
+    (async () => {
+      setIsBooting(true);
+      setBootError(null);
+      try {
+        const session = await api.me();
+        if (cancelled) return;
+        setCurrentUser(session.user);
+        if (session.user) {
+          setSavedPropertyIds(session.savedPropertyIds);
+        }
+        await refreshAll(session.user);
+      } catch (error) {
+        if (!cancelled) {
+          setBootError(messageForError(error));
+        }
+      } finally {
+        if (!cancelled) setIsBooting(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [bootAttempt, refreshAll]);
+
+  const retryBootstrap = useCallback(() => setBootAttempt((n) => n + 1), []);
+
+  // -------------------------------------------------------------------------
+  // Deep links (?property=...), admin paths, and back/forward navigation
+  // -------------------------------------------------------------------------
+  useEffect(() => {
+    const syncFromUrl = () => {
+      const params = new URLSearchParams(window.location.search);
+      const propertyParam = params.get('property') || params.get('p');
       if (propertyParam) {
         setSelectedPropertyId(propertyParam);
         setCurrentViewState('property-detail');
         return;
       }
-
-      if (
-        pathname.includes('/admin-login') || 
-        pathname.includes('/admin') ||
-        hash.includes('admin-login') || 
-        hash.includes('admin') ||
-        search.includes('admin=1') ||
-        search.includes('admin=true')
-      ) {
+      const pathname = window.location.pathname.toLowerCase();
+      if (pathname.includes('/admin-login') || pathname.includes('/admin')) {
         setCurrentViewState('admin-login');
       }
     };
-    checkPath();
-    window.addEventListener('popstate', checkPath);
-    window.addEventListener('hashchange', checkPath);
+    syncFromUrl();
+    window.addEventListener('popstate', syncFromUrl);
+    window.addEventListener('hashchange', syncFromUrl);
     return () => {
-      window.removeEventListener('popstate', checkPath);
-      window.removeEventListener('hashchange', checkPath);
+      window.removeEventListener('popstate', syncFromUrl);
+      window.removeEventListener('hashchange', syncFromUrl);
     };
   }, []);
 
-  // Sync to local storage
+  // Keep the selected property in sync with the catalogue / deep links
   useEffect(() => {
-    if (currentUser) {
-      localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(currentUser));
-    } else {
-      localStorage.removeItem(STORAGE_KEY_USER);
+    if (!selectedPropertyId) {
+      setSelectedProperty(null);
+      return;
     }
-  }, [currentUser]);
+    const local = properties.find((p) => p.id === selectedPropertyId);
+    if (local) {
+      setSelectedProperty(local);
+      return;
+    }
 
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEY_PROPERTIES, JSON.stringify(properties));
-  }, [properties]);
+    let cancelled = false;
+    api
+      .getProperty(selectedPropertyId)
+      .then((result) => {
+        if (!cancelled) setSelectedProperty(result.property);
+      })
+      .catch(() => {
+        if (!cancelled) setSelectedProperty(null);
+      });
 
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEY_REQUESTS, JSON.stringify(tenantRequests));
-  }, [tenantRequests]);
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedPropertyId, properties]);
 
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEY_VIEWINGS, JSON.stringify(viewingSchedules));
-  }, [viewingSchedules]);
-
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEY_SAVED, JSON.stringify(savedPropertyIds));
-  }, [savedPropertyIds]);
-
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEY_EMAILS, JSON.stringify(emailLogs));
-  }, [emailLogs]);
-
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEY_NOTIFS, JSON.stringify(notifications));
-  }, [notifications]);
-
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEY_AGREEMENTS, JSON.stringify(agreements));
-  }, [agreements]);
-
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEY_RECEIPTS, JSON.stringify(receipts));
-  }, [receipts]);
-
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEY_SEARCH_ALERTS, JSON.stringify(searchAlerts));
-  }, [searchAlerts]);
-
-  const currentRole: UserRole = currentUser ? currentUser.role : 'guest';
-
-  const setCurrentView = (view: string) => {
+  // -------------------------------------------------------------------------
+  // Navigation
+  // -------------------------------------------------------------------------
+  const setCurrentView = useCallback((view: string) => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
-    if (view === 'admin-login') {
-      if (typeof window !== 'undefined' && !window.location.pathname.includes('/admin-login')) {
-        try {
-          window.history.pushState({}, '', '/admin-login');
-        } catch (e) {
-          window.location.hash = '#/admin-login';
+    if (typeof window !== 'undefined') {
+      if (view === 'admin-login') {
+        if (!window.location.pathname.includes('/admin-login')) {
+          try {
+            window.history.pushState({}, '', '/admin-login');
+          } catch {
+            window.location.hash = '#/admin-login';
+          }
         }
-      }
-    } else {
-      if (typeof window !== 'undefined' && window.location.pathname.includes('/admin-login')) {
+      } else if (window.location.pathname.includes('/admin-login')) {
         try {
           window.history.pushState({}, '', '/');
-        } catch (e) {
+        } catch {
           window.location.hash = '#/';
         }
       }
     }
     setCurrentViewState(view);
-  };
+    void api.trackPageView(view);
+  }, []);
 
-  const navigateToProperty = (propertyId: string) => {
-    setSelectedPropertyId(propertyId);
-    if (typeof window !== 'undefined') {
+  const navigateToProperty = useCallback(
+    (propertyId: string) => {
+      setSelectedPropertyId(propertyId);
+      const local = properties.find((p) => p.id === propertyId);
+      if (local) setSelectedProperty(local);
+      if (typeof window !== 'undefined') {
+        try {
+          const url = new URL(window.location.href);
+          url.searchParams.set('property', propertyId);
+          window.history.pushState({}, '', url.toString());
+        } catch {
+          window.location.hash = `#/property/${propertyId}`;
+        }
+      }
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      setCurrentViewState('property-detail');
+    },
+    [properties]
+  );
+
+  // -------------------------------------------------------------------------
+  // Auth actions
+  // -------------------------------------------------------------------------
+  const handleSignIn = useCallback(
+    async (user: User) => {
+      setCurrentUser(user);
+      await refreshAll(user);
+    },
+    [refreshAll]
+  );
+
+  const login = useCallback(
+    async (email: string, password: string, role?: 'tenant' | 'landlord'): Promise<SignInResult> => {
       try {
-        const url = new URL(window.location.href);
-        url.searchParams.set('property', propertyId);
-        window.history.pushState({}, '', url.toString());
-      } catch (e) {
-        window.location.hash = `#/property/${propertyId}`;
-      }
-    }
-    setCurrentView('property-detail');
-  };
-
-  const loginAsRole = (role: 'tenant' | 'landlord' | 'admin') => {
-    const found = INITIAL_USERS.find(u => u.role === role);
-    if (found) {
-      setCurrentUser(found);
-      showSuccessToast('Welcome Back!', `Signed in as ${found.name} (${found.role.toUpperCase()})`);
-      sendSimulatedEmail(
-        'login',
-        found.email,
-        found.name,
-        `Welcome Back to Goodlucks Homes, ${found.name}`,
-        `Successful login detected into Goodlucks Homes platform as ${found.role.toUpperCase()}.`
-      );
-      if (role === 'admin') {
+        const result = await api.login(email, password, role);
+        await handleSignIn(result.user);
+        showSuccessToast('Welcome Back!', `Signed in as ${result.user.name}`);
         setCurrentView('dashboard');
-      } else {
-        setCurrentView('dashboard');
+        return { ok: true };
+      } catch (error) {
+        return { ok: false, error: messageForError(error), fields: (error as any)?.fields || {} };
       }
-    }
-  };
+    },
+    [handleSignIn, setCurrentView, showSuccessToast]
+  );
 
-  const logout = () => {
+  const register = useCallback(
+    async (data: {
+      name: string;
+      email: string;
+      phone: string;
+      password: string;
+      role: 'tenant' | 'landlord';
+    }): Promise<SignInResult> => {
+      try {
+        const result = await api.register(data);
+        await handleSignIn(result.user);
+        showSuccessToast('Account Created', `Welcome to Goodlucks Homes, ${result.user.name}!`);
+        setCurrentView('dashboard');
+        return { ok: true };
+      } catch (error) {
+        return { ok: false, error: messageForError(error), fields: (error as any)?.fields || {} };
+      }
+    },
+    [handleSignIn, setCurrentView, showSuccessToast]
+  );
+
+  const adminLogin = useCallback(
+    async (email: string, password: string, accessKey: string): Promise<SignInResult> => {
+      try {
+        const result = await api.adminLogin(email, password, accessKey);
+        await handleSignIn(result.user);
+        showSuccessToast('Authentication Granted', 'Welcome to the Goodlucks admin console.');
+        setCurrentViewState('dashboard');
+        return { ok: true };
+      } catch (error) {
+        return { ok: false, error: messageForError(error), fields: (error as any)?.fields || {} };
+      }
+    },
+    [handleSignIn, showSuccessToast]
+  );
+
+  const logout = useCallback(async () => {
+    try {
+      await api.logout();
+    } catch {
+      /* the local session is cleared regardless */
+    }
     setCurrentUser(null);
+    setSelectedProperty(null);
+    setProperties([]);
+    setBootAttempt((n) => n + 1);
     showInfoToast('Signed Out', 'You have been logged out of Goodlucks Homes.');
-    setCurrentView('home');
-  };
+    setCurrentViewState('home');
+  }, [showInfoToast]);
 
-  const updateUserProfile = (data: Partial<User>) => {
-    if (!currentUser) return;
-    const updated = { ...currentUser, ...data };
-    setCurrentUser(updated);
-    showSuccessToast('Account Details Updated', 'Your profile information has been saved successfully.');
+  const updateUserProfile = useCallback(
+    async (data: Partial<User> & { password?: string }): Promise<SignInResult> => {
+      if (!currentUser) return { ok: false, error: 'Please sign in first.' };
+      try {
+        const result = await api.updateProfile(data);
+        setCurrentUser(result.user);
+        showSuccessToast('Account Details Updated', 'Your profile information has been saved.');
+        return { ok: true };
+      } catch (error) {
+        return { ok: false, error: messageForError(error), fields: (error as any)?.fields || {} };
+      }
+    },
+    [currentUser, showSuccessToast]
+  );
 
-    // Automated Resend Email Confirmation
-    sendEmailViaResend({
-      to: updated.email,
-      recipientName: updated.name,
-      subject: 'Account Details Updated - Goodlucks Homes',
-      type: 'account_update',
-      data: {
-        updatedAt: new Date().toISOString(),
-      },
-    });
-  };
-
-  const sendSimulatedEmail = (
-    type: EmailLog['type'],
-    recipientEmail: string,
-    recipientName: string,
-    subject: string,
-    bodyPreview: string
-  ) => {
-    const newLog: EmailLog = {
-      id: `email-${Date.now()}`,
-      recipientEmail,
-      recipientName,
-      subject,
-      type,
-      bodyPreview,
-      sentAt: new Date().toISOString(),
-      status: 'delivered',
-    };
-    setEmailLogs(prev => [newLog, ...prev]);
-  };
-
-  const addProperty = (propertyData: Omit<Property, 'id' | 'createdAt' | 'updatedAt' | 'viewsCount' | 'enquiriesCount'>): Property => {
-    const newProp: Property = {
-      ...propertyData,
-      id: `prop-${Date.now()}`,
-      viewsCount: 0,
-      enquiriesCount: 0,
-      status: 'pending', // Landlord submissions default to Pending Approval
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    setProperties(prev => [newProp, ...prev]);
-
-    showSuccessToast('Property Successfully Listed', `"${newProp.title}" submitted for Goodlucks Homes verification.`);
-
-    // Send email notification to landlord and notification to admin
-    if (currentUser) {
-      sendSimulatedEmail(
-        'property_submission',
-        currentUser.email,
-        currentUser.name,
-        `Property Submission Received: ${newProp.title}`,
-        `Your listing "${newProp.title}" in ${newProp.location} has been submitted for Goodlucks Homes approval.`
-      );
-
-      // Automated Resend Email Confirmation
-      sendEmailViaResend({
-        to: currentUser.email,
-        recipientName: currentUser.name,
-        subject: `Property Submission Confirmed: ${newProp.title}`,
-        type: 'property_listing',
-        data: {
-          propertyTitle: newProp.title,
-          location: newProp.location,
-          rentGhs: newProp.rentGhs,
-        },
-      });
+  // -------------------------------------------------------------------------
+  // Properties
+  // -------------------------------------------------------------------------
+  const refreshProperties = useCallback(async () => {
+    try {
+      await loadProperties(currentUser);
+    } catch (error) {
+      showErrorToast('Could not refresh listings', messageForError(error));
     }
-    return newProp;
-  };
+  }, [currentUser, loadProperties, showErrorToast]);
 
-  const updateProperty = (id: string, propertyData: Partial<Property>) => {
-    setProperties(prev => prev.map(p => p.id === id ? { ...p, ...propertyData, updatedAt: new Date().toISOString() } : p));
-    showSuccessToast('Property Listing Updated', 'Changes to the property details were saved.');
-  };
+  const addProperty = useCallback(
+    async (data: PropertyInput): Promise<Property> => {
+      const result = await api.createProperty(data);
+      await loadProperties(currentUser);
+      showSuccessToast(
+        'Property Successfully Listed',
+        `"${result.property.title}" submitted for Goodlucks Homes verification.`
+      );
+      return result.property;
+    },
+    [currentUser, loadProperties, showSuccessToast]
+  );
 
-  const updatePropertyStatus = (id: string, status: PropertyStatus) => {
-    setProperties(prev => prev.map(p => {
-      if (p.id === id) {
-        const updated = { ...p, status, updatedAt: new Date().toISOString() };
-        // Trigger email notification
-        const landlord = INITIAL_USERS.find(u => u.id === p.landlordId) || currentUser;
-        if (landlord) {
-          if (status === 'active') {
-            sendSimulatedEmail(
-              'property_approval',
-              landlord.email,
-              landlord.name,
-              `Property Approved: ${p.title}`,
-              `Good news! Your listing "${p.title}" is now APPROVED and live on Goodlucks Homes.`
-            );
-          } else if (status === 'rejected') {
-            sendSimulatedEmail(
-              'property_rejection',
-              landlord.email,
-              landlord.name,
-              `Property Status Update: ${p.title}`,
-              `Your listing "${p.title}" requires modifications before approval on Goodlucks Homes.`
-            );
-          }
-        }
-        return updated;
+  const updateProperty = useCallback(
+    async (id: string, data: Partial<PropertyInput>) => {
+      const result = await api.updateProperty(id, data);
+      setProperties((prev) => prev.map((p) => (p.id === id ? result.property : p)));
+      if (selectedProperty?.id === id) setSelectedProperty(result.property);
+      showSuccessToast('Property Listing Updated', 'Changes to the property details were saved.');
+    },
+    [selectedProperty, showSuccessToast]
+  );
+
+  const updatePropertyStatus = useCallback(
+    async (id: string, status: PropertyStatus) => {
+      const result = await api.setPropertyStatus(id, status);
+      setProperties((prev) => prev.map((p) => (p.id === id ? result.property : p)));
+      if (user_is_admin(currentUser)) {
+        await loadAccountData(currentUser);
       }
-      return p;
-    }));
-    showSuccessToast('Listing Status Updated', `Property status updated to ${status.toUpperCase()}.`);
-  };
+      showSuccessToast('Listing Status Updated', `Property status updated to ${status.toUpperCase()}.`);
+    },
+    [currentUser, loadAccountData, showSuccessToast]
+  );
 
-  const deleteProperty = (id: string) => {
-    setProperties(prev => prev.filter(p => p.id !== id));
-    showInfoToast('Property Deleted', 'The property listing has been removed.');
-  };
+  const deleteProperty = useCallback(
+    async (id: string) => {
+      await api.deleteProperty(id);
+      setProperties((prev) => prev.filter((p) => p.id !== id));
+      showInfoToast('Property Deleted', 'The property listing has been removed from public view.');
+    },
+    [showInfoToast]
+  );
 
-  const toggleSaveProperty = (id: string) => {
-    setSavedPropertyIds(prev => {
-      const exists = prev.includes(id);
-      if (exists) {
-        showInfoToast('Property Removed', 'Removed from your saved properties list.');
-        return prev.filter(i => i !== id);
-      } else {
-        showSuccessToast('Property Saved', 'Added to your saved property collection.');
-        return [...prev, id];
+  const toggleFeatured = useCallback(
+    async (id: string, featured: boolean) => {
+      const result = await api.toggleFeatured(id, featured);
+      setProperties((prev) => prev.map((p) => (p.id === id ? result.property : p)));
+      showSuccessToast('Listing Updated', featured ? 'Listing is now featured.' : 'Listing is no longer featured.');
+    },
+    [showSuccessToast]
+  );
+
+  const toggleSaveProperty = useCallback(
+    async (id: string) => {
+      const isSaved = savedPropertyIds.includes(id);
+
+      if (!currentUser) {
+        // Guests keep a lightweight local preference (not business data).
+        const next = isSaved ? savedPropertyIds.filter((item) => item !== id) : [...savedPropertyIds, id];
+        setSavedPropertyIds(next);
+        writeGuestSaved(next);
+        if (isSaved) showInfoToast('Property Removed', 'Removed from your saved properties list.');
+        else showSuccessToast('Property Saved', 'Added to your saved property collection.');
+        return;
       }
+
+      try {
+        const result = isSaved ? await api.unsaveProperty(id) : await api.saveProperty(id);
+        setSavedPropertyIds(result.propertyIds);
+        if (isSaved) showInfoToast('Property Removed', 'Removed from your saved properties list.');
+        else showSuccessToast('Property Saved', 'Added to your saved property collection.');
+      } catch (error) {
+        showErrorToast('Could not update saved properties', messageForError(error));
+      }
+    },
+    [currentUser, savedPropertyIds, showErrorToast, showInfoToast, showSuccessToast]
+  );
+
+  const incrementPropertyViews = useCallback((id: string) => {
+    if (viewedPropertyIds.current.has(id)) return;
+    viewedPropertyIds.current.add(id);
+    api
+      .getProperty(id)
+      .then((result) => {
+        setProperties((prev) => prev.map((p) => (p.id === id ? { ...p, viewsCount: result.property.viewsCount } : p)));
+      })
+      .catch(() => {
+        /* view counting is non critical */
+      });
+  }, []);
+
+  // -------------------------------------------------------------------------
+  // Requests, viewings
+  // -------------------------------------------------------------------------
+  const submitTenantRequest = useCallback(
+    async (data: TenantRequestInput) => {
+      await api.createTenantRequest(data);
+      showSuccessToast(
+        'Property Request Submitted',
+        'Our matching team is searching for homes matching your location & budget.'
+      );
+      if (currentUser) {
+        const result = await api.listTenantRequests().catch(() => ({ requests: [] }));
+        setTenantRequests(result.requests);
+      }
+    },
+    [currentUser, showSuccessToast]
+  );
+
+  const updateTenantRequestStatus = useCallback(
+    async (id: string, status: string, matchedPropertyIds?: string[]) => {
+      const result = await api.updateTenantRequest(id, { status, matchedPropertyIds });
+      setTenantRequests((prev) => prev.map((r) => (r.id === id ? result.request : r)));
+      showSuccessToast('Tenant Request Updated', `Request status set to ${status}.`);
+    },
+    [showSuccessToast]
+  );
+
+  const scheduleViewing = useCallback(
+    async (data: ViewingInput): Promise<ViewingSchedule> => {
+      const result = await api.createViewing(data);
+      setViewingSchedules((prev) => [result.viewing, ...prev.filter((v) => v.id !== result.viewing.id)]);
+      if (currentUser) {
+        const notificationsResult = await api.listNotifications().catch(() => ({ notifications: [] }));
+        setNotifications(notificationsResult.notifications);
+      }
+      showSuccessToast(
+        'Viewing Request Sent',
+        `Viewing for "${result.viewing.propertyTitle}" scheduled for ${result.viewing.date} at ${result.viewing.time}.`
+      );
+      return result.viewing;
+    },
+    [currentUser, showSuccessToast]
+  );
+
+  const updateViewingStatus = useCallback(
+    async (id: string, status: ViewingSchedule['status'], feePaid?: boolean, notes?: string) => {
+      const result = await api.updateViewing(id, {
+        status,
+        viewingFeePaid: feePaid,
+        outcomeNotes: notes,
+      });
+      setViewingSchedules((prev) => prev.map((v) => (v.id === id ? result.viewing : v)));
+      if (user_is_admin(currentUser)) {
+        const stats = await api.adminStats().catch(() => null);
+        if (stats) setAnalytics(stats.stats);
+      }
+      showSuccessToast('Viewing Status Updated', `Viewing status set to ${status.toUpperCase()}.`);
+    },
+    [currentUser, showSuccessToast]
+  );
+
+  // -------------------------------------------------------------------------
+  // Agreements & receipts
+  // -------------------------------------------------------------------------
+  const createAgreement = useCallback(
+    async (data: Record<string, unknown>) => {
+      const result = await api.createAgreement(data);
+      setAgreements((prev) => [result.agreement, ...prev]);
+      showSuccessToast(
+        'Tenancy Agreement Created',
+        `Agreement generated with verification code ${result.agreement.verificationCode}`
+      );
+      return result.agreement;
+    },
+    [showSuccessToast]
+  );
+
+  const signAgreement = useCallback(
+    async (id: string, role: 'landlord' | 'tenant') => {
+      const result = await api.signAgreement(id, role);
+      setAgreements((prev) => prev.map((a) => (a.id === id ? result.agreement : a)));
+      showSuccessToast('Agreement Electronically Signed', `Signed as ${role === 'landlord' ? 'Landlord' : 'Tenant'}.`);
+    },
+    [showSuccessToast]
+  );
+
+  const createReceipt = useCallback(
+    async (data: Record<string, unknown>) => {
+      const result = await api.createReceipt(data);
+      setReceipts((prev) => [result.receipt, ...prev]);
+      showSuccessToast('Official Receipt Issued', `Receipt No. ${result.receipt.receiptNo} issued successfully.`);
+      return result.receipt;
+    },
+    [showSuccessToast]
+  );
+
+  // -------------------------------------------------------------------------
+  // Alerts & enquiries
+  // -------------------------------------------------------------------------
+  const subscribeToSearchAlerts = useCallback(
+    async (data: SearchAlertInput) => {
+      const result = await api.createSearchAlert(data);
+      setSearchAlerts((prev) => [result.alert, ...prev]);
+      showSuccessToast('Search Alert Activated!', `Alerts will be sent to ${data.email} for matching listings.`);
+      return result.alert;
+    },
+    [showSuccessToast]
+  );
+
+  const unsubscribeFromSearchAlerts = useCallback(
+    async (id: string) => {
+      await api.deleteSearchAlert(id);
+      setSearchAlerts((prev) => prev.filter((alert) => alert.id !== id));
+      showInfoToast('Alert Subscription Removed', 'You will no longer receive alerts for this search.');
+    },
+    [showInfoToast]
+  );
+
+  const sendEnquiry = useCallback(
+    async (data: {
+      name: string;
+      email: string;
+      phone?: string;
+      message: string;
+      propertyId?: string;
+      source?: string;
+    }) => {
+      await api.createEnquiry(data);
+      if (data.propertyId) {
+        setProperties((prev) =>
+          prev.map((p) => (p.id === data.propertyId ? { ...p, enquiriesCount: p.enquiriesCount + 1 } : p))
+        );
+      }
+      showSuccessToast('Message Sent', 'A Goodlucks Homes specialist will be in touch shortly.');
+    },
+    [showSuccessToast]
+  );
+
+  // -------------------------------------------------------------------------
+  // Misc
+  // -------------------------------------------------------------------------
+  const markNotificationRead = useCallback(async (id: string) => {
+    setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
+    await api.markNotificationRead(id).catch(() => {
+      /* optimistic update is reverted on next refresh if the call failed */
     });
-  };
+  }, []);
 
-  const incrementPropertyViews = (id: string) => {
-    setProperties(prev => prev.map(p => p.id === id ? { ...p, viewsCount: p.viewsCount + 1 } : p));
-  };
+  const refreshAdminData = useCallback(async () => {
+    if (!user_is_admin(currentUser)) return;
+    await loadAccountData(currentUser);
+    await loadProperties(currentUser);
+  }, [currentUser, loadAccountData, loadProperties]);
 
-  const submitTenantRequest = (requestData: Omit<TenantRequest, 'id' | 'createdAt' | 'status' | 'tenantId'>): TenantRequest => {
-    const newReq: TenantRequest = {
-      ...requestData,
-      id: `req-${Date.now()}`,
-      tenantId: currentUser?.id || 'guest-tenant',
-      status: 'submitted',
-      createdAt: new Date().toISOString(),
-    };
-    setTenantRequests(prev => [newReq, ...prev]);
-
-    showSuccessToast('Property Request Submitted', 'Our matching team is searching for homes matching your location & budget.');
-
-    // Send confirmation email
-    sendSimulatedEmail(
-      'tenant_request',
-      newReq.tenantEmail,
-      newReq.tenantName,
-      'Rental Enquiry Received - Goodlucks Homes',
-      `Dear ${newReq.tenantName}, your rental enquiry for ${newReq.preferredLocations.join(', ')} (Budget GH₵ ${newReq.budgetMin} - GH₵ ${newReq.budgetMax}) has been received. Our team is matching properties now.`
-    );
-
-    // Automated Resend Email Confirmation
-    sendEmailViaResend({
-      to: newReq.tenantEmail,
-      recipientName: newReq.tenantName,
-      subject: 'Property Matching Request Received - Goodlucks Homes',
-      type: 'rental_request',
-      data: {
-        locations: newReq.preferredLocations.join(', '),
-        budgetMin: newReq.budgetMin,
-        budgetMax: newReq.budgetMax,
-        bedrooms: newReq.bedrooms,
-        propertyType: newReq.propertyType,
-      },
-    });
-
-    return newReq;
-  };
-
-  const updateTenantRequestStatus = (id: string, status: TenantRequest['status'], matchedPropertyIds?: string[]) => {
-    setTenantRequests(prev => prev.map(r => {
-      if (r.id === id) {
-        const updated = { 
-          ...r, 
-          status, 
-          matchedPropertyIds: matchedPropertyIds || r.matchedPropertyIds 
-        };
-        if (status === 'matched') {
-          sendSimulatedEmail(
-            'match_found',
-            r.tenantEmail,
-            r.tenantName,
-            'Goodlucks Homes Matched Your Rental Request!',
-            `Great news ${r.tenantName}! We found matching luxury properties for your request. View them in your Tenant Dashboard now.`
-          );
-        }
-        return updated;
-      }
-      return r;
-    }));
-    showSuccessToast('Tenant Request Status Updated', `Request status set to ${status}.`);
-  };
-
-  const scheduleViewing = (viewingData: Omit<ViewingSchedule, 'id' | 'createdAt'>) => {
-    const newViewing: ViewingSchedule = {
-      ...viewingData,
-      id: `view-${Date.now()}`,
-      createdAt: new Date().toISOString(),
-    };
-    setViewingSchedules(prev => [newViewing, ...prev]);
-
-    showSuccessToast(
-      'Viewing Request Sent', 
-      `Viewing for "${newViewing.propertyTitle}" scheduled for ${newViewing.date} at ${newViewing.time}.`
-    );
-
-    // Add notification
-    const newNotif: NotificationItem = {
-      id: `notif-${Date.now()}`,
-      userId: currentUser?.id || 'user-tenant-1',
-      title: 'Viewing Scheduled',
-      message: `Your viewing for "${newViewing.propertyTitle}" is set for ${newViewing.date} at ${newViewing.time}. Fee paid physically to staff.`,
-      type: 'viewing',
-      read: false,
-      createdAt: new Date().toISOString(),
-    };
-    setNotifications(prev => [newNotif, ...prev]);
-
-    const recipientEmail = currentUser?.email || 'tenant@goodlucks.com';
-
-    // Send Email
-    sendSimulatedEmail(
-      'viewing_scheduled',
-      recipientEmail,
-      newViewing.tenantName,
-      `Viewing Scheduled: ${newViewing.propertyTitle}`,
-      `Your viewing with Agent ${newViewing.assignedAgent} is confirmed for ${newViewing.date} at ${newViewing.time}. Note: Viewing fees are paid physically to Goodlucks staff.`
-    );
-
-    // Automated Resend Email Confirmation
-    sendEmailViaResend({
-      to: recipientEmail,
-      recipientName: newViewing.tenantName,
-      subject: `Viewing Schedule Confirmation: ${newViewing.propertyTitle}`,
-      type: 'viewing_schedule',
-      data: {
-        propertyTitle: newViewing.propertyTitle,
-        date: newViewing.date,
-        time: newViewing.time,
-        location: newViewing.propertyTitle,
-      },
-    });
-  };
-
-  const updateViewingStatus = (id: string, status: ViewingSchedule['status'], feePaid?: boolean, notes?: string) => {
-    setViewingSchedules(prev => prev.map(v => {
-      if (v.id === id) {
-        return {
-          ...v,
-          status,
-          viewingFeePaid: feePaid !== undefined ? feePaid : v.viewingFeePaid,
-          outcomeNotes: notes !== undefined ? notes : v.outcomeNotes,
-        };
-      }
-      return v;
-    }));
-    showSuccessToast('Viewing Status Updated', `Viewing status set to ${status.toUpperCase()}.`);
-  };
-
-  const markNotificationRead = (id: string) => {
-    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
-  };
-
-  const createAgreement = (agreementData: Omit<TenancyAgreement, 'id' | 'createdAt' | 'verificationCode'>) => {
-    const code = `GHL-AGR-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
-    const newAgreement: TenancyAgreement = {
-      ...agreementData,
-      id: `agr-${Date.now()}`,
-      verificationCode: code,
-      createdAt: new Date().toISOString(),
-    };
-    setAgreements(prev => [newAgreement, ...prev]);
-    showSuccessToast('Tenancy Agreement Created', `Agreement generated with verification code ${code}`);
-    return newAgreement;
-  };
-
-  const signAgreement = (id: string, role: 'landlord' | 'tenant') => {
-    const now = new Date().toISOString();
-    setAgreements(prev => prev.map(a => {
-      if (a.id === id) {
-        const updated = {
-          ...a,
-          landlordSigned: role === 'landlord' ? true : a.landlordSigned,
-          tenantSigned: role === 'tenant' ? true : a.tenantSigned,
-          landlordSignatureDate: role === 'landlord' ? now : a.landlordSignatureDate,
-          tenantSignatureDate: role === 'tenant' ? now : a.tenantSignatureDate,
-        };
-        if (updated.landlordSigned && updated.tenantSigned) {
-          updated.status = 'active';
-        }
-        return updated;
-      }
-      return a;
-    }));
-    showSuccessToast('Agreement Electronically Signed', `Signed as ${role === 'landlord' ? 'Landlord' : 'Tenant'}.`);
-  };
-
-  const createReceipt = (receiptData: Omit<RentReceipt, 'id' | 'createdAt' | 'receiptNo' | 'verificationCode'>) => {
-    const receiptNo = `GHL-REC-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
-    const verificationCode = `VERIFIED-REC-${Math.floor(1000 + Math.random() * 9000)}`;
-    const newReceipt: RentReceipt = {
-      ...receiptData,
-      id: `rec-${Date.now()}`,
-      receiptNo,
-      verificationCode,
-      createdAt: new Date().toISOString(),
-    };
-    setReceipts(prev => [newReceipt, ...prev]);
-    showSuccessToast('Official Receipt Issued', `Receipt No. ${receiptNo} issued successfully.`);
-    return newReceipt;
-  };
-
-  const subscribeToSearchAlerts = (subData: Omit<SearchAlertSubscription, 'id' | 'createdAt' | 'active'>) => {
-    const newSubscription: SearchAlertSubscription = {
-      ...subData,
-      id: `alert-${Date.now()}`,
-      createdAt: new Date().toISOString(),
-      active: true,
-    };
-
-    setSearchAlerts(prev => [newSubscription, ...prev]);
-
-    // Create Email Log for subscriber
-    const newEmailLog: EmailLog = {
-      id: `email-${Date.now()}`,
-      recipientEmail: subData.email,
-      recipientName: subData.name || subData.email.split('@')[0],
-      subject: `🔔 Goodlucks Search Alert Active: ${subData.location || 'Accra'} Listings`,
-      type: 'alert_subscription',
-      bodyPreview: `Listing alert activated for ${subData.location} (${subData.propertyType}) up to GH₵ ${subData.maxRentGhs.toLocaleString()}/mo.`,
-      sentAt: new Date().toISOString(),
-      status: 'delivered',
-    };
-    setEmailLogs(prev => [newEmailLog, ...prev]);
-
-    // Send real email via Resend / endpoint
-    sendEmailViaResend({
-      to: subData.email,
-      recipientName: subData.name || subData.email.split('@')[0],
-      subject: `🔔 Goodlucks Search Alert Active: ${subData.location || 'Accra'} Listings`,
-      type: 'alert_subscription',
-      data: {
-        location: subData.location,
-        propertyType: subData.propertyType,
-        maxRentGhs: subData.maxRentGhs,
-        bedrooms: subData.bedrooms,
-        frequency: subData.frequency,
-      },
-    });
-
-    // Push notification item
-    const notifItem: NotificationItem = {
-      id: `notif-${Date.now()}`,
-      userId: currentUser?.id || 'guest',
-      title: 'Search Alert Subscribed',
-      message: `You will receive ${subData.frequency} alerts for listings in ${subData.location || 'Accra'}.`,
-      type: 'success',
-      read: false,
-      createdAt: new Date().toISOString(),
-    };
-    setNotifications(prev => [notifItem, ...prev]);
-
-    showSuccessToast(
-      'Search Alert Activated!', 
-      `Alerts will be sent to ${subData.email} for matching listings.`
-    );
-
-    return newSubscription;
-  };
-
-  const unsubscribeFromSearchAlerts = (id: string) => {
-    setSearchAlerts(prev => prev.filter(s => s.id !== id));
-    showInfoToast('Alert Subscription Removed', 'You will no longer receive alerts for this search.');
-  };
+  const value = useMemo<AppContextType>(
+    () => ({
+      currentUser,
+      currentRole,
+      isBooting,
+      bootError,
+      retryBootstrap,
+      properties,
+      selectedProperty,
+      tenantRequests,
+      viewingSchedules,
+      emailLogs,
+      agreements,
+      receipts,
+      notifications,
+      enquiries,
+      analytics,
+      savedPropertyIds,
+      searchAlerts,
+      currentView,
+      selectedPropertyId,
+      setCurrentView,
+      navigateToProperty,
+      toasts,
+      showToast,
+      showSuccessToast,
+      showErrorToast,
+      showInfoToast,
+      dismissToast,
+      login,
+      register,
+      adminLogin,
+      logout,
+      updateUserProfile,
+      addProperty,
+      updateProperty,
+      updatePropertyStatus,
+      deleteProperty,
+      toggleFeatured,
+      toggleSaveProperty,
+      incrementPropertyViews,
+      refreshProperties,
+      submitTenantRequest,
+      updateTenantRequestStatus,
+      scheduleViewing,
+      updateViewingStatus,
+      createAgreement,
+      signAgreement,
+      createReceipt,
+      subscribeToSearchAlerts,
+      unsubscribeFromSearchAlerts,
+      sendEnquiry,
+      markNotificationRead,
+      refreshAdminData,
+    }),
+    [
+      currentUser,
+      currentRole,
+      isBooting,
+      bootError,
+      retryBootstrap,
+      properties,
+      selectedProperty,
+      tenantRequests,
+      viewingSchedules,
+      emailLogs,
+      agreements,
+      receipts,
+      notifications,
+      enquiries,
+      analytics,
+      savedPropertyIds,
+      searchAlerts,
+      currentView,
+      selectedPropertyId,
+      setCurrentView,
+      navigateToProperty,
+      toasts,
+      showToast,
+      showSuccessToast,
+      showErrorToast,
+      showInfoToast,
+      dismissToast,
+      login,
+      register,
+      adminLogin,
+      logout,
+      updateUserProfile,
+      addProperty,
+      updateProperty,
+      updatePropertyStatus,
+      deleteProperty,
+      toggleFeatured,
+      toggleSaveProperty,
+      incrementPropertyViews,
+      refreshProperties,
+      submitTenantRequest,
+      updateTenantRequestStatus,
+      scheduleViewing,
+      updateViewingStatus,
+      createAgreement,
+      signAgreement,
+      createReceipt,
+      subscribeToSearchAlerts,
+      unsubscribeFromSearchAlerts,
+      sendEnquiry,
+      markNotificationRead,
+      refreshAdminData,
+    ]
+  );
 
   return (
-    <AppContext.Provider
-      value={{
-        currentUser,
-        currentRole,
-        properties,
-        tenantRequests,
-        viewingSchedules,
-        emailLogs,
-        agreements,
-        receipts,
-        searchAlerts,
-        notifications,
-        analytics,
-        savedPropertyIds,
-        currentView,
-        selectedPropertyId,
-        toasts,
-        showToast,
-        showSuccessToast,
-        showErrorToast,
-        showInfoToast,
-        dismissToast,
-        subscribeToSearchAlerts,
-        unsubscribeFromSearchAlerts,
-        setCurrentView,
-        navigateToProperty,
-        loginAsRole,
-        logout,
-        updateUserProfile,
-        addProperty,
-        updateProperty,
-        updatePropertyStatus,
-        deleteProperty,
-        toggleSaveProperty,
-        incrementPropertyViews,
-        submitTenantRequest,
-        updateTenantRequestStatus,
-        scheduleViewing,
-        updateViewingStatus,
-        createAgreement,
-        signAgreement,
-        createReceipt,
-        sendSimulatedEmail,
-        markNotificationRead,
-      }}
-    >
+    <AppContext.Provider value={value}>
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />
       {children}
     </AppContext.Provider>
   );
 };
+
+function user_is_admin(user: User | null): boolean {
+  return user?.role === 'admin';
+}
 
 export const useApp = () => {
   const context = useContext(AppContext);

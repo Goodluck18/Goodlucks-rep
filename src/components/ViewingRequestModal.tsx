@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Property } from '../types';
 import { useApp } from '../context/AppContext';
 import { Calendar, Clock, User, Phone, Mail, ShieldCheck, CheckCircle2, X, AlertCircle, ShieldAlert } from 'lucide-react';
+import { messageForError } from '../services/apiService';
 
 interface ViewingRequestModalProps {
   property: Property | null;
@@ -9,57 +10,57 @@ interface ViewingRequestModalProps {
 }
 
 export const ViewingRequestModal: React.FC<ViewingRequestModalProps> = ({ property, onClose }) => {
-  const { currentUser, scheduleViewing, submitTenantRequest, setCurrentView } = useApp();
+  const { currentUser, scheduleViewing, setCurrentView } = useApp();
   
-  const [date, setDate] = useState('2026-08-16');
+  const defaultViewingDate = (() => {
+    const d = new Date(Date.now() + 2 * 86400_000);
+    return d.toISOString().slice(0, 10);
+  })();
+  const [date, setDate] = useState(defaultViewingDate);
   const [time, setTime] = useState('11:00 AM');
   const [tenantName, setTenantName] = useState(currentUser?.name || '');
   const [tenantPhone, setTenantPhone] = useState(currentUser?.phone || '');
   const [tenantEmail, setTenantEmail] = useState(currentUser?.email || '');
   const [notes, setNotes] = useState('');
   const [submitted, setSubmitted] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   if (!property) return null;
 
   const isLandlord = currentUser?.role === 'landlord';
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError(null);
     if (isLandlord) return;
-    if (!tenantName || !tenantPhone) return;
 
-    // First ensure a tenant request exists or create one
-    const tenantReq = submitTenantRequest({
-      tenantName,
-      tenantPhone,
-      tenantEmail: tenantEmail || 'tenant@goodlucks.com',
-      preferredLocations: [property.location],
-      budgetMin: property.rentGhs - 500,
-      budgetMax: property.rentGhs + 1000,
-      bedrooms: property.bedrooms,
-      bathrooms: property.bathrooms,
-      propertyType: property.propertyType,
-      moveInDate: date,
-      notes: notes || `Interested in viewing ${property.title}`,
-    });
+    if (!tenantName.trim() || !tenantPhone.trim()) {
+      setError('Please add your name and phone number so our agent can reach you.');
+      return;
+    }
+    if (!tenantEmail.trim()) {
+      setError('Please add an email address for your viewing confirmation.');
+      return;
+    }
 
-    scheduleViewing({
-      tenantRequestId: tenantReq.id,
-      tenantName,
-      tenantPhone,
-      propertyId: property.id,
-      propertyTitle: property.title,
-      propertyLocation: property.location,
-      date,
-      time,
-      assignedAgent: 'Goodlucks Field Agent',
-      status: 'scheduled',
-      viewingFeePaid: false, // Physical payment on site
-      feeAmountGhs: 100,
-      outcomeNotes: 'Viewing scheduled through Goodlucks Homes platform.',
-    });
-
-    setSubmitted(true);
+    setIsSubmitting(true);
+    try {
+      await scheduleViewing({
+        tenantName: tenantName.trim(),
+        tenantPhone: tenantPhone.trim(),
+        tenantEmail: tenantEmail.trim(),
+        propertyId: property.id,
+        date,
+        time,
+        notes: notes || `Interested in viewing ${property.title}`,
+      });
+      setSubmitted(true);
+    } catch (err) {
+      setError(messageForError(err));
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -196,6 +197,7 @@ export const ViewingRequestModal: React.FC<ViewingRequestModalProps> = ({ proper
                     <input
                       type="date"
                       required
+                      min={new Date().toISOString().slice(0, 10)}
                       value={date}
                       onChange={(e) => setDate(e.target.value)}
                       className="w-full bg-slate-800/80 border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-sm text-white focus:outline-none focus:border-[#08D9D6]"
@@ -237,11 +239,26 @@ export const ViewingRequestModal: React.FC<ViewingRequestModalProps> = ({ proper
               </div>
             </div>
 
+            {error && (
+              <div role="alert" className="p-3 rounded-xl bg-[#FF2E63]/15 border border-[#FF2E63]/30 text-[#FF8FA8] text-xs flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                <span>{error}</span>
+              </div>
+            )}
+
             <button
               type="submit"
-              className="w-full py-3 rounded-2xl bg-[#08D9D6] text-[#252A34] font-bold hover:bg-[#08D9D6]/90 transition-all shadow-lg shadow-[#08D9D6]/20 text-center"
+              disabled={isSubmitting}
+              className="w-full py-3 rounded-2xl bg-[#08D9D6] text-[#252A34] font-bold hover:bg-[#08D9D6]/90 transition-all shadow-lg shadow-[#08D9D6]/20 text-center flex items-center justify-center gap-2 disabled:opacity-60"
             >
-              Confirm Viewing Request
+              {isSubmitting ? (
+                <>
+                  <span className="w-4 h-4 border-2 border-[#252A34]/30 border-t-[#252A34] rounded-full animate-spin" />
+                  Scheduling...
+                </>
+              ) : (
+                'Confirm Viewing Request'
+              )}
             </button>
           </form>
         ) : (

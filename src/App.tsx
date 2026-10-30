@@ -19,7 +19,7 @@ import { TenancyAgreementView } from './components/TenancyAgreementView';
 import { AuthModal } from './components/AuthModal';
 
 const AppContent: React.FC = () => {
-  const { currentRole, currentView, setCurrentView } = useApp();
+  const { currentRole, currentView, isBooting, bootError, retryBootstrap } = useApp();
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authInitialMode, setAuthInitialMode] = useState<'login' | 'register'>('login');
   const [authInitialRole, setAuthInitialRole] = useState<'tenant' | 'landlord'>('tenant');
@@ -32,14 +32,10 @@ const AppContent: React.FC = () => {
 
   // Render current view component
   const renderView = () => {
-    // ADMIN ROLE FORCE VIEW OVERRIDE
-    if (currentRole === 'admin') {
-      return <AdminDashboard />;
-    }
-
     switch (currentView) {
       case 'admin-login':
-        return <AdminLoginView />;
+        // An authenticated admin who reloads /admin goes straight to the console.
+        return currentRole === 'admin' ? <AdminDashboard /> : <AdminLoginView />;
       case 'home':
         return <HomeView />;
       case 'browse':
@@ -84,8 +80,38 @@ const AppContent: React.FC = () => {
     }
   };
 
-  if (currentView === 'admin-login' && currentRole !== 'admin') {
-    return <AdminLoginView />;
+  if (isBooting) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-[#252A34] text-[#EAEAEA] px-6 text-center">
+        <div className="w-12 h-12 rounded-2xl bg-[#08D9D6]/15 border border-[#08D9D6]/30 text-[#08D9D6] flex items-center justify-center">
+          <span className="w-6 h-6 border-2 border-[#08D9D6]/30 border-t-[#08D9D6] rounded-full animate-spin" />
+        </div>
+        <div className="space-y-1">
+          <p className="text-sm font-bold text-white">Loading Goodlucks Homes</p>
+          <p className="text-xs text-slate-400">Fetching verified listings and your account…</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (bootError) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#252A34] text-[#EAEAEA] px-4">
+        <div className="max-w-md w-full bg-slate-800/90 border border-[#FF2E63]/30 rounded-3xl p-8 text-center space-y-4">
+          <h1 className="text-xl font-black text-white">We could not load the website</h1>
+          <p className="text-xs text-slate-300 leading-relaxed">{bootError}</p>
+          <p className="text-[11px] text-slate-400">
+            If this persists, please call +233 23 769 0080 or email rentals@goodlucks.co.
+          </p>
+          <button
+            onClick={retryBootstrap}
+            className="px-6 py-3 rounded-xl bg-[#08D9D6] text-[#252A34] font-extrabold text-sm shadow-lg shadow-[#08D9D6]/20"
+          >
+            Try Again
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (

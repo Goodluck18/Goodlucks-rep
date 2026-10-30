@@ -15,10 +15,10 @@ import {
 } from 'lucide-react';
 
 export const AdminLoginView: React.FC = () => {
-  const { loginAsRole, setCurrentView } = useApp();
-  const [email, setEmail] = useState('admin@goodlucks.com');
-  const [password, setPassword] = useState('••••••••');
-  const [securityCode, setSecurityCode] = useState('ADM-8821-GL');
+  const { adminLogin, setCurrentView } = useApp();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [securityCode, setSecurityCode] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -52,31 +52,27 @@ export const AdminLoginView: React.FC = () => {
     };
   }, []);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setSuccess(false);
+
+    if (!email.trim() || !password) {
+      setError('Please enter your administrator email address and password.');
+      return;
+    }
+
     setIsAuthenticating(true);
+    const result = await adminLogin(email.trim(), password, securityCode.trim());
+    setIsAuthenticating(false);
 
-    setTimeout(() => {
-      if (!email.trim()) {
-        setError('Please enter a valid administrator email address.');
-        setIsAuthenticating(false);
-        return;
-      }
-
+    if (result.ok) {
       setSuccess(true);
-      setTimeout(() => {
-        loginAsRole('admin');
-      }, 800);
-    }, 600);
-  };
+      return;
+    }
 
-  const handleQuickDemoLogin = () => {
-    setIsAuthenticating(true);
-    setSuccess(true);
-    setTimeout(() => {
-      loginAsRole('admin');
-    }, 600);
+    setError(result.error || 'Authentication failed. Please check your credentials and try again.');
+    setPassword('');
   };
 
   return (
@@ -157,7 +153,8 @@ export const AdminLoginView: React.FC = () => {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="admin@goodlucks.com"
+                placeholder="admin@goodlucks.co"
+                autoComplete="username"
                 className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-3 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-[#08D9D6] focus:ring-1 focus:ring-[#08D9D6] font-mono transition-all"
               />
             </div>
@@ -175,6 +172,7 @@ export const AdminLoginView: React.FC = () => {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
+                autoComplete="current-password"
                 className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-3 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-[#08D9D6] focus:ring-1 focus:ring-[#08D9D6] font-mono transition-all"
               />
             </div>
@@ -189,7 +187,6 @@ export const AdminLoginView: React.FC = () => {
               <Key className="w-4 h-4 absolute left-3.5 top-3.5 text-slate-500" />
               <input
                 type="text"
-                required
                 value={securityCode}
                 onChange={(e) => setSecurityCode(e.target.value)}
                 placeholder="ADM-XXXX-GL"
@@ -217,25 +214,21 @@ export const AdminLoginView: React.FC = () => {
           </button>
         </form>
 
-        {/* Secret Quick Demo Access Section */}
+        {/* Security Notice */}
         <div className="mt-6 pt-5 border-t border-slate-800/80">
           <div className="p-3.5 rounded-2xl bg-slate-950/80 border border-slate-800 text-center space-y-2">
             <div className="flex items-center justify-center gap-1.5 text-xs text-slate-300 font-semibold">
               <ShieldCheck className="w-4 h-4 text-[#08D9D6]" />
-              <span>Developer Quick Access</span>
+              <span>Restricted Administrator Access</span>
             </div>
-            <p className="text-[11px] text-slate-400">
-              One-click instant login for system testing and administration.
+            <p className="text-[11px] text-slate-400 leading-snug">
+              Administrator accounts are verified on the server and cannot be created from this page.
+              If you need admin access, contact Goodlucks Homes IT at rentals@goodlucks.co.
             </p>
-            <button
-              type="button"
-              onClick={handleQuickDemoLogin}
-              disabled={isAuthenticating}
-              className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-[#08D9D6] font-extrabold text-xs transition-all border border-slate-700 flex items-center justify-center gap-1.5"
-            >
-              <span>Bypass & Authenticate as Admin</span>
-              <Building2 className="w-3.5 h-3.5" />
-            </button>
+            <div className="flex items-center justify-center gap-1.5 text-[10px] text-slate-500 font-mono pt-1">
+              <Building2 className="w-3 h-3" />
+              <span>Server-side session • rate limited • audited</span>
+            </div>
           </div>
         </div>
 

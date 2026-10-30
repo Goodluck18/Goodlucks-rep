@@ -1,16 +1,31 @@
 import React, { useState } from 'react';
-import { Mail, Phone, MapPin, Building2, Send, CheckCircle2, Share2, Instagram, Linkedin, Twitter, Facebook } from 'lucide-react';
+import { Mail, Phone, MapPin, Building2, Send, CheckCircle2, Share2, Instagram, Linkedin, Twitter, Facebook, AlertCircle } from 'lucide-react';
 import { SEOHead } from './SEOHead';
+import { useApp } from '../context/AppContext';
+import { messageForError } from '../services/apiService';
 
 export const ContactView: React.FC = () => {
+  const { sendEnquiry } = useApp();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [message, setMessage] = useState('');
   const [sent, setSent] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSent(true);
+    setError(null);
+    setIsSubmitting(true);
+    try {
+      await sendEnquiry({ name: name.trim(), email: email.trim(), phone: phone.trim(), message: message.trim(), source: 'contact_form' });
+      setSent(true);
+    } catch (err) {
+      setError(messageForError(err));
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -122,6 +137,17 @@ export const ContactView: React.FC = () => {
                 </div>
 
                 <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">Phone Number <span className="text-slate-500 font-normal">(optional)</span></label>
+                  <input
+                    type="tel"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    placeholder="+233 24 000 0000"
+                    className="w-full bg-slate-900 border border-white/10 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-[#08D9D6]"
+                  />
+                </div>
+
+                <div>
                   <label className="block text-xs font-semibold text-slate-300 mb-1">Message / Question</label>
                   <textarea
                     rows={4}
@@ -133,11 +159,28 @@ export const ContactView: React.FC = () => {
                   />
                 </div>
 
+                {error && (
+                  <div role="alert" className="p-3 rounded-xl bg-[#FF2E63]/15 border border-[#FF2E63]/30 text-[#FF8FA8] text-xs flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                    <span>{error}</span>
+                  </div>
+                )}
+
                 <button
                   type="submit"
-                  className="w-full py-3.5 rounded-xl bg-[#08D9D6] text-[#252A34] font-bold text-sm hover:bg-[#08D9D6]/90 transition-all shadow-md flex items-center justify-center gap-2"
+                  disabled={isSubmitting}
+                  className="w-full py-3.5 rounded-xl bg-[#08D9D6] text-[#252A34] font-bold text-sm hover:bg-[#08D9D6]/90 transition-all shadow-md flex items-center justify-center gap-2 disabled:opacity-60"
                 >
-                  <Send className="w-4 h-4" /> Send Enquiry
+                  {isSubmitting ? (
+                    <>
+                      <span className="w-4 h-4 border-2 border-[#252A34]/30 border-t-[#252A34] rounded-full animate-spin" />
+                      Sending...
+                    </>
+                  ) : (
+                    <>
+                      <Send className="w-4 h-4" /> Send Enquiry
+                    </>
+                  )}
                 </button>
               </form>
             ) : (

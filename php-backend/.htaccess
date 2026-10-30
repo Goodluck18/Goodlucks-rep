@@ -1,21 +1,58 @@
-# Goodlucks Homes - API Directory .htaccess
-RewriteEngine On
+# Goodlucks Homes - API directory (cPanel / Apache)
+#
+# Public_html/api/ is the PHP backend. Every request is handled by index.php
+# (front controller + router), except uploaded images which Apache can serve
+# straight from /api/uploads/.
+#
+# Deploy layout:
+#   public_html/            <- contents of dist/ (React build)
+#   public_html/api/        <- contents of php-backend/
+#   public_html/api/uploads <- uploaded property photos (writable, 0755)
 
-# Allow direct file execution
-RewriteCond %{REQUEST_FILENAME} -f
-RewriteRule ^ - [L]
-
-# Route clean URLs to PHP files
-RewriteRule ^health/?$ health.php [L,QSA]
-RewriteRule ^properties/?$ properties.php [L,QSA]
-RewriteRule ^price-alerts/?$ price_alerts.php [L,QSA]
-RewriteRule ^price_alerts/?$ price_alerts.php [L,QSA]
-RewriteRule ^viewing-request/?$ viewing_request.php [L,QSA]
-RewriteRule ^viewing_request/?$ viewing_request.php [L,QSA]
-RewriteRule ^tenant-requests/?$ tenant_requests.php [L,QSA]
-RewriteRule ^tenant_requests/?$ tenant_requests.php [L,QSA]
-RewriteRule ^send-email/?$ send_email.php [L,QSA]
-RewriteRule ^send_email/?$ send_email.php [L,QSA]
-
-# Security: Disable directory browsing
 Options -Indexes
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /api/
+
+    # 1. Never expose internals.
+    RewriteRule ^(lib|logs)/ - [F,L]
+    RewriteRule \.(sql|md|log|ini|bak)$ - [F,L]
+
+    # 2. Serve already-uploaded images directly (faster than streaming in PHP).
+    RewriteCond %{REQUEST_URI} ^/api/uploads/ [NC]
+    RewriteCond %{REQUEST_FILENAME} -f
+    RewriteRule ^ - [L]
+
+    # 3. Legacy *.php endpoints and index.php are real files: let them run.
+    RewriteCond %{REQUEST_FILENAME} -f
+    RewriteRule ^ - [L]
+
+    # 4. Everything else goes to the front controller (e.g. /api/properties/12).
+    RewriteRule ^ index.php [L,QSA]
+</IfModule>
+
+# Security headers (harmless if mod_headers is unavailable).
+<IfModule mod_headers.c>
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+    Header always set X-Frame-Options "SAMEORIGIN"
+    Header unset X-Powered-By
+</IfModule>
+
+# Block direct access to secrets, SQL dumps and docs.
+<FilesMatch "(^\.|\.(env|sql|md|log|ini|bak)$|^config(\.local)?\.php$)"> 
+    Require all denied
+</FilesMatch>
+
+# Only apply the legacy display_errors switch when mod_php is loaded
+# (php_flag triggers a 500 under PHP-FPM / CGI).
+<IfModule mod_php.c>
+    php_flag display_errors off
+</IfModule>
+<IfModule mod_php7.c>
+    php_flag display_errors off
+</IfModule>
+<IfModule mod_php8.c>
+    php_flag display_errors off
+</IfModule>

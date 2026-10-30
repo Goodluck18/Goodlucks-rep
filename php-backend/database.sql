@@ -1,24 +1,31 @@
 -- ============================================================
--- Goodlucks Homes - MySQL Database Schema & Seed Data
--- 100% Compatible with phpMyAdmin / cPanel MySQL 5.7 & 8.0+
+-- Goodlucks Homes - MySQL schema for cPanel / phpMyAdmin
+--
+-- Safe to import more than once: tables use CREATE TABLE IF NOT EXISTS and
+-- seed rows are inserted with INSERT IGNORE, so an existing production
+-- database is never dropped or overwritten.
+--
+-- For an existing installation run:  php php-backend/migrate.php
+-- (adds the new columns/tables without touching stored data)
 -- ============================================================
 
-SET FOREIGN_KEY_CHECKS = 0;
-SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
+SET NAMES utf8mb4;
 SET time_zone = "+00:00";
+SET FOREIGN_KEY_CHECKS = 0;
 
--- --------------------------------------------------------
--- 1. USERS TABLE
--- --------------------------------------------------------
-DROP TABLE IF EXISTS `users`;
-CREATE TABLE `users` (
+-- ------------------------------------------------------------
+-- 1. Users (tenants, landlords, administrators)
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `users` (
   `id` VARCHAR(64) NOT NULL,
   `email` VARCHAR(255) NOT NULL,
   `name` VARCHAR(255) NOT NULL,
-  `role` ENUM('tenant', 'landlord', 'admin') NOT NULL DEFAULT 'tenant',
-  `phone` VARCHAR(64) NOT NULL,
+  `role` VARCHAR(32) NOT NULL DEFAULT 'tenant',
+  `phone` VARCHAR(64) NOT NULL DEFAULT '',
+  `password_hash` VARCHAR(255) DEFAULT NULL,
   `avatar` TEXT DEFAULT NULL,
   `address` TEXT DEFAULT NULL,
+  `bio` TEXT DEFAULT NULL,
   `company` VARCHAR(255) DEFAULT NULL,
   `is_verified` TINYINT(1) NOT NULL DEFAULT 0,
   `preferred_locations` TEXT DEFAULT NULL,
@@ -26,138 +33,210 @@ CREATE TABLE `users` (
   `budget_max` DECIMAL(12,2) DEFAULT NULL,
   `preferred_bedrooms` INT DEFAULT NULL,
   `additional_notes` TEXT DEFAULT NULL,
-  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` DATETIME DEFAULT NULL,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `idx_users_email` (`email`)
+  UNIQUE KEY `idx_users_email` (`email`),
+  KEY `idx_users_role` (`role`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- --------------------------------------------------------
--- 2. PROPERTIES TABLE
--- --------------------------------------------------------
-DROP TABLE IF EXISTS `properties`;
-CREATE TABLE `properties` (
+-- ------------------------------------------------------------
+-- 2. Server-side sessions (HttpOnly cookie tokens, stored hashed)
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `auth_sessions` (
+  `id` VARCHAR(64) NOT NULL,
+  `user_id` VARCHAR(64) NOT NULL,
+  `token_hash` VARCHAR(64) NOT NULL,
+  `user_agent` VARCHAR(255) DEFAULT NULL,
+  `expires_at` DATETIME NOT NULL,
+  `created_at` DATETIME NOT NULL,
+  `last_seen_at` DATETIME DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `idx_sessions_token` (`token_hash`),
+  KEY `idx_sessions_user` (`user_id`),
+  KEY `idx_sessions_expiry` (`expires_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ------------------------------------------------------------
+-- 3. Properties
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `properties` (
   `id` VARCHAR(64) NOT NULL,
   `landlord_id` VARCHAR(64) DEFAULT NULL,
   `landlord_name` VARCHAR(255) DEFAULT NULL,
   `landlord_company` VARCHAR(255) DEFAULT NULL,
+  `is_landlord_verified` TINYINT(1) NOT NULL DEFAULT 1,
   `title` VARCHAR(255) NOT NULL,
   `location` VARCHAR(255) NOT NULL,
   `city` VARCHAR(100) NOT NULL DEFAULT 'Accra',
   `rent_ghs` DECIMAL(12,2) NOT NULL,
-  `bedrooms` INT NOT NULL,
-  `bathrooms` INT NOT NULL,
-  `property_type` VARCHAR(64) NOT NULL,
-  `status` ENUM('active', 'pending', 'rejected', 'rented', 'deactivated') NOT NULL DEFAULT 'active',
-  `images` LONGTEXT NOT NULL COMMENT 'JSON array of image URLs',
+  `bedrooms` INT NOT NULL DEFAULT 0,
+  `bathrooms` INT NOT NULL DEFAULT 0,
+  `property_type` VARCHAR(64) NOT NULL DEFAULT 'Apartment',
+  `status` VARCHAR(32) NOT NULL DEFAULT 'pending',
+  `images` LONGTEXT NOT NULL,
   `description` LONGTEXT NOT NULL,
-  `amenities` LONGTEXT NOT NULL COMMENT 'JSON array of amenities',
-  `nearby_places` LONGTEXT DEFAULT NULL COMMENT 'JSON array of landmarks',
+  `amenities` LONGTEXT DEFAULT NULL,
+  `nearby_places` LONGTEXT DEFAULT NULL,
   `availability` VARCHAR(100) DEFAULT 'Available Now',
   `featured` TINYINT(1) NOT NULL DEFAULT 0,
   `views_count` INT NOT NULL DEFAULT 0,
   `enquiries_count` INT NOT NULL DEFAULT 0,
-  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` DATETIME DEFAULT NULL,
   PRIMARY KEY (`id`),
-  KEY `idx_prop_location` (`location`),
-  KEY `idx_prop_city` (`city`),
   KEY `idx_prop_status` (`status`),
-  KEY `idx_prop_rent` (`rent_ghs`)
+  KEY `idx_prop_landlord` (`landlord_id`),
+  KEY `idx_prop_city` (`city`),
+  KEY `idx_prop_rent` (`rent_ghs`),
+  KEY `idx_prop_created` (`created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- --------------------------------------------------------
--- 3. TENANT REQUESTS TABLE
--- --------------------------------------------------------
-DROP TABLE IF EXISTS `tenant_requests`;
-CREATE TABLE `tenant_requests` (
+-- ------------------------------------------------------------
+-- 4. Tenant property-matching requests
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `tenant_requests` (
   `id` VARCHAR(64) NOT NULL,
   `tenant_id` VARCHAR(64) DEFAULT NULL,
   `tenant_name` VARCHAR(255) NOT NULL,
   `tenant_phone` VARCHAR(64) NOT NULL,
   `tenant_email` VARCHAR(255) NOT NULL,
-  `preferred_locations` TEXT NOT NULL COMMENT 'JSON array of locations',
-  `budget_min` DECIMAL(12,2) NOT NULL,
-  `budget_max` DECIMAL(12,2) NOT NULL,
-  `bedrooms` INT NOT NULL,
-  `bathrooms` INT NOT NULL,
-  `property_type` VARCHAR(64) NOT NULL,
+  `preferred_locations` TEXT NOT NULL,
+  `budget_min` DECIMAL(12,2) NOT NULL DEFAULT 0,
+  `budget_max` DECIMAL(12,2) NOT NULL DEFAULT 0,
+  `bedrooms` INT NOT NULL DEFAULT 1,
+  `bathrooms` INT NOT NULL DEFAULT 1,
+  `property_type` VARCHAR(64) NOT NULL DEFAULT 'Apartment',
   `move_in_date` VARCHAR(64) DEFAULT NULL,
-  `status` ENUM('submitted', 'searching', 'matched', 'viewing_scheduled', 'completed', 'cancelled') NOT NULL DEFAULT 'submitted',
-  `matched_property_ids` TEXT DEFAULT NULL COMMENT 'JSON array of property IDs',
+  `status` VARCHAR(32) NOT NULL DEFAULT 'submitted',
+  `matched_property_ids` TEXT DEFAULT NULL,
   `assigned_agent` VARCHAR(255) DEFAULT 'Goodlucks Intermediary Desk',
   `notes` TEXT DEFAULT NULL,
-  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
-  KEY `idx_tr_status` (`status`)
+  KEY `idx_tr_status` (`status`),
+  KEY `idx_tr_tenant` (`tenant_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- --------------------------------------------------------
--- 4. VIEWING SCHEDULES TABLE
--- --------------------------------------------------------
-DROP TABLE IF EXISTS `viewing_schedules`;
-CREATE TABLE `viewing_schedules` (
+-- ------------------------------------------------------------
+-- 5. Physical viewing schedules
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `viewing_schedules` (
   `id` VARCHAR(64) NOT NULL,
   `tenant_request_id` VARCHAR(64) DEFAULT NULL,
   `tenant_name` VARCHAR(255) NOT NULL,
   `tenant_phone` VARCHAR(64) NOT NULL,
-  `property_id` VARCHAR(64) NOT NULL,
+  `tenant_email` VARCHAR(255) DEFAULT NULL,
+  `property_id` VARCHAR(64) DEFAULT NULL,
   `property_title` VARCHAR(255) NOT NULL,
   `property_location` VARCHAR(255) NOT NULL,
-  `date` VARCHAR(64) NOT NULL,
+  `date` VARCHAR(32) NOT NULL,
   `time` VARCHAR(32) NOT NULL,
-  `assigned_agent` VARCHAR(255) DEFAULT 'Goodlucks Senior Verification Agent',
-  `status` ENUM('scheduled', 'completed', 'cancelled') NOT NULL DEFAULT 'scheduled',
+  `assigned_agent` VARCHAR(255) DEFAULT 'Goodlucks Field Agent',
+  `status` VARCHAR(32) NOT NULL DEFAULT 'scheduled',
   `viewing_fee_paid` TINYINT(1) NOT NULL DEFAULT 0,
   `fee_amount_ghs` DECIMAL(10,2) NOT NULL DEFAULT 100.00,
   `outcome_notes` TEXT DEFAULT NULL,
-  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `idx_vs_property` (`property_id`),
-  KEY `idx_vs_status` (`status`)
+  KEY `idx_vs_status` (`status`),
+  KEY `idx_vs_email` (`tenant_email`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- --------------------------------------------------------
--- 5. PRICE DROP ALERTS TABLE
--- --------------------------------------------------------
-DROP TABLE IF EXISTS `price_drop_alerts`;
-CREATE TABLE `price_drop_alerts` (
+-- ------------------------------------------------------------
+-- 6. Website enquiries (contact form / property questions)
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `enquiries` (
+  `id` VARCHAR(64) NOT NULL,
+  `property_id` VARCHAR(64) DEFAULT NULL,
+  `property_title` VARCHAR(255) DEFAULT NULL,
+  `name` VARCHAR(255) NOT NULL,
+  `email` VARCHAR(255) NOT NULL,
+  `phone` VARCHAR(64) DEFAULT NULL,
+  `message` TEXT NOT NULL,
+  `source` VARCHAR(32) NOT NULL DEFAULT 'contact_form',
+  `status` VARCHAR(24) NOT NULL DEFAULT 'new',
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_enq_status` (`status`),
+  KEY `idx_enq_property` (`property_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ------------------------------------------------------------
+-- 7. Price drop alerts
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `price_drop_alerts` (
   `id` VARCHAR(64) NOT NULL,
   `property_id` VARCHAR(64) NOT NULL,
   `property_title` VARCHAR(255) NOT NULL,
   `property_location` VARCHAR(255) NOT NULL,
-  `current_rent_ghs` DECIMAL(12,2) NOT NULL,
+  `current_rent_ghs` DECIMAL(12,2) NOT NULL DEFAULT 0,
   `target_rent_ghs` DECIMAL(12,2) DEFAULT NULL,
   `email` VARCHAR(255) NOT NULL,
   `name` VARCHAR(255) DEFAULT NULL,
   `notify_on_any_drop` TINYINT(1) NOT NULL DEFAULT 1,
   `active` TINYINT(1) NOT NULL DEFAULT 1,
-  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `idx_pda_property` (`property_id`),
   KEY `idx_pda_email` (`email`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- --------------------------------------------------------
--- 6. TENANCY AGREEMENTS TABLE
--- --------------------------------------------------------
-DROP TABLE IF EXISTS `tenancy_agreements`;
-CREATE TABLE `tenancy_agreements` (
+-- ------------------------------------------------------------
+-- 8. Search / listing alerts
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `search_alerts` (
   `id` VARCHAR(64) NOT NULL,
+  `user_id` VARCHAR(64) DEFAULT NULL,
+  `email` VARCHAR(255) NOT NULL,
+  `name` VARCHAR(255) DEFAULT NULL,
+  `phone` VARCHAR(64) DEFAULT NULL,
+  `location` VARCHAR(100) DEFAULT 'All',
+  `property_type` VARCHAR(64) DEFAULT 'All',
+  `bedrooms` INT DEFAULT NULL,
+  `max_rent_ghs` DECIMAL(12,2) NOT NULL DEFAULT 0,
+  `search_query` VARCHAR(200) DEFAULT NULL,
+  `frequency` VARCHAR(20) NOT NULL DEFAULT 'instant',
+  `channels` TEXT DEFAULT NULL,
+  `active` TINYINT(1) NOT NULL DEFAULT 1,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_sa_email` (`email`),
+  KEY `idx_sa_user` (`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ------------------------------------------------------------
+-- 9. Saved properties
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `saved_properties` (
+  `user_id` VARCHAR(64) NOT NULL,
   `property_id` VARCHAR(64) NOT NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`user_id`, `property_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ------------------------------------------------------------
+-- 10. Tenancy agreements
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `tenancy_agreements` (
+  `id` VARCHAR(64) NOT NULL,
+  `property_id` VARCHAR(64) DEFAULT NULL,
   `property_title` VARCHAR(255) NOT NULL,
   `property_address` VARCHAR(255) NOT NULL,
+  `city` VARCHAR(100) DEFAULT 'Accra',
   `landlord_name` VARCHAR(255) NOT NULL,
   `landlord_phone` VARCHAR(64) NOT NULL,
-  `landlord_ghana_card` VARCHAR(64) NOT NULL,
+  `landlord_ghana_card` VARCHAR(64) DEFAULT NULL,
   `tenant_name` VARCHAR(255) NOT NULL,
   `tenant_phone` VARCHAR(64) NOT NULL,
-  `tenant_ghana_card` VARCHAR(64) NOT NULL,
+  `tenant_ghana_card` VARCHAR(64) DEFAULT NULL,
   `monthly_rent_ghs` DECIMAL(12,2) NOT NULL,
   `duration_months` INT NOT NULL DEFAULT 12,
   `total_rent_ghs` DECIMAL(12,2) NOT NULL,
-  `security_deposit_ghs` DECIMAL(12,2) NOT NULL,
-  `start_date` VARCHAR(64) NOT NULL,
-  `end_date` VARCHAR(64) NOT NULL,
+  `security_deposit_ghs` DECIMAL(12,2) NOT NULL DEFAULT 0,
+  `start_date` VARCHAR(32) NOT NULL,
+  `end_date` VARCHAR(32) NOT NULL,
   `notice_period_months` INT NOT NULL DEFAULT 3,
   `utilities_responsibility` TEXT DEFAULT NULL,
   `landlord_signed` TINYINT(1) NOT NULL DEFAULT 0,
@@ -165,82 +244,105 @@ CREATE TABLE `tenancy_agreements` (
   `landlord_signature_date` VARCHAR(64) DEFAULT NULL,
   `tenant_signature_date` VARCHAR(64) DEFAULT NULL,
   `witness_name` VARCHAR(255) DEFAULT 'Goodlucks Legal Intermediary',
-  `status` ENUM('draft', 'pending_signatures', 'active', 'expired') NOT NULL DEFAULT 'draft',
+  `status` VARCHAR(32) NOT NULL DEFAULT 'pending_signatures',
   `verification_code` VARCHAR(64) NOT NULL,
-  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   UNIQUE KEY `idx_agree_verif` (`verification_code`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- --------------------------------------------------------
--- 7. RENT RECEIPTS TABLE
--- --------------------------------------------------------
-DROP TABLE IF EXISTS `rent_receipts`;
-CREATE TABLE `rent_receipts` (
+-- ------------------------------------------------------------
+-- 11. Rent receipts
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `rent_receipts` (
   `id` VARCHAR(64) NOT NULL,
   `receipt_no` VARCHAR(64) NOT NULL,
   `property_title` VARCHAR(255) NOT NULL,
   `property_address` VARCHAR(255) NOT NULL,
   `tenant_name` VARCHAR(255) NOT NULL,
-  `tenant_phone` VARCHAR(64) NOT NULL,
+  `tenant_phone` VARCHAR(64) DEFAULT NULL,
   `landlord_name` VARCHAR(255) NOT NULL,
   `amount_ghs` DECIMAL(12,2) NOT NULL,
-  `amount_in_words` TEXT NOT NULL,
-  `payment_purpose` VARCHAR(255) NOT NULL,
-  `payment_method` VARCHAR(64) NOT NULL DEFAULT 'MTN MoMo',
-  `transaction_ref` VARCHAR(128) NOT NULL,
-  `payment_date` VARCHAR(64) NOT NULL,
+  `amount_in_words` TEXT DEFAULT NULL,
+  `payment_purpose` VARCHAR(255) DEFAULT NULL,
+  `payment_method` VARCHAR(64) DEFAULT 'Cash',
+  `transaction_ref` VARCHAR(128) DEFAULT NULL,
+  `payment_date` VARCHAR(32) NOT NULL,
   `issued_by` VARCHAR(255) DEFAULT 'Goodlucks Homes Intermediary Desk',
   `verification_code` VARCHAR(64) NOT NULL,
-  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   UNIQUE KEY `idx_rec_no` (`receipt_no`),
   UNIQUE KEY `idx_rec_verif` (`verification_code`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- --------------------------------------------------------
--- 8. EMAIL LOGS TABLE
--- --------------------------------------------------------
-DROP TABLE IF EXISTS `email_logs`;
-CREATE TABLE `email_logs` (
+-- ------------------------------------------------------------
+-- 12. Transactional email audit log
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `email_logs` (
   `id` VARCHAR(64) NOT NULL,
   `recipient_email` VARCHAR(255) NOT NULL,
-  `recipient_name` VARCHAR(255) NOT NULL,
+  `recipient_name` VARCHAR(255) DEFAULT NULL,
   `subject` VARCHAR(255) NOT NULL,
   `type` VARCHAR(64) NOT NULL,
-  `body_preview` TEXT NOT NULL,
-  `sent_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `status` VARCHAR(32) NOT NULL DEFAULT 'delivered',
-  PRIMARY KEY (`id`)
+  `body_preview` TEXT DEFAULT NULL,
+  `sent_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `status` VARCHAR(32) NOT NULL DEFAULT 'queued',
+  PRIMARY KEY (`id`),
+  KEY `idx_log_sent` (`sent_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- --------------------------------------------------------
--- 9. NOTIFICATIONS TABLE
--- --------------------------------------------------------
-DROP TABLE IF EXISTS `notifications`;
-CREATE TABLE `notifications` (
+-- ------------------------------------------------------------
+-- 13. In-app notifications
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `notifications` (
   `id` VARCHAR(64) NOT NULL,
   `user_id` VARCHAR(64) NOT NULL,
   `title` VARCHAR(255) NOT NULL,
   `message` TEXT NOT NULL,
   `type` VARCHAR(32) NOT NULL DEFAULT 'info',
   `is_read` TINYINT(1) NOT NULL DEFAULT 0,
-  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`)
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_notif_user` (`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ------------------------------------------------------------
+-- 14. Privacy-friendly traffic analytics
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `page_views` (
+  `id` VARCHAR(64) NOT NULL,
+  `path` VARCHAR(255) NOT NULL,
+  `session_hash` VARCHAR(64) NOT NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_pv_created` (`created_at`),
+  KEY `idx_pv_session` (`session_hash`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ------------------------------------------------------------
+-- 15. Rate limiting for sensitive endpoints
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `rate_limits` (
+  `rl_key` VARCHAR(64) NOT NULL,
+  `window_start` BIGINT NOT NULL,
+  `attempts` INT NOT NULL DEFAULT 0,
+  PRIMARY KEY (`rl_key`, `window_start`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 SET FOREIGN_KEY_CHECKS = 1;
 
 -- ============================================================
--- INITIAL SEED DATA (Goodlucks Homes Accra Listings)
+-- SEED DATA - existing Goodlucks Homes Accra listings
+-- INSERT IGNORE keeps re-imports safe on a live database.
 -- ============================================================
 
-INSERT INTO `users` (`id`, `email`, `name`, `role`, `phone`, `avatar`, `address`, `is_verified`) VALUES
+INSERT IGNORE INTO `users` (`id`, `email`, `name`, `role`, `phone`, `avatar`, `address`, `is_verified`) VALUES
 ('user-tenant-1', 'tenant@goodlucks.com', 'Kofi Mensah', 'tenant', '+233 24 412 3456', 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80', 'Cantonments, Accra, Ghana', 1),
 ('user-landlord-1', 'landlord@goodlucks.com', 'Abena Osei', 'landlord', '+233 20 899 7711', 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=300&q=80', 'East Legon, Accra, Ghana', 1),
 ('user-admin-1', 'admin@goodlucks.com', 'Goodlucks Admin', 'admin', '+233 30 299 8800', 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=300&q=80', 'Goodlucks HQ, Ridge, Accra', 1);
 
-INSERT INTO `properties` (`id`, `landlord_id`, `landlord_name`, `landlord_company`, `title`, `location`, `city`, `rent_ghs`, `bedrooms`, `bathrooms`, `property_type`, `status`, `images`, `description`, `amenities`, `availability`, `featured`, `views_count`, `enquiries_count`) VALUES
+INSERT IGNORE INTO `properties` (`id`, `landlord_id`, `landlord_name`, `landlord_company`, `title`, `location`, `city`, `rent_ghs`, `bedrooms`, `bathrooms`, `property_type`, `status`, `images`, `description`, `amenities`, `availability`, `featured`, `views_count`, `enquiries_count`) VALUES
 ('prop-1', 'user-landlord-1', 'Abena Osei', 'Prime Haven Properties Ltd', 'The Pearl Executive 3-Bedroom Apartment', 'Cantonments, Accra', 'Accra', 6500.00, 3, 3, 'Apartment', 'active', 
  '[\"https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=1000&q=80\", \"https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=1000&q=80\", \"https://images.unsplash.com/photo-1613490493576-7fde63acd811?auto=format&fit=crop&w=1000&q=80\"]', 
  'A masterpiece of modern West African architecture located in the elite diplomatic precinct of Cantonments. Features floor-to-ceiling soundproof glass, ultra-sleek fitted Italian kitchen, continuous solar back-up power, olympic-size swimming pool, and 24/7 armed private security guards.', 

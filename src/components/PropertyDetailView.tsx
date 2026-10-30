@@ -36,6 +36,7 @@ const WhatsAppIcon: React.FC<{ className?: string }> = ({ className = "w-5 h-5" 
 export const PropertyDetailView: React.FC = () => {
   const { 
     selectedPropertyId, 
+    selectedProperty,
     properties, 
     setCurrentView, 
     savedPropertyIds, 
@@ -49,7 +50,10 @@ export const PropertyDetailView: React.FC = () => {
   const [showPriceDropModal, setShowPriceDropModal] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  const property = properties.find(p => p.id === selectedPropertyId) || properties[0];
+  const property =
+    selectedProperty ??
+    (selectedPropertyId ? properties.find((p) => p.id === selectedPropertyId) : undefined) ??
+    null;
 
   useEffect(() => {
     if (property) {
@@ -59,7 +63,36 @@ export const PropertyDetailView: React.FC = () => {
     }
   }, [property?.id]);
 
-  if (!property) return null;
+  if (!property) {
+    return (
+      <div className="min-h-[70vh] flex items-center justify-center px-4 py-16 bg-[#252A34] text-white">
+        <div className="max-w-md w-full bg-slate-800/90 border border-white/10 rounded-3xl p-8 text-center space-y-4 animate-fadeIn">
+          <div className="w-14 h-14 rounded-2xl bg-amber-500/15 border border-amber-500/30 text-amber-400 flex items-center justify-center mx-auto">
+            <Building2 className="w-7 h-7" />
+          </div>
+          <h1 className="text-xl font-black text-white">This property is no longer available</h1>
+          <p className="text-xs text-slate-300 leading-relaxed">
+            The listing you are looking for may have been rented or removed by the landlord.
+            Browse our current verified rentals, or ask us to find a similar home for you.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-2 justify-center pt-2">
+            <button
+              onClick={() => setCurrentView('browse')}
+              className="px-5 py-2.5 rounded-xl bg-[#08D9D6] text-[#252A34] font-bold text-xs"
+            >
+              Browse Properties
+            </button>
+            <button
+              onClick={() => setCurrentView('find-home')}
+              className="px-5 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-semibold text-xs border border-white/10"
+            >
+              Find a Home for Me
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const isSaved = savedPropertyIds.includes(property.id);
 

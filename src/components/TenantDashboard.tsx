@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { PropertyCard } from './PropertyCard';
 import { 
   User, 
   Clock, 
+  AlertCircle,
   CheckCircle2, 
   MapPin, 
   Calendar, 
@@ -34,18 +35,32 @@ export const TenantDashboard: React.FC = () => {
     notifications,
     setCurrentView,
     updateUserProfile,
-    navigateToProperty
+    navigateToProperty,
+    showErrorToast,
+    showSuccessToast
   } = useApp();
 
   const [activeTab, setActiveTab] = useState<'requests' | 'matches' | 'viewings' | 'saved' | 'alerts' | 'profile'>('requests');
-  const [profileName, setProfileName] = useState(currentUser?.name || 'Kofi Mensah');
-  const [profilePhone, setProfilePhone] = useState(currentUser?.phone || '+233 24 412 3456');
-  const [profileEmail, setProfileEmail] = useState(currentUser?.email || 'tenant@goodlucks.com');
-  const [profileAddress, setProfileAddress] = useState(currentUser?.address || 'Cantonments, Accra');
+  const [profileName, setProfileName] = useState(currentUser?.name || '');
+  const [profilePhone, setProfilePhone] = useState(currentUser?.phone || '');
+  const [profileEmail, setProfileEmail] = useState(currentUser?.email || '');
+  const [profileAddress, setProfileAddress] = useState(currentUser?.address || '');
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
 
-  const myRequests = tenantRequests.filter(r => r.tenantId === currentUser?.id || r.tenantEmail === currentUser?.email) || tenantRequests;
-  const activeRequest = myRequests[0] || tenantRequests[0];
+  useEffect(() => {
+    if (!currentUser) return;
+    setProfileName(currentUser.name || '');
+    setProfilePhone(currentUser.phone || '');
+    setProfileEmail(currentUser.email || '');
+    setProfileAddress(currentUser.address || '');
+  }, [currentUser]);
+
+  const myRequests = tenantRequests.filter(
+    r => r.tenantId === currentUser?.id || (!!currentUser?.email && r.tenantEmail === currentUser.email)
+  );
+  const activeRequest = myRequests[0];
 
   const myViewings = viewingSchedules.filter(v => v.tenantName === currentUser?.name || v.tenantPhone === currentUser?.phone) || viewingSchedules;
   const savedProps = properties.filter(p => savedPropertyIds.includes(p.id));
@@ -73,16 +88,36 @@ export const TenantDashboard: React.FC = () => {
     return 'upcoming';
   };
 
-  const handleSaveProfile = (e: React.FormEvent) => {
+  const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
-    updateUserProfile({
+    setIsSavingProfile(true);
+    setActionError(null);
+    const result = await updateUserProfile({
       name: profileName,
       phone: profilePhone,
       email: profileEmail,
       address: profileAddress,
     });
+    setIsSavingProfile(false);
+    if (!result.ok) {
+      setActionError(result.error || 'Could not save your profile.');
+      showErrorToast('Profile not saved', result.error || 'Please check your details and try again.');
+      return;
+    }
     setSaveSuccess(true);
+    showSuccessToast('Profile updated', 'Your contact details were saved.');
     setTimeout(() => setSaveSuccess(false), 3000);
+  };
+
+  const handleUnsubscribe = async (alertId: string) => {
+    setActionError(null);
+    try {
+      await unsubscribeFromSearchAlerts(alertId);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Could not remove the alert.';
+      setActionError(message);
+      showErrorToast('Could not remove alert', message);
+    }
   };
 
   const myNotifications = notifications.slice(0, 3);
@@ -90,6 +125,14 @@ export const TenantDashboard: React.FC = () => {
   return (
     <div className="min-h-screen bg-[#1F242D] text-white py-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-7xl mx-auto space-y-6 animate-fadeIn">
+
+        {actionError && (
+          <div role="alert" className="p-3 rounded-xl bg-[#FF2E63]/15 border border-[#FF2E63]/30 text-[#FF8FA8] text-xs flex items-start gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+            <span className="flex-1">{actionError}</span>
+            <button type="button" onClick={() => setActionError(null)} className="font-bold">Dismiss</button>
+          </div>
+        )}
         
         {/* Header Title */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/10 pb-4">
@@ -609,10 +652,10 @@ export const TenantDashboard: React.FC = () => {
 
                       <div className="flex items-center justify-between pt-1">
                         <span className="text-[11px] text-slate-400 flex items-center gap-1">
-                          <Mail className="w-3.5 h-3.5 text-[#08D9D6]" /> Verified Resend Dispatch
+                          <Mail className="w-3.5 h-3.5 text-[#08D9D6]" /> Email alerts active
                         </span>
                         <button
-                          onClick={() => unsubscribeFromSearchAlerts(alert.id)}
+                          onClick={() => void handleUnsubscribe(alert.id)}
                           className="text-xs font-bold text-[#FF2E63] hover:underline"
                         >
                           Remove Alert

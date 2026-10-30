@@ -2,7 +2,22 @@ node_modules/
 build/
 dist/
 coverage/
+.data/
 .DS_Store
 *.log
+
+# Secrets / local configuration (never commit real credentials)
 .env*
 !.env.example
+php-backend/.env
+php-backend/config.local.php
+
+# Local databases & runtime artefacts
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+php-backend/uploads/*
+!php-backend/uploads/.gitignore
+!php-backend/uploads/.htaccess
+php-backend/logs/*
+!php-backend/logs/.gitignore

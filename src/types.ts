@@ -268,6 +268,19 @@ export interface RentReceipt {
   createdAt: string;
 }
 
+export interface Enquiry {
+  id: string;
+  propertyId: string;
+  propertyTitle: string;
+  name: string;
+  email: string;
+  phone: string;
+  message: string;
+  source: 'contact_form' | 'property_page' | string;
+  status: 'new' | 'handled' | string;
+  createdAt: string;
+}
+
 export interface PriceDropAlert {
   id: string;
   propertyId: string;

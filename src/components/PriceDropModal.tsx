@@ -12,8 +12,8 @@ import {
   User,
   ArrowRight
 } from 'lucide-react';
-import { sendEmailViaResend } from '../services/emailService';
-import { submitPriceDropAlertToApi } from '../services/apiService';
+import { AlertCircle } from 'lucide-react';
+import { api, messageForError } from '../services/apiService';
 
 interface PriceDropModalProps {
   property: Property | null;
@@ -26,7 +26,7 @@ export const PriceDropModal: React.FC<PriceDropModalProps> = ({
   isOpen,
   onClose,
 }) => {
-  const { currentUser, showSuccessToast, sendSimulatedEmail } = useApp();
+  const { currentUser, showSuccessToast } = useApp();
 
   const [email, setEmail] = useState('');
   const [userName, setUserName] = useState('');
@@ -34,6 +34,7 @@ export const PriceDropModal: React.FC<PriceDropModalProps> = ({
   const [customTargetRent, setCustomTargetRent] = useState<number | ''>('');
   const [submitted, setSubmitted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // Initialize with user profile if logged in
   useEffect(() => {
@@ -46,6 +47,7 @@ export const PriceDropModal: React.FC<PriceDropModalProps> = ({
       }
       setSubmitted(false);
       setIsSubmitting(false);
+      setError(null);
       if (property) {
         setCustomTargetRent(Math.round(property.rentGhs * 0.9));
       }
@@ -86,99 +88,26 @@ export const PriceDropModal: React.FC<PriceDropModalProps> = ({
 
     const targetRent = getComputedTargetRent();
 
-    const newAlert: PriceDropAlert = {
-      id: `alert-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-      propertyId: property.id,
-      propertyTitle: property.title,
-      propertyLocation: property.location,
-      currentRentGhs: currentRent,
-      targetRentGhs: targetRent,
-      email: email.trim(),
-      name: userName.trim() || undefined,
-      notifyOnAnyDrop: dropPreference === 'any',
-      createdAt: new Date().toISOString(),
-      active: true,
-    };
-
-    // Store in localStorage
+    // The alert is stored in the database by the API, which also sends the
+    // confirmation email. Nothing is written to browser storage.
     try {
-      const stored = localStorage.getItem('goodlucks_price_drop_alerts');
-      const existingAlerts: PriceDropAlert[] = stored ? JSON.parse(stored) : [];
-      // Remove any existing alert for same email & property to prevent duplicates
-      const filtered = existingAlerts.filter(a => !(a.propertyId === property.id && a.email.toLowerCase() === email.toLowerCase()));
-      localStorage.setItem('goodlucks_price_drop_alerts', JSON.stringify([newAlert, ...filtered]));
+      await api.createPriceAlert({
+        email: email.trim(),
+        propertyId: property.id,
+        name: userName.trim() || undefined,
+        targetRentGhs: targetRent,
+        notifyOnAnyDrop: dropPreference === 'any',
+      });
+      setSubmitted(true);
+      showSuccessToast(
+        'Price Alert Active',
+        `We'll email ${email.trim()} if the rent drops for ${property.title}!`
+      );
     } catch (err) {
-      console.error('Failed to save price alert to localStorage:', err);
+      setError(messageForError(err));
+    } finally {
+      setIsSubmitting(false);
     }
-
-    // Submit to cPanel PHP / MySQL API backend
-    submitPriceDropAlertToApi(newAlert).catch(err => console.warn('Backend sync:', err));
-
-    // Trigger confirmation notification email
-    const subject = `Price Drop Alert Confirmed: ${property.title}`;
-    const formattedTarget = targetRent 
-      ? `GH₵ ${targetRent.toLocaleString()}/month`
-      : 'any price reduction';
-
-    const emailHtml = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #252A34; color: #EAEAEA; border-radius: 12px;">
-        <div style="text-align: center; padding-bottom: 20px; border-bottom: 1px solid rgba(255,255,255,0.1);">
-          <h2 style="color: #08D9D6; margin: 0;">Goodlucks Homes</h2>
-          <p style="color: #94A3B8; font-size: 13px; margin: 4px 0 0 0;">Ghana's Trusted Intermediary Rental Platform</p>
-        </div>
-        <div style="padding: 24px 0;">
-          <h3 style="color: #FFFFFF; font-size: 18px; margin-top: 0;">Price Drop Alert Activated</h3>
-          <p style="color: #CBD5E1; line-height: 1.6; font-size: 14px;">
-            Hello ${userName || 'there'},<br/><br/>
-            You have successfully set up a price drop notification for:
-          </p>
-          <div style="background-color: rgba(255,255,255,0.05); padding: 16px; border-radius: 8px; margin: 16px 0; border-left: 4px solid #08D9D6;">
-            <strong style="color: #FFFFFF; font-size: 16px;">${property.title}</strong><br/>
-            <span style="color: #94A3B8; font-size: 13px;">📍 ${property.location}</span><br/>
-            <span style="color: #08D9D6; font-size: 15px; font-weight: bold;">Current Rent: GH₵ ${currentRent.toLocaleString()}/month</span><br/>
-            <span style="color: #38BDF8; font-size: 13px;">Alert Trigger: Below ${formattedTarget}</span>
-          </div>
-          <p style="color: #CBD5E1; line-height: 1.6; font-size: 14px;">
-            Our automated monitoring engine will alert you the moment the rental price decreases. All viewings and contracts remain securely managed through Goodlucks Homes.
-          </p>
-        </div>
-        <div style="border-top: 1px solid rgba(255,255,255,0.1); padding-top: 16px; text-align: center; color: #64748B; font-size: 12px;">
-          Goodlucks Homes Intermediary &middot; Ridge, Accra, Ghana &middot; +233 23 769 0080 &middot; rentals@goodlucks.co
-        </div>
-      </div>
-    `;
-
-    // Send via emailService (tries Resend API with fallback simulation)
-    sendEmailViaResend({
-      to: email.trim(),
-      recipientName: userName.trim() || 'Valued Subscriber',
-      subject,
-      type: 'alert_subscription',
-      data: {
-        location: property.location,
-        propertyType: property.propertyType,
-        bedrooms: property.bedrooms,
-        maxRent: targetRent || currentRent,
-        frequency: 'Instant Alert',
-        channels: 'Email',
-        notes: `Price drop notification registered for ${property.title}. Target threshold: Below ${formattedTarget}.`
-      }
-    }).catch(err => console.warn('Email dispatch notice:', err));
-
-    sendSimulatedEmail(
-      'alert_subscription',
-      email.trim(),
-      userName || 'Subscriber',
-      subject,
-      `Price drop alert confirmed for ${property.title}. You will be notified if rent drops below ${formattedTarget}.`
-    );
-
-    setIsSubmitting(false);
-    setSubmitted(true);
-    showSuccessToast(
-      'Price Alert Active',
-      `We'll email ${email} if the rent drops for ${property.title}!`
-    );
   };
 
   return (
@@ -415,6 +344,13 @@ export const PriceDropModal: React.FC<PriceDropModalProps> = ({
                 <ShieldCheck className="w-4 h-4 text-[#08D9D6] shrink-0" />
                 <span>No spam. We only send notifications if this specific listing drops in price.</span>
               </div>
+
+              {error && (
+                <div role="alert" className="p-3 rounded-xl bg-[#FF2E63]/15 border border-[#FF2E63]/30 text-[#FF8FA8] text-xs flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                  <span>{error}</span>
+                </div>
+              )}
 
               {/* Submit CTA */}
               <button

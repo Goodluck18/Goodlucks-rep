@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
+import { messageForError } from '../services/apiService';
 import { 
   Bell, 
   X, 
@@ -65,7 +66,7 @@ export const GetNotifiedModal: React.FC<GetNotifiedModalProps> = ({
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
 
@@ -75,10 +76,9 @@ export const GetNotifiedModal: React.FC<GetNotifiedModalProps> = ({
     }
 
     setIsSubmitting(true);
-
-    setTimeout(() => {
-      subscribeToSearchAlerts({
-        email,
+    try {
+      await subscribeToSearchAlerts({
+        email: email.trim(),
         name: name || email.split('@')[0],
         phone,
         location,
@@ -89,10 +89,12 @@ export const GetNotifiedModal: React.FC<GetNotifiedModalProps> = ({
         frequency,
         channels,
       });
-
-      setIsSubmitting(false);
       setIsSubmitted(true);
-    }, 600);
+    } catch (err) {
+      setErrorMsg(messageForError(err));
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const formattedLocationStr = location === 'All' ? 'All Suburbs in Greater Accra' : location;
