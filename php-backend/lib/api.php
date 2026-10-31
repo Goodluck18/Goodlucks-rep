@@ -110,8 +110,10 @@ function resolve_route(string $method, string $path): ?array
         ['POST', '#^/agreements$#', 'handle_create_agreement'],
         ['POST', '#^/agreements/([A-Za-z0-9\-_]+)/sign$#', 'handle_sign_agreement'],
         ['POST', '#^/agreements/([A-Za-z0-9\-_]+)/email$#', 'handle_email_agreement'],
+        ['GET',  '#^/agreements/([A-Za-z0-9\-_]+)$#', 'handle_get_agreement'],
         ['GET',  '#^/receipts$#', 'handle_list_receipts'],
         ['POST', '#^/receipts$#', 'handle_create_receipt'],
+        ['GET',  '#^/receipts/([A-Za-z0-9\-_]+)$#', 'handle_get_receipt'],
 
         // --- Notifications ----------------------------------------------
         ['GET',  '#^/notifications$#', 'handle_list_notifications'],
@@ -123,6 +125,7 @@ function resolve_route(string $method, string $path): ?array
         ['GET',  '#^/admin/email-logs$#', 'handle_admin_email_logs'],
         ['POST', '#^/admin/alerts/run$#', 'handle_run_alert_digest'],
         ['POST', '#^/admin/emails/run$#', 'handle_run_email_outbox'],
+        ['GET',  '#^/admin/audit-logs$#', 'handle_list_audit_logs'],
 
         ['GET',  '#^/sitemap\.xml$#', 'handle_sitemap'],
 
@@ -805,6 +808,11 @@ function handle_delete_property(array $params): void
     // removing the listing from public view.
     update_property($id, ['status' => 'deactivated']);
 
+    audit_log('property.deleted', 'property', $id, [
+        'purge' => query_param('purge') === '1',
+        'asRole' => (string)$user['role'],
+    ]);
+
     if ($user['role'] === 'admin' && query_param('purge') === '1') {
         db_exec('DELETE FROM saved_properties WHERE property_id = :id', [':id' => $id]);
         db_exec('DELETE FROM properties WHERE id = :id', [':id' => $id]);
@@ -831,6 +839,11 @@ function handle_property_status(array $params): void
     $wasActive = ((string)($row['status'] ?? '')) === 'active';
 
     update_property($id, ['status' => $status]);
+
+    audit_log('property.status_changed', 'property', $id, [
+        'from' => (string)($row['status'] ?? ''),
+        'to'   => $status,
+    ]);
 
     // Going live is the moment saved searches should hear about it.
     if ($status === 'active' && !$wasActive) {
@@ -907,6 +920,10 @@ function handle_property_verify(array $params): void
     }
 
     update_property($id, ['is_landlord_verified' => $verified ? 1 : 0]);
+
+    audit_log('property.verification_changed', 'property', $id, [
+        'verified' => $verified,
+    ]);
     $updated = find_property($id);
 
     json_response([
@@ -927,6 +944,8 @@ function handle_property_feature(array $params): void
     $input = request_json();
     $featured = array_key_exists('featured', $input) ? (bool)$input['featured'] : !((bool)$row['featured']);
     update_property($id, ['featured' => $featured]);
+
+    audit_log('property.featured_changed', 'property', $id, ['featured' => $featured]);
     $updated = find_property($id);
     json_response(['success' => true, 'property' => $updated ? shape_property($updated) : null]);
 }
@@ -1065,9 +1084,15 @@ function handle_serve_upload(array $params): void
         error_response('File not found.', 404);
     }
     $path = rtrim(UPLOAD_DIR, '/') . '/' . $name;
-    if (!is_file($path)) {
+    // Resolve and confirm the file really sits inside the public uploads
+    // directory. Private documents live in PRIVATE_UPLOAD_DIR and are only
+    // reachable through serve_private_document(), never here.
+    $root = realpath(rtrim(UPLOAD_DIR, '/'));
+    $real = realpath($path);
+    if ($root === false || $real === false || !str_starts_with($real, $root . DIRECTORY_SEPARATOR) || !is_file($real)) {
         error_response('File not found.', 404);
     }
+    $path = $real;
     $mime = (new finfo(FILEINFO_MIME_TYPE))->file($path) ?: 'application/octet-stream';
     $allowed = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
     if (!in_array($mime, $allowed, true)) {
@@ -1112,6 +1137,11 @@ function handle_update_enquiry(array $params): void
 
     db_exec('UPDATE enquiries SET status = :status WHERE id = :id', [':status' => $status, ':id' => $id]);
     $updated = db_one('SELECT * FROM enquiries WHERE id = :id LIMIT 1', [':id' => $id]);
+
+    audit_log('enquiry.status_changed', 'enquiry', $id, [
+        'from' => (string)($row['status'] ?? ''),
+        'to'   => $status,
+    ]);
 
     json_response([
         'success' => true,
@@ -1740,8 +1770,35 @@ function handle_unsave_property(array $params): void
 // ===========================================================================
 function handle_list_agreements(): void
 {
-    require_auth(['admin', 'landlord', 'tenant']);
-    json_response(['success' => true, 'agreements' => list_agreements(200)]);
+    $user = require_auth(['admin', 'landlord', 'tenant']);
+    json_response(['success' => true, 'agreements' => list_agreements($user, 200)]);
+}
+
+/**
+ * One agreement, with identity numbers revealed to its two parties.
+ *
+ * Staff reads reveal the same fields but are recorded in the audit trail,
+ * because a Ghana Card number is personal data.
+ */
+function handle_get_agreement(array $params): void
+{
+    $user = require_auth(['admin', 'landlord', 'tenant']);
+    $row = find_agreement((string)($params[0] ?? ''));
+    if (!$row) {
+        error_response('Agreement not found.', 404);
+    }
+    if (!user_can_read_agreement($user, $row)) {
+        error_response('You do not have access to this agreement.', 403);
+    }
+
+    $isParty = user_is_agreement_landlord($user, $row) || user_is_agreement_tenant($user, $row);
+    if (!$isParty) {
+        audit_log('agreement.identity_viewed', 'agreement', (string)$row['id'], [
+            'fields' => ['landlordGhanaCard', 'tenantGhanaCard'],
+        ]);
+    }
+
+    json_response(['success' => true, 'agreement' => shape_agreement($row, $user, true)]);
 }
 
 function handle_create_agreement(): void
@@ -1773,16 +1830,47 @@ function handle_create_agreement(): void
         error_response('Please correct the highlighted fields.', 422, $validator->errors());
     }
 
+    $propertyId = clean_string($input['propertyId'] ?? '', 64);
+    $landlordPhone = clean_string($input['landlordPhone'], 40);
+    $tenantPhone = clean_string($input['tenantPhone'], 40);
+
+    // A landlord may only attach their own listing; everyone else keeps the
+    // free-text address and no property link (no forged ownership).
+    $property = $propertyId !== '' ? find_property($propertyId) : null;
+    if ($property && !can_manage_property($user, $property)) {
+        if ($user['role'] === 'landlord') {
+            error_response('You can only create agreements for your own properties.', 403);
+        }
+        $propertyId = '';
+    }
+
+    // Link the parties the server can identify: the creator when they are a
+    // party, otherwise a unique phone match on a user holding that role.
+    $landlordUserId = $user['role'] === 'landlord' ? (string)$user['id'] : null;
+    $tenantUserId = $user['role'] === 'tenant' ? (string)$user['id'] : null;
+    if ($landlordUserId === null) {
+        $match = find_user_by_phone($landlordPhone);
+        if ($match && ($match['role'] ?? '') === 'landlord') {
+            $landlordUserId = (string)$match['id'];
+        }
+    }
+    if ($tenantUserId === null) {
+        $match = find_user_by_phone($tenantPhone);
+        if ($match && ($match['role'] ?? '') === 'tenant') {
+            $tenantUserId = (string)$match['id'];
+        }
+    }
+
     $agreement = create_agreement([
-        'property_id'      => clean_string($input['propertyId'] ?? '', 64),
+        'property_id'      => $propertyId,
         'property_title'   => clean_string($input['propertyTitle'], 200),
         'property_address' => clean_string($input['propertyAddress'], 255),
         'city'             => clean_string($input['city'] ?? 'Accra', 100),
         'landlord_name'    => clean_string($input['landlordName'], 120),
-        'landlord_phone'   => clean_string($input['landlordPhone'], 40),
+        'landlord_phone'   => $landlordPhone,
         'landlord_ghana_card' => clean_string($input['landlordGhanaCard'] ?? '', 60),
         'tenant_name'      => clean_string($input['tenantName'], 120),
-        'tenant_phone'     => clean_string($input['tenantPhone'], 40),
+        'tenant_phone'     => $tenantPhone,
         'tenant_ghana_card'=> clean_string($input['tenantGhanaCard'] ?? '', 60),
         'monthly_rent_ghs' => $rent,
         'duration_months'  => $duration,
@@ -1793,6 +1881,14 @@ function handle_create_agreement(): void
         'notice_period_months' => valid_int($input['noticePeriodMonths'] ?? 3, 0, 24) ?? 3,
         'utilities_responsibility' => $input['utilitiesResponsibility'] ?? '',
         'witness_name'     => $input['witnessName'] ?? 'Goodlucks Legal Intermediary',
+        'landlord_user_id' => $landlordUserId,
+        'tenant_user_id'   => $tenantUserId,
+    ]);
+
+    audit_log('agreement.created', 'agreement', (string)($agreement['id'] ?? ''), [
+        'propertyId' => $propertyId,
+        'landlordLinked' => $landlordUserId !== null,
+        'tenantLinked' => $tenantUserId !== null,
     ]);
 
     json_response(['success' => true, 'agreement' => $agreement], 201);
@@ -1806,13 +1902,25 @@ function handle_sign_agreement(array $params): void
     if ($role === null) {
         error_response('Signature role must be landlord or tenant.', 422);
     }
-    if ($user['role'] !== 'admin' && $user['role'] !== $role) {
-        error_response('You can only sign as your own account role.', 403);
+
+    $row = find_agreement($id);
+    if (!$row) {
+        error_response('Agreement not found.', 404);
     }
-    $agreement = sign_agreement_by_id($id, $role);
+
+    // Signing is a personal act: the caller must be the party named on the
+    // agreement. Administrators cannot sign on anybody's behalf.
+    if (!user_can_sign_agreement($user, $row, $role)) {
+        error_response('You can only sign this agreement as the party you are.', 403);
+    }
+
+    $agreement = sign_agreement_by_id($id, $role, $user);
     if ($agreement === null) {
         error_response('Agreement not found.', 404);
     }
+
+    audit_log('agreement.signed', 'agreement', $id, ['role' => $role]);
+
     json_response(['success' => true, 'agreement' => $agreement]);
 }
 
@@ -1825,11 +1933,14 @@ function handle_email_agreement(array $params): void
     enforce_rate_limit('agreement-email', 20, 3600);
 
     $id = (string)($params[0] ?? '');
-    $row = db_one('SELECT * FROM tenancy_agreements WHERE id = :id LIMIT 1', [':id' => $id]);
+    $row = find_agreement($id);
     if (!$row) {
         error_response('Agreement not found.', 404);
     }
-    $agreement = shape_agreement($row);
+    if (!user_can_read_agreement($user, $row)) {
+        error_response('You do not have access to this agreement.', 403);
+    }
+    $agreement = shape_agreement($row, $user);
 
     $body = '<p style="color:#CBD5E1;font-size:14px;">A copy of the tenancy agreement is below.</p>'
         . '<div style="background:#252A34;padding:16px;border-radius:8px;border-left:4px solid #08D9D6;margin:15px 0;">'
@@ -1854,13 +1965,32 @@ function handle_email_agreement(array $params): void
         'Tenancy agreement ' . $agreement['verificationCode']
     );
 
+    audit_log('agreement.emailed', 'agreement', $id, ['recipient' => (string)$user['email']]);
+
     json_response(['success' => true, 'message' => 'Agreement email dispatched.']);
 }
 
 function handle_list_receipts(): void
 {
-    require_auth(['admin', 'landlord', 'tenant']);
-    json_response(['success' => true, 'receipts' => list_receipts(200)]);
+    $user = require_auth(['admin', 'landlord', 'tenant']);
+    json_response(['success' => true, 'receipts' => list_receipts($user, 200)]);
+}
+
+/**
+ * One receipt, scoped to the people it concerns.
+ *
+ * Unauthorised callers get 404 rather than 403 so receipt ids cannot be probed
+ * for existence.
+ */
+function handle_get_receipt(array $params): void
+{
+    $user = require_auth(['admin', 'landlord', 'tenant']);
+    $row = find_receipt((string)($params[0] ?? ''));
+    if (!$row || !user_can_read_receipt($user, $row)) {
+        error_response('Receipt not found.', 404);
+    }
+
+    json_response(['success' => true, 'receipt' => shape_receipt($row)]);
 }
 
 function handle_create_receipt(): void
@@ -1885,11 +2015,23 @@ function handle_create_receipt(): void
         error_response('Please correct the highlighted fields.', 422, $validator->errors());
     }
 
+    $tenantPhone = clean_string($input['tenantPhone'] ?? '', 40);
+
+    // Landlords issue receipts against themselves; the tenant is linked when
+    // their phone number belongs to a tenant account (so receipts are scoped
+    // to the people they concern without any name matching).
+    $landlordUserId = $user['role'] === 'landlord' ? (string)$user['id'] : null;
+    $tenantUserId = null;
+    $tenantMatch = find_user_by_phone($tenantPhone);
+    if ($tenantMatch && ($tenantMatch['role'] ?? '') === 'tenant') {
+        $tenantUserId = (string)$tenantMatch['id'];
+    }
+
     $receipt = create_receipt([
         'property_title'   => clean_string($input['propertyTitle'], 200),
         'property_address' => clean_string($input['propertyAddress'], 255),
         'tenant_name'      => clean_string($input['tenantName'], 120),
-        'tenant_phone'     => clean_string($input['tenantPhone'] ?? '', 40),
+        'tenant_phone'     => $tenantPhone,
         'landlord_name'    => clean_string($input['landlordName'], 120),
         'amount_ghs'       => $amount,
         'amount_in_words'  => $input['amountInWords'] ?? '',
@@ -1898,6 +2040,14 @@ function handle_create_receipt(): void
         'transaction_ref'  => $input['transactionRef'] ?? '',
         'payment_date'     => valid_date_iso($input['paymentDate'] ?? null) ?? gmdate('Y-m-d'),
         'issued_by'        => $input['issuedBy'] ?? (string)$user['name'],
+        'landlord_user_id' => $landlordUserId,
+        'tenant_user_id'   => $tenantUserId,
+    ]);
+
+    audit_log('receipt.issued', 'receipt', (string)($receipt['id'] ?? ''), [
+        'receiptNo' => $receipt['receiptNo'] ?? '',
+        'amountGhs' => $receipt['amountGhs'] ?? null,
+        'issuedBy'  => $receipt['issuedBy'] ?? '',
     ]);
 
     json_response(['success' => true, 'receipt' => $receipt], 201);
@@ -1978,6 +2128,32 @@ function handle_admin_email_logs(): void
 }
 
 /**
+ * Read the audit trail (admin only).
+ *
+ * Filters: entityType, entityId, action, actorId, limit (1-500).
+ */
+function handle_list_audit_logs(): void
+{
+    require_admin();
+
+    $limit = (int)query_param('limit', 200);
+    $limit = max(1, min(500, $limit));
+
+    $filters = [];
+    foreach (['entityType', 'entityId', 'action', 'actorId'] as $key) {
+        $value = query_param($key);
+        if ($value !== null && $value !== '') {
+            $filters[$key] = clean_string((string)$value, 64);
+        }
+    }
+
+    json_response([
+        'success' => true,
+        'logs'    => list_audit_logs($filters, $limit),
+    ]);
+}
+
+/**
  * Drain the email outbox immediately.
  *
  * Shared hosting often has no shell cron; this lets an admin push queued mail
@@ -1989,6 +2165,12 @@ function handle_run_email_outbox(): void
     enforce_rate_limit('email-outbox-run', 20, 3600);
 
     $result = process_email_outbox(50, 25.0);
+
+    audit_log('email_outbox.run', 'email_outbox', '', [
+        'sent'    => $result['sent'],
+        'retried' => $result['retried'],
+        'failed'  => $result['failed'],
+    ]);
 
     $message = $result['sent'] . ' email(s) sent';
     if ($result['retried'] > 0) {

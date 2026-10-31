@@ -126,6 +126,13 @@ define('UPLOAD_DIR', (string)cfg('UPLOAD_DIR', GL_ROOT . '/uploads'));
 define('UPLOAD_MAX_BYTES', (int)cfg('UPLOAD_MAX_BYTES', 8 * 1024 * 1024)); // 8 MB
 define('UPLOAD_URL_PATH', (string)cfg('UPLOAD_URL_PATH', '/api/uploads'));
 
+/**
+ * Private document store: identity documents and other personal data live
+ * here, outside the publicly served uploads directory, and are only ever
+ * streamed through an authenticated endpoint (see lib/private_storage.php).
+ */
+define('PRIVATE_UPLOAD_DIR', (string)cfg('PRIVATE_UPLOAD_DIR', GL_ROOT . '/storage/private'));
+
 define('SESSION_COOKIE', 'gl_session');
 define('SESSION_TTL_SECONDS', (int)cfg('SESSION_TTL_SECONDS', 60 * 60 * 24 * 7)); // 7 days
 define('VIEWING_FEE_GHS', (float)cfg('VIEWING_FEE_GHS', 100));
@@ -134,8 +141,10 @@ require_once GL_ROOT . '/lib/http.php';
 require_once GL_ROOT . '/lib/db.php';
 require_once GL_ROOT . '/lib/validate.php';
 require_once GL_ROOT . '/lib/auth.php';
+require_once GL_ROOT . '/lib/audit.php';
 require_once GL_ROOT . '/lib/mailer.php';
 require_once GL_ROOT . '/lib/outbox.php';
 require_once GL_ROOT . '/lib/repository.php';
+require_once GL_ROOT . '/lib/private_storage.php';
 require_once GL_ROOT . '/lib/alerts.php';
 require_once GL_ROOT . '/lib/api.php';

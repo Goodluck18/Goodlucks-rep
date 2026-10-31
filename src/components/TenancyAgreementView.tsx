@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { SEOHead } from './SEOHead';
 import { api } from '../services/apiService';
@@ -142,6 +142,29 @@ export const TenancyAgreementView: React.FC = () => {
 
   // Saved Active Agreement for preview/actions
   const [previewAgreement, setPreviewAgreement] = useState<TenancyAgreement | null>(agreements[0] || null);
+
+  // List responses withhold identity numbers from staff. When a staff member
+  // opens such a document, fetch the single-agreement detail so the printed
+  // contract is complete (the server records that read in the audit trail).
+  const hydratedAgreementIds = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    const target = previewAgreement || agreements[0];
+    if (!target || !target.idsMasked || hydratedAgreementIds.current.has(target.id)) return;
+    hydratedAgreementIds.current.add(target.id);
+
+    let cancelled = false;
+    api.getAgreement(target.id)
+      .then(({ agreement }) => {
+        if (!cancelled && agreement) setPreviewAgreement(agreement);
+      })
+      .catch(() => {
+        // Detail read is best-effort: the masked document stays on screen.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [previewAgreement, agreements]);
 
   // --- RECEIPT FORM STATE ---
   const [recTenantName, setRecTenantName] = useState(currentUser?.name || 'Kofi Mensah');

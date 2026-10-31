@@ -53,6 +53,7 @@ before(async () => {
     EMAIL_TRANSPORT: 'none',
   };
   server = await startApiServer({ port, env, quiet: true });
+  state.testEnv = env;
   baseUrl = server.baseUrl;
 
   const bootstrap = runPhpScript(
@@ -806,6 +807,329 @@ describe('Agreements & receipts', () => {
     assert.equal(res.status, 201);
     assert.match(res.body.receipt.receiptNo, /^GHL-REC-/);
     assert.match(res.body.receipt.verificationCode, /^VERIFIED-REC-/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+describe('Agreement & receipt access control', () => {
+  const access = {};
+  const clients = {};
+
+  // Accounts are inserted directly (tests/create-user.php) so the suite does not
+  // consume the per-IP registration budget the other suites rely on; the party
+  // then signs in through the real login endpoint.
+  const createParty = async (key, { name, phone, role }) => {
+    const email = uniqueEmail(key);
+    const script = runPhpScript(
+      'tests/create-user.php',
+      [
+        `--email=${email}`,
+        '--password=Access-Control-Pass-123',
+        `--name=${name}`,
+        `--role=${role}`,
+        `--phone=${phone}`,
+      ],
+      state.testEnv
+    );
+    assert.equal(script.status, 0, `${key} creation failed: ${script.stdout} ${script.stderr}`);
+
+    const client = new ApiClient(baseUrl);
+    const login = await client.post('/api/auth/login', { email, password: 'Access-Control-Pass-123' });
+    assert.equal(login.status, 200, `${key} login failed: ${JSON.stringify(login.body)}`);
+    clients[key] = client;
+    return login.body.user;
+  };
+
+  before(async () => {
+    // Reuse the suite's signed-in administrator instead of spending another
+    // admin-login attempt against the per-email rate limit.
+    access.admin = admin;
+
+    access.landlordA = await createParty('access-landlord-a', {
+      name: 'Access Landlord A',
+      phone: '+233 20 900 0001',
+      role: 'landlord',
+    });
+    access.tenantA = await createParty('access-tenant-a', {
+      name: 'Access Tenant A',
+      phone: '+233 24 900 0002',
+      role: 'tenant',
+    });
+    access.landlordB = await createParty('access-landlord-b', {
+      name: 'Access Landlord B',
+      phone: '+233 20 900 0003',
+      role: 'landlord',
+    });
+    access.tenantB = await createParty('access-tenant-b', {
+      name: 'Access Tenant B',
+      phone: '+233 24 900 0004',
+      role: 'tenant',
+    });
+
+    const imageForm = new FormData();
+    imageForm.append('file', new Blob([createPng(120, 90)], { type: 'image/png' }), 'access.png');
+    const upload = await clients['access-landlord-a'].request('POST', '/api/uploads', { body: imageForm });
+    assert.equal(upload.status, 201, `upload failed: ${JSON.stringify(upload.body)}`);
+
+    const property = await clients['access-landlord-a'].post('/api/properties', {
+      title: 'Access Control Test Apartment',
+      location: 'Osu, Accra',
+      city: 'Accra',
+      rentGhs: 4200,
+      bedrooms: 2,
+      bathrooms: 1,
+      propertyType: 'Apartment',
+      description: 'Listing created by the access-control suite.',
+      images: [upload.body.urls[0]],
+    });
+    assert.equal(property.status, 201, `property creation failed: ${JSON.stringify(property.body)}`);
+    access.propertyId = property.body.property.id;
+
+    const agreement = await access.admin.post('/api/agreements', {
+      propertyTitle: 'Access Control Test Apartment',
+      propertyAddress: 'Osu, Accra',
+      city: 'Accra',
+      landlordName: 'Access Landlord A',
+      landlordPhone: '+233 20 900 0001',
+      landlordGhanaCard: 'GHA-900000001-1',
+      tenantName: 'Access Tenant A',
+      tenantPhone: '+233 24 900 0002',
+      tenantGhanaCard: 'GHA-900000002-2',
+      monthlyRentGhs: 4200,
+      durationMonths: 12,
+      securityDepositGhs: 4200,
+    });
+    assert.equal(agreement.status, 201, `agreement creation failed: ${JSON.stringify(agreement.body)}`);
+    access.agreementId = agreement.body.agreement.id;
+  });
+
+  test('the agreement list is scoped to the parties and staff', async () => {
+    const mine = await clients['access-tenant-a'].get('/api/agreements');
+    assert.equal(mine.status, 200);
+    assert.ok(mine.body.agreements.some((a) => a.id === access.agreementId));
+
+    const landlordMine = await clients['access-landlord-a'].get('/api/agreements');
+    assert.equal(landlordMine.status, 200);
+    assert.ok(landlordMine.body.agreements.some((a) => a.id === access.agreementId));
+
+    const strangerTenant = await clients['access-tenant-b'].get('/api/agreements');
+    assert.equal(strangerTenant.status, 200);
+    assert.ok(!strangerTenant.body.agreements.some((a) => a.id === access.agreementId));
+
+    const strangerLandlord = await clients['access-landlord-b'].get('/api/agreements');
+    assert.equal(strangerLandlord.status, 200);
+    assert.ok(!strangerLandlord.body.agreements.some((a) => a.id === access.agreementId));
+
+    const staff = await access.admin.get('/api/agreements');
+    assert.equal(staff.status, 200);
+    assert.ok(staff.body.agreements.some((a) => a.id === access.agreementId));
+  });
+
+  test('identity numbers are masked in staff lists and shown to the parties', async () => {
+    const staff = await access.admin.get('/api/agreements');
+    const staffRow = staff.body.agreements.find((a) => a.id === access.agreementId);
+    assert.equal(staffRow.idsMasked, true);
+    assert.notEqual(staffRow.landlordGhanaCard, 'GHA-900000001-1');
+    assert.ok(staffRow.landlordGhanaCard.includes('••'));
+    assert.ok(!JSON.stringify(staff.body.agreements).includes('GHA-900000001-1'));
+
+    const party = await clients['access-tenant-a'].get('/api/agreements');
+    const partyRow = party.body.agreements.find((a) => a.id === access.agreementId);
+    assert.equal(partyRow.idsMasked, false);
+    assert.equal(partyRow.landlordGhanaCard, 'GHA-900000001-1');
+    assert.equal(partyRow.tenantGhanaCard, 'GHA-900000002-2');
+  });
+
+  test('a single agreement is only readable by its parties and staff', async () => {
+    const party = await clients['access-tenant-a'].get(`/api/agreements/${access.agreementId}`);
+    assert.equal(party.status, 200);
+    assert.equal(party.body.agreement.id, access.agreementId);
+
+    const strangerTenant = await clients['access-tenant-b'].get(`/api/agreements/${access.agreementId}`);
+    assert.equal(strangerTenant.status, 403);
+
+    const strangerLandlord = await clients['access-landlord-b'].get(`/api/agreements/${access.agreementId}`);
+    assert.equal(strangerLandlord.status, 403);
+
+    const anonymous = await guest.get(`/api/agreements/${access.agreementId}`);
+    assert.equal(anonymous.status, 401);
+
+    const missing = await clients['access-tenant-a'].get('/api/agreements/does-not-exist');
+    assert.equal(missing.status, 404);
+
+    // Staff reads reveal the identity numbers, and are recorded.
+    const staff = await access.admin.get(`/api/agreements/${access.agreementId}`);
+    assert.equal(staff.status, 200);
+    assert.equal(staff.body.agreement.idsMasked, false);
+    assert.equal(staff.body.agreement.landlordGhanaCard, 'GHA-900000001-1');
+  });
+
+  test('only a named party can sign, and never an administrator', async () => {
+    const wrongLandlord = await clients['access-landlord-b'].post(
+      `/api/agreements/${access.agreementId}/sign`,
+      { role: 'landlord' }
+    );
+    assert.equal(wrongLandlord.status, 403);
+
+    const wrongTenant = await clients['access-tenant-b'].post(
+      `/api/agreements/${access.agreementId}/sign`,
+      { role: 'tenant' }
+    );
+    assert.equal(wrongTenant.status, 403);
+
+    const staffAsTenant = await access.admin.post(`/api/agreements/${access.agreementId}/sign`, {
+      role: 'tenant',
+    });
+    assert.equal(staffAsTenant.status, 403);
+
+    const staffAsLandlord = await access.admin.post(`/api/agreements/${access.agreementId}/sign`, {
+      role: 'landlord',
+    });
+    assert.equal(staffAsLandlord.status, 403);
+
+    const tenantSigns = await clients['access-tenant-a'].post(
+      `/api/agreements/${access.agreementId}/sign`,
+      { role: 'tenant' }
+    );
+    assert.equal(tenantSigns.status, 200);
+    assert.equal(tenantSigns.body.agreement.tenantSigned, true);
+
+    const landlordSigns = await clients['access-landlord-a'].post(
+      `/api/agreements/${access.agreementId}/sign`,
+      { role: 'landlord' }
+    );
+    assert.equal(landlordSigns.status, 200);
+    assert.equal(landlordSigns.body.agreement.landlordSigned, true);
+    assert.equal(landlordSigns.body.agreement.status, 'active');
+  });
+
+  test('agreement emails are limited to the parties and staff', async () => {
+    const stranger = await clients['access-tenant-b'].post(
+      `/api/agreements/${access.agreementId}/email`,
+      {}
+    );
+    assert.equal(stranger.status, 403);
+
+    const strangerLandlord = await clients['access-landlord-b'].post(
+      `/api/agreements/${access.agreementId}/email`,
+      {}
+    );
+    assert.equal(strangerLandlord.status, 403);
+
+    const party = await clients['access-landlord-a'].post(
+      `/api/agreements/${access.agreementId}/email`,
+      {}
+    );
+    assert.equal(party.status, 200);
+
+    const staff = await access.admin.post(`/api/agreements/${access.agreementId}/email`, {});
+    assert.equal(staff.status, 200);
+  });
+
+  test('a landlord cannot attach another landlord\'s property to an agreement', async () => {
+    const res = await clients['access-landlord-b'].post('/api/agreements', {
+      propertyId: access.propertyId,
+      propertyTitle: 'Access Control Test Apartment',
+      propertyAddress: 'Osu, Accra',
+      landlordName: 'Access Landlord B',
+      landlordPhone: '+233 20 900 0003',
+      tenantName: 'Access Tenant B',
+      tenantPhone: '+233 24 900 0004',
+      monthlyRentGhs: 4200,
+      durationMonths: 12,
+    });
+    assert.equal(res.status, 403);
+  });
+
+  test('receipts are scoped to the tenant, issuing landlord and staff', async () => {
+    const issued = await clients['access-landlord-a'].post('/api/receipts', {
+      propertyTitle: 'Access Control Test Apartment',
+      propertyAddress: 'Osu, Accra',
+      tenantName: 'Access Tenant A',
+      tenantPhone: '+233 24 900 0002',
+      landlordName: 'Access Landlord A',
+      amountGhs: 4200,
+      paymentPurpose: 'Monthly rent',
+      paymentMethod: 'MTN MoMo',
+    });
+    assert.equal(issued.status, 201, JSON.stringify(issued.body));
+    access.receiptId = issued.body.receipt.id;
+
+    const tenantSees = await clients['access-tenant-a'].get('/api/receipts');
+    assert.equal(tenantSees.status, 200);
+    assert.ok(tenantSees.body.receipts.some((r) => r.id === access.receiptId));
+
+    const strangerTenant = await clients['access-tenant-b'].get('/api/receipts');
+    assert.ok(!strangerTenant.body.receipts.some((r) => r.id === access.receiptId));
+
+    const issuingLandlord = await clients['access-landlord-a'].get('/api/receipts');
+    assert.ok(issuingLandlord.body.receipts.some((r) => r.id === access.receiptId));
+
+    const strangerLandlord = await clients['access-landlord-b'].get('/api/receipts');
+    assert.ok(!strangerLandlord.body.receipts.some((r) => r.id === access.receiptId));
+
+    const staff = await access.admin.get('/api/receipts');
+    assert.ok(staff.body.receipts.some((r) => r.id === access.receiptId));
+
+    const partyById = await clients['access-tenant-a'].get(`/api/receipts/${access.receiptId}`);
+    assert.equal(partyById.status, 200);
+    assert.equal(partyById.body.receipt.id, access.receiptId);
+
+    // Strangers get 404, not 403, so ids cannot be probed for existence.
+    const strangerById = await clients['access-tenant-b'].get(`/api/receipts/${access.receiptId}`);
+    assert.equal(strangerById.status, 404);
+
+    const strangerLandlordById = await clients['access-landlord-b'].get(
+      `/api/receipts/${access.receiptId}`
+    );
+    assert.equal(strangerLandlordById.status, 404);
+
+    const staffById = await access.admin.get(`/api/receipts/${access.receiptId}`);
+    assert.equal(staffById.status, 200);
+  });
+
+  test('sensitive actions land in the audit trail without identity numbers', async () => {
+    const res = await access.admin.get(
+      `/api/admin/audit-logs?entityType=agreement&entityId=${encodeURIComponent(access.agreementId)}&limit=200`
+    );
+    assert.equal(res.status, 200);
+    const actions = res.body.logs.map((log) => log.action);
+    for (const expected of ['agreement.created', 'agreement.signed', 'agreement.emailed', 'agreement.identity_viewed']) {
+      assert.ok(actions.includes(expected), `missing audit action ${expected}`);
+    }
+
+    const serialised = JSON.stringify(res.body.logs);
+    assert.ok(!serialised.includes('GHA-900000001-1'));
+    assert.ok(!serialised.includes('GHA-900000002-2'));
+
+    const receipts = await access.admin.get(
+      `/api/admin/audit-logs?entityType=receipt&entityId=${encodeURIComponent(access.receiptId)}`
+    );
+    assert.ok(receipts.body.logs.some((log) => log.action === 'receipt.issued'));
+
+    const staffOnly = await clients['access-landlord-a'].get('/api/admin/audit-logs');
+    assert.equal(staffOnly.status, 403);
+
+    const anonymous = await guest.get('/api/admin/audit-logs');
+    assert.equal(anonymous.status, 401);
+  });
+
+  test('private documents are not reachable through the public uploads route', async () => {
+    const privateDir = path.join(projectRoot, 'php-backend', 'storage', 'private');
+    fs.mkdirSync(privateDir, { recursive: true });
+    const name = `private-proof-${Date.now()}.png`;
+    const filePath = path.join(privateDir, name);
+    fs.writeFileSync(filePath, createPng(60, 60));
+
+    try {
+      const leaked = await guest.get(`/api/uploads/${name}`);
+      assert.equal(leaked.status, 404);
+
+      const traversal = await guest.get('/api/uploads/..%2Fconfig.php');
+      assert.equal(traversal.status, 404);
+    } finally {
+      fs.rmSync(filePath, { force: true });
+    }
   });
 });
 

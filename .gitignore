@@ -21,3 +21,6 @@ php-backend/uploads/*
 !php-backend/uploads/.htaccess
 php-backend/logs/*
 !php-backend/logs/.gitignore
+php-backend/storage/private/*
+!php-backend/storage/private/.gitignore
+!php-backend/storage/private/.htaccess

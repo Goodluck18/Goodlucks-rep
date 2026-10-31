@@ -227,9 +227,11 @@ CREATE TABLE IF NOT EXISTS `tenancy_agreements` (
   `city` VARCHAR(100) DEFAULT 'Accra',
   `landlord_name` VARCHAR(255) NOT NULL,
   `landlord_phone` VARCHAR(64) NOT NULL,
+  `landlord_user_id` VARCHAR(64) DEFAULT NULL,
   `landlord_ghana_card` VARCHAR(64) DEFAULT NULL,
   `tenant_name` VARCHAR(255) NOT NULL,
   `tenant_phone` VARCHAR(64) NOT NULL,
+  `tenant_user_id` VARCHAR(64) DEFAULT NULL,
   `tenant_ghana_card` VARCHAR(64) DEFAULT NULL,
   `monthly_rent_ghs` DECIMAL(12,2) NOT NULL,
   `duration_months` INT NOT NULL DEFAULT 12,
@@ -261,7 +263,9 @@ CREATE TABLE IF NOT EXISTS `rent_receipts` (
   `property_address` VARCHAR(255) NOT NULL,
   `tenant_name` VARCHAR(255) NOT NULL,
   `tenant_phone` VARCHAR(64) DEFAULT NULL,
+  `tenant_user_id` VARCHAR(64) DEFAULT NULL,
   `landlord_name` VARCHAR(255) NOT NULL,
+  `landlord_user_id` VARCHAR(64) DEFAULT NULL,
   `amount_ghs` DECIMAL(12,2) NOT NULL,
   `amount_in_words` TEXT DEFAULT NULL,
   `payment_purpose` VARCHAR(255) DEFAULT NULL,
@@ -425,4 +429,23 @@ CREATE TABLE IF NOT EXISTS `email_outbox` (
   PRIMARY KEY (`id`),
   KEY `idx_outbox_due` (`status`, `next_attempt_at`),
   KEY `idx_outbox_created` (`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 20. Audit trail for sensitive administrative, financial and PII actions
+CREATE TABLE IF NOT EXISTS `audit_logs` (
+  `id` VARCHAR(64) NOT NULL,
+  `actor_id` VARCHAR(64) DEFAULT NULL,
+  `actor_role` VARCHAR(32) DEFAULT NULL,
+  `action` VARCHAR(64) NOT NULL,
+  `entity_type` VARCHAR(64) NOT NULL,
+  `entity_id` VARCHAR(64) DEFAULT NULL,
+  `context_json` LONGTEXT DEFAULT NULL,
+  `ip_address` VARCHAR(64) DEFAULT NULL,
+  `user_agent` VARCHAR(255) DEFAULT NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_audit_created` (`created_at`),
+  KEY `idx_audit_entity` (`entity_type`, `entity_id`),
+  KEY `idx_audit_actor` (`actor_id`),
+  KEY `idx_audit_action` (`action`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

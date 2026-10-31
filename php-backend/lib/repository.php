@@ -107,8 +107,176 @@ function shape_enquiry(array $row): array
     ];
 }
 
-function shape_agreement(array $row): array
+/**
+ * Phone comparison key: digits only, compared on the last nine digits so that
+ * "+233 24 123 4567", "0241234567" and "233241234567" are the same subscriber.
+ */
+function phone_key(?string $phone): string
 {
+    $digits = preg_replace('/\D+/', '', (string)$phone) ?? '';
+    return $digits === '' ? '' : substr($digits, -9);
+}
+
+/** Mask an identity number for display, keeping the last four characters. */
+function mask_identity_number(string $value): string
+{
+    $value = trim($value);
+    if ($value === '') {
+        return '';
+    }
+    $visible = substr($value, -4);
+
+    return strlen($value) <= 4 ? '••••' : '••••••••' . $visible;
+}
+
+/** Look a user up by phone number (exact match first, then normalised). */
+function find_user_by_phone(?string $phone): ?array
+{
+    $normalised = phone_key($phone);
+    if ($normalised === '') {
+        return null;
+    }
+
+    $exact = db_one(
+        'SELECT * FROM users WHERE phone = :phone LIMIT 1',
+        [':phone' => trim((string)$phone)]
+    );
+    if ($exact) {
+        return $exact;
+    }
+
+    // Formatted legacy values: compare normalised digits over a bounded window.
+    foreach (db_all('SELECT * FROM users WHERE phone IS NOT NULL AND phone <> \'\'' . db_limit_clause(2000, 0)) as $candidate) {
+        if (phone_key((string)$candidate['phone']) === $normalised) {
+            return $candidate;
+        }
+    }
+
+    return null;
+}
+
+/** Property ids owned by a user, cached per request. */
+function owned_property_ids(array $user): array
+{
+    static $cache = [];
+    $key = (string)($user['id'] ?? '');
+    if (isset($cache[$key])) {
+        return $cache[$key];
+    }
+
+    $ids = [];
+    if (($user['role'] ?? '') === 'landlord') {
+        $rows = db_all('SELECT id FROM properties WHERE landlord_id = :id', [':id' => $key]);
+        $ids = array_map(static fn($row) => (string)$row['id'], $rows);
+    }
+
+    return $cache[$key] = $ids;
+}
+
+/**
+ * Is this user the landlord party of the agreement?
+ *
+ * Linked id wins; unlinked legacy rows fall back to property ownership and then
+ * to the phone number recorded on the agreement.
+ */
+function user_is_agreement_landlord(array $user, array $row): bool
+{
+    $linkedId = (string)($row['landlord_user_id'] ?? '');
+    if ($linkedId !== '') {
+        return $linkedId === (string)($user['id'] ?? '');
+    }
+
+    $propertyId = (string)($row['property_id'] ?? '');
+    if ($propertyId !== '' && in_array($propertyId, owned_property_ids($user), true)) {
+        return true;
+    }
+
+    $agreementPhone = phone_key((string)($row['landlord_phone'] ?? ''));
+    $userPhone = phone_key((string)($user['phone'] ?? ''));
+
+    return $agreementPhone !== '' && $agreementPhone === $userPhone;
+}
+
+/** Is this user the tenant party of the agreement? */
+function user_is_agreement_tenant(array $user, array $row): bool
+{
+    $linkedId = (string)($row['tenant_user_id'] ?? '');
+    if ($linkedId !== '') {
+        return $linkedId === (string)($user['id'] ?? '');
+    }
+
+    $agreementPhone = phone_key((string)($row['tenant_phone'] ?? ''));
+    $userPhone = phone_key((string)($user['phone'] ?? ''));
+
+    return $agreementPhone !== '' && $agreementPhone === $userPhone;
+}
+
+/** May this user read (or email) the agreement at all? */
+function user_can_read_agreement(array $user, array $row): bool
+{
+    if (($user['role'] ?? '') === 'admin') {
+        return true;
+    }
+
+    return user_is_agreement_landlord($user, $row) || user_is_agreement_tenant($user, $row);
+}
+
+/** May this user sign the agreement in the given capacity? Admins may never. */
+function user_can_sign_agreement(array $user, array $row, string $role): bool
+{
+    if (($user['role'] ?? '') === 'admin') {
+        return false;
+    }
+    if ($role === 'landlord') {
+        return user_is_agreement_landlord($user, $row);
+    }
+    if ($role === 'tenant') {
+        return user_is_agreement_tenant($user, $row);
+    }
+    return false;
+}
+
+/** May this user read the receipt? */
+function user_can_read_receipt(array $user, array $row): bool
+{
+    if (($user['role'] ?? '') === 'admin') {
+        return true;
+    }
+
+    $linkedId = (string)($row['tenant_user_id'] ?? '');
+    if ($linkedId !== '') {
+        return $linkedId === (string)($user['id'] ?? '');
+    }
+
+    // Legacy receipts only carrying the tenant's name and phone: phone match
+    // when the user is a tenant, linked landlord id for landlords.
+    $userRole = (string)($user['role'] ?? '');
+    if ($userRole === 'landlord') {
+        return (string)($row['landlord_user_id'] ?? '') === (string)($user['id'] ?? '');
+    }
+
+    $receiptPhone = phone_key((string)($row['tenant_phone'] ?? ''));
+    $userPhone = phone_key((string)($user['phone'] ?? ''));
+
+    return $receiptPhone !== '' && $receiptPhone === $userPhone;
+}
+
+/**
+ * Shape an agreement for a viewer.
+ *
+ * Identity numbers are only revealed to the two parties themselves, or through
+ * an explicit, audited single-record fetch (`$revealIds`). List responses to
+ * administrators keep them masked.
+ */
+function shape_agreement(array $row, ?array $viewer = null, bool $revealIds = false): array
+{
+    $isParty = $viewer !== null
+        && (user_is_agreement_landlord($viewer, $row) || user_is_agreement_tenant($viewer, $row));
+    $showIds = $revealIds || $isParty;
+
+    $landlordCard = (string)($row['landlord_ghana_card'] ?? '');
+    $tenantCard = (string)($row['tenant_ghana_card'] ?? '');
+
     return [
         'id'                     => (string)$row['id'],
         'propertyId'             => (string)($row['property_id'] ?? ''),
@@ -117,10 +285,10 @@ function shape_agreement(array $row): array
         'city'                   => (string)($row['city'] ?? 'Accra'),
         'landlordName'           => (string)$row['landlord_name'],
         'landlordPhone'          => (string)$row['landlord_phone'],
-        'landlordGhanaCard'      => (string)($row['landlord_ghana_card'] ?? ''),
+        'landlordGhanaCard'      => $showIds ? $landlordCard : mask_identity_number($landlordCard),
         'tenantName'             => (string)$row['tenant_name'],
         'tenantPhone'            => (string)$row['tenant_phone'],
-        'tenantGhanaCard'        => (string)($row['tenant_ghana_card'] ?? ''),
+        'tenantGhanaCard'        => $showIds ? $tenantCard : mask_identity_number($tenantCard),
         'monthlyRentGhs'         => (float)$row['monthly_rent_ghs'],
         'durationMonths'         => (int)$row['duration_months'],
         'totalRentGhs'           => (float)$row['total_rent_ghs'],
@@ -136,6 +304,7 @@ function shape_agreement(array $row): array
         'witnessName'            => (string)($row['witness_name'] ?? ''),
         'status'                 => (string)$row['status'],
         'verificationCode'       => (string)$row['verification_code'],
+        'idsMasked'              => !$showIds,
         'createdAt'              => to_iso($row['created_at'] ?? null),
     ];
 }
@@ -866,13 +1035,15 @@ function create_agreement(array $data): array
                                          monthly_rent_ghs, duration_months, total_rent_ghs, security_deposit_ghs,
                                          start_date, end_date, notice_period_months, utilities_responsibility,
                                          landlord_signed, tenant_signed, landlord_signature_date, tenant_signature_date,
-                                         witness_name, status, verification_code, created_at)
+                                         witness_name, status, verification_code, created_at,
+                                         landlord_user_id, tenant_user_id)
          VALUES (:id, :property_id, :title, :address, :city, :landlord_name,
                  :landlord_phone, :landlord_card, :tenant_name, :tenant_phone, :tenant_card,
                  :rent, :duration, :total, :deposit,
                  :start, :end, :notice, :utilities,
                  0, 0, NULL, NULL,
-                 :witness, :status, :code, :created)',
+                 :witness, :status, :code, :created,
+                 :landlord_user_id, :tenant_user_id)',
         [
             ':id'            => $id,
             ':property_id'   => $data['property_id'] ?: null,
@@ -897,19 +1068,77 @@ function create_agreement(array $data): array
             ':status'        => 'pending_signatures',
             ':code'          => $code,
             ':created'       => db_now(),
+            ':landlord_user_id' => $data['landlord_user_id'] ?? null,
+            ':tenant_user_id'   => $data['tenant_user_id'] ?? null,
         ]
     );
     $row = db_one('SELECT * FROM tenancy_agreements WHERE id = :id', [':id' => $id]);
-    return $row ? shape_agreement($row) : [];
+    return $row ? shape_agreement($row, auth_user()) : [];
 }
 
-function list_agreements(int $limit = 200): array
+/**
+ * Agreements the viewer may read.
+ *
+ * A tenant sees the rows they are party to, a landlord the rows they own or are
+ * party to, an administrator all of them. Legacy rows with no linked user are
+ * matched in PHP (property ownership, then phone), never by name.
+ */
+function list_agreements(?array $user = null, int $limit = 200): array
 {
-    $rows = db_all('SELECT * FROM tenancy_agreements ORDER BY created_at DESC' . db_limit_clause($limit, 0));
-    return array_map('shape_agreement', $rows);
+    $user = $user ?? auth_user();
+    if (!$user) {
+        return [];
+    }
+
+    if (($user['role'] ?? '') === 'admin') {
+        $rows = db_all('SELECT * FROM tenancy_agreements ORDER BY created_at DESC' . db_limit_clause($limit, 0));
+        return array_map(static fn($row) => shape_agreement($row, $user), $rows);
+    }
+
+    $userId = (string)$user['id'];
+    $linked = db_all(
+        'SELECT * FROM tenancy_agreements
+         WHERE tenant_user_id = :uid OR landlord_user_id = :uid
+         ORDER BY created_at DESC' . db_limit_clause($limit, 0),
+        [':uid' => $userId]
+    );
+
+    $legacy = db_all(
+        "SELECT * FROM tenancy_agreements
+         WHERE (tenant_user_id IS NULL OR tenant_user_id = '')
+           AND (landlord_user_id IS NULL OR landlord_user_id = '')
+         ORDER BY created_at DESC" . db_limit_clause(500, 0)
+    );
+
+    $rows = $linked;
+    foreach ($legacy as $row) {
+        if (user_can_read_agreement($user, $row)) {
+            $rows[] = $row;
+        }
+    }
+
+    usort($rows, static fn($a, $b) => strcmp((string)$b['created_at'], (string)$a['created_at']));
+
+    $out = [];
+    foreach ($rows as $row) {
+        if (count($out) >= $limit) {
+            break;
+        }
+        $out[] = shape_agreement($row, $user);
+    }
+
+    return $out;
 }
 
-function sign_agreement_by_id(string $id, string $role): ?array
+/** Fetch one agreement row for authorisation checks. */
+function find_agreement(string $id): ?array
+{
+    $row = db_one('SELECT * FROM tenancy_agreements WHERE id = :id LIMIT 1', [':id' => $id]);
+
+    return $row ?: null;
+}
+
+function sign_agreement_by_id(string $id, string $role, ?array $viewer = null): ?array
 {
     $row = db_one('SELECT * FROM tenancy_agreements WHERE id = :id LIMIT 1', [':id' => $id]);
     if (!$row) {
@@ -927,7 +1156,7 @@ function sign_agreement_by_id(string $id, string $role): ?array
         db_exec('UPDATE tenancy_agreements SET status = :status WHERE id = :id', [':status' => 'active', ':id' => $id]);
         $updated['status'] = 'active';
     }
-    return $updated ? shape_agreement($updated) : null;
+    return $updated ? shape_agreement($updated, $viewer ?? auth_user()) : null;
 }
 
 function create_receipt(array $data): array
@@ -938,10 +1167,12 @@ function create_receipt(array $data): array
     db_exec(
         'INSERT INTO rent_receipts (id, receipt_no, property_title, property_address, tenant_name, tenant_phone,
                                     landlord_name, amount_ghs, amount_in_words, payment_purpose, payment_method,
-                                    transaction_ref, payment_date, issued_by, verification_code, created_at)
+                                    transaction_ref, payment_date, issued_by, verification_code, created_at,
+                                    landlord_user_id, tenant_user_id)
          VALUES (:id, :receipt_no, :title, :address, :tenant_name, :tenant_phone,
                  :landlord_name, :amount, :words, :purpose, :method,
-                 :ref, :payment_date, :issued_by, :verification, :created)',
+                 :ref, :payment_date, :issued_by, :verification, :created,
+                 :landlord_user_id, :tenant_user_id)',
         [
             ':id'           => $id,
             ':receipt_no'   => $receiptNo,
@@ -959,16 +1190,67 @@ function create_receipt(array $data): array
             ':issued_by'    => clean_string($data['issued_by'] ?? 'Goodlucks Homes Intermediary Desk', 200),
             ':verification' => $verification,
             ':created'      => db_now(),
+            ':landlord_user_id' => $data['landlord_user_id'] ?? null,
+            ':tenant_user_id'   => $data['tenant_user_id'] ?? null,
         ]
     );
     $row = db_one('SELECT * FROM rent_receipts WHERE id = :id', [':id' => $id]);
     return $row ? shape_receipt($row) : [];
 }
 
-function list_receipts(int $limit = 200): array
+/**
+ * Receipts the viewer may read.
+ *
+ * Administrators see every receipt; landlords see receipts issued against them
+ * or created by them; tenants see receipts linked to them, or - for legacy rows
+ * without a link - the ones carrying their own phone number. Name matching is
+ * deliberately not used because anyone can register under any name.
+ */
+function list_receipts(?array $user = null, int $limit = 200): array
 {
-    $rows = db_all('SELECT * FROM rent_receipts ORDER BY created_at DESC' . db_limit_clause($limit, 0));
-    return array_map('shape_receipt', $rows);
+    $user = $user ?? auth_user();
+    if (!$user) {
+        return [];
+    }
+
+    if (($user['role'] ?? '') === 'admin') {
+        $rows = db_all('SELECT * FROM rent_receipts ORDER BY created_at DESC' . db_limit_clause($limit, 0));
+        return array_map('shape_receipt', $rows);
+    }
+
+    $userId = (string)$user['id'];
+    $linked = db_all(
+        'SELECT * FROM rent_receipts
+         WHERE tenant_user_id = :uid OR landlord_user_id = :uid
+         ORDER BY created_at DESC' . db_limit_clause($limit, 0),
+        [':uid' => $userId]
+    );
+
+    $legacy = db_all(
+        "SELECT * FROM rent_receipts
+         WHERE (tenant_user_id IS NULL OR tenant_user_id = '')
+           AND (landlord_user_id IS NULL OR landlord_user_id = '')
+         ORDER BY created_at DESC" . db_limit_clause(500, 0)
+    );
+
+    $rows = $linked;
+    foreach ($legacy as $row) {
+        if (user_can_read_receipt($user, $row)) {
+            $rows[] = $row;
+        }
+    }
+
+    usort($rows, static fn($a, $b) => strcmp((string)$b['created_at'], (string)$a['created_at']));
+
+    return array_map('shape_receipt', array_slice($rows, 0, $limit));
+}
+
+/** Fetch one receipt row for authorisation checks. */
+function find_receipt(string $id): ?array
+{
+    $row = db_one('SELECT * FROM rent_receipts WHERE id = :id LIMIT 1', [':id' => $id]);
+
+    return $row ?: null;
 }
 
 // ---------------------------------------------------------------------------

@@ -254,6 +254,8 @@ export interface TenancyAgreement {
   witnessName?: string;
   status: 'draft' | 'pending_signatures' | 'active' | 'expired';
   verificationCode: string;
+  /** True when identity numbers were withheld from this response (staff lists). */
+  idsMasked?: boolean;
   createdAt: string;
 }
 

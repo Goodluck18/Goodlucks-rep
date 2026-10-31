@@ -80,10 +80,14 @@ $requiredColumns = [
         'landlord_ghana_card'    => "VARCHAR(64) DEFAULT NULL",
         'tenant_ghana_card'      => "VARCHAR(64) DEFAULT NULL",
         'utilities_responsibility' => "TEXT DEFAULT NULL",
+        'landlord_user_id'       => "VARCHAR(64) DEFAULT NULL AFTER `landlord_phone`",
+        'tenant_user_id'         => "VARCHAR(64) DEFAULT NULL AFTER `tenant_phone`",
     ],
     'rent_receipts' => [
         'tenant_phone' => "VARCHAR(64) DEFAULT NULL AFTER `tenant_name`",
         'amount_in_words' => "TEXT DEFAULT NULL",
+        'landlord_user_id' => "VARCHAR(64) DEFAULT NULL AFTER `landlord_name`",
+        'tenant_user_id' => "VARCHAR(64) DEFAULT NULL AFTER `tenant_phone`",
     ],
     'email_logs' => [
         'status' => "VARCHAR(32) NOT NULL DEFAULT 'queued'",
@@ -91,7 +95,7 @@ $requiredColumns = [
 ];
 
 /** Tables that must exist (created with the definitions in database.sql). */
-$requiredTables = ['auth_sessions', 'enquiries', 'search_alerts', 'saved_properties', 'page_views', 'rate_limits', 'alert_deliveries', 'password_resets', 'submission_dedupe', 'email_outbox'];
+$requiredTables = ['auth_sessions', 'enquiries', 'search_alerts', 'saved_properties', 'page_views', 'rate_limits', 'alert_deliveries', 'password_resets', 'submission_dedupe', 'email_outbox', 'audit_logs'];
 
 function existing_tables(PDO $pdo): array
 {

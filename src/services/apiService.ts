@@ -390,6 +390,14 @@ export const api = {
   // -------------------------------------------------------------------------
   listAgreements: () => request<{ agreements: TenancyAgreement[] }>('/agreements'),
 
+  /**
+   * Single agreement, including identity numbers. Staff reads are audited
+   * server-side, so this is only fetched when a staff member opens a document
+   * that the list response returned with masked identity fields.
+   */
+  getAgreement: (id: string) =>
+    request<{ agreement: TenancyAgreement }>(`/agreements/${encodeURIComponent(id)}`),
+
   createAgreement: (data: Record<string, unknown>) =>
     request<{ agreement: TenancyAgreement }>('/agreements', { method: 'POST', body: data }),
 

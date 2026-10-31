@@ -184,7 +184,9 @@ CREATE TABLE IF NOT EXISTS tenancy_agreements (
   witness_name TEXT DEFAULT 'Goodlucks Legal Intermediary',
   status TEXT NOT NULL DEFAULT 'pending_signatures',
   verification_code TEXT NOT NULL UNIQUE,
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  landlord_user_id TEXT,
+  tenant_user_id TEXT
 );
 
 CREATE TABLE IF NOT EXISTS rent_receipts (
@@ -203,7 +205,9 @@ CREATE TABLE IF NOT EXISTS rent_receipts (
   payment_date TEXT NOT NULL,
   issued_by TEXT DEFAULT 'Goodlucks Homes Intermediary Desk',
   verification_code TEXT NOT NULL UNIQUE,
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  landlord_user_id TEXT,
+  tenant_user_id TEXT
 );
 
 CREATE TABLE IF NOT EXISTS email_logs (
@@ -325,3 +329,20 @@ CREATE TABLE IF NOT EXISTS email_outbox (
 );
 
 CREATE INDEX IF NOT EXISTS idx_outbox_due ON email_outbox (status, next_attempt_at);
+
+CREATE TABLE IF NOT EXISTS audit_logs (
+  id TEXT PRIMARY KEY,
+  actor_id TEXT,
+  actor_role TEXT,
+  action TEXT NOT NULL,
+  entity_type TEXT NOT NULL,
+  entity_id TEXT,
+  context_json TEXT,
+  ip_address TEXT,
+  user_agent TEXT,
+  created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_logs (created_at);
+CREATE INDEX IF NOT EXISTS idx_audit_entity ON audit_logs (entity_type, entity_id);
+CREATE INDEX IF NOT EXISTS idx_audit_action ON audit_logs (action);

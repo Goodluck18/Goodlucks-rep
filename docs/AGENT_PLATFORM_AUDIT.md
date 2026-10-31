@@ -36,6 +36,12 @@
 | S6 | **No audit trail anywhere.** No table, no writes; "audit log" in the code means `email_logs`. | no `audit*` table in `database.sql` | **High** (your Phase 12 requires it) |
 | S7 | Uploads land in a **publicly served** directory ( `/api/uploads/<file>` is served directly by Apache). Fine for listing photos, unusable for identity documents. | `php-backend/.htaccess` rule 2; `UPLOAD_DIR` | **High** for Phase 2 |
 
+**Status after Increment 0** (implemented and tested, see `docs/SECURITY_INCREMENT_0.md`):
+S1, S2, S3, S4, S6 and S7 are closed; S5 is *mitigated, not closed* — identity numbers are no
+longer returned in list payloads and are only revealed through an audited single-record read,
+but they are still stored in plaintext at rest (field-level encryption needs a key-management
+decision, see the Increment 0 report).
+
 Existing controls worth keeping: hashed session tokens, `require_trusted_origin()` on all non-GET, database-backed rate limits (`enforce_rate_limit`), server-side validation on every handler, uploads restricted to landlord/admin by MIME + `getimagesize`.
 
 ### 2.2 Viewing flow — contradicts your Phase 5
@@ -241,7 +247,7 @@ Chosen so each increment is independently shippable and testable, and so no live
 
 | Increment | Contents | Why first |
 | --- | --- | --- |
-| **0** | S1–S7 security fixes + `audit_logs` + agreement/receipt scoping + masked Ghana Card | Severe, small, unblocks everything (agents will make these paths hotter) |
+| **0** | S1–S7 security fixes + `audit_logs` + agreement/receipt scoping + masked Ghana Card — **done**, see `docs/SECURITY_INCREMENT_0.md` | Severe, small, unblocks everything (agents will make these paths hotter) |
 | **1** | Schema foundation: agent tables, `commission_policies`, `viewing_fee_settings`, `audit_logs`, additive columns; migration safety test | Everything else builds on it |
 | **2** | Agent role: registration, profile, tier plumbing, admin agent list, AuthModal + role plumbing, `AgentDashboard` shell | First visible feature; no money, no regulated activity |
 | **3** | Verification workflow + private document storage + admin review | Unlocks professional credential status (still no regulated activity) |
