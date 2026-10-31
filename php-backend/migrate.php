@@ -91,7 +91,7 @@ $requiredColumns = [
 ];
 
 /** Tables that must exist (created with the definitions in database.sql). */
-$requiredTables = ['auth_sessions', 'enquiries', 'search_alerts', 'saved_properties', 'page_views', 'rate_limits'];
+$requiredTables = ['auth_sessions', 'enquiries', 'search_alerts', 'saved_properties', 'page_views', 'rate_limits', 'alert_deliveries', 'password_resets', 'submission_dedupe', 'email_outbox'];
 
 function existing_tables(PDO $pdo): array
 {

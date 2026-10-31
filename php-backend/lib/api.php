@@ -50,11 +50,14 @@ function resolve_route(string $method, string $path): ?array
         ['POST', '#^/auth/register$#', 'handle_register'],
         ['POST', '#^/auth/login$#', 'handle_login'],
         ['POST', '#^/auth/admin-login$#', 'handle_admin_login'],
+        ['POST', '#^/auth/password-reset/request$#', 'handle_password_reset_request'],
+        ['POST', '#^/auth/password-reset/confirm$#', 'handle_password_reset_confirm'],
         ['POST', '#^/auth/logout$#', 'handle_logout'],
         ['GET',  '#^/auth/me$#', 'handle_me'],
         ['PUT',  '#^/profile$#', 'handle_update_profile'],
 
         // --- Properties -------------------------------------------------
+        ['GET',  '#^/matches$#', 'handle_matches'],
         ['GET',  '#^/properties$#', 'handle_list_properties'],
         ['POST', '#^/properties$#', 'handle_create_property'],
         ['GET',  '#^/properties/([A-Za-z0-9\-_]+)$#', 'handle_get_property'],
@@ -62,6 +65,7 @@ function resolve_route(string $method, string $path): ?array
         ['DELETE', '#^/properties/([A-Za-z0-9\-_]+)$#', 'handle_delete_property'],
         ['POST', '#^/properties/([A-Za-z0-9\-_]+)/status$#', 'handle_property_status'],
         ['POST', '#^/properties/([A-Za-z0-9\-_]+)/feature$#', 'handle_property_feature'],
+        ['POST', '#^/properties/([A-Za-z0-9\-_]+)/verify$#', 'handle_property_verify'],
         ['GET',  '#^/admin/properties$#', 'handle_admin_properties'],
 
         // --- Uploads ----------------------------------------------------
@@ -71,6 +75,7 @@ function resolve_route(string $method, string $path): ?array
         // --- Enquiries --------------------------------------------------
         ['POST', '#^/enquiries$#', 'handle_create_enquiry'],
         ['GET',  '#^/admin/enquiries$#', 'handle_admin_enquiries'],
+        ['PATCH', '#^/admin/enquiries/([A-Za-z0-9\-_]+)$#', 'handle_update_enquiry'],
 
         // --- Tenant requests -------------------------------------------
         ['POST', '#^/tenant-requests$#', 'handle_create_tenant_request'],
@@ -111,10 +116,15 @@ function resolve_route(string $method, string $path): ?array
         // --- Notifications ----------------------------------------------
         ['GET',  '#^/notifications$#', 'handle_list_notifications'],
         ['PATCH', '#^/notifications/([A-Za-z0-9\-_]+)$#', 'handle_mark_notification'],
+        ['POST', '#^/notifications/read-all$#', 'handle_mark_all_notifications'],
 
         // --- Admin ------------------------------------------------------
         ['GET',  '#^/admin/stats$#', 'handle_admin_stats'],
         ['GET',  '#^/admin/email-logs$#', 'handle_admin_email_logs'],
+        ['POST', '#^/admin/alerts/run$#', 'handle_run_alert_digest'],
+        ['POST', '#^/admin/emails/run$#', 'handle_run_email_outbox'],
+
+        ['GET',  '#^/sitemap\.xml$#', 'handle_sitemap'],
 
         // --- Utility ----------------------------------------------------
         ['POST', '#^/track/pageview$#', 'handle_track_pageview'],
@@ -311,6 +321,100 @@ function handle_admin_login(): void
     gl_log('info', 'Administrator signed in', ['user_id' => $user['id']]);
 
     json_response(['success' => true, 'user' => public_user($user)]);
+}
+
+/**
+ * Start a password reset.
+ *
+ * The response is always the same, whether or not the address is registered, so
+ * this endpoint cannot be used to discover who has an account.
+ */
+function handle_password_reset_request(): void
+{
+    $input = request_json();
+    $email = valid_email($input['email'] ?? null);
+
+    if ($email === null) {
+        error_response('Enter the email address on your account.', 422, ['email' => 'Enter a valid email address.']);
+    }
+
+    enforce_rate_limit('password-reset-ip', 20, 3600);
+    enforce_rate_limit('password-reset', 5, 3600, $email);
+
+    $user = find_user_by_email($email);
+    $genericMessage = 'If that email is registered with Goodlucks Homes, a reset link is on its way. It expires in one hour.';
+
+    if (!$user) {
+        gl_log('info', 'Password reset requested for unknown email');
+        json_response(['success' => true, 'message' => $genericMessage]);
+    }
+
+    $reset = create_password_reset((string)$user['id']);
+    $link = SITE_URL . '/?reset=' . urlencode($reset['token']);
+
+    $body = '<p style="color:#CBD5E1;font-size:14px;">Hello ' . e((string)$user['name']) . ',</p>'
+        . '<p style="color:#CBD5E1;font-size:14px;">We received a request to reset the password on your Goodlucks Homes account.</p>'
+        . '<p style="margin:22px 0;"><a href="' . e($link) . '" style="background:#08D9D6;color:#252A34;padding:12px 22px;border-radius:10px;'
+        . 'font-weight:bold;text-decoration:none;font-size:14px;">Set a new password</a></p>'
+        . '<p style="color:#94A3B8;font-size:12px;">This link expires in one hour and can only be used once. '
+        . 'If you did not request it, you can ignore this email — your password has not changed.</p>'
+        . '<p style="color:#94A3B8;font-size:11px;word-break:break-all;">' . e($link) . '</p>';
+
+    send_email(
+        $email,
+        (string)$user['name'],
+        'Reset your Goodlucks Homes password',
+        email_html_template('Password reset', $body),
+        'password_reset',
+        'Password reset requested'
+    );
+
+    gl_log('info', 'Password reset token issued', ['user_id' => $user['id']]);
+
+    json_response(['success' => true, 'message' => $genericMessage]);
+}
+
+/** Finish a password reset with a valid token. */
+function handle_password_reset_confirm(): void
+{
+    $input = request_json();
+    $token = trim((string)($input['token'] ?? ''));
+    $password = is_string($input['password'] ?? null) ? (string)$input['password'] : '';
+
+    if ($token === '') {
+        error_response('This reset link is incomplete. Request a new one.', 422, ['token' => 'Missing token.']);
+    }
+
+    if (!password_is_strong_enough($password)) {
+        error_response('Please correct the highlighted fields.', 422, [
+            'password' => 'Password must be at least 8 characters.',
+        ]);
+    }
+
+    enforce_rate_limit('password-reset-confirm', 20, 3600);
+
+    $reset = find_password_reset($token);
+    if (!$reset) {
+        error_response('This reset link has expired or was already used. Request a new one.', 400, [
+            'token' => 'Invalid or expired token.',
+        ]);
+    }
+
+    $user = find_user_by_id((string)$reset['user_id']);
+    if (!$user) {
+        error_response('This reset link is no longer valid.', 400);
+    }
+
+    update_user((string)$user['id'], ['password_hash' => password_hash($password, PASSWORD_BCRYPT)]);
+    consume_password_reset($reset);
+
+    create_notification((string)$user['id'], 'Password changed', 'Your password was reset. All other devices were signed out.', 'success');
+    gl_log('info', 'Password reset completed', ['user_id' => $user['id']]);
+
+    json_response([
+        'success' => true,
+        'message' => 'Your password has been updated. Please sign in with the new password.',
+    ]);
 }
 
 function handle_logout(): void
@@ -560,10 +664,22 @@ function handle_create_property(): void
         : (string)$user['id'];
     $data['landlord_name'] = (string)$user['name'];
     $data['landlord_company'] = (string)($user['company'] ?? '');
-    $data['is_landlord_verified'] = $user['role'] === 'admin' ? 1 : (int)($user['is_verified'] ?? 0);
+    // Verification is earned: staff inspect the property, then tick it off in
+    // the console. Admin-created listings are trusted on creation.
+    $data['is_landlord_verified'] = $user['role'] === 'admin' ? 1 : 0;
 
     $id = create_property($data);
     $created = find_property($id);
+
+    // An admin can publish immediately; landlords go to the queue and are
+    // matched when approved.
+    if ($created && ($created['status'] ?? '') === 'active') {
+        try {
+            dispatch_search_alert_matches($created);
+        } catch (Throwable $e) {
+            gl_log('error', 'Search alert dispatch failed: ' . $e->getMessage(), ['property' => $id]);
+        }
+    }
 
     if ($user['role'] === 'landlord') {
         send_email(
@@ -618,6 +734,25 @@ function handle_update_property(array $params): void
         error_response('You do not have permission to edit this property.', 403);
     }
 
+    // Optimistic concurrency: if the client is editing a copy of the record that
+    // has since changed, refuse the write instead of silently overwriting the
+    // other editor's work.
+    $expectedUpdatedAt = trim((string)(request_json()['updatedAt'] ?? ''));
+    if ($expectedUpdatedAt !== '') {
+        $currentUpdatedAt = (string)($row['updated_at'] ?? '');
+        $expectedTs = strtotime($expectedUpdatedAt);
+        $currentTs = $currentUpdatedAt !== '' ? strtotime($currentUpdatedAt) : false;
+
+        if ($expectedTs !== false && $currentTs !== false && $expectedTs !== $currentTs) {
+            json_response([
+                'success' => false,
+                'error'   => 'This listing was changed by someone else while you were editing it. Reload and try again.',
+                'code'    => 'stale_property',
+                'property' => shape_property($row),
+            ], 409);
+        }
+    }
+
     [$data, $validator] = property_payload(request_json(), true);
     if ($validator->fails()) {
         error_response('Please correct the highlighted fields.', 422, $validator->errors());
@@ -633,8 +768,22 @@ function handle_update_property(array $params): void
         $data['status'] = one_of(request_json()['status'], PROPERTY_STATUSES, (string)$row['status']);
     }
 
+    $oldRent = (float)($row['rent_ghs'] ?? 0);
+
     update_property($id, $data);
     $updated = find_property($id);
+
+    // A rent reduction is the one event price-drop subscribers care about.
+    if ($updated) {
+        $newRent = (float)($updated['rent_ghs'] ?? 0);
+        if ($newRent > 0 && $newRent < $oldRent) {
+            try {
+                dispatch_price_drop_alerts($updated, $oldRent, $newRent);
+            } catch (Throwable $e) {
+                gl_log('error', 'Price drop dispatch failed: ' . $e->getMessage(), ['property' => $id]);
+            }
+        }
+    }
 
     json_response(['success' => true, 'property' => $updated ? shape_property($updated) : null]);
 }
@@ -679,7 +828,21 @@ function handle_property_status(array $params): void
         error_response('Invalid property status.', 422, ['status' => 'Choose one of: ' . implode(', ', PROPERTY_STATUSES)]);
     }
 
+    $wasActive = ((string)($row['status'] ?? '')) === 'active';
+
     update_property($id, ['status' => $status]);
+
+    // Going live is the moment saved searches should hear about it.
+    if ($status === 'active' && !$wasActive) {
+        $live = find_property($id);
+        if ($live) {
+            try {
+                dispatch_search_alert_matches($live);
+            } catch (Throwable $e) {
+                gl_log('error', 'Search alert dispatch failed: ' . $e->getMessage(), ['property' => $id]);
+            }
+        }
+    }
 
     // Tell the landlord what happened.
     $landlord = find_user_by_id((string)$row['landlord_id']);
@@ -719,6 +882,38 @@ function handle_property_status(array $params): void
 
     $updated = find_property($id);
     json_response(['success' => true, 'property' => $updated ? shape_property($updated) : null]);
+}
+
+/**
+ * Mark a listing's landlord as verified (admin only).
+ *
+ * "Verified" is a physical-inspection claim made by Goodlucks staff, so it is
+ * never set by the client and never defaults to true.
+ */
+function handle_property_verify(array $params): void
+{
+    require_admin();
+
+    $id = (string)($params[0] ?? '');
+    $row = find_property($id);
+    if (!$row) {
+        error_response('Property not found.', 404);
+    }
+
+    $input = request_json();
+    $verified = filter_var($input['verified'] ?? true, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+    if ($verified === null) {
+        error_response('Send verified=true or verified=false.', 422, ['verified' => 'Invalid value.']);
+    }
+
+    update_property($id, ['is_landlord_verified' => $verified ? 1 : 0]);
+    $updated = find_property($id);
+
+    json_response([
+        'success'  => true,
+        'property' => $updated ? shape_property($updated) : null,
+        'message'  => $verified ? 'Landlord marked as verified.' : 'Verification removed.',
+    ]);
 }
 
 function handle_property_feature(array $params): void
@@ -893,10 +1088,53 @@ function handle_serve_upload(array $params): void
 // ===========================================================================
 // Enquiries
 // ===========================================================================
+/**
+ * Move an enquiry through the follow-up workflow (admin only).
+ *
+ * Without this, every enquiry stayed 'new' forever and the dashboard KPI
+ * "new enquiries" could never differ from the total.
+ */
+function handle_update_enquiry(array $params): void
+{
+    require_admin();
+
+    $id = (string)($params[0] ?? '');
+    $row = db_one('SELECT * FROM enquiries WHERE id = :id LIMIT 1', [':id' => $id]);
+    if (!$row) {
+        error_response('Enquiry not found.', 404);
+    }
+
+    $input = request_json();
+    $status = one_of($input['status'] ?? '', ENQUIRY_STATUSES, null);
+    if ($status === null) {
+        error_response('Invalid enquiry status.', 422, ['status' => 'Choose one of: ' . implode(', ', ENQUIRY_STATUSES)]);
+    }
+
+    db_exec('UPDATE enquiries SET status = :status WHERE id = :id', [':status' => $status, ':id' => $id]);
+    $updated = db_one('SELECT * FROM enquiries WHERE id = :id LIMIT 1', [':id' => $id]);
+
+    json_response([
+        'success' => true,
+        'enquiry' => $updated ? shape_enquiry($updated) : null,
+        'message' => 'Enquiry marked as ' . str_replace('_', ' ', $status) . '.',
+    ]);
+}
+
 function handle_create_enquiry(): void
 {
     enforce_rate_limit('enquiry', 15, 3600);
     $input = request_json();
+
+    // Double clicks and retried requests must not create two enquiries.
+    $fingerprint = submission_fingerprint('enquiry', $input);
+    if ($recent = recent_submission($fingerprint, 120)) {
+        json_response([
+            'success'   => true,
+            'duplicate' => true,
+            'message'   => 'We already received this message — our team is on it.',
+            'enquiryId' => (string)$recent['resource_id'],
+        ]);
+    }
 
     $validator = new Validator();
     $validator->required('name', $input['name'] ?? '', 'Your name', 2);
@@ -959,6 +1197,8 @@ function handle_create_enquiry(): void
         ['enquiry_id' => $enquiryId]
     );
 
+    remember_submission($fingerprint, 'enquiry', $enquiryId);
+
     json_response([
         'success'   => true,
         'message'   => 'Thank you for your message. A Goodlucks Homes specialist will be in touch shortly.',
@@ -980,6 +1220,17 @@ function handle_create_tenant_request(): void
     enforce_rate_limit('tenant-request', 10, 3600);
     $input = request_json();
     $user = auth_user();
+
+    // Same form submitted twice in a row = one rental request.
+    $fingerprint = submission_fingerprint('tenant_request', $input);
+    if ($recent = recent_submission($fingerprint, 120)) {
+        json_response([
+            'success'   => true,
+            'duplicate' => true,
+            'message'   => 'We already have this rental request.',
+            'requestId' => (string)$recent['resource_id'],
+        ]);
+    }
 
     $validator = new Validator();
     $validator->required('tenantName', $input['tenantName'] ?? '', 'Your name', 2);
@@ -1048,6 +1299,8 @@ function handle_create_tenant_request(): void
     if ($user) {
         create_notification((string)$user['id'], 'Rental request submitted', 'Our team is matching verified properties to your request.', 'info');
     }
+
+    remember_submission($fingerprint, 'tenant_request', $requestId);
 
     json_response([
         'success'   => true,
@@ -1139,6 +1392,20 @@ function handle_create_viewing(): void
 {
     enforce_rate_limit('viewing', 12, 3600);
     $input = request_json();
+
+    // Pressing "Confirm Viewing" twice must not book two appointments.
+    $fingerprint = submission_fingerprint('viewing', $input);
+    if ($recent = recent_submission($fingerprint, 120)) {
+        $existing = find_viewing((string)$recent['resource_id']);
+        json_response([
+            'success'      => true,
+            'duplicate'    => true,
+            'message'      => 'This viewing request was already received.',
+            'viewingId'    => (string)$recent['resource_id'],
+            'feeAmountGhs' => VIEWING_FEE_GHS,
+            'viewing'      => $existing,
+        ]);
+    }
     $user = auth_user();
 
     $validator = new Validator();
@@ -1228,6 +1495,8 @@ function handle_create_viewing(): void
             'viewing'
         );
     }
+
+    remember_submission($fingerprint, 'viewing', $viewingId);
 
     json_response([
         'success'      => true,
@@ -1653,6 +1922,19 @@ function handle_mark_notification(array $params): void
     json_response(['success' => true]);
 }
 
+/**
+ * Mark every notification as read in one request.
+ *
+ * The badge counts unread rows, so opening the notifications view calls this
+ * instead of firing one PATCH per row.
+ */
+function handle_mark_all_notifications(): void
+{
+    $user = require_auth();
+    $updated = mark_all_notifications_read($user);
+    json_response(['success' => true, 'updated' => $updated, 'notifications' => list_notifications($user)]);
+}
+
 // ===========================================================================
 // Admin
 // ===========================================================================
@@ -1662,10 +1944,129 @@ function handle_admin_stats(): void
     json_response(['success' => true, 'stats' => analytics_stats()]);
 }
 
+/**
+ * Run the saved-search matcher on demand (admin only).
+ *
+ * Shared hosting often has no shell cron; this lets staff deliver pending
+ * matches from the console. The cron script calls the same function.
+ */
+function handle_run_alert_digest(): void
+{
+    require_admin();
+    enforce_rate_limit('alert-digest', 12, 3600);
+
+    $result = run_search_alert_digest();
+
+    json_response([
+        'success'    => true,
+        'properties' => $result['properties'],
+        'emails'     => $result['emails'],
+        'message'    => $result['emails'] === 0
+            ? 'No new matches to send.'
+            : 'Sent ' . $result['emails'] . ' match email(s).',
+    ]);
+}
+
 function handle_admin_email_logs(): void
 {
     require_admin();
-    json_response(['success' => true, 'logs' => list_email_logs(300)]);
+    json_response([
+        'success' => true,
+        'logs'    => list_email_logs(300),
+        'outbox'  => email_outbox_summary(),
+    ]);
+}
+
+/**
+ * Drain the email outbox immediately.
+ *
+ * Shared hosting often has no shell cron; this lets an admin push queued mail
+ * (and retry failures) from the console. cron.php runs the same worker.
+ */
+function handle_run_email_outbox(): void
+{
+    require_admin();
+    enforce_rate_limit('email-outbox-run', 20, 3600);
+
+    $result = process_email_outbox(50, 25.0);
+
+    $message = $result['sent'] . ' email(s) sent';
+    if ($result['retried'] > 0) {
+        $message .= ', ' . $result['retried'] . ' will retry later';
+    }
+    if ($result['failed'] > 0) {
+        $message .= ', ' . $result['failed'] . ' given up on';
+    }
+
+    json_response([
+        'success' => true,
+        'result'  => $result,
+        'outbox'  => email_outbox_summary(),
+        'message' => $message,
+    ]);
+}
+
+// ===========================================================================
+// SEO
+// ===========================================================================
+/**
+ * Dynamic XML sitemap.
+ *
+ * The SPA build cannot know the catalogue at build time, so /sitemap.xml is
+ * generated from the live database: core pages plus every published listing,
+ * with real last-modified dates.
+ */
+function handle_sitemap(): void
+{
+    $core = [
+        ['loc' => SITE_URL . '/', 'priority' => '1.0', 'changefreq' => 'daily'],
+        ['loc' => SITE_URL . '/browse', 'priority' => '0.9', 'changefreq' => 'daily'],
+        ['loc' => SITE_URL . '/find-home', 'priority' => '0.8', 'changefreq' => 'weekly'],
+        ['loc' => SITE_URL . '/about', 'priority' => '0.5', 'changefreq' => 'monthly'],
+        ['loc' => SITE_URL . '/contact', 'priority' => '0.5', 'changefreq' => 'monthly'],
+    ];
+
+    $entries = [];
+    foreach ($core as $page) {
+        $entries[] = [
+            'loc'        => $page['loc'],
+            'lastmod'    => gmdate('Y-m-d'),
+            'changefreq' => $page['changefreq'],
+            'priority'   => $page['priority'],
+        ];
+    }
+
+    $result = query_properties(['status' => 'active', 'perPage' => 500]);
+    foreach ($result['items'] as $property) {
+        $updated = (string)($property['updatedAt'] ?? '');
+        $timestamp = $updated !== '' ? strtotime($updated) : false;
+        $entries[] = [
+            'loc'        => SITE_URL . '/property/' . rawurlencode((string)$property['id']),
+            'lastmod'    => gmdate('Y-m-d', $timestamp !== false ? $timestamp : time()),
+            'changefreq' => 'weekly',
+            'priority'   => '0.8',
+        ];
+    }
+
+    $xml = '<?xml version="1.0" encoding="UTF-8"?>' . "\n"
+        . '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' . "\n";
+    foreach ($entries as $entry) {
+        $xml .= "  <url>\n"
+            . '    <loc>' . htmlspecialchars($entry['loc'], ENT_XML1) . "</loc>\n"
+            . '    <lastmod>' . $entry['lastmod'] . "</lastmod>\n"
+            . '    <changefreq>' . $entry['changefreq'] . "</changefreq>\n"
+            . '    <priority>' . $entry['priority'] . "</priority>\n"
+            . "  </url>\n";
+    }
+    $xml .= '</urlset>' . "\n";
+
+    if (ob_get_length()) {
+        @ob_clean();
+    }
+    header('Content-Type: application/xml; charset=utf-8');
+    header('Cache-Control: public, max-age=3600');
+    echo $xml;
+    exit;
 }
 
 // ===========================================================================
@@ -1730,15 +2131,16 @@ function handle_ai_describe(): void
 }
 
 /** AI match score between a tenant request and a property. */
-function handle_ai_match(): void
+/**
+ * Score a listing against a tenant's rental request.
+ *
+ * Shared by /ai/match (one property at a time) and /matches (the signed-in
+ * tenant's whole shortlist) so both always report the same number.
+ *
+ * @return array{score: int, reason: string}
+ */
+function match_score(array $request, array $property): array
 {
-    $input = request_json();
-    $request = $input['tenantRequest'] ?? null;
-    $property = $input['property'] ?? null;
-    if (!is_array($request) || !is_array($property)) {
-        error_response('Both tenantRequest and property objects are required.', 422);
-    }
-
     $rent = (float)($property['rentGhs'] ?? 0);
     $budgetMin = (float)($request['budgetMin'] ?? 0);
     $budgetMax = (float)($request['budgetMax'] ?? PHP_INT_MAX);
@@ -1773,7 +2175,85 @@ function handle_ai_match(): void
         (string)($property['location'] ?? 'Accra')
     );
 
-    json_response(['success' => true, 'matchScore' => $score, 'aiMatchReason' => $reason]);
+    return ['score' => $score, 'reason' => $reason];
+}
+
+function handle_ai_match(): void
+{
+    $input = request_json();
+    $request = $input['tenantRequest'] ?? null;
+    $property = $input['property'] ?? null;
+    if (!is_array($request) || !is_array($property)) {
+        error_response('Both tenantRequest and property objects are required.', 422);
+    }
+
+    $result = match_score($request, $property);
+    json_response(['success' => true, 'matchScore' => $result['score'], 'aiMatchReason' => $result['reason']]);
+}
+
+/**
+ * The signed-in tenant's shortlist, scored against their own rental request.
+ *
+ * Replaces the hardcoded percentages the dashboard used to show: staff-curated
+ * matches (set on the request) stay first, then the best-scoring live listings.
+ */
+function handle_matches(): void
+{
+    $user = require_auth();
+    $requestId = clean_string(query_param('requestId', ''), 64);
+
+    if ($requestId !== '') {
+        // Staff score any request; a tenant may only score their own.
+        $request = find_tenant_request($requestId);
+        if (!$request) {
+            error_response('Tenant request not found.', 404);
+        }
+        $owns = (string)($request['tenantId'] ?? '') === (string)$user['id']
+            || strcasecmp((string)($request['tenantEmail'] ?? ''), (string)($user['email'] ?? '')) === 0;
+        if (!$owns && !is_admin($user)) {
+            error_response('You do not have permission to view these matches.', 403);
+        }
+    } else {
+        $requests = list_tenant_requests(['tenantId' => (string)$user['id']], 1);
+        if (!$requests && !empty($user['email'])) {
+            $requests = list_tenant_requests(['email' => (string)$user['email']], 1);
+        }
+        $request = $requests[0] ?? null;
+    }
+
+    if (!$request) {
+        json_response(['success' => true, 'requestId' => null, 'matches' => []]);
+    }
+
+    $curated = array_map('strval', (array)($request['matchedPropertyIds'] ?? []));
+    $result = query_properties(['status' => 'active', 'perPage' => 120]);
+
+    $scored = [];
+    foreach ($result['items'] as $property) {
+        $scoredScore = match_score($request, $property);
+        $scored[] = [
+            'property' => $property,
+            'score'    => $scoredScore['score'],
+            'reason'   => $scoredScore['reason'],
+            'curated'  => in_array((string)$property['id'], $curated, true),
+        ];
+    }
+
+    usort($scored, static function (array $a, array $b): int {
+        if ($a['curated'] !== $b['curated']) {
+            return $a['curated'] ? -1 : 1;
+        }
+        return $b['score'] <=> $a['score'];
+    });
+
+    $matches = array_slice($scored, 0, 12);
+
+    json_response([
+        'success'      => true,
+        'requestId'    => (string)$request['id'],
+        'topScore'     => $matches ? (int)$matches[0]['score'] : 0,
+        'matches'      => $matches,
+    ]);
 }
 
 /** Low-level Gemini REST call (returns null on any failure). */
@@ -1817,6 +2297,8 @@ function handle_send_email(): void
         error_response('Missing required fields: to, subject, html.', 400);
     }
 
-    $delivered = send_email($to, clean_string($input['recipientName'] ?? '', 120), $subject, $html, clean_string($input['type'] ?? 'notification', 64));
-    json_response(['success' => true, 'delivered' => $delivered]);
+    // Queued, not sent: delivery happens after the response and is retried by
+    // the outbox worker, so this endpoint never blocks on the mail transport.
+    $queued = send_email($to, clean_string($input['recipientName'] ?? '', 120), $subject, $html, clean_string($input['type'] ?? 'notification', 64));
+    json_response(['success' => true, 'queued' => $queued, 'delivered' => false]);
 }

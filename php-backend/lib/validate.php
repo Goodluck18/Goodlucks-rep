@@ -12,6 +12,7 @@ declare(strict_types=1);
 
 const PROPERTY_TYPES = ['Apartment', 'Luxury Villa', 'Townhouse', 'Studio', 'Duplex', 'Penthouse', 'Commercial'];
 const PROPERTY_STATUSES = ['active', 'pending', 'rejected', 'rented', 'deactivated'];
+const ENQUIRY_STATUSES = ['new', 'contacted', 'closed'];
 const REQUEST_STATUSES = ['submitted', 'searching', 'matched', 'viewing_scheduled', 'completed', 'cancelled'];
 const VIEWING_STATUSES = ['scheduled', 'completed', 'cancelled'];
 const USER_ROLES = ['tenant', 'landlord', 'admin'];

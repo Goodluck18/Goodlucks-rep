@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { useApp } from '../context/AppContext';
+import { useModalA11y } from '../hooks/useModalA11y';
 import { messageForError } from '../services/apiService';
 import { 
   Bell, 
@@ -33,6 +34,8 @@ export const GetNotifiedModal: React.FC<GetNotifiedModalProps> = ({
   initialFilters
 }) => {
   const { currentUser, subscribeToSearchAlerts } = useApp();
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const dialogProps = useModalA11y(dialogRef, onClose);
 
   const initLocation = initialFilters?.location || 'All';
   const initType = initialFilters?.propertyType || 'All';
@@ -104,7 +107,10 @@ export const GetNotifiedModal: React.FC<GetNotifiedModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/85 backdrop-blur-md animate-fadeIn p-2 sm:p-4 flex items-start sm:items-center justify-center">
       <div 
-        className="bg-[#1F242D] border border-white/10 rounded-2xl sm:rounded-3xl max-w-lg w-full max-h-[88dvh] flex flex-col p-4 sm:p-6 shadow-2xl relative text-white text-left my-auto overflow-hidden"
+        ref={dialogRef}
+        {...dialogProps}
+        aria-labelledby="get-notified-title"
+        className="bg-[#1F242D] border border-white/10 rounded-2xl sm:rounded-3xl max-w-lg w-full max-h-[88dvh] flex flex-col p-4 sm:p-6 shadow-2xl relative text-white text-left my-auto overflow-hidden focus:outline-none"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Modal Header */}
@@ -118,7 +124,7 @@ export const GetNotifiedModal: React.FC<GetNotifiedModalProps> = ({
                 <Sparkles className="w-3 h-3" />
                 Automated Listing Alerts
               </div>
-              <h2 className="text-lg sm:text-xl font-black text-white tracking-tight">
+              <h2 id="get-notified-title" className="text-lg sm:text-xl font-black text-white tracking-tight">
                 Get Notified for New Listings
               </h2>
               <p className="text-xs text-slate-300 mt-0.5">

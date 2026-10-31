@@ -1,7 +1,7 @@
 import React from 'react';
 import { Property } from '../types';
 import { useApp } from '../context/AppContext';
-import { Bed, Bath, MapPin, Eye, Heart, CalendarCheck, Sparkles } from 'lucide-react';
+import { Bed, Bath, MapPin, Eye, Heart, CalendarCheck, Sparkles, ShieldCheck } from 'lucide-react';
 
 interface PropertyCardProps {
   property: Property;
@@ -35,6 +35,8 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({ property, onRequestV
           itemProp="image"
           src={property.images[0] || 'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=800&q=80'} 
           alt={`${property.title} in ${property.location}`}
+          loading="lazy"
+          decoding="async"
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ease-out" 
         />
         
@@ -127,9 +129,15 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({ property, onRequestV
         </div>
 
         {/* Intermediary Guarantee Notice */}
-        <div className="text-[9px] sm:text-[10px] text-slate-400 bg-white/5 px-2 py-1 rounded-md text-center border border-white/5 font-medium">
-          Verified Intermediary Listing
-        </div>
+        {property.isLandlordVerified ? (
+          <div className="text-[9px] sm:text-[10px] text-emerald-300 bg-emerald-500/10 px-2 py-1 rounded-md text-center border border-emerald-500/20 font-semibold flex items-center justify-center gap-1">
+            <ShieldCheck className="w-3 h-3" /> Verified Landlord
+          </div>
+        ) : (
+          <div className="text-[9px] sm:text-[10px] text-slate-400 bg-white/5 px-2 py-1 rounded-md text-center border border-white/5 font-medium">
+            Managed by Goodlucks Intermediary
+          </div>
+        )}
 
         {/* Actions */}
         <div className="grid grid-cols-2 gap-1.5 pt-1">

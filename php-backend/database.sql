@@ -65,7 +65,7 @@ CREATE TABLE IF NOT EXISTS `properties` (
   `landlord_id` VARCHAR(64) DEFAULT NULL,
   `landlord_name` VARCHAR(255) DEFAULT NULL,
   `landlord_company` VARCHAR(255) DEFAULT NULL,
-  `is_landlord_verified` TINYINT(1) NOT NULL DEFAULT 1,
+  `is_landlord_verified` TINYINT(1) NOT NULL DEFAULT 0,
   `title` VARCHAR(255) NOT NULL,
   `location` VARCHAR(255) NOT NULL,
   `city` VARCHAR(100) NOT NULL DEFAULT 'Accra',
@@ -366,3 +366,63 @@ INSERT IGNORE INTO `properties` (`id`, `landlord_id`, `landlord_name`, `landlord
  'Smart minimalist studio flat curated with designer finishes, ambient lighting, high-speed fiber internet, and sleek space-saving architecture. Located 3 minutes stroll from Perez Chapel and Bloomsbury.', 
  '[\"Air Conditioning\", \"Fitted Kitchen\", \"24/7 Standby Generator\", \"Gated Security\", \"Water Reservoir (Polytank)\", \"Balcony\"]', 
  'Available Now', 0, 510, 22);
+
+-- 16. Alert delivery log (idempotency for price-drop & search-alert emails)
+CREATE TABLE IF NOT EXISTS `alert_deliveries` (
+  `id` VARCHAR(64) NOT NULL,
+  `alert_type` VARCHAR(32) NOT NULL,
+  `alert_id` VARCHAR(64) NOT NULL,
+  `property_id` VARCHAR(64) NOT NULL,
+  `context` VARCHAR(64) NOT NULL DEFAULT '',
+  `email` VARCHAR(255) NOT NULL,
+  `sent_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `idx_alert_delivery_once` (`alert_type`, `alert_id`, `property_id`, `context`),
+  KEY `idx_alert_delivery_alert` (`alert_type`, `alert_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 17. Password reset tokens (hashed; single use, 60 minute expiry)
+CREATE TABLE IF NOT EXISTS `password_resets` (
+  `id` VARCHAR(64) NOT NULL,
+  `user_id` VARCHAR(64) NOT NULL,
+  `token_hash` VARCHAR(64) NOT NULL,
+  `expires_at` DATETIME NOT NULL,
+  `used_at` DATETIME DEFAULT NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `idx_pwreset_token` (`token_hash`),
+  KEY `idx_pwreset_user` (`user_id`),
+  KEY `idx_pwreset_expiry` (`expires_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 18. Duplicate-submission guard (double clicks, retried requests)
+CREATE TABLE IF NOT EXISTS `submission_dedupe` (
+  `fingerprint` VARCHAR(64) NOT NULL,
+  `resource_type` VARCHAR(32) NOT NULL,
+  `resource_id` VARCHAR(64) NOT NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`fingerprint`),
+  KEY `idx_dedupe_created` (`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 19. Email outbox (durable queue: delivery happens after the response, retried
+--     with backoff by cron.php until it succeeds or the attempt cap is reached)
+CREATE TABLE IF NOT EXISTS `email_outbox` (
+  `id` VARCHAR(64) NOT NULL,
+  `recipient_email` VARCHAR(255) NOT NULL,
+  `recipient_name` VARCHAR(255) NOT NULL DEFAULT '',
+  `subject` VARCHAR(255) NOT NULL,
+  `body_html` MEDIUMTEXT NOT NULL,
+  `type` VARCHAR(64) NOT NULL DEFAULT 'notification',
+  `body_preview` VARCHAR(500) NOT NULL DEFAULT '',
+  `status` VARCHAR(16) NOT NULL DEFAULT 'pending',
+  `attempts` INT NOT NULL DEFAULT 0,
+  `last_error` VARCHAR(500) DEFAULT NULL,
+  `next_attempt_at` DATETIME NOT NULL,
+  `email_log_id` VARCHAR(64) DEFAULT NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `sent_at` DATETIME DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_outbox_due` (`status`, `next_attempt_at`),
+  KEY `idx_outbox_created` (`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

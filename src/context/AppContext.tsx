@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import {
   EmailLog,
+  EmailOutboxSummary,
   Enquiry,
   NotificationItem,
   Property,
@@ -21,6 +22,7 @@ import {
   SearchAlertInput,
   TenantRequestInput,
   ViewingInput,
+  ApiError,
   api,
   messageForError,
 } from '../services/apiService';
@@ -73,6 +75,7 @@ interface AppContextType {
   tenantRequests: TenantRequest[];
   viewingSchedules: ViewingSchedule[];
   emailLogs: EmailLog[];
+  emailOutbox: EmailOutboxSummary;
   agreements: TenancyAgreement[];
   receipts: RentReceipt[];
   notifications: NotificationItem[];
@@ -110,10 +113,11 @@ interface AppContextType {
 
   // Properties
   addProperty: (data: PropertyInput) => Promise<Property>;
-  updateProperty: (id: string, data: Partial<PropertyInput>) => Promise<void>;
+  updateProperty: (id: string, data: Partial<PropertyInput> & { updatedAt?: string }) => Promise<void>;
   updatePropertyStatus: (id: string, status: PropertyStatus) => Promise<void>;
   deleteProperty: (id: string) => Promise<void>;
   toggleFeatured: (id: string, featured: boolean) => Promise<void>;
+  verifyProperty: (id: string, verified: boolean) => Promise<void>;
   toggleSaveProperty: (id: string) => Promise<void>;
   incrementPropertyViews: (id: string) => void;
   refreshProperties: () => Promise<void>;
@@ -121,6 +125,7 @@ interface AppContextType {
   // Requests & viewings
   submitTenantRequest: (data: TenantRequestInput) => Promise<void>;
   updateTenantRequestStatus: (id: string, status: string, matchedPropertyIds?: string[]) => Promise<void>;
+  setEnquiryStatus: (id: string, status: Enquiry['status']) => Promise<void>;
   scheduleViewing: (data: ViewingInput) => Promise<ViewingSchedule>;
   updateViewingStatus: (id: string, status: ViewingSchedule['status'], feePaid?: boolean, notes?: string) => Promise<void>;
 
@@ -143,6 +148,8 @@ interface AppContextType {
 
   // Misc
   markNotificationRead: (id: string) => Promise<void>;
+  markAllNotificationsRead: () => Promise<void>;
+  runEmailOutbox: () => Promise<void>;
   refreshAdminData: () => Promise<void>;
 }
 
@@ -172,6 +179,9 @@ function initialView(): string {
   const pathname = window.location.pathname.toLowerCase();
   const hash = window.location.hash.toLowerCase();
   const search = window.location.search.toLowerCase();
+  if (/^\/property\//.test(pathname) || hash.includes('/property/')) {
+    return 'property-detail';
+  }
   if (
     pathname.includes('/admin-login') ||
     pathname.includes('/admin') ||
@@ -196,6 +206,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [tenantRequests, setTenantRequests] = useState<TenantRequest[]>([]);
   const [viewingSchedules, setViewingSchedules] = useState<ViewingSchedule[]>([]);
   const [emailLogs, setEmailLogs] = useState<EmailLog[]>([]);
+  const [emailOutbox, setEmailOutbox] = useState<EmailOutboxSummary>({
+    pending: 0,
+    failed: 0,
+    sentToday: 0,
+    oldestPendingAt: null,
+  });
   const [agreements, setAgreements] = useState<TenancyAgreement[]>([]);
   const [receipts, setReceipts] = useState<RentReceipt[]>([]);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
@@ -270,6 +286,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setAgreements([]);
       setReceipts([]);
       setEmailLogs([]);
+      setEmailOutbox({ pending: 0, failed: 0, sentToday: 0, oldestPendingAt: null });
       setEnquiries([]);
       setAnalytics(EMPTY_STATS);
       return;
@@ -288,6 +305,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setViewingSchedules(viewings.viewings);
       setTenantRequests(requests.requests);
       setEmailLogs(logs.logs);
+      setEmailOutbox(logs.outbox);
       setEnquiries(enquiryResult.enquiries);
       setSearchAlerts(alerts.alerts);
       const [agreementResult, receiptResult] = await Promise.all([
@@ -385,6 +403,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return;
       }
       const pathname = window.location.pathname.toLowerCase();
+      // Clean, shareable listing URLs: /property/<id>
+      const pathMatch = pathname.match(/^\/property\/([a-z0-9\-_]+)/);
+      if (pathMatch) {
+        setSelectedPropertyId(pathMatch[1]);
+        setCurrentViewState('property-detail');
+        return;
+      }
       if (pathname.includes('/admin-login') || pathname.includes('/admin')) {
         setCurrentViewState('admin-login');
       }
@@ -439,7 +464,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             window.location.hash = '#/admin-login';
           }
         }
-      } else if (window.location.pathname.includes('/admin-login')) {
+      } else if (
+        window.location.pathname.includes('/admin-login') ||
+        window.location.pathname.toLowerCase().startsWith('/property/')
+      ) {
         try {
           window.history.pushState({}, '', '/');
         } catch {
@@ -458,9 +486,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (local) setSelectedProperty(local);
       if (typeof window !== 'undefined') {
         try {
-          const url = new URL(window.location.href);
-          url.searchParams.set('property', propertyId);
-          window.history.pushState({}, '', url.toString());
+          window.history.pushState({}, '', `/property/${encodeURIComponent(propertyId)}`);
         } catch {
           window.location.hash = `#/property/${propertyId}`;
         }
@@ -587,13 +613,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   );
 
   const updateProperty = useCallback(
-    async (id: string, data: Partial<PropertyInput>) => {
-      const result = await api.updateProperty(id, data);
-      setProperties((prev) => prev.map((p) => (p.id === id ? result.property : p)));
-      if (selectedProperty?.id === id) setSelectedProperty(result.property);
-      showSuccessToast('Property Listing Updated', 'Changes to the property details were saved.');
+    async (id: string, data: Partial<PropertyInput> & { updatedAt?: string }) => {
+      try {
+        const result = await api.updateProperty(id, data);
+        setProperties((prev) => prev.map((p) => (p.id === id ? result.property : p)));
+        if (selectedProperty?.id === id) setSelectedProperty(result.property);
+        showSuccessToast('Property Listing Updated', 'Changes to the property details were saved.');
+      } catch (error) {
+        // 409 = someone else edited this listing first. Pull the current version
+        // so the caller can show what changed instead of clobbering it.
+        if (error instanceof ApiError && error.status === 409) {
+          await loadProperties(currentUser).catch(() => undefined);
+        }
+        throw error;
+      }
     },
-    [selectedProperty, showSuccessToast]
+    [currentUser, loadProperties, selectedProperty, showSuccessToast]
   );
 
   const updatePropertyStatus = useCallback(
@@ -622,6 +657,37 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const result = await api.toggleFeatured(id, featured);
       setProperties((prev) => prev.map((p) => (p.id === id ? result.property : p)));
       showSuccessToast('Listing Updated', featured ? 'Listing is now featured.' : 'Listing is no longer featured.');
+    },
+    [showSuccessToast]
+  );
+
+  const verifyProperty = useCallback(
+    async (id: string, verified: boolean) => {
+      const result = await api.verifyProperty(id, verified);
+      setProperties((prev) => prev.map((p) => (p.id === id ? result.property : p)));
+      setSelectedProperty((prev) => (prev && prev.id === id ? result.property : prev));
+      showSuccessToast(
+        verified ? 'Landlord Verified' : 'Verification Removed',
+        verified ? 'This listing now shows the verified badge.' : 'The verified badge was removed from this listing.'
+      );
+    },
+    [showSuccessToast]
+  );
+
+  const setEnquiryStatus = useCallback(
+    async (id: string, status: Enquiry['status']) => {
+      const result = await api.updateEnquiryStatus(id, status);
+      setEnquiries((prev) => prev.map((item) => (item.id === id ? result.enquiry : item)));
+
+      // Keep the dashboard KPI ("new enquiries") honest after triage.
+      try {
+        const stats = await api.adminStats();
+        setAnalytics(stats.stats);
+      } catch {
+        /* the status change itself already succeeded */
+      }
+
+      showSuccessToast('Enquiry Updated', result.message);
     },
     [showSuccessToast]
   );
@@ -813,6 +879,33 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   }, []);
 
+  /**
+   * Clear the unread badge. Called when the notifications view opens, so the
+   * bell stops advertising alerts the member has already looked at.
+   */
+  /**
+   * Drain the email outbox on demand (no shell cron on shared hosting).
+   * Refreshes the audit log afterwards so statuses flip from queued to sent.
+   */
+  const runEmailOutbox = useCallback(async () => {
+    const result = await api.runEmailOutbox();
+    setEmailOutbox(result.outbox);
+    const logs = await api.adminEmailLogs().catch(() => null);
+    if (logs) {
+      setEmailLogs(logs.logs);
+      setEmailOutbox(logs.outbox);
+    }
+    showSuccessToast('Email queue processed', result.message);
+  }, [showSuccessToast]);
+
+  const markAllNotificationsRead = useCallback(async () => {
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    const result = await api.markAllNotificationsRead().catch(() => null);
+    if (result) {
+      setNotifications(result.notifications);
+    }
+  }, []);
+
   const refreshAdminData = useCallback(async () => {
     if (!user_is_admin(currentUser)) return;
     await loadAccountData(currentUser);
@@ -858,11 +951,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       updatePropertyStatus,
       deleteProperty,
       toggleFeatured,
+      verifyProperty,
       toggleSaveProperty,
       incrementPropertyViews,
       refreshProperties,
       submitTenantRequest,
       updateTenantRequestStatus,
+      setEnquiryStatus,
       scheduleViewing,
       updateViewingStatus,
       createAgreement,
@@ -872,6 +967,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       unsubscribeFromSearchAlerts,
       sendEnquiry,
       markNotificationRead,
+      markAllNotificationsRead,
+      emailOutbox,
+      runEmailOutbox,
       refreshAdminData,
     }),
     [
@@ -912,11 +1010,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       updatePropertyStatus,
       deleteProperty,
       toggleFeatured,
+      verifyProperty,
       toggleSaveProperty,
       incrementPropertyViews,
       refreshProperties,
       submitTenantRequest,
       updateTenantRequestStatus,
+      setEnquiryStatus,
       scheduleViewing,
       updateViewingStatus,
       createAgreement,
@@ -926,6 +1026,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       unsubscribeFromSearchAlerts,
       sendEnquiry,
       markNotificationRead,
+      markAllNotificationsRead,
+      emailOutbox,
+      runEmailOutbox,
       refreshAdminData,
     ]
   );

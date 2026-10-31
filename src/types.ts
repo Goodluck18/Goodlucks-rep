@@ -170,7 +170,15 @@ export interface EmailLog {
     | 'alert_subscription';
   bodyPreview: string;
   sentAt: string;
-  status: 'sent' | 'delivered';
+  /** `queued` = waiting for the outbox worker, `failed` = gave up after retries. */
+  status: 'queued' | 'delivered' | 'failed';
+}
+
+export interface EmailOutboxSummary {
+  pending: number;
+  failed: number;
+  sentToday: number;
+  oldestPendingAt: string | null;
 }
 
 export interface NotificationItem {
@@ -277,7 +285,7 @@ export interface Enquiry {
   phone: string;
   message: string;
   source: 'contact_form' | 'property_page' | string;
-  status: 'new' | 'handled' | string;
+  status: 'new' | 'contacted' | 'closed';
   createdAt: string;
 }
 

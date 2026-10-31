@@ -13,4 +13,4 @@ Disallow: /*?admin=*
 Disallow: /*#admin*
 
 # XML Sitemap for Search Engine Crawlers
-Sitemap: /sitemap.xml
+Sitemap: https://rent.goodlucks.co/sitemap.xml

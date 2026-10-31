@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+    branches: [main]
+
+jobs:
+  verify:
+    name: Typecheck, API tests, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Typecheck (tsc --noEmit)
+        run: npm run lint
+
+      - name: API tests (PHP via @php-wasm/cli, throwaway SQLite)
+        run: npm run test:api
+
+      - name: Production build
+        run: npm run build
+
+      - name: Smoke test the built server
+        run: |
+          node -e "
+            const fs = require('fs');
+            const files = ['dist/index.html', 'dist/server.cjs'];
+            for (const f of files) {
+              if (!fs.existsSync(f)) { console.error('missing ' + f); process.exit(1); }
+            }
+            const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+            for (const script of ['dev', 'api:dev', 'test:api', 'build']) {
+              if (!pkg.scripts[script]) { console.error('missing npm script ' + script); process.exit(1); }
+            }
+            console.log('build artefacts and npm scripts present');
+          "

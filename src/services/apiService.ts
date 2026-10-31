@@ -13,6 +13,7 @@ import type {
   AnalyticsStats,
   Enquiry,
   EmailLog,
+  EmailOutboxSummary,
   NotificationItem,
   Property,
   PropertyStatus,
@@ -134,6 +135,13 @@ export interface AdminStats extends AnalyticsStats {
   totalTenantRequests: number;
 }
 
+export interface PropertyMatch {
+  property: Property;
+  score: number;
+  reason: string;
+  curated: boolean;
+}
+
 export interface PropertyInput {
   title: string;
   location: string;
@@ -221,6 +229,18 @@ export const api = {
 
   logout: () => request<{ success: boolean }>('/auth/logout', { method: 'POST' }),
 
+  requestPasswordReset: (email: string) =>
+    request<{ success: boolean; message: string }>('/auth/password-reset/request', {
+      method: 'POST',
+      body: { email },
+    }),
+
+  confirmPasswordReset: (token: string, password: string) =>
+    request<{ success: boolean; message: string }>('/auth/password-reset/confirm', {
+      method: 'POST',
+      body: { token, password },
+    }),
+
   updateProfile: (data: Partial<User> & { password?: string }) =>
     request<{ user: User }>('/profile', { method: 'PUT', body: data }),
 
@@ -254,7 +274,7 @@ export const api = {
   createProperty: (data: PropertyInput) =>
     request<{ property: Property; message: string }>('/properties', { method: 'POST', body: data }),
 
-  updateProperty: (id: string, data: Partial<PropertyInput>) =>
+  updateProperty: (id: string, data: Partial<PropertyInput> & { updatedAt?: string }) =>
     request<{ property: Property }>(`/properties/${encodeURIComponent(id)}`, { method: 'PUT', body: data }),
 
   deleteProperty: (id: string) =>
@@ -264,6 +284,12 @@ export const api = {
     request<{ property: Property }>(`/properties/${encodeURIComponent(id)}/status`, {
       method: 'POST',
       body: { status },
+    }),
+
+  verifyProperty: (id: string, verified: boolean) =>
+    request<{ property: Property; message: string }>(`/properties/${encodeURIComponent(id)}/verify`, {
+      method: 'POST',
+      body: { verified },
     }),
 
   toggleFeatured: (id: string, featured: boolean) =>
@@ -285,6 +311,18 @@ export const api = {
     request<{ success: boolean; message: string; enquiryId: string }>('/enquiries', { method: 'POST', body: data }),
 
   listEnquiries: () => request<{ enquiries: Enquiry[] }>('/admin/enquiries'),
+
+  updateEnquiryStatus: (id: string, status: Enquiry['status']) =>
+    request<{ enquiry: Enquiry; message: string }>(`/admin/enquiries/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: { status },
+    }),
+
+  runAlertDigest: () =>
+    request<{ success: boolean; properties: number; emails: number; message: string }>('/admin/alerts/run', {
+      method: 'POST',
+      body: {},
+    }),
 
   // -------------------------------------------------------------------------
   // Tenant requests
@@ -380,9 +418,25 @@ export const api = {
   markNotificationRead: (id: string) =>
     request<{ success: boolean }>(`/notifications/${encodeURIComponent(id)}`, { method: 'PATCH', body: {} }),
 
+  markAllNotificationsRead: () =>
+    request<{ success: boolean; updated: number; notifications: NotificationItem[] }>('/notifications/read-all', {
+      method: 'POST',
+      body: {},
+    }),
+
   adminStats: () => request<{ stats: AdminStats }>('/admin/stats'),
 
-  adminEmailLogs: () => request<{ logs: EmailLog[] }>('/admin/email-logs'),
+  adminEmailLogs: () =>
+    request<{ logs: EmailLog[]; outbox: EmailOutboxSummary }>('/admin/email-logs'),
+
+  // Delivers queued mail now instead of waiting for cron.php.
+  runEmailOutbox: () =>
+    request<{
+      success: boolean;
+      result: { checked: number; sent: number; retried: number; failed: number; skipped: number };
+      outbox: EmailOutboxSummary;
+      message: string;
+    }>('/admin/emails/run', { method: 'POST', body: {} }),
 
   // -------------------------------------------------------------------------
   // AI helpers
@@ -395,6 +449,12 @@ export const api = {
     rentGhs: number;
     amenities: string[];
   }) => request<{ description: string; ai: boolean }>('/ai/describe', { method: 'POST', body: data }),
+
+  // Scored shortlist from the backend (same engine as /ai/match).
+  matches: (requestId?: string) =>
+    request<{ success: boolean; requestId: string | null; topScore?: number; matches: PropertyMatch[] }>(
+      requestId ? `/matches?requestId=${encodeURIComponent(requestId)}` : '/matches'
+    ),
 
   aiMatch: (tenantRequest: Partial<TenantRequest>, property: Partial<Property>) =>
     request<{ matchScore: number; aiMatchReason: string }>('/ai/match', {

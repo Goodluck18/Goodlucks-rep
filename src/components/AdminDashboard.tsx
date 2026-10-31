@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
+import { ApiError, PropertyMatch, api, messageForError } from '../services/apiService';
 import { Property } from '../types';
 import { 
   ShieldCheck, 
@@ -35,7 +36,9 @@ export const AdminDashboard: React.FC = () => {
     properties, 
     tenantRequests, 
     viewingSchedules, 
-    emailLogs, 
+    emailLogs,
+    emailOutbox,
+    runEmailOutbox, 
     enquiries,
     analytics, 
     setCurrentView,
@@ -45,6 +48,8 @@ export const AdminDashboard: React.FC = () => {
     updateViewingStatus,
     deleteProperty,
     toggleFeatured,
+    verifyProperty,
+    setEnquiryStatus,
     updateProperty,
     showSuccessToast,
     showErrorToast
@@ -132,6 +137,11 @@ export const AdminDashboard: React.FC = () => {
   const pendingProps = properties.filter(p => p.status === 'pending');
   const activeProps = properties.filter(p => p.status === 'active');
 
+  const [isRunningAlerts, setIsRunningAlerts] = useState(false);
+  // Real match scores per tenant request, fetched from the backend so the
+  // console shows the same numbers the tenant sees.
+  const [requestMatches, setRequestMatches] = useState<Record<string, PropertyMatch[]>>({});
+  const [matchesLoading, setMatchesLoading] = useState(false);
   const [editProperty, setEditProperty] = useState<Property | null>(null);
   const [editForm, setEditForm] = useState<Record<string, any>>({});
   const [isSavingEdit, setIsSavingEdit] = useState(false);
@@ -160,6 +170,21 @@ export const AdminDashboard: React.FC = () => {
     void runAction(() => updateTenantRequestStatus(reqId, 'matched', [propId]), 'Could not confirm the match.');
   };
 
+  const handleRunAlertDigest = async () => {
+    setIsRunningAlerts(true);
+    setActionError(null);
+    try {
+      const result = await api.runAlertDigest();
+      showSuccessToast('Alert digests sent', result.message);
+    } catch (error) {
+      const message = messageForError(error);
+      setActionError(message);
+      showErrorToast('Could not send alerts', message);
+    } finally {
+      setIsRunningAlerts(false);
+    }
+  };
+
   const openEditProperty = (property: Property) => {
     setEditProperty(property);
     setEditForm({
@@ -177,6 +202,31 @@ export const AdminDashboard: React.FC = () => {
     });
   };
 
+  useEffect(() => {
+    if (activeAdminTab !== 'matching' || tenantRequests.length === 0) return;
+
+    let cancelled = false;
+    setMatchesLoading(true);
+
+    Promise.all(
+      tenantRequests.slice(0, 20).map(req =>
+        api.matches(req.id)
+          .then(result => [req.id, result.matches] as const)
+          .catch(() => [req.id, [] as PropertyMatch[]] as const)
+      )
+    )
+      .then(entries => {
+        if (!cancelled) setRequestMatches(Object.fromEntries(entries));
+      })
+      .finally(() => {
+        if (!cancelled) setMatchesLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeAdminTab, tenantRequests]);
+
   const handleSavePropertyEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editProperty) return;
@@ -187,6 +237,8 @@ export const AdminDashboard: React.FC = () => {
         .map((line) => line.trim())
         .filter(Boolean);
       await updateProperty(editProperty.id, {
+        // Optimistic concurrency: send the version this form was built from.
+        updatedAt: editProperty.updatedAt,
         title: editForm.title,
         location: editForm.location,
         city: editForm.city,
@@ -200,7 +252,17 @@ export const AdminDashboard: React.FC = () => {
       });
       setEditProperty(null);
     } catch (error) {
-      showErrorToast('Could not save changes', error instanceof Error ? error.message : 'Please try again.');
+      if (error instanceof ApiError && error.status === 409) {
+        // The listing changed under us; close the stale form so reopening it
+        // loads the version that actually won.
+        setEditProperty(null);
+        showErrorToast(
+          'Listing changed while you were editing',
+          'Someone else saved this listing first. The latest version has been loaded - reopen the editor to continue.'
+        );
+      } else {
+        showErrorToast('Could not save changes', error instanceof Error ? error.message : 'Please try again.');
+      }
     } finally {
       setIsSavingEdit(false);
     }
@@ -267,6 +329,16 @@ export const AdminDashboard: React.FC = () => {
               <Database className="w-4 h-4 text-[#08D9D6]" />
               <Download className="w-3.5 h-3.5 text-slate-300" />
               <span>Export Listings (CSV)</span>
+            </button>
+
+            <button
+              onClick={() => void handleRunAlertDigest()}
+              disabled={isRunningAlerts}
+              className="px-3.5 py-2.5 rounded-xl bg-slate-700/80 hover:bg-slate-700 text-white font-bold text-xs border border-white/10 transition-all shadow-md flex items-center gap-1.5 disabled:opacity-60"
+              title="Email saved searches that match a new listing"
+            >
+              <Bell className="w-4 h-4 text-[#08D9D6]" />
+              <span>{isRunningAlerts ? 'Sending…' : 'Send Alert Digests'}</span>
             </button>
 
             <button 
@@ -521,7 +593,7 @@ export const AdminDashboard: React.FC = () => {
                 {pendingProps.map(prop => (
                   <div key={prop.id} className="bg-slate-800 p-5 rounded-2xl border border-white/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                     <div className="flex items-center gap-4">
-                      <img src={prop.images[0]} alt="" className="w-20 h-20 rounded-xl object-cover border border-white/10 shrink-0" />
+                      <img src={prop.images[0]} alt="" loading="lazy" decoding="async" className="w-20 h-20 rounded-xl object-cover border border-white/10 shrink-0" />
                       <div>
                         <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider">Pending Review</span>
                         <h3 className="font-bold text-base text-white">{prop.title}</h3>
@@ -591,6 +663,8 @@ export const AdminDashboard: React.FC = () => {
                     <img
                       src={property.images[0] || 'https://images.unsplash.com/photo-1560518883-ce09059eeffa?auto=format&fit=crop&w=200&q=60'}
                       alt=""
+                      loading="lazy"
+                      decoding="async"
                       className="w-14 h-14 rounded-xl object-cover border border-white/10 shrink-0"
                     />
                     <div className="min-w-0">
@@ -613,6 +687,15 @@ export const AdminDashboard: React.FC = () => {
                             FEATURED
                           </span>
                         )}
+                        <span
+                          className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                            property.isLandlordVerified
+                              ? 'bg-emerald-500/20 text-emerald-400'
+                              : 'bg-slate-600/40 text-slate-300'
+                          }`}
+                        >
+                          {property.isLandlordVerified ? 'LANDLORD VERIFIED' : 'NOT VERIFIED'}
+                        </span>
                         <span className="text-[10px] text-slate-500 font-mono">{property.id}</span>
                       </div>
                       <h3 className="font-bold text-sm text-white truncate">{property.title}</h3>
@@ -646,6 +729,23 @@ export const AdminDashboard: React.FC = () => {
                         Archive
                       </button>
                     )}
+
+                    <button
+                      onClick={() =>
+                        void runAction(
+                          () => verifyProperty(property.id, !property.isLandlordVerified),
+                          'Could not update the verification state.'
+                        )
+                      }
+                      className={`px-3 py-1.5 rounded-lg font-bold text-[11px] ${
+                        property.isLandlordVerified
+                          ? 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30'
+                          : 'bg-white/10 text-white hover:bg-white/20'
+                      }`}
+                      title="Only mark this after Goodlucks staff have inspected the property"
+                    >
+                      {property.isLandlordVerified ? 'Unverify' : 'Verify'}
+                    </button>
 
                     <button
                       onClick={() => void runAction(() => toggleFeatured(property.id, !property.featured), 'Could not update the featured flag.')}
@@ -696,6 +796,17 @@ export const AdminDashboard: React.FC = () => {
                       <span className="font-bold text-white text-sm">{enquiry.name}</span>
                       <span className="text-[11px] text-slate-400">{enquiry.email}</span>
                       {enquiry.phone && <span className="text-[11px] text-slate-400">• {enquiry.phone}</span>}
+                      <span
+                        className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                          enquiry.status === 'new'
+                            ? 'bg-amber-500/20 text-amber-300'
+                            : enquiry.status === 'contacted'
+                              ? 'bg-sky-500/20 text-sky-300'
+                              : 'bg-slate-600/40 text-slate-300'
+                        }`}
+                      >
+                        {enquiry.status.replace('_', ' ')}
+                      </span>
                       <span className="text-[10px] text-slate-500 ml-auto">
                         {new Date(enquiry.createdAt).toLocaleString()}
                       </span>
@@ -704,6 +815,45 @@ export const AdminDashboard: React.FC = () => {
                       <div className="text-[11px] text-[#08D9D6]">Re: {enquiry.propertyTitle}</div>
                     )}
                     <p className="text-xs text-slate-300 whitespace-pre-line">{enquiry.message}</p>
+
+                    <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                      {enquiry.status !== 'contacted' && (
+                        <button
+                          onClick={() =>
+                            void runAction(() => setEnquiryStatus(enquiry.id, 'contacted'), 'Could not update the enquiry.')
+                          }
+                          className="px-3 py-1.5 rounded-lg bg-sky-500/20 text-sky-300 hover:bg-sky-500/30 font-bold text-[11px]"
+                        >
+                          Mark contacted
+                        </button>
+                      )}
+                      {enquiry.status !== 'closed' && (
+                        <button
+                          onClick={() =>
+                            void runAction(() => setEnquiryStatus(enquiry.id, 'closed'), 'Could not update the enquiry.')
+                          }
+                          className="px-3 py-1.5 rounded-lg bg-slate-700/70 text-slate-200 hover:bg-slate-700 font-bold text-[11px]"
+                        >
+                          Close
+                        </button>
+                      )}
+                      {enquiry.status !== 'new' && (
+                        <button
+                          onClick={() =>
+                            void runAction(() => setEnquiryStatus(enquiry.id, 'new'), 'Could not update the enquiry.')
+                          }
+                          className="px-3 py-1.5 rounded-lg bg-white/10 text-white hover:bg-white/20 font-bold text-[11px]"
+                        >
+                          Reopen
+                        </button>
+                      )}
+                      <a
+                        href={`mailto:${enquiry.email}?subject=${encodeURIComponent('Re: your enquiry with Goodlucks Homes')}`}
+                        className="px-3 py-1.5 rounded-lg bg-[#08D9D6]/15 text-[#08D9D6] hover:bg-[#08D9D6]/25 font-bold text-[11px]"
+                      >
+                        Reply by email
+                      </a>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -740,31 +890,45 @@ export const AdminDashboard: React.FC = () => {
                   <div className="space-y-2">
                     <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">Top AI Property Matches for {req.tenantName}:</div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      {activeProps.slice(0, 2).map((prop, idx) => {
-                        const score = 96 - (idx * 4);
-                        return (
-                          <div key={prop.id} className="bg-slate-900 p-4 rounded-2xl border border-white/10 flex items-center justify-between gap-3">
-                            <div>
-                              <div className="flex items-center gap-1.5">
-                                <span className="px-2 py-0.5 rounded text-[10px] font-black bg-emerald-500 text-slate-950">
-                                  {score}% AI Match
-                                </span>
-                                <span className="text-xs font-bold text-white">{prop.title}</span>
-                              </div>
-                              <div className="text-[11px] text-slate-400 mt-1">
-                                {prop.location} • GH₵ {prop.rentGhs.toLocaleString()}/mo
-                              </div>
+                      {(requestMatches[req.id] ?? []).slice(0, 2).map(({ property: prop, score, reason, curated }) => (
+                        <div key={prop.id} className="bg-slate-900 p-4 rounded-2xl border border-white/10 flex items-center justify-between gap-3">
+                          <div>
+                            <div className="flex items-center gap-1.5">
+                              <span
+                                title={reason}
+                                className={`px-2 py-0.5 rounded text-[10px] font-black ${
+                                  curated ? 'bg-[#08D9D6] text-[#252A34]' : 'bg-emerald-500 text-slate-950'
+                                }`}
+                              >
+                                {curated ? 'Chosen' : `${score}% match`}
+                              </span>
+                              <span className="text-xs font-bold text-white">{prop.title}</span>
                             </div>
+                            <div className="text-[11px] text-slate-400 mt-1">
+                              {prop.location} • GH₵ {prop.rentGhs.toLocaleString()}/mo
+                            </div>
+                          </div>
 
+                          {!curated && (
                             <button
                               onClick={() => handleConfirmMatch(req.id, prop.id)}
                               className="px-3 py-1.5 rounded-lg bg-[#08D9D6] text-[#252A34] font-bold text-xs hover:bg-[#08D9D6]/90 transition-all shadow-md shrink-0"
                             >
                               Confirm Match
                             </button>
-                          </div>
-                        );
-                      })}
+                          )}
+                        </div>
+                      ))}
+                      {!matchesLoading && (requestMatches[req.id] ?? []).length === 0 && (
+                        <p className="text-[11px] text-slate-400 bg-slate-900/60 border border-white/10 rounded-2xl p-4">
+                          No live listing scores against this request yet — the tenant will see new homes as soon as they pass verification.
+                        </p>
+                      )}
+                      {matchesLoading && (requestMatches[req.id] ?? []).length === 0 && (
+                        <p className="text-[11px] text-slate-400 bg-slate-900/60 border border-white/10 rounded-2xl p-4">
+                          Scoring live listings…
+                        </p>
+                      )}
                     </div>
                   </div>
 
@@ -823,7 +987,41 @@ export const AdminDashboard: React.FC = () => {
         {/* TAB 5: Email Transactional Logs */}
         {activeAdminTab === 'email-logs' && (
           <div className="space-y-4">
-            <h2 className="text-xl font-bold text-white">Transactional Email Audit Logs</h2>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h2 className="text-xl font-bold text-white">Transactional Email Audit Logs</h2>
+                <p className="text-xs text-slate-400 mt-1">
+                  Mail is queued during the request and delivered after it, so a slow mail provider never delays a submit.
+                </p>
+              </div>
+              <button
+                onClick={() => void runEmailOutbox().catch(error => showErrorToast('Could not process the queue', messageForError(error)))}
+                className="px-4 py-2.5 rounded-xl bg-[#08D9D6] text-[#252A34] font-bold text-xs hover:bg-[#08D9D6]/90 transition-all shrink-0"
+              >
+                Send queued email now
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+              <div className="bg-slate-800 border border-white/10 rounded-2xl p-4">
+                <div className="text-[10px] uppercase tracking-wider text-slate-400">Queued</div>
+                <div className="text-xl font-black text-amber-400">{emailOutbox.pending}</div>
+              </div>
+              <div className="bg-slate-800 border border-white/10 rounded-2xl p-4">
+                <div className="text-[10px] uppercase tracking-wider text-slate-400">Failed</div>
+                <div className="text-xl font-black text-[#FF8FA8]">{emailOutbox.failed}</div>
+              </div>
+              <div className="bg-slate-800 border border-white/10 rounded-2xl p-4">
+                <div className="text-[10px] uppercase tracking-wider text-slate-400">Sent today</div>
+                <div className="text-xl font-black text-emerald-400">{emailOutbox.sentToday}</div>
+              </div>
+              <div className="bg-slate-800 border border-white/10 rounded-2xl p-4">
+                <div className="text-[10px] uppercase tracking-wider text-slate-400">Oldest waiting</div>
+                <div className="text-xs font-bold text-slate-200 mt-1">
+                  {emailOutbox.oldestPendingAt ? new Date(emailOutbox.oldestPendingAt).toLocaleString() : '—'}
+                </div>
+              </div>
+            </div>
             <div className="bg-slate-800 rounded-2xl border border-white/10 overflow-hidden">
               <div className="divide-y divide-white/10 text-xs">
                 {emailLogs.map(log => (
@@ -838,8 +1036,16 @@ export const AdminDashboard: React.FC = () => {
                       <p className="text-slate-300 mt-1">{log.bodyPreview}</p>
                       <span className="text-[10px] text-slate-500">To: {log.recipientName} ({log.recipientEmail}) • Sent: {new Date(log.sentAt).toLocaleString()}</span>
                     </div>
-                    <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-400 shrink-0">
-                      Delivered
+                    <span
+                      className={`px-2.5 py-1 rounded-full text-[10px] font-bold shrink-0 ${
+                        log.status === 'delivered'
+                          ? 'bg-emerald-500/20 text-emerald-400'
+                          : log.status === 'failed'
+                            ? 'bg-[#FF2E63]/20 text-[#FF8FA8]'
+                            : 'bg-amber-500/20 text-amber-400'
+                      }`}
+                    >
+                      {log.status === 'delivered' ? 'Delivered' : log.status === 'failed' ? 'Failed' : 'Queued'}
                     </span>
                   </div>
                 ))}
@@ -979,6 +1185,8 @@ export const AdminDashboard: React.FC = () => {
                 <img 
                   src={viewPropertyModal.images[activeModalImage] || viewPropertyModal.images[0]} 
                   alt={viewPropertyModal.title} 
+                  loading="lazy"
+                  decoding="async" 
                   className="w-full h-full object-cover"
                 />
                 <div className="absolute bottom-3 right-3 bg-black/70 backdrop-blur-md px-3 py-1 rounded-lg text-xs font-semibold text-white">
@@ -996,7 +1204,7 @@ export const AdminDashboard: React.FC = () => {
                         activeModalImage === idx ? 'border-[#08D9D6] scale-105' : 'border-transparent opacity-60 hover:opacity-100'
                       }`}
                     >
-                      <img src={img} alt="" className="w-full h-full object-cover" />
+                      <img src={img} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
                     </button>
                   ))}
                 </div>

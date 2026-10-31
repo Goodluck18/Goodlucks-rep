@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext';
+import { api, PropertyMatch } from '../services/apiService';
 import { PropertyCard } from './PropertyCard';
 import { 
   User, 
@@ -65,8 +66,39 @@ export const TenantDashboard: React.FC = () => {
   const myViewings = viewingSchedules.filter(v => v.tenantName === currentUser?.name || v.tenantPhone === currentUser?.phone) || viewingSchedules;
   const savedProps = properties.filter(p => savedPropertyIds.includes(p.id));
 
-  // Determine Matched Properties
-  const matchedProps = properties.filter(p => activeRequest?.matchedPropertyIds?.includes(p.id)) || [properties[0], properties[2]];
+  // Real match scores from the backend (the same engine the listing page uses),
+  // so this dashboard never invents a percentage. Staff-curated matches come
+  // back first, then the best-scoring live listings.
+  const [matches, setMatches] = useState<PropertyMatch[]>([]);
+  const [matchesLoading, setMatchesLoading] = useState(true);
+
+  useEffect(() => {
+    if (!currentUser) {
+      setMatches([]);
+      setMatchesLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setMatchesLoading(true);
+    api.matches()
+      .then(result => {
+        if (!cancelled) setMatches(result.matches ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setMatches([]);
+      })
+      .finally(() => {
+        if (!cancelled) setMatchesLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUser, activeRequest?.id]);
+
+  const matchedProps = matches.map(match => match.property);
+  const topMatchScore = matches[0]?.score ?? 0;
 
   // Timeline Steps
   const TIMELINE_STEPS = [
@@ -165,6 +197,8 @@ export const TenantDashboard: React.FC = () => {
                   <img 
                     src={currentUser?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80'} 
                     alt={currentUser?.name}
+                    loading="lazy"
+                    decoding="async"
                     className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl object-cover border-2 border-[#08D9D6] shadow-xl" 
                   />
                   <div className="absolute -bottom-1 -right-1 bg-[#08D9D6] text-[#252A34] p-1 rounded-lg text-[10px] font-black">
@@ -311,7 +345,9 @@ export const TenantDashboard: React.FC = () => {
             </div>
             <div className="text-2xl font-black text-emerald-400">{matchedProps.length}</div>
             <div className="text-[11px] text-slate-300 font-semibold mt-1 flex items-center gap-1">
-              <span>96% Top Match Score</span>
+              <span>
+                {matchesLoading ? 'Scoring homes…' : topMatchScore > 0 ? `${topMatchScore}% Top Match Score` : 'No matches yet'}
+              </span>
               <ChevronRight className="w-3 h-3" />
             </div>
           </button>
@@ -491,17 +527,44 @@ export const TenantDashboard: React.FC = () => {
                 </span>
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6">
-                {matchedProps.map(property => (
-                  <div key={property.id} className="relative">
-                    <div className="absolute top-3 left-3 z-20 bg-emerald-500 text-slate-950 font-black text-[10px] px-2 py-0.5 rounded-md shadow-md flex items-center gap-1">
-                      <Sparkles className="w-3 h-3" />
-                      96% AI Match
+              {matches.length > 0 ? (
+                <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6">
+                  {matches.map(({ property, score, reason, curated }) => (
+                    <div key={property.id} className="relative">
+                      <div
+                        title={reason}
+                        className={`absolute top-3 left-3 z-20 font-black text-[10px] px-2 py-0.5 rounded-md shadow-md flex items-center gap-1 ${
+                          curated ? 'bg-[#08D9D6] text-[#252A34]' : 'bg-emerald-500 text-slate-950'
+                        }`}
+                      >
+                        <Sparkles className="w-3 h-3" />
+                        {curated ? 'Chosen for you' : `${score}% match`}
+                      </div>
+                      <PropertyCard property={property} />
                     </div>
-                    <PropertyCard property={property} />
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="bg-slate-900/70 border border-white/10 rounded-2xl p-8 text-center space-y-3">
+                  <Sparkles className="w-8 h-8 text-[#08D9D6] mx-auto" />
+                  <h3 className="text-base font-bold text-white">
+                    {matchesLoading ? 'Scoring verified homes…' : 'No matches to show yet'}
+                  </h3>
+                  <p className="text-xs text-slate-400 max-w-md mx-auto">
+                    {activeRequest
+                      ? 'We score every live listing against your budget, bedrooms and preferred areas. Check back soon — new homes are added weekly.'
+                      : 'Tell us your budget, preferred areas and bedrooms and we will score every verified listing against your request.'}
+                  </p>
+                  {!activeRequest && (
+                    <button
+                      onClick={() => setCurrentView('find-home')}
+                      className="px-5 py-2.5 rounded-xl bg-[#08D9D6] text-[#252A34] font-extrabold text-xs shadow-lg shadow-[#08D9D6]/20"
+                    >
+                      Start a Rental Request
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           )}
 

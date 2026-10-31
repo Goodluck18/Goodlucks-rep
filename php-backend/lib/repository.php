@@ -22,7 +22,7 @@ function shape_property(array $row): array
     return [
         'id'                      => (string)$row['id'],
         'landlordId'              => (string)($row['landlord_id'] ?? ''),
-        'isLandlordVerified'      => (bool)($row['is_landlord_verified'] ?? true),
+        'isLandlordVerified'      => (bool)($row['is_landlord_verified'] ?? false),
         'landlordName'            => $landlordName,
         'landlordCompany'         => (string)($row['landlord_company'] ?? ''),
         'title'                   => (string)$row['title'],
@@ -993,6 +993,15 @@ function mark_notification_read(string $id, array $user): bool
         [':id' => $id, ':uid' => $user['id']]
     );
     return $affected > 0;
+}
+
+/** Mark every unread notification for a user as read. Returns the row count. */
+function mark_all_notifications_read(array $user): int
+{
+    return db_exec(
+        'UPDATE notifications SET is_read = 1 WHERE user_id = :uid AND is_read = 0',
+        [':uid' => $user['id']]
+    );
 }
 
 function list_email_logs(int $limit = 200): array

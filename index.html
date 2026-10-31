@@ -1,14 +1,71 @@
 <!doctype html>
-<html lang="en">
+<html lang="en-GH">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Goodlucks Homes - Verified Rentals & Real Estate</title>
+
+    <title>Goodlucks Homes - Verified Rentals & Real Estate in Accra</title>
     <meta name="description" content="Discover verified apartments, homes, and commercial rentals across Greater Accra with transparent pricing and zero fake listings." />
+    <meta name="theme-color" content="#252A34" />
+    <meta name="robots" content="index, follow, max-image-preview:large" />
+    <link rel="canonical" href="https://rent.goodlucks.co/" />
+
+    <!-- Icons -->
+    <link rel="icon" href="/favicon.ico" sizes="48x48" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+
+    <!--
+      Static social defaults.
+      These are what WhatsApp, Slack, X and Facebook read, because those crawlers
+      do not run the SPA's JavaScript. Per-page values are still injected by
+      SEOHead at runtime for Google and other JS-capable crawlers.
+    -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Goodlucks Homes" />
+    <meta property="og:locale" content="en_GH" />
+    <meta property="og:url" content="https://rent.goodlucks.co/" />
+    <meta property="og:title" content="Goodlucks Homes - Verified Rentals & Real Estate in Accra" />
+    <meta property="og:description" content="Verified apartments and homes across Greater Accra with transparent pricing, physical viewings and zero fake listings." />
+    <meta property="og:image" content="https://rent.goodlucks.co/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Goodlucks Homes - verified rentals in Greater Accra, Ghana" />
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Goodlucks Homes - Verified Rentals & Real Estate in Accra" />
+    <meta name="twitter:description" content="Verified apartments and homes across Greater Accra with transparent pricing, physical viewings and zero fake listings." />
+    <meta name="twitter:image" content="https://rent.goodlucks.co/og-image.jpg" />
+
+    <link rel="preconnect" href="https://images.unsplash.com" crossorigin />
+
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "RealEstateAgent",
+        "name": "Goodlucks Homes",
+        "url": "https://rent.goodlucks.co/",
+        "image": "https://rent.goodlucks.co/og-image.jpg",
+        "logo": "https://rent.goodlucks.co/icon-192.png",
+        "description": "Rental intermediary connecting tenants with verified landlords across Greater Accra, Ghana.",
+        "telephone": "+233237690080",
+        "email": "rentals@goodlucks.co",
+        "areaServed": {
+          "@type": "AdministrativeArea",
+          "name": "Greater Accra, Ghana"
+        },
+        "address": {
+          "@type": "PostalAddress",
+          "addressLocality": "Accra",
+          "addressCountry": "GH"
+        }
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
-
