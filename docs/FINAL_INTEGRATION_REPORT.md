@@ -210,4 +210,51 @@ php php-backend/grant_finance.php  --email=… [--manage=1] [--approve=1] [--vie
 
 ## 14. Commit and release details
 
-See `docs/RELEASE_NOTES.md` for the exact commits, the branch/merge result and the remote verification recorded at release time.
+### 14.1 The release commit
+
+| Item | Value |
+| --- | --- |
+| Branch | `arena/a67485fb-goodlucks-rep` |
+| Release commit | **`ee3a345`** — "Complete Increments 0 and A–G: agent platform, verification, fee policies, viewing lifecycle, and financial reconciliation" |
+| Size | **79 files changed: 42 added, 36 modified, 1 deleted** (`src/components/TenancyAgreementView.tsx`, removed by Increment A) — 28,437 insertions, 2,704 deletions |
+| Contents | Everything from increments 0 and A–G plus the non-numbered improvements; nothing was left behind. |
+
+The branch was **not** force-pushed. The remote branch already held two commits made in an earlier session (`bb36206` the Phase 1 audit, `43b410f` Increment 0) whose content was already present in the working tree; they were integrated with an ordinary merge commit, **`27d31d5`**, and the conflicts were resolved in favour of the superset (the A–G tree), including keeping Increment A's deliberate deletion of the tenancy-agreement screen. After the merge the tree is byte-identical to `ee3a345`, and the full suite was re-run on the merged tree: **175/175**.
+
+### 14.2 Integration into `main`
+
+| Item | Value |
+| --- | --- |
+| Pull request | **#3** — "Complete Increments 0 and A–G…" |
+| Merge method | `gh pr merge 3 --merge` (a merge commit; no squash, no rebase, no force) |
+| Resulting `main` | **`e8cfaa1`** — "Merge pull request #3 from Goodluck18/arena/a67485fb-goodlucks-rep" |
+| Merged at | 2026-11-03T10:21:14Z |
+
+### 14.3 Remote verification
+
+```
+$ git ls-remote origin main
+e8cfaa165a9e2f84effc9345163136c3f246c51f        refs/heads/main
+
+$ git merge-base --is-ancestor ee3a345 origin/main && echo YES
+YES
+$ git merge-base --is-ancestor 27d31d5 origin/main && echo YES
+YES
+```
+
+Remote `main` therefore contains the release commit, and the working tree, the session branch and `main` all agree.
+
+### 14.4 CI on `main`
+
+`.github/workflows/ci.yml` ran on the merge (run **41618560514**, job "Typecheck, API tests, build") and concluded **success**. The workflow is verification only — `npm ci`, `npm run lint`, `npm run test:api`, `npm run build`, artefact smoke test — with **no deploy step** and no production database access.
+
+### 14.5 Safety confirmation
+
+| Check | Result |
+| --- | --- |
+| `.env`, keys, tokens in the commit | none — scanned for `.env` files, `sk-`/`re_`/`AKIA` patterns and private-key headers; nothing found |
+| Local SQLite databases, backups, logs, uploads, `dist`, `node_modules` | excluded by `.gitignore`; `.data/` (46 MB) and `dist/` were never staged |
+| Private identity uploads | only `php-backend/storage/private/.gitignore` and `.htaccess` are tracked (the store itself is ignored) |
+| Production database | not read, not written, not migrated |
+| Deployment | **none performed** |
+| History rewrite / force-push | **none** |
