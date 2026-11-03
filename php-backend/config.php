@@ -126,16 +126,124 @@ define('UPLOAD_DIR', (string)cfg('UPLOAD_DIR', GL_ROOT . '/uploads'));
 define('UPLOAD_MAX_BYTES', (int)cfg('UPLOAD_MAX_BYTES', 8 * 1024 * 1024)); // 8 MB
 define('UPLOAD_URL_PATH', (string)cfg('UPLOAD_URL_PATH', '/api/uploads'));
 
+/**
+ * Private document store: identity documents and other personal data live
+ * here, outside the publicly served uploads directory, and are only ever
+ * streamed through an authenticated endpoint (see lib/private_storage.php).
+ */
+define('PRIVATE_UPLOAD_DIR', (string)cfg('PRIVATE_UPLOAD_DIR', GL_ROOT . '/storage/private'));
+
+/**
+ * Identity documents are capped lower than property photos: a legible scan or
+ * photo of a card is well under this, and the smaller the upload the smaller the
+ * data-protection surface.
+ */
+define('IDENTITY_DOCUMENT_MAX_BYTES', (int)cfg('IDENTITY_DOCUMENT_MAX_BYTES', 5 * 1024 * 1024)); // 5 MB
+
+/**
+ * Retention window for identity data after a FINAL decision (approved or
+ * rejected). The retention job removes documents, the encrypted number and the
+ * masked number once this elapses, keeping only the decision history.
+ *
+ * PENDING LEGAL CONFIRMATION: this is a conservative placeholder, not an agreed
+ * Ghanaian Data Protection Act (Act 843) retention period. See
+ * docs/INCREMENT_D_REPORT.md.
+ */
+define('VERIFICATION_RETENTION_DAYS', (int)cfg('VERIFICATION_RETENTION_DAYS', 365));
+
+/**
+ * Key used to encrypt identity-document numbers at rest (AES-256-GCM).
+ *
+ * Must be supplied by the deployment (environment variable or config.local.php):
+ * a base64-encoded 32-byte key, or 64 hex characters. Generate one with
+ * `openssl rand -base64 32`. Never commit it and never reuse another secret.
+ *
+ * When it is absent the platform does NOT retain the full document number at
+ * all — only a masked value — rather than storing it in plain text.
+ */
+define('IDENTITY_DATA_KEY', (string)cfg('IDENTITY_DATA_KEY', ''));
+
 define('SESSION_COOKIE', 'gl_session');
 define('SESSION_TTL_SECONDS', (int)cfg('SESSION_TTL_SECONDS', 60 * 60 * 24 * 7)); // 7 days
 define('VIEWING_FEE_GHS', (float)cfg('VIEWING_FEE_GHS', 100));
 
+/**
+ * Registrations accepted from one IP per hour. Kept as a config value so the
+ * automated suite (which signs up many accounts from one loopback address) can
+ * raise it without loosening the production default of 10.
+ */
+define('REGISTER_RATE_LIMIT_PER_HOUR', (int)cfg('REGISTER_RATE_LIMIT_PER_HOUR', 10));
+
+/**
+ * Viewing requests accepted from one IP per hour. Same reasoning as the
+ * registration knob: the automated suite books many viewings from one loopback
+ * address, and Increment E needs several distinct fee records. Production keeps
+ * the previous default of 12.
+ */
+define('VIEWING_RATE_LIMIT_PER_HOUR', (int)cfg('VIEWING_RATE_LIMIT_PER_HOUR', 12));
+// Increment F: lifecycle actions (propose/confirm/reschedule/cancel/complete…).
+// Separate from request creation so an agent working a queue is not throttled
+// by the public booking limit, and high enough for an office using the console.
+define('VIEWING_ACTION_RATE_LIMIT_PER_HOUR', (int)cfg('VIEWING_ACTION_RATE_LIMIT_PER_HOUR', 300));
+
+/**
+ * Receipt issuing is switched OFF until the truthful transaction-record model
+ * ships (Increment B). The legacy template could imply Goodlucks received rent
+ * that a tenant actually paid to the landlord, so no new receipt may be issued.
+ * Reading and printing existing records stays enabled.
+ */
+define('RECEIPT_ISSUING_ENABLED', filter_var(cfg('RECEIPT_ISSUING_ENABLED', false), FILTER_VALIDATE_BOOLEAN));
+
+/**
+ * Viewing-fee sharing policy — PROVISIONAL, NOT APPROVED, NEVER APPLIED.
+ *
+ * The figures below are the *proposal* discussed with the business owner
+ * (Standard agent 60/40, Professionally Verified agent 70/30). They are
+ * deliberately NOT used by any calculation: a fee-sharing percentage may only
+ * reach the ledger through an explicitly approved policy row in `fee_policies`
+ * (see `active_fee_policy()`), and no such row ships with this release.
+ *
+ * Until the owner approves the percentages in writing, the ledger records the
+ * agent-collected amount and an explicitly agreed Goodlucks share per
+ * transaction (`share_basis = manual_agreement`). Money owed is never inferred
+ * from these constants.
+ *
+ * What is needed before activation (Increment E made steps 2 and 3 real):
+ *   1. Written approval of the percentages (and of any tier definitions);
+ *   2. A policy created in the admin console by one administrator with the
+ *      fee-policy MANAGER capability, approved by a *different* administrator
+ *      holding the APPROVER capability, then activated — never seeded, never
+ *      inserted by migrate.php, never created by config;
+ *   3. A per-transaction snapshot so a later policy change never rewrites past
+ *      records (implemented: `fee_policy_snapshots`, append-only and hashed);
+ *   4. Confirmation from the business owner that viewing fees are not treated
+ *      as Goodlucks revenue before remittance is actually received.
+ *
+ * These constants are still read by NOTHING except the "proposals on record"
+ * notice in the admin console (lib/fee_policies.php `fee_policy_overview()`),
+ * which labels them provisional and explicitly reports
+ * `appliedToCalculations: false`.
+ */
+define('PROPOSED_FEE_POLICY_STATUS', 'provisional');
+define('PROPOSED_STANDARD_AGENT_SHARE_PCT', 60.0);
+define('PROPOSED_STANDARD_GOODLUCKS_SHARE_PCT', 40.0);
+define('PROPOSED_VERIFIED_AGENT_SHARE_PCT', 70.0);
+define('PROPOSED_VERIFIED_GOODLUCKS_SHARE_PCT', 30.0);
+
 require_once GL_ROOT . '/lib/http.php';
 require_once GL_ROOT . '/lib/db.php';
 require_once GL_ROOT . '/lib/validate.php';
+require_once GL_ROOT . '/lib/crypto.php';
 require_once GL_ROOT . '/lib/auth.php';
+require_once GL_ROOT . '/lib/audit.php';
 require_once GL_ROOT . '/lib/mailer.php';
 require_once GL_ROOT . '/lib/outbox.php';
 require_once GL_ROOT . '/lib/repository.php';
+require_once GL_ROOT . '/lib/private_storage.php';
+require_once GL_ROOT . '/lib/verification.php';
+require_once GL_ROOT . '/lib/fee_policies.php';
+require_once GL_ROOT . '/lib/viewings.php';
+require_once GL_ROOT . '/lib/finance.php';
+require_once GL_ROOT . '/lib/finance_api.php';
 require_once GL_ROOT . '/lib/alerts.php';
 require_once GL_ROOT . '/lib/api.php';

@@ -22,6 +22,17 @@ CREATE TABLE IF NOT EXISTS users (
   budget_max REAL,
   preferred_bedrooms INTEGER,
   additional_notes TEXT,
+  -- Increment D: least-privilege staff capabilities, both default-deny.
+  can_review_verifications INTEGER NOT NULL DEFAULT 0,
+  can_access_identity_documents INTEGER NOT NULL DEFAULT 0,
+  -- Increment E: financial-policy capabilities (manage / approve), both default-deny.
+  can_manage_fee_policies INTEGER NOT NULL DEFAULT 0,
+  can_approve_fee_policies INTEGER NOT NULL DEFAULT 0,
+  -- Increment F: exceptional, audited viewing corrections. Default 0.
+  can_correct_viewings INTEGER NOT NULL DEFAULT 0,
+  -- Increment G: reading financial records and moving money are separate powers.
+  can_view_finance INTEGER NOT NULL DEFAULT 0,
+  can_confirm_remittances INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT
 );
@@ -43,7 +54,13 @@ CREATE TABLE IF NOT EXISTS properties (
   landlord_id TEXT,
   landlord_name TEXT,
   landlord_company TEXT,
-  is_landlord_verified INTEGER NOT NULL DEFAULT 1,
+  submitted_by_user_id TEXT,
+  submitted_by_role TEXT,
+  landlord_authority_state TEXT NOT NULL DEFAULT 'not_applicable',
+  -- Increment F: the landlord contact an agent claimed, for staff review only.
+  landlord_contact_claimed TEXT,
+  -- Parity with MySQL: a listing is never verified by default (Increment B).
+  is_landlord_verified INTEGER NOT NULL DEFAULT 0,
   title TEXT NOT NULL,
   location TEXT NOT NULL,
   city TEXT NOT NULL DEFAULT 'Accra',
@@ -65,6 +82,7 @@ CREATE TABLE IF NOT EXISTS properties (
 );
 CREATE INDEX IF NOT EXISTS idx_prop_status ON properties (status);
 CREATE INDEX IF NOT EXISTS idx_prop_landlord ON properties (landlord_id);
+CREATE INDEX IF NOT EXISTS idx_prop_submitted_by ON properties (submitted_by_user_id);
 CREATE INDEX IF NOT EXISTS idx_prop_created ON properties (created_at);
 
 CREATE TABLE IF NOT EXISTS tenant_requests (
@@ -98,13 +116,54 @@ CREATE TABLE IF NOT EXISTS viewing_schedules (
   property_location TEXT NOT NULL,
   date TEXT NOT NULL,
   time TEXT NOT NULL,
-  assigned_agent TEXT DEFAULT 'Goodlucks Field Agent',
+  assigned_agent TEXT DEFAULT '',
   status TEXT NOT NULL DEFAULT 'scheduled',
   viewing_fee_paid INTEGER NOT NULL DEFAULT 0,
   fee_amount_ghs REAL NOT NULL DEFAULT 100.0,
   outcome_notes TEXT,
+  -- Increment F: a row is a request first and an appointment only once a slot
+  -- is agreed (confirmed_at). See docs/INCREMENT_F_REPORT.md.
+  tenant_user_id TEXT,
+  agent_user_id TEXT,
+  landlord_user_id TEXT,
+  request_type TEXT NOT NULL DEFAULT 'viewing',
+  preferred_date TEXT,
+  preferred_time TEXT,
+  confirmed_at TEXT,
+  confirmed_by TEXT,
+  cancel_reason TEXT,
+  cancelled_by TEXT,
+  cancelled_at TEXT,
+  completed_at TEXT,
+  completed_by TEXT,
+  agent_notes TEXT,
+  updated_at TEXT,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+CREATE INDEX IF NOT EXISTS idx_vs_agent ON viewing_schedules (agent_user_id, status);
+CREATE INDEX IF NOT EXISTS idx_vs_tenant ON viewing_schedules (tenant_user_id);
+CREATE INDEX IF NOT EXISTS idx_vs_slot ON viewing_schedules (date, status);
+
+-- ---------------------------------------------------------------------------
+-- Increment F: viewing lifecycle history (append-only)
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS viewing_events (
+  id TEXT PRIMARY KEY,
+  viewing_id TEXT NOT NULL,
+  action TEXT NOT NULL,
+  from_status TEXT NOT NULL DEFAULT '',
+  to_status TEXT NOT NULL DEFAULT '',
+  previous_date TEXT,
+  previous_time TEXT,
+  new_date TEXT,
+  new_time TEXT,
+  note TEXT,
+  actor_id TEXT,
+  actor_role TEXT,
+  actor_name TEXT,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_ve_viewing ON viewing_events (viewing_id, created_at);
 
 CREATE TABLE IF NOT EXISTS enquiries (
   id TEXT PRIMARY KEY,
@@ -157,6 +216,9 @@ CREATE TABLE IF NOT EXISTS saved_properties (
   PRIMARY KEY (user_id, property_id)
 );
 
+-- RETIRED (Increment A): tenancy-agreement drafting, signing and emailing were
+-- removed from the product. The table is kept so no destructive migration is
+-- needed; it is no longer written to or read by the application.
 CREATE TABLE IF NOT EXISTS tenancy_agreements (
   id TEXT PRIMARY KEY,
   property_id TEXT,
@@ -184,7 +246,9 @@ CREATE TABLE IF NOT EXISTS tenancy_agreements (
   witness_name TEXT DEFAULT 'Goodlucks Legal Intermediary',
   status TEXT NOT NULL DEFAULT 'pending_signatures',
   verification_code TEXT NOT NULL UNIQUE,
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  landlord_user_id TEXT,
+  tenant_user_id TEXT
 );
 
 CREATE TABLE IF NOT EXISTS rent_receipts (
@@ -203,7 +267,9 @@ CREATE TABLE IF NOT EXISTS rent_receipts (
   payment_date TEXT NOT NULL,
   issued_by TEXT DEFAULT 'Goodlucks Homes Intermediary Desk',
   verification_code TEXT NOT NULL UNIQUE,
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  landlord_user_id TEXT,
+  tenant_user_id TEXT
 );
 
 CREATE TABLE IF NOT EXISTS email_logs (
@@ -325,3 +391,382 @@ CREATE TABLE IF NOT EXISTS email_outbox (
 );
 
 CREATE INDEX IF NOT EXISTS idx_outbox_due ON email_outbox (status, next_attempt_at);
+
+CREATE TABLE IF NOT EXISTS audit_logs (
+  id TEXT PRIMARY KEY,
+  actor_id TEXT,
+  actor_role TEXT,
+  action TEXT NOT NULL,
+  entity_type TEXT NOT NULL,
+  entity_id TEXT,
+  context_json TEXT,
+  ip_address TEXT,
+  user_agent TEXT,
+  created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_logs (created_at);
+CREATE INDEX IF NOT EXISTS idx_audit_entity ON audit_logs (entity_type, entity_id);
+CREATE INDEX IF NOT EXISTS idx_audit_action ON audit_logs (action);
+
+-- Increment B: viewing-fee ledger (see database.sql for the authoritative
+-- definitions and the accounting rules).
+
+CREATE TABLE IF NOT EXISTS fee_policies (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL DEFAULT '',
+  description TEXT,
+  category TEXT NOT NULL DEFAULT 'viewing_fee',
+  tier TEXT NOT NULL DEFAULT 'standard',
+  calculation_method TEXT NOT NULL DEFAULT 'percentage',
+  currency TEXT NOT NULL DEFAULT 'GHS',
+  agent_share_percent REAL NOT NULL DEFAULT 0,
+  goodlucks_share_percent REAL NOT NULL DEFAULT 0,
+  agent_share_fixed_ghs REAL,
+  goodlucks_share_fixed_ghs REAL,
+  status TEXT NOT NULL DEFAULT 'draft',
+  version INTEGER NOT NULL DEFAULT 1,
+  supersedes_policy_id TEXT,
+  effective_from TEXT,
+  effective_to TEXT,
+  created_by TEXT,
+  submitted_by TEXT,
+  submitted_at TEXT,
+  approved_by TEXT,
+  approved_at TEXT,
+  rejected_by TEXT,
+  rejected_at TEXT,
+  rejection_reason TEXT,
+  activated_by TEXT,
+  activated_at TEXT,
+  deactivated_by TEXT,
+  deactivated_at TEXT,
+  deactivation_reason TEXT,
+  notes TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_fee_policy_status ON fee_policies (status, tier);
+CREATE INDEX IF NOT EXISTS idx_fee_policy_tier_category ON fee_policies (tier, category, status);
+CREATE INDEX IF NOT EXISTS idx_fee_policy_dates ON fee_policies (effective_from, effective_to);
+
+CREATE TABLE IF NOT EXISTS viewing_fee_records (
+  id TEXT PRIMARY KEY,
+  reference TEXT NOT NULL UNIQUE,
+  viewing_id TEXT,
+  property_id TEXT,
+  property_title TEXT NOT NULL DEFAULT '',
+  agent_name TEXT NOT NULL DEFAULT '',
+  agent_user_id TEXT,
+  fee_total_ghs REAL,
+  collection_state TEXT NOT NULL DEFAULT 'reported',
+  share_basis TEXT NOT NULL DEFAULT 'not_set',
+  goodlucks_share_ghs REAL,
+  agent_share_ghs REAL,
+  policy_snapshot_json TEXT,
+  policy_id TEXT,
+  policy_snapshot_id TEXT,
+  agent_tier_at_snapshot TEXT,
+  recorded_by TEXT,
+  recorded_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT,
+  notes TEXT
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_vfr_viewing ON viewing_fee_records (viewing_id);
+CREATE INDEX IF NOT EXISTS idx_vfr_state ON viewing_fee_records (collection_state);
+
+CREATE TABLE IF NOT EXISTS fee_remittances (
+  id TEXT PRIMARY KEY,
+  viewing_fee_record_id TEXT NOT NULL,
+  amount_ghs REAL NOT NULL,
+  method TEXT NOT NULL DEFAULT 'unknown',
+  reference TEXT,
+  received_at TEXT NOT NULL,
+  recorded_by TEXT,
+  notes TEXT,
+  -- Increment G: which agent submission and allocation produced this receipt,
+  -- and whether the row is a receipt or a linked reversal. Reversals are
+  -- negative rows: nothing is ever edited or deleted.
+  submission_id TEXT,
+  allocation_id TEXT,
+  entry_type TEXT NOT NULL DEFAULT 'receipt',
+  adjustment_id TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_fee_remit_record ON fee_remittances (viewing_fee_record_id);
+CREATE INDEX IF NOT EXISTS idx_fee_remit_received ON fee_remittances (received_at);
+
+-- Increment C: agent account profiles. Deny-by-default: account_status starts
+-- at 'pending_review' and can_submit_listings at 0.
+CREATE TABLE IF NOT EXISTS agent_profiles (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL UNIQUE,
+  agency_name TEXT NOT NULL DEFAULT '',
+  operating_city TEXT NOT NULL DEFAULT '',
+  account_status TEXT NOT NULL DEFAULT 'pending_review',
+  can_submit_listings INTEGER NOT NULL DEFAULT 0,
+  status_note TEXT,
+  reviewed_by TEXT,
+  reviewed_at TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_agent_status ON agent_profiles (account_status);
+
+-- Increment D: identity verification (identity only, never ownership).
+CREATE TABLE IF NOT EXISTS identity_verifications (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL UNIQUE REFERENCES users (id) ON DELETE RESTRICT,
+  subject_role TEXT NOT NULL DEFAULT 'agent',
+  legal_name TEXT NOT NULL DEFAULT '',
+  document_type TEXT NOT NULL DEFAULT 'ghana_card',
+  document_number_masked TEXT NOT NULL DEFAULT '',
+  document_number_encrypted TEXT,
+  document_number_retained INTEGER NOT NULL DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'not_submitted',
+  submitted_at TEXT,
+  reviewed_by TEXT,
+  reviewed_at TEXT,
+  decision_note TEXT,
+  retention_purge_after TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_identity_status ON identity_verifications (status);
+
+-- Increment D: professional authorisation, kept separate from identity.
+CREATE TABLE IF NOT EXISTS professional_authorisations (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL UNIQUE REFERENCES users (id) ON DELETE RESTRICT,
+  licence_number TEXT NOT NULL DEFAULT '',
+  issuing_authority TEXT NOT NULL DEFAULT '',
+  licence_category TEXT NOT NULL DEFAULT '',
+  issue_date TEXT,
+  expiry_date TEXT,
+  status TEXT NOT NULL DEFAULT 'not_submitted',
+  registry_checked INTEGER NOT NULL DEFAULT 0,
+  submitted_at TEXT,
+  reviewed_by TEXT,
+  reviewed_at TEXT,
+  decision_note TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_professional_status ON professional_authorisations (status);
+
+-- Increment D: private document metadata (files live in the private store).
+CREATE TABLE IF NOT EXISTS verification_documents (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users (id) ON DELETE RESTRICT,
+  scope TEXT NOT NULL DEFAULT 'identity',
+  kind TEXT NOT NULL DEFAULT 'document_front',
+  storage_id TEXT NOT NULL UNIQUE,
+  mime_type TEXT NOT NULL DEFAULT '',
+  bytes INTEGER NOT NULL DEFAULT 0,
+  checksum_sha256 TEXT NOT NULL DEFAULT '',
+  uploaded_by TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  deleted_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_vdoc_user ON verification_documents (user_id);
+CREATE INDEX IF NOT EXISTS idx_vdoc_scope ON verification_documents (user_id, scope);
+
+-- Increment D: append-only decision history.
+CREATE TABLE IF NOT EXISTS verification_decisions (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users (id) ON DELETE RESTRICT,
+  scope TEXT NOT NULL DEFAULT 'identity',
+  decision TEXT NOT NULL,
+  from_status TEXT NOT NULL DEFAULT '',
+  to_status TEXT NOT NULL,
+  note TEXT,
+  reviewer_id TEXT,
+  reviewer_name TEXT,
+  decided_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_vdecision_user ON verification_decisions (user_id, scope);
+
+-- ---------------------------------------------------------------------------
+-- Increment E: immutable fee-policy snapshots (one row per priced transaction)
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS fee_policy_snapshots (
+  id TEXT PRIMARY KEY,
+  policy_id TEXT NOT NULL,
+  policy_name TEXT NOT NULL DEFAULT '',
+  policy_version INTEGER NOT NULL DEFAULT 1,
+  policy_category TEXT NOT NULL DEFAULT 'viewing_fee',
+  agent_tier TEXT NOT NULL,
+  subject_user_id TEXT,
+  transaction_type TEXT NOT NULL DEFAULT 'viewing_fee',
+  transaction_id TEXT NOT NULL,
+  currency TEXT NOT NULL DEFAULT 'GHS',
+  calculation_method TEXT NOT NULL DEFAULT 'percentage',
+  fee_total_ghs REAL NOT NULL,
+  agent_share_percent REAL NOT NULL DEFAULT 0,
+  goodlucks_share_percent REAL NOT NULL DEFAULT 0,
+  agent_share_fixed_ghs REAL,
+  goodlucks_share_fixed_ghs REAL,
+  agent_entitlement_ghs REAL NOT NULL,
+  goodlucks_entitlement_ghs REAL NOT NULL,
+  policy_status_at_use TEXT NOT NULL DEFAULT 'active',
+  policy_effective_from TEXT,
+  policy_effective_to TEXT,
+  policy_approved_by TEXT,
+  policy_approved_at TEXT,
+  transaction_at TEXT NOT NULL,
+  snapshot_hash TEXT NOT NULL DEFAULT '',
+  snapshot_at TEXT NOT NULL,
+  created_by TEXT
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_fps_transaction ON fee_policy_snapshots (transaction_type, transaction_id);
+CREATE INDEX IF NOT EXISTS idx_fps_policy ON fee_policy_snapshots (policy_id);
+CREATE INDEX IF NOT EXISTS idx_fps_subject ON fee_policy_snapshots (subject_user_id);
+
+-- ---------------------------------------------------------------------------
+-- Increment E: append-only fee-policy history
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS fee_policy_events (
+  id TEXT PRIMARY KEY,
+  policy_id TEXT NOT NULL,
+  action TEXT NOT NULL,
+  from_status TEXT NOT NULL DEFAULT '',
+  to_status TEXT NOT NULL DEFAULT '',
+  note TEXT,
+  actor_id TEXT,
+  actor_name TEXT,
+  created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_fpe_policy ON fee_policy_events (policy_id, created_at);
+
+
+-- ---------------------------------------------------------------------------
+-- Increment G: agent remittances, financial reconciliation, rental commissions.
+--
+-- Three rules shape these tables:
+--   1. A submission is a CLAIM. It is not revenue until an authorised
+--      administrator confirms the money actually arrived.
+--   2. Confirmed money is applied to a specific viewing-fee obligation through
+--      an allocation, so nothing is counted twice and partial settlement is
+--      visible per obligation.
+--   3. Rental commissions are a separate workflow from viewing fees. Nothing
+--      here generates a commission automatically.
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS remittance_submissions (
+  id TEXT PRIMARY KEY,
+  reference TEXT NOT NULL UNIQUE,
+  agent_user_id TEXT NOT NULL,
+  agent_name TEXT NOT NULL DEFAULT '',
+  amount_ghs REAL NOT NULL,
+  currency TEXT NOT NULL DEFAULT 'GHS',
+  method TEXT NOT NULL DEFAULT 'unknown',
+  payment_reference TEXT NOT NULL DEFAULT '',
+  paid_at TEXT NOT NULL,
+  evidence_reference TEXT NOT NULL DEFAULT '',
+  -- submitted | confirmed | rejected | disputed
+  status TEXT NOT NULL DEFAULT 'submitted',
+  -- What the finance team actually confirmed receiving. NULL until confirmed;
+  -- never assumed equal to the claimed amount.
+  confirmed_ghs REAL,
+  confirmed_by TEXT,
+  confirmed_at TEXT,
+  requested_allocations_json TEXT,
+  decision_reason TEXT,
+  note TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_remit_sub_agent ON remittance_submissions (agent_user_id, status);
+CREATE INDEX IF NOT EXISTS idx_remit_sub_status ON remittance_submissions (status, paid_at);
+
+CREATE TABLE IF NOT EXISTS remittance_allocations (
+  id TEXT PRIMARY KEY,
+  submission_id TEXT NOT NULL,
+  viewing_fee_record_id TEXT NOT NULL,
+  agent_user_id TEXT NOT NULL DEFAULT '',
+  amount_ghs REAL NOT NULL,
+  created_by TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_remit_alloc_once ON remittance_allocations (submission_id, viewing_fee_record_id);
+CREATE INDEX IF NOT EXISTS idx_remit_alloc_record ON remittance_allocations (viewing_fee_record_id);
+
+CREATE TABLE IF NOT EXISTS rental_commissions (
+  id TEXT PRIMARY KEY,
+  reference TEXT NOT NULL UNIQUE,
+  property_id TEXT,
+  property_title TEXT NOT NULL DEFAULT '',
+  tenant_user_id TEXT,
+  tenant_name TEXT NOT NULL DEFAULT '',
+  landlord_user_id TEXT,
+  landlord_name TEXT NOT NULL DEFAULT '',
+  agent_user_id TEXT,
+  agent_name TEXT NOT NULL DEFAULT '',
+  rental_reference TEXT NOT NULL DEFAULT '',
+  commission_amount_ghs REAL,
+  currency TEXT NOT NULL DEFAULT 'GHS',
+  -- manual_agreement | policy_snapshot
+  basis TEXT NOT NULL DEFAULT 'manual_agreement',
+  policy_id TEXT,
+  policy_snapshot_json TEXT,
+  policy_snapshot_hash TEXT,
+  due_date TEXT,
+  -- draft | awaiting_agreement | agreed | due | partially_paid | paid |
+  -- disputed | cancelled | corrected
+  status TEXT NOT NULL DEFAULT 'draft',
+  notes TEXT,
+  cancel_reason TEXT,
+  created_by TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_commission_status ON rental_commissions (status, due_date);
+CREATE INDEX IF NOT EXISTS idx_commission_agent ON rental_commissions (agent_user_id);
+
+CREATE TABLE IF NOT EXISTS commission_payments (
+  id TEXT PRIMARY KEY,
+  commission_id TEXT NOT NULL,
+  amount_ghs REAL NOT NULL,
+  method TEXT NOT NULL DEFAULT 'unknown',
+  reference TEXT NOT NULL DEFAULT '',
+  received_at TEXT NOT NULL,
+  recorded_by TEXT,
+  adjustment_id TEXT,
+  -- receipt | reversal
+  entry_type TEXT NOT NULL DEFAULT 'receipt',
+  notes TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_commission_payment ON commission_payments (commission_id, received_at);
+
+CREATE TABLE IF NOT EXISTS financial_adjustments (
+  id TEXT PRIMARY KEY,
+  -- viewing_fee_remittance | rental_commission
+  subject_type TEXT NOT NULL,
+  subject_id TEXT NOT NULL,
+  -- reversal | correction
+  kind TEXT NOT NULL,
+  amount_ghs REAL NOT NULL,
+  reason TEXT NOT NULL,
+  support_reference TEXT NOT NULL DEFAULT '',
+  meta_json TEXT,
+  created_by TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_fin_adj_subject ON financial_adjustments (subject_type, subject_id);
+CREATE INDEX IF NOT EXISTS idx_fin_adj_created ON financial_adjustments (created_at);

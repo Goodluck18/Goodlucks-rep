@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  AgentProfile,
   EmailLog,
   EmailOutboxSummary,
   Enquiry,
@@ -8,7 +9,6 @@ import {
   PropertyStatus,
   RentReceipt,
   SearchAlertSubscription,
-  TenancyAgreement,
   TenantRequest,
   ToastNotification,
   User,
@@ -39,6 +39,8 @@ const EMPTY_STATS: AdminStats = {
   totalRegisteredUsers: 0,
   totalTenants: 0,
   totalLandlords: 0,
+  totalAgents: 0,
+  pendingAgentAccounts: 0,
   newUsersToday: 0,
   newUsersThisWeek: 0,
   totalProperties: 0,
@@ -47,7 +49,13 @@ const EMPTY_STATS: AdminStats = {
   rejectedProperties: 0,
   totalViewings: 0,
   completedViewings: 0,
-  physicalRevenueGhs: 0,
+  viewingFeesCollectedGhs: 0,
+  goodlucksShareDueGhs: 0,
+  goodlucksShareReceivedGhs: 0,
+  agentShareRetainedGhs: 0,
+  outstandingReceivablesGhs: 0,
+  viewingFeeRecordsWithoutShare: 0,
+  viewingFeeDisputedRecords: 0,
   totalEnquiries: 0,
   newEnquiries: 0,
   totalTenantRequests: 0,
@@ -76,8 +84,9 @@ interface AppContextType {
   viewingSchedules: ViewingSchedule[];
   emailLogs: EmailLog[];
   emailOutbox: EmailOutboxSummary;
-  agreements: TenancyAgreement[];
   receipts: RentReceipt[];
+  /** False while receipt issuing is disabled server-side (Increment B pending). */
+  receiptIssuingEnabled: boolean;
   notifications: NotificationItem[];
   enquiries: Enquiry[];
   analytics: AdminStats;
@@ -99,17 +108,25 @@ interface AppContextType {
   dismissToast: (id: string) => void;
 
   // Auth
-  login: (email: string, password: string, role?: 'tenant' | 'landlord') => Promise<SignInResult>;
+  login: (email: string, password: string, role?: 'tenant' | 'landlord' | 'agent') => Promise<SignInResult>;
   register: (data: {
     name: string;
     email: string;
     phone: string;
     password: string;
-    role: 'tenant' | 'landlord';
+    role: 'tenant' | 'landlord' | 'agent';
+    /** Optional city/town (contact information, not identity data). */
+    city?: string;
+    /** Agent only: agency/business name, if any (Increment C). */
+    agencyName?: string;
+    /** Agent only: the city the agent works from, not their home address. */
+    operatingCity?: string;
   }) => Promise<SignInResult>;
   adminLogin: (email: string, password: string, accessKey: string) => Promise<SignInResult>;
   logout: () => Promise<void>;
   updateUserProfile: (data: Partial<User> & { password?: string }) => Promise<SignInResult>;
+  /** Update the signed-in agent's own profile (agency name, operating city). */
+  updateAgentProfile: (data: { agencyName?: string; operatingCity?: string }) => Promise<SignInResult>;
 
   // Properties
   addProperty: (data: PropertyInput) => Promise<Property>;
@@ -128,10 +145,15 @@ interface AppContextType {
   setEnquiryStatus: (id: string, status: Enquiry['status']) => Promise<void>;
   scheduleViewing: (data: ViewingInput) => Promise<ViewingSchedule>;
   updateViewingStatus: (id: string, status: ViewingSchedule['status'], feePaid?: boolean, notes?: string) => Promise<void>;
+  /** Run a lifecycle action (propose, confirm, reschedule, cancel, complete…) and refresh. */
+  runViewingAction: (
+    id: string,
+    action: 'propose' | 'confirm' | 'reschedule' | 'request-reschedule' | 'cancel' | 'complete' | 'no-show' | 'could-not-proceed',
+    body?: { date?: string; time?: string; note?: string; reason?: string; who?: 'tenant' | 'agent' }
+  ) => Promise<{ ok: boolean; error?: string; fields?: Record<string, string> }>;
+  refreshViewings: () => Promise<void>;
 
-  // Agreements & receipts
-  createAgreement: (data: Record<string, unknown>) => Promise<TenancyAgreement>;
-  signAgreement: (id: string, role: 'landlord' | 'tenant') => Promise<void>;
+  // Rent payment records
   createReceipt: (data: Record<string, unknown>) => Promise<RentReceipt>;
 
   // Alerts & enquiries
@@ -151,6 +173,15 @@ interface AppContextType {
   markAllNotificationsRead: () => Promise<void>;
   runEmailOutbox: () => Promise<void>;
   refreshAdminData: () => Promise<void>;
+  /**
+   * Re-read the signed-in account from the server (Increment D).
+   *
+   * Staff capabilities and the agent profile live on the session user, and a
+   * server-side change (a reviewer grant, an agent approval) must not require a
+   * full page reload before the console reflects it. The UI value is only a hint:
+   * every endpoint re-checks the capability.
+   */
+  refreshSession: () => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -212,8 +243,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     sentToday: 0,
     oldestPendingAt: null,
   });
-  const [agreements, setAgreements] = useState<TenancyAgreement[]>([]);
   const [receipts, setReceipts] = useState<RentReceipt[]>([]);
+  const [receiptIssuingEnabled, setReceiptIssuingEnabled] = useState(false);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [enquiries, setEnquiries] = useState<Enquiry[]>([]);
   const [analytics, setAnalytics] = useState<AdminStats>(EMPTY_STATS);
@@ -269,7 +300,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const result = await api.listProperties({ perPage: 100 });
     let list = result.properties;
 
-    if (user?.role === 'landlord') {
+    if (user?.role === 'landlord' || user?.role === 'agent') {
+      // Landlords see what they own; agents see what they submitted. The server
+      // decides which, from the session role.
       const mine = await api.listProperties({ mine: 1, perPage: 100 });
       const seen = new Set(list.map((p) => p.id));
       list = [...list, ...mine.properties.filter((p) => !seen.has(p.id))];
@@ -283,8 +316,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setViewingSchedules([]);
       setNotifications([]);
       setSearchAlerts([]);
-      setAgreements([]);
       setReceipts([]);
+      setReceiptIssuingEnabled(false);
       setEmailLogs([]);
       setEmailOutbox({ pending: 0, failed: 0, sentToday: 0, oldestPendingAt: null });
       setEnquiries([]);
@@ -308,46 +341,62 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setEmailOutbox(logs.outbox);
       setEnquiries(enquiryResult.enquiries);
       setSearchAlerts(alerts.alerts);
-      const [agreementResult, receiptResult] = await Promise.all([
-        api.listAgreements().catch(() => ({ agreements: [] })),
-        api.listReceipts().catch(() => ({ receipts: [] })),
-      ]);
-      setAgreements(agreementResult.agreements);
+      const receiptResult = await api.listReceipts().catch(() => ({ receipts: [], issuingEnabled: false }));
       setReceipts(receiptResult.receipts);
+      setReceiptIssuingEnabled(Boolean(receiptResult.issuingEnabled));
+      return;
+    }
+
+    if (user.role === 'agent') {
+      // Agents have no receipts, tenant requests or staff tools. They get their
+      // own viewing queue (Increment F), notifications and saved listings; their
+      // submissions arrive with the property catalogue.
+      const [notificationsResult, savedResult, viewings] = await Promise.all([
+        api.listNotifications().catch(() => ({ notifications: [] })),
+        api.listSaved().catch(() => ({ propertyIds: [] })),
+        api.listViewings().catch(() => ({ viewings: [] })),
+      ]);
+      setNotifications(notificationsResult.notifications);
+      setSavedPropertyIds(savedResult.propertyIds);
+      setViewingSchedules(viewings.viewings);
+      setTenantRequests([]);
+      setSearchAlerts([]);
+      setReceipts([]);
+      setReceiptIssuingEnabled(false);
       return;
     }
 
     if (user.role === 'landlord') {
-      const [viewings, notificationsResult, savedResult, agreementResult, receiptResult] = await Promise.all([
+      const [viewings, notificationsResult, savedResult, receiptResult] = await Promise.all([
         api.listViewings().catch(() => ({ viewings: [] })),
         api.listNotifications().catch(() => ({ notifications: [] })),
         api.listSaved().catch(() => ({ propertyIds: [] })),
-        api.listAgreements().catch(() => ({ agreements: [] })),
-        api.listReceipts().catch(() => ({ receipts: [] })),
+        api.listReceipts().catch(() => ({ receipts: [], issuingEnabled: false })),
       ]);
       setViewingSchedules(viewings.viewings);
       setNotifications(notificationsResult.notifications);
       setSavedPropertyIds(savedResult.propertyIds);
-      setAgreements(agreementResult.agreements);
       setReceipts(receiptResult.receipts);
+      setReceiptIssuingEnabled(Boolean(receiptResult.issuingEnabled));
       setTenantRequests([]);
       return;
     }
 
-    const [requests, viewings, notificationsResult, alerts, savedResult, agreementResult] = await Promise.all([
+    const [requests, viewings, notificationsResult, alerts, savedResult, receiptResult] = await Promise.all([
       api.listTenantRequests().catch(() => ({ requests: [] })),
       api.listViewings().catch(() => ({ viewings: [] })),
       api.listNotifications().catch(() => ({ notifications: [] })),
       api.listSearchAlerts().catch(() => ({ alerts: [] })),
       api.listSaved().catch(() => ({ propertyIds: [] })),
-      api.listAgreements().catch(() => ({ agreements: [] })),
+      api.listReceipts().catch(() => ({ receipts: [], issuingEnabled: false })),
     ]);
     setTenantRequests(requests.requests);
     setViewingSchedules(viewings.viewings);
     setNotifications(notificationsResult.notifications);
     setSearchAlerts(alerts.alerts);
     setSavedPropertyIds(savedResult.propertyIds);
-    setAgreements(agreementResult.agreements);
+    setReceipts(receiptResult.receipts);
+    setReceiptIssuingEnabled(Boolean(receiptResult.issuingEnabled));
   }, []);
 
   const refreshAll = useCallback(
@@ -509,7 +558,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   );
 
   const login = useCallback(
-    async (email: string, password: string, role?: 'tenant' | 'landlord'): Promise<SignInResult> => {
+    async (email: string, password: string, role?: 'tenant' | 'landlord' | 'agent'): Promise<SignInResult> => {
       try {
         const result = await api.login(email, password, role);
         await handleSignIn(result.user);
@@ -529,7 +578,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       email: string;
       phone: string;
       password: string;
-      role: 'tenant' | 'landlord';
+      role: 'tenant' | 'landlord' | 'agent';
+      city?: string;
+      agencyName?: string;
+      operatingCity?: string;
     }): Promise<SignInResult> => {
       try {
         const result = await api.register(data);
@@ -580,6 +632,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const result = await api.updateProfile(data);
         setCurrentUser(result.user);
         showSuccessToast('Account Details Updated', 'Your profile information has been saved.');
+        return { ok: true };
+      } catch (error) {
+        return { ok: false, error: messageForError(error), fields: (error as any)?.fields || {} };
+      }
+    },
+    [currentUser, showSuccessToast]
+  );
+
+  const updateAgentProfile = useCallback(
+    async (data: { agencyName?: string; operatingCity?: string }): Promise<SignInResult> => {
+      if (!currentUser) return { ok: false, error: 'Please sign in first.' };
+      try {
+        const result = await api.updateAgentProfile(data);
+        // The profile lives beside the user record; refresh ours so every view
+        // reads the same values the server just stored.
+        setCurrentUser((user) => (user ? { ...user, agentProfile: result.profile } : user));
+        showSuccessToast('Agent Profile Updated', 'Your operating details have been saved.');
         return { ok: true };
       } catch (error) {
         return { ok: false, error: messageForError(error), fields: (error as any)?.fields || {} };
@@ -767,10 +836,43 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setNotifications(notificationsResult.notifications);
       }
       showSuccessToast(
-        'Viewing Request Sent',
-        `Viewing for "${result.viewing.propertyTitle}" scheduled for ${result.viewing.date} at ${result.viewing.time}.`
+        'Viewing request sent',
+        `${result.viewing.propertyTitle}: your request is with ${result.viewing.assignedAgent}. It is not confirmed until a time is agreed.`
       );
       return result.viewing;
+    },
+    [currentUser, showSuccessToast]
+  );
+
+  const refreshViewings = useCallback(async () => {
+    const result = await api.listViewings().catch(() => ({ viewings: [] as ViewingSchedule[] }));
+    setViewingSchedules(result.viewings);
+  }, []);
+
+  const runViewingAction = useCallback(
+    async (
+      id: string,
+      action: 'propose' | 'confirm' | 'reschedule' | 'request-reschedule' | 'cancel' | 'complete' | 'no-show' | 'could-not-proceed',
+      body: { date?: string; time?: string; note?: string; reason?: string; who?: 'tenant' | 'agent' } = {}
+    ) => {
+      try {
+        const result = await api.viewingAction(id, action, body);
+        setViewingSchedules((prev) => {
+          const next = prev.some((v) => v.id === id)
+            ? prev.map((v) => (v.id === id ? result.viewing : v))
+            : [result.viewing, ...prev];
+          return next;
+        });
+        showSuccessToast('Viewing updated', result.message);
+        if (user_is_admin(currentUser)) {
+          const refreshed = await api.listAllViewings().catch(() => null);
+          if (refreshed) setViewingSchedules(refreshed.viewings);
+        }
+        return { ok: true };
+      } catch (err) {
+        const apiError = err as { fields?: Record<string, string> };
+        return { ok: false, error: messageForError(err), fields: apiError.fields ?? {} };
+      }
     },
     [currentUser, showSuccessToast]
   );
@@ -793,35 +895,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   );
 
   // -------------------------------------------------------------------------
-  // Agreements & receipts
+  // Rent payment records
   // -------------------------------------------------------------------------
-  const createAgreement = useCallback(
-    async (data: Record<string, unknown>) => {
-      const result = await api.createAgreement(data);
-      setAgreements((prev) => [result.agreement, ...prev]);
-      showSuccessToast(
-        'Tenancy Agreement Created',
-        `Agreement generated with verification code ${result.agreement.verificationCode}`
-      );
-      return result.agreement;
-    },
-    [showSuccessToast]
-  );
-
-  const signAgreement = useCallback(
-    async (id: string, role: 'landlord' | 'tenant') => {
-      const result = await api.signAgreement(id, role);
-      setAgreements((prev) => prev.map((a) => (a.id === id ? result.agreement : a)));
-      showSuccessToast('Agreement Electronically Signed', `Signed as ${role === 'landlord' ? 'Landlord' : 'Tenant'}.`);
-    },
-    [showSuccessToast]
-  );
-
   const createReceipt = useCallback(
     async (data: Record<string, unknown>) => {
       const result = await api.createReceipt(data);
       setReceipts((prev) => [result.receipt, ...prev]);
-      showSuccessToast('Official Receipt Issued', `Receipt No. ${result.receipt.receiptNo} issued successfully.`);
+      showSuccessToast('Payment record saved', `Record ${result.receipt.receiptNo} saved.`);
       return result.receipt;
     },
     [showSuccessToast]
@@ -912,6 +992,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     await loadProperties(currentUser);
   }, [currentUser, loadAccountData, loadProperties]);
 
+  const refreshSession = useCallback(async () => {
+    try {
+      const session = await api.me();
+      setCurrentUser(session.user);
+      if (session.user) {
+        setSavedPropertyIds(session.savedPropertyIds);
+      }
+    } catch {
+      // A failed refresh leaves the current view as-is; the affected screen shows
+      // its own error and the next request re-checks permissions server-side.
+    }
+  }, []);
+
   const value = useMemo<AppContextType>(
     () => ({
       currentUser,
@@ -924,8 +1017,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       tenantRequests,
       viewingSchedules,
       emailLogs,
-      agreements,
       receipts,
+      receiptIssuingEnabled,
       notifications,
       enquiries,
       analytics,
@@ -946,6 +1039,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       adminLogin,
       logout,
       updateUserProfile,
+      updateAgentProfile,
       addProperty,
       updateProperty,
       updatePropertyStatus,
@@ -959,9 +1053,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       updateTenantRequestStatus,
       setEnquiryStatus,
       scheduleViewing,
+      runViewingAction,
+      refreshViewings,
       updateViewingStatus,
-      createAgreement,
-      signAgreement,
       createReceipt,
       subscribeToSearchAlerts,
       unsubscribeFromSearchAlerts,
@@ -971,6 +1065,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       emailOutbox,
       runEmailOutbox,
       refreshAdminData,
+      refreshSession,
     }),
     [
       currentUser,
@@ -983,8 +1078,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       tenantRequests,
       viewingSchedules,
       emailLogs,
-      agreements,
       receipts,
+      receiptIssuingEnabled,
       notifications,
       enquiries,
       analytics,
@@ -1018,9 +1113,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       updateTenantRequestStatus,
       setEnquiryStatus,
       scheduleViewing,
+      runViewingAction,
+      refreshViewings,
       updateViewingStatus,
-      createAgreement,
-      signAgreement,
       createReceipt,
       subscribeToSearchAlerts,
       unsubscribeFromSearchAlerts,
@@ -1030,6 +1125,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       emailOutbox,
       runEmailOutbox,
       refreshAdminData,
+      refreshSession,
     ]
   );
 

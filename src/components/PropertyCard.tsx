@@ -131,7 +131,7 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({ property, onRequestV
         {/* Intermediary Guarantee Notice */}
         {property.isLandlordVerified ? (
           <div className="text-[9px] sm:text-[10px] text-emerald-300 bg-emerald-500/10 px-2 py-1 rounded-md text-center border border-emerald-500/20 font-semibold flex items-center justify-center gap-1">
-            <ShieldCheck className="w-3 h-3" /> Verified Landlord
+            <ShieldCheck className="w-3 h-3" /> Listing reviewed
           </div>
         ) : (
           <div className="text-[9px] sm:text-[10px] text-slate-400 bg-white/5 px-2 py-1 rounded-md text-center border border-white/5 font-medium">

@@ -2,6 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { ApiError, PropertyMatch, api, messageForError } from '../services/apiService';
 import { Property } from '../types';
+import { AdminFeeLedger } from './AdminFeeLedger';
+import { AdminAgentAccounts } from './AdminAgentAccounts';
+import { AdminFeePolicies } from './AdminFeePolicies';
+import { AdminFinancePanel } from './AdminFinancePanel';
+import { AdminViewingsPanel } from './AdminViewingsPanel';
 import { 
   ShieldCheck, 
   TrendingUp, 
@@ -14,6 +19,7 @@ import {
   Sparkles, 
   Search, 
   DollarSign, 
+  Wallet,
   Eye, 
   BarChart2, 
   Compass, 
@@ -45,7 +51,6 @@ export const AdminDashboard: React.FC = () => {
     updatePropertyStatus, 
     updateTenantRequestStatus, 
     scheduleViewing, 
-    updateViewingStatus,
     deleteProperty,
     toggleFeatured,
     verifyProperty,
@@ -71,7 +76,7 @@ export const AdminDashboard: React.FC = () => {
     metaRobots.setAttribute('content', 'noindex, nofollow, noarchive, nosnippet, noimageindex');
 
     return () => {
-      document.title = "Goodlucks Homes - Verified Rentals & Real Estate";
+      document.title = "Goodlucks Homes - Rentals & Real Estate";
       if (created && metaRobots && metaRobots.parentNode) {
         metaRobots.parentNode.removeChild(metaRobots);
       } else if (metaRobots) {
@@ -84,7 +89,18 @@ export const AdminDashboard: React.FC = () => {
     };
   }, []);
 
-  const [activeAdminTab, setActiveAdminTab] = useState<'analytics' | 'approval-queue' | 'manage' | 'matching' | 'viewings' | 'enquiries' | 'email-logs'>('analytics');
+  const [activeAdminTab, setActiveAdminTab] = useState<
+    | 'analytics'
+    | 'approval-queue'
+    | 'manage'
+    | 'matching'
+    | 'viewings'
+    | 'enquiries'
+    | 'email-logs'
+    | 'agents'
+    | 'fee-policies'
+    | 'finance'
+  >('analytics');
 
   // Real data export: CSV of the listings currently loaded from the API.
   const handleExportCsv = () => {
@@ -132,7 +148,10 @@ export const AdminDashboard: React.FC = () => {
   const [selectedPropId, setSelectedPropId] = useState(properties[0]?.id || '');
   const [viewDate, setViewDate] = useState(() => new Date(Date.now() + 2 * 86400_000).toISOString().slice(0, 10));
   const [viewTime, setViewTime] = useState('11:00 AM');
-  const [assignedAgent, setAssignedAgent] = useState('Michael Quarshie (Goodlucks Lead Agent)');
+  // No invented staff name (finding D12): the field starts with whoever is
+  // signed in, and stays empty for a staff member whose name is not on the
+  // session. It is the person logging the request, not a "lead agent".
+  const [assignedAgent, setAssignedAgent] = useState(currentUser?.name ?? '');
 
   const pendingProps = properties.filter(p => p.status === 'pending');
   const activeProps = properties.filter(p => p.status === 'active');
@@ -290,8 +309,10 @@ export const AdminDashboard: React.FC = () => {
         propertyId: prop.id,
         date: viewDate,
         time: viewTime,
-        notes: `Arranged by ${assignedAgent} (Goodlucks Admin).`,
+        notes: `Request logged by ${assignedAgent || 'Goodlucks staff'} on the tenant's behalf. Not yet confirmed.`,
       });
+      // The tenant-request pipeline records that a viewing has been requested.
+      // The appointment itself only counts as agreed once the viewing says so.
       await updateTenantRequestStatus(req.id, 'viewing_scheduled');
       setShowScheduleModal(false);
     } catch (error) {
@@ -394,7 +415,34 @@ export const AdminDashboard: React.FC = () => {
               activeAdminTab === 'viewings' ? 'bg-[#08D9D6] text-[#252A34]' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
             }`}
           >
-            <Calendar className="w-4 h-4" /> Physical Viewing Ops ({viewingSchedules.length})
+            <Calendar className="w-4 h-4" /> Viewing requests &amp; appointments ({viewingSchedules.length})
+          </button>
+
+          <button
+            onClick={() => setActiveAdminTab('agents')}
+            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-2 ${
+              activeAdminTab === 'agents' ? 'bg-[#08D9D6] text-[#252A34]' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+            }`}
+          >
+            <UserCheck className="w-4 h-4" /> Agent Accounts
+          </button>
+
+          <button
+            onClick={() => setActiveAdminTab('fee-policies')}
+            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-2 ${
+              activeAdminTab === 'fee-policies' ? 'bg-[#08D9D6] text-[#252A34]' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+            }`}
+          >
+            <DollarSign className="w-4 h-4" /> Fee Policies
+          </button>
+
+          <button
+            onClick={() => setActiveAdminTab('finance')}
+            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-2 ${
+              activeAdminTab === 'finance' ? 'bg-[#08D9D6] text-[#252A34]' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+            }`}
+          >
+            <Wallet className="w-4 h-4" /> Finance
           </button>
 
           <button
@@ -416,10 +464,10 @@ export const AdminDashboard: React.FC = () => {
           </button>
 
           <button
-            onClick={() => setCurrentView('agreements')}
+            onClick={() => setCurrentView('receipts')}
             className="px-4 py-2.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-2 bg-[#08D9D6]/10 text-[#08D9D6] border border-[#08D9D6]/30 hover:bg-[#08D9D6]/20"
           >
-            <FileText className="w-4 h-4 text-[#08D9D6]" /> Agreements & Receipts Vault
+            <FileText className="w-4 h-4 text-[#08D9D6]" /> Payment Records
           </button>
         </div>
 
@@ -550,19 +598,23 @@ export const AdminDashboard: React.FC = () => {
               <div className="bg-slate-800/60 p-5 rounded-2xl border border-white/10">
                 <div className="text-xs text-slate-400 font-medium">Registered Users</div>
                 <div className="text-2xl font-extrabold text-white">{analytics.totalRegisteredUsers}</div>
-                <div className="text-[10px] text-slate-400">{analytics.totalTenants} Tenants / {analytics.totalLandlords} Landlords</div>
+                <div className="text-[10px] text-slate-400">
+                  {analytics.totalTenants} Tenants / {analytics.totalLandlords} Landlords / {analytics.totalAgents ?? 0} Agents
+                </div>
               </div>
 
               <div className="bg-slate-800/60 p-5 rounded-2xl border border-white/10">
-                <div className="text-xs text-slate-400 font-medium">Physical Viewings Conducted</div>
+                <div className="text-xs text-slate-400 font-medium">Physical Viewings Scheduled</div>
                 <div className="text-2xl font-extrabold text-[#08D9D6]">{analytics.totalViewings}</div>
-                <div className="text-[10px] text-[#08D9D6]">Staff Intermediary Verified</div>
+                <div className="text-[10px] text-[#08D9D6]">{analytics.completedViewings} completed · reported by staff</div>
               </div>
 
               <div className="bg-slate-800/60 p-5 rounded-2xl border border-white/10">
-                <div className="text-xs text-slate-400 font-medium">Physical Viewing Fee Revenue</div>
-                <div className="text-2xl font-extrabold text-emerald-400">GH₵ {analytics.physicalRevenueGhs.toLocaleString()}</div>
-                <div className="text-[10px] text-emerald-400">GH₵ 100 paid on site per viewing</div>
+                <div className="text-xs text-slate-400 font-medium">Viewing Fees Collected by Agents</div>
+                <div className="text-2xl font-extrabold text-[#08D9D6]">GH₵ {analytics.viewingFeesCollectedGhs.toLocaleString()}</div>
+                <div className="text-[10px] text-slate-400">
+                  Reconciled in the ledger below — never Goodlucks revenue
+                </div>
               </div>
 
               <div className="bg-slate-800/60 p-5 rounded-2xl border border-white/10">
@@ -572,6 +624,7 @@ export const AdminDashboard: React.FC = () => {
               </div>
             </div>
 
+            <AdminFeeLedger />
           </div>
         )}
 
@@ -772,6 +825,12 @@ export const AdminDashboard: React.FC = () => {
         )}
 
         {/* TAB 2c: Website enquiries */}
+        {activeAdminTab === 'agents' && <AdminAgentAccounts />}
+
+        {/* TAB: Fee policies & agent tiers (Increment E) */}
+        {activeAdminTab === 'fee-policies' && <AdminFeePolicies />}
+        {activeAdminTab === 'finance' && <AdminFinancePanel />}
+
         {activeAdminTab === 'enquiries' && (
           <div className="space-y-4">
             <div>
@@ -938,48 +997,21 @@ export const AdminDashboard: React.FC = () => {
           </div>
         )}
 
-        {/* TAB 4: Physical Viewing Management */}
+        {/* TAB 4: Viewing requests, appointments and history (Increment F) */}
         {activeAdminTab === 'viewings' && (
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xl font-bold text-white">Physical Viewing Management Ops</h2>
+            <AdminViewingsPanel />
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-slate-800/60 border border-white/10 rounded-2xl p-4">
+              <p className="text-[11px] text-slate-400 max-w-xl">
+                Need to log a viewing that was arranged by phone? Create it as a request. It will not be shown as a
+                confirmed appointment until the tenant and agent have agreed a time.
+              </p>
               <button
                 onClick={() => setShowScheduleModal(true)}
-                className="px-4 py-2 rounded-xl bg-[#08D9D6] text-[#252A34] font-bold text-xs"
+                className="px-4 py-2 rounded-xl bg-[#08D9D6] text-[#252A34] font-bold text-xs hover:bg-[#08D9D6]/90 shrink-0"
               >
-                + Schedule Viewing
+                Log a phone request
               </button>
-            </div>
-
-            <div className="grid grid-cols-1 gap-4">
-              {viewingSchedules.map(v => (
-                <div key={v.id} className="bg-slate-800 p-5 rounded-2xl border border-white/10 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-[#08D9D6]">{v.propertyTitle}</span>
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-400">
-                        {v.status}
-                      </span>
-                    </div>
-                    <div className="text-sm font-bold text-white">Tenant: {v.tenantName} ({v.tenantPhone})</div>
-                    <div className="text-xs text-slate-300">
-                      Date: <strong>{v.date} at {v.time}</strong> • Agent: <strong>{v.assignedAgent}</strong>
-                    </div>
-                    <div className="text-[11px] text-emerald-400 font-semibold">
-                      Physical Fee Status: {v.viewingFeePaid ? 'GH₵ 100 Paid Physically to Staff' : 'Pending Physical Payment on Site'}
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => updateViewingStatus(v.id, 'completed', true)}
-                      className="px-3 py-1.5 rounded-xl bg-emerald-500/20 text-emerald-400 font-bold text-xs hover:bg-emerald-500/30"
-                    >
-                      Mark Completed & Paid
-                    </button>
-                  </div>
-                </div>
-              ))}
             </div>
           </div>
         )}
@@ -1063,7 +1095,11 @@ export const AdminDashboard: React.FC = () => {
             className="bg-[#252A34] border border-white/10 rounded-2xl sm:rounded-3xl p-4 sm:p-6 max-w-lg w-full space-y-4 text-white shadow-2xl my-auto max-h-[88dvh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-lg sm:text-xl font-bold text-white">Schedule Physical Viewing (Goodlucks Intermediary)</h3>
+            <h3 className="text-lg sm:text-xl font-bold text-white">Log a viewing request (Goodlucks intermediary)</h3>
+            <p className="text-[11px] text-amber-300/90">
+              This records a request on the tenant&apos;s behalf. It is not a confirmed appointment: the tenant and the
+              agent must agree the time before it is shown as agreed, and nothing here records a payment.
+            </p>
 
             <form onSubmit={handleScheduleViewingAdmin} className="space-y-4">
               <div>
@@ -1120,12 +1156,13 @@ export const AdminDashboard: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">Assigned Goodlucks Field Agent</label>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">Viewing agent</label>
                 <input
                   type="text"
                   required
                   value={assignedAgent}
                   onChange={(e) => setAssignedAgent(e.target.value)}
+                  placeholder="Name of the staff member logging this request"
                   className="w-full bg-slate-900 border border-white/10 rounded-xl p-3 text-xs sm:text-sm text-white"
                 />
               </div>
@@ -1142,7 +1179,7 @@ export const AdminDashboard: React.FC = () => {
                   type="submit"
                   className="flex-1 py-3 rounded-xl bg-[#08D9D6] text-[#252A34] font-bold text-xs shadow-md"
                 >
-                  Schedule & Send Email
+                  Send viewing request
                 </button>
               </div>
             </form>

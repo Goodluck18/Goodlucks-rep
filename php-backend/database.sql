@@ -33,6 +33,22 @@ CREATE TABLE IF NOT EXISTS `users` (
   `budget_max` DECIMAL(12,2) DEFAULT NULL,
   `preferred_bedrooms` INT DEFAULT NULL,
   `additional_notes` TEXT DEFAULT NULL,
+  -- Increment D: least-privilege staff capabilities. Both default to 0, so a new
+  -- administrator cannot read identity documents until someone with server
+  -- access grants the capability explicitly (php-backend/grant_reviewer.php).
+  `can_review_verifications` TINYINT(1) NOT NULL DEFAULT 0,
+  `can_access_identity_documents` TINYINT(1) NOT NULL DEFAULT 0,
+  -- Increment E: financial-policy capabilities. Creating/editing (manage) and
+  -- approving/activating (approve) are separate powers, both default 0, and both
+  -- granted only from the server console (php-backend/grant_finance.php).
+  `can_manage_fee_policies` TINYINT(1) NOT NULL DEFAULT 0,
+  `can_approve_fee_policies` TINYINT(1) NOT NULL DEFAULT 0,
+  -- Increment F: correcting a viewing record is an exceptional, audited act and
+  -- is not part of ordinary administration. Default 0 (grant with
+  -- php-backend/grant_viewing.php).
+  `can_correct_viewings` TINYINT(1) NOT NULL DEFAULT 0,
+  `can_view_finance` TINYINT(1) NOT NULL DEFAULT 0,
+  `can_confirm_remittances` TINYINT(1) NOT NULL DEFAULT 0,
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` DATETIME DEFAULT NULL,
   PRIMARY KEY (`id`),
@@ -65,6 +81,13 @@ CREATE TABLE IF NOT EXISTS `properties` (
   `landlord_id` VARCHAR(64) DEFAULT NULL,
   `landlord_name` VARCHAR(255) DEFAULT NULL,
   `landlord_company` VARCHAR(255) DEFAULT NULL,
+  `submitted_by_user_id` VARCHAR(64) DEFAULT NULL,
+  `submitted_by_role` VARCHAR(32) DEFAULT NULL,
+  `landlord_authority_state` VARCHAR(32) NOT NULL DEFAULT 'not_applicable',
+  -- Increment F: the landlord contact an agent supplied. Kept for staff review
+  -- only; it is never used to confirm whether an account exists and is never
+  -- shown to tenants.
+  `landlord_contact_claimed` VARCHAR(255) DEFAULT NULL,
   `is_landlord_verified` TINYINT(1) NOT NULL DEFAULT 0,
   `title` VARCHAR(255) NOT NULL,
   `location` VARCHAR(255) NOT NULL,
@@ -87,6 +110,7 @@ CREATE TABLE IF NOT EXISTS `properties` (
   PRIMARY KEY (`id`),
   KEY `idx_prop_status` (`status`),
   KEY `idx_prop_landlord` (`landlord_id`),
+  KEY `idx_prop_submitted_by` (`submitted_by_user_id`),
   KEY `idx_prop_city` (`city`),
   KEY `idx_prop_rent` (`rent_ghs`),
   KEY `idx_prop_created` (`created_at`)
@@ -132,16 +156,58 @@ CREATE TABLE IF NOT EXISTS `viewing_schedules` (
   `property_location` VARCHAR(255) NOT NULL,
   `date` VARCHAR(32) NOT NULL,
   `time` VARCHAR(32) NOT NULL,
-  `assigned_agent` VARCHAR(255) DEFAULT 'Goodlucks Field Agent',
+  `assigned_agent` VARCHAR(255) DEFAULT '',
   `status` VARCHAR(32) NOT NULL DEFAULT 'scheduled',
   `viewing_fee_paid` TINYINT(1) NOT NULL DEFAULT 0,
   `fee_amount_ghs` DECIMAL(10,2) NOT NULL DEFAULT 100.00,
   `outcome_notes` TEXT DEFAULT NULL,
+  -- Increment F: the agent-led viewing lifecycle. A row is a REQUEST first and
+  -- becomes an appointment only when a slot is agreed (confirmed_at).
+  `tenant_user_id` VARCHAR(64) DEFAULT NULL,
+  `agent_user_id` VARCHAR(64) DEFAULT NULL,
+  `landlord_user_id` VARCHAR(64) DEFAULT NULL,
+  `request_type` VARCHAR(16) NOT NULL DEFAULT 'viewing',
+  `preferred_date` VARCHAR(32) DEFAULT NULL,
+  `preferred_time` VARCHAR(32) DEFAULT NULL,
+  `confirmed_at` DATETIME DEFAULT NULL,
+  `confirmed_by` VARCHAR(64) DEFAULT NULL,
+  `cancel_reason` TEXT DEFAULT NULL,
+  `cancelled_by` VARCHAR(64) DEFAULT NULL,
+  `cancelled_at` DATETIME DEFAULT NULL,
+  `completed_at` DATETIME DEFAULT NULL,
+  `completed_by` VARCHAR(64) DEFAULT NULL,
+  `agent_notes` TEXT DEFAULT NULL,
+  `updated_at` DATETIME DEFAULT NULL,
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `idx_vs_property` (`property_id`),
   KEY `idx_vs_status` (`status`),
-  KEY `idx_vs_email` (`tenant_email`)
+  KEY `idx_vs_email` (`tenant_email`),
+  KEY `idx_vs_agent` (`agent_user_id`, `status`),
+  KEY `idx_vs_tenant` (`tenant_user_id`),
+  KEY `idx_vs_slot` (`date`, `status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ------------------------------------------------------------
+-- 5b. Viewing lifecycle history (Increment F, append-only)
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `viewing_events` (
+  `id` VARCHAR(64) NOT NULL,
+  `viewing_id` VARCHAR(64) NOT NULL,
+  `action` VARCHAR(64) NOT NULL,
+  `from_status` VARCHAR(32) NOT NULL DEFAULT '',
+  `to_status` VARCHAR(32) NOT NULL DEFAULT '',
+  `previous_date` VARCHAR(32) DEFAULT NULL,
+  `previous_time` VARCHAR(32) DEFAULT NULL,
+  `new_date` VARCHAR(32) DEFAULT NULL,
+  `new_time` VARCHAR(32) DEFAULT NULL,
+  `note` TEXT DEFAULT NULL,
+  `actor_id` VARCHAR(64) DEFAULT NULL,
+  `actor_role` VARCHAR(32) DEFAULT NULL,
+  `actor_name` VARCHAR(255) DEFAULT NULL,
+  `created_at` DATETIME NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_ve_viewing` (`viewing_id`, `created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ------------------------------------------------------------
@@ -218,6 +284,9 @@ CREATE TABLE IF NOT EXISTS `saved_properties` (
 
 -- ------------------------------------------------------------
 -- 10. Tenancy agreements
+-- RETIRED (Increment A): tenancy-agreement drafting, signing and emailing were
+-- removed from the product. The table is kept so no destructive migration is
+-- needed; it is no longer written to or read by the application.
 -- ------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `tenancy_agreements` (
   `id` VARCHAR(64) NOT NULL,
@@ -227,9 +296,11 @@ CREATE TABLE IF NOT EXISTS `tenancy_agreements` (
   `city` VARCHAR(100) DEFAULT 'Accra',
   `landlord_name` VARCHAR(255) NOT NULL,
   `landlord_phone` VARCHAR(64) NOT NULL,
+  `landlord_user_id` VARCHAR(64) DEFAULT NULL,
   `landlord_ghana_card` VARCHAR(64) DEFAULT NULL,
   `tenant_name` VARCHAR(255) NOT NULL,
   `tenant_phone` VARCHAR(64) NOT NULL,
+  `tenant_user_id` VARCHAR(64) DEFAULT NULL,
   `tenant_ghana_card` VARCHAR(64) DEFAULT NULL,
   `monthly_rent_ghs` DECIMAL(12,2) NOT NULL,
   `duration_months` INT NOT NULL DEFAULT 12,
@@ -261,7 +332,9 @@ CREATE TABLE IF NOT EXISTS `rent_receipts` (
   `property_address` VARCHAR(255) NOT NULL,
   `tenant_name` VARCHAR(255) NOT NULL,
   `tenant_phone` VARCHAR(64) DEFAULT NULL,
+  `tenant_user_id` VARCHAR(64) DEFAULT NULL,
   `landlord_name` VARCHAR(255) NOT NULL,
+  `landlord_user_id` VARCHAR(64) DEFAULT NULL,
   `amount_ghs` DECIMAL(12,2) NOT NULL,
   `amount_in_words` TEXT DEFAULT NULL,
   `payment_purpose` VARCHAR(255) DEFAULT NULL,
@@ -425,4 +498,472 @@ CREATE TABLE IF NOT EXISTS `email_outbox` (
   PRIMARY KEY (`id`),
   KEY `idx_outbox_due` (`status`, `next_attempt_at`),
   KEY `idx_outbox_created` (`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 20. Audit trail for sensitive administrative, financial and PII actions
+CREATE TABLE IF NOT EXISTS `audit_logs` (
+  `id` VARCHAR(64) NOT NULL,
+  `actor_id` VARCHAR(64) DEFAULT NULL,
+  `actor_role` VARCHAR(32) DEFAULT NULL,
+  `action` VARCHAR(64) NOT NULL,
+  `entity_type` VARCHAR(64) NOT NULL,
+  `entity_id` VARCHAR(64) DEFAULT NULL,
+  `context_json` LONGTEXT DEFAULT NULL,
+  `ip_address` VARCHAR(64) DEFAULT NULL,
+  `user_agent` VARCHAR(255) DEFAULT NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_audit_created` (`created_at`),
+  KEY `idx_audit_entity` (`entity_type`, `entity_id`),
+  KEY `idx_audit_actor` (`actor_id`),
+  KEY `idx_audit_action` (`action`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ------------------------------------------------------------
+-- 21. Fee policies (Increment B foundation, extended in Increment E)
+--
+-- A policy is an administrative agreement about how one fee category is shared
+-- between the agent and Goodlucks. It is NOT a proposal until someone creates
+-- one, NOT approved until a *different* administrator with the approver
+-- capability approves it, and NOT applicable until it is activated.
+--
+-- The 60/40 and 70/30 arrangements are proposals only: they exist as
+-- PROPOSED_* constants in config.php, are never read by any calculation, and no
+-- row for them is seeded here or by migrate.php.
+--
+-- Additive-only across increments: Increment B created this table with a small
+-- column set; Increment E adds the workflow, audit and calculation columns. A
+-- legacy row keeps its stored status and is read as a draft (`proposed` ->
+-- draft), never as applicable.
+--
+-- Money never moves because of this table. Applying a policy writes an
+-- immutable snapshot (table 29); revenue is recognised only from a remittance.
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `fee_policies` (
+  `id` VARCHAR(64) NOT NULL,
+  `name` VARCHAR(160) NOT NULL DEFAULT '',
+  `description` TEXT DEFAULT NULL,
+  `category` VARCHAR(32) NOT NULL DEFAULT 'viewing_fee',
+  `tier` VARCHAR(32) NOT NULL DEFAULT 'standard',
+  `calculation_method` VARCHAR(16) NOT NULL DEFAULT 'percentage',
+  `currency` VARCHAR(8) NOT NULL DEFAULT 'GHS',
+  -- Percentage policies: both shares are stored and must add up to 100.
+  `agent_share_percent` DECIMAL(5,2) NOT NULL DEFAULT 0,
+  `goodlucks_share_percent` DECIMAL(5,2) NOT NULL DEFAULT 0,
+  -- Fixed-amount policies (future-friendly): the two amounts are the whole fee.
+  `agent_share_fixed_ghs` DECIMAL(10,2) DEFAULT NULL,
+  `goodlucks_share_fixed_ghs` DECIMAL(10,2) DEFAULT NULL,
+  -- draft | pending_approval | approved | active | rejected | deactivated
+  -- (`expired` is derived from effective_to and never written here)
+  `status` VARCHAR(24) NOT NULL DEFAULT 'draft',
+  `version` INT NOT NULL DEFAULT 1,
+  `supersedes_policy_id` VARCHAR(64) DEFAULT NULL,
+  `effective_from` DATE DEFAULT NULL,
+  `effective_to` DATE DEFAULT NULL,
+  `created_by` VARCHAR(64) DEFAULT NULL,
+  `submitted_by` VARCHAR(64) DEFAULT NULL,
+  `submitted_at` DATETIME DEFAULT NULL,
+  `approved_by` VARCHAR(64) DEFAULT NULL,
+  `approved_at` DATETIME DEFAULT NULL,
+  `rejected_by` VARCHAR(64) DEFAULT NULL,
+  `rejected_at` DATETIME DEFAULT NULL,
+  `rejection_reason` TEXT DEFAULT NULL,
+  `activated_by` VARCHAR(64) DEFAULT NULL,
+  `activated_at` DATETIME DEFAULT NULL,
+  `deactivated_by` VARCHAR(64) DEFAULT NULL,
+  `deactivated_at` DATETIME DEFAULT NULL,
+  `deactivation_reason` TEXT DEFAULT NULL,
+  `notes` TEXT DEFAULT NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` DATETIME DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_fee_policy_status` (`status`, `tier`),
+  KEY `idx_fee_policy_tier_category` (`tier`, `category`, `status`),
+  KEY `idx_fee_policy_dates` (`effective_from`, `effective_to`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ------------------------------------------------------------
+-- 22. Viewing-fee ledger (Increment B)
+-- One row per viewing fee event. `fee_total_ghs` is money the AGENT collected
+-- from the tenant; `goodlucks_share_ghs` is money OWED to Goodlucks and stays
+-- NULL until an explicit agreement is recorded. Neither is Goodlucks revenue:
+-- revenue is only recognised when a row exists in `fee_remittances`.
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `viewing_fee_records` (
+  `id` VARCHAR(64) NOT NULL,
+  `reference` VARCHAR(64) NOT NULL,
+  `viewing_id` VARCHAR(64) DEFAULT NULL,
+  `property_id` VARCHAR(64) DEFAULT NULL,
+  `property_title` VARCHAR(255) NOT NULL DEFAULT '',
+  `agent_name` VARCHAR(200) NOT NULL DEFAULT '',
+  `agent_user_id` VARCHAR(64) DEFAULT NULL,
+  `fee_total_ghs` DECIMAL(10,2) DEFAULT NULL,
+  `collection_state` VARCHAR(24) NOT NULL DEFAULT 'reported',
+  `share_basis` VARCHAR(24) NOT NULL DEFAULT 'not_set',
+  `goodlucks_share_ghs` DECIMAL(10,2) DEFAULT NULL,
+  `agent_share_ghs` DECIMAL(10,2) DEFAULT NULL,
+  `policy_snapshot_json` TEXT DEFAULT NULL,
+  -- Increment E: which policy (if any) priced this fee, and the immutable
+  -- snapshot that holds the exact terms. NULL for manual agreements and for fees
+  -- with no share agreed yet.
+  `policy_id` VARCHAR(64) DEFAULT NULL,
+  `policy_snapshot_id` VARCHAR(64) DEFAULT NULL,
+  `agent_tier_at_snapshot` VARCHAR(32) DEFAULT NULL,
+  `recorded_by` VARCHAR(64) DEFAULT NULL,
+  `recorded_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` DATETIME DEFAULT NULL,
+  `notes` TEXT DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `idx_vfr_reference` (`reference`),
+  UNIQUE KEY `idx_vfr_viewing` (`viewing_id`),
+  KEY `idx_vfr_state` (`collection_state`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ------------------------------------------------------------
+-- 23. Remittances actually received by Goodlucks (Increment B)
+-- Every row is money Goodlucks confirms it received. The sum of these rows is
+-- the only viewing-fee figure reported as Goodlucks revenue.
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `fee_remittances` (
+  `id` VARCHAR(64) NOT NULL,
+  `viewing_fee_record_id` VARCHAR(64) NOT NULL,
+  `amount_ghs` DECIMAL(10,2) NOT NULL,
+  `method` VARCHAR(64) NOT NULL DEFAULT 'unknown',
+  `reference` VARCHAR(128) DEFAULT NULL,
+  `received_at` DATE NOT NULL,
+  `recorded_by` VARCHAR(64) DEFAULT NULL,
+  `notes` TEXT DEFAULT NULL,
+  `submission_id` VARCHAR(64) DEFAULT NULL,
+  `allocation_id` VARCHAR(64) DEFAULT NULL,
+  `entry_type` VARCHAR(16) NOT NULL DEFAULT 'receipt',
+  `adjustment_id` VARCHAR(64) DEFAULT NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_fee_remit_record` (`viewing_fee_record_id`),
+  KEY `idx_fee_remit_received` (`received_at`),
+  KEY `idx_fee_remit_submission` (`submission_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ------------------------------------------------------------
+-- 24. Agent profiles (Increment C)
+-- One row per agent account. `account_status` and `can_submit_listings`
+-- default to DENY: a new agent may sign in and complete their profile but
+-- cannot submit listings until staff review the account. Nothing in this table
+-- is identity or licence verification — that is Increment D.
+-- `operating_city` is the area the agent works from, NOT their home address
+-- (which stays on users.address) and not a per-area coverage list.
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `agent_profiles` (
+  `id` VARCHAR(64) NOT NULL,
+  `user_id` VARCHAR(64) NOT NULL,
+  `agency_name` VARCHAR(200) NOT NULL DEFAULT '',
+  `operating_city` VARCHAR(120) NOT NULL DEFAULT '',
+  `account_status` VARCHAR(24) NOT NULL DEFAULT 'pending_review',
+  `can_submit_listings` TINYINT(1) NOT NULL DEFAULT 0,
+  `status_note` VARCHAR(500) DEFAULT NULL,
+  `reviewed_by` VARCHAR(64) DEFAULT NULL,
+  `reviewed_at` DATETIME DEFAULT NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` DATETIME DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `idx_agent_user` (`user_id`),
+  KEY `idx_agent_status` (`account_status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ------------------------------------------------------------
+-- 25. Identity verifications (Increment D)
+-- One row per subject (agent or landlord). This is an IDENTITY check only:
+-- it never establishes property ownership, and for a landlord it says nothing
+-- about authority over any listing.
+--
+-- Ghana Card numbers are sensitive personal data:
+--   * `document_number_masked` is the only value ordinary API responses use;
+--   * `document_number_encrypted` holds the full number, AES-256-GCM encrypted
+--     with a key supplied by the deployment (IDENTITY_DATA_KEY). When no key is
+--     configured the full number is NOT stored at all and
+--     `document_number_retained` stays 0, so nothing plaintext ever lands here;
+--   * `retention_purge_after` is set when a decision is final and drives the
+--     retention job (php-backend/verification_retention.php).
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `identity_verifications` (
+  `id` VARCHAR(64) NOT NULL,
+  `user_id` VARCHAR(64) NOT NULL,
+  `subject_role` VARCHAR(32) NOT NULL DEFAULT 'agent',
+  `legal_name` VARCHAR(200) NOT NULL DEFAULT '',
+  `document_type` VARCHAR(32) NOT NULL DEFAULT 'ghana_card',
+  `document_number_masked` VARCHAR(64) NOT NULL DEFAULT '',
+  `document_number_encrypted` TEXT DEFAULT NULL,
+  `document_number_retained` TINYINT(1) NOT NULL DEFAULT 0,
+  `status` VARCHAR(32) NOT NULL DEFAULT 'not_submitted',
+  `submitted_at` DATETIME DEFAULT NULL,
+  `reviewed_by` VARCHAR(64) DEFAULT NULL,
+  `reviewed_at` DATETIME DEFAULT NULL,
+  `decision_note` VARCHAR(1000) DEFAULT NULL,
+  `retention_purge_after` DATETIME DEFAULT NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` DATETIME DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `idx_identity_user` (`user_id`),
+  KEY `idx_identity_status` (`status`),
+  CONSTRAINT `fk_identity_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ------------------------------------------------------------
+-- 26. Professional authorisations (Increment D)
+-- Deliberately SEPARATE from identity verification. An agent may have a
+-- verified identity and no professional authorisation, or an expired licence.
+-- Reviewing an identity must never change this row and vice versa.
+--
+-- There is NO external registry integration: `registry_checked` stays 0 and
+-- records that no regulator was consulted. A submitted number is evidence for a
+-- human reviewer, not a licence.
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `professional_authorisations` (
+  `id` VARCHAR(64) NOT NULL,
+  `user_id` VARCHAR(64) NOT NULL,
+  `licence_number` VARCHAR(120) NOT NULL DEFAULT '',
+  `issuing_authority` VARCHAR(200) NOT NULL DEFAULT '',
+  `licence_category` VARCHAR(120) NOT NULL DEFAULT '',
+  `issue_date` DATE DEFAULT NULL,
+  `expiry_date` DATE DEFAULT NULL,
+  `status` VARCHAR(32) NOT NULL DEFAULT 'not_submitted',
+  `registry_checked` TINYINT(1) NOT NULL DEFAULT 0,
+  `submitted_at` DATETIME DEFAULT NULL,
+  `reviewed_by` VARCHAR(64) DEFAULT NULL,
+  `reviewed_at` DATETIME DEFAULT NULL,
+  `decision_note` VARCHAR(1000) DEFAULT NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` DATETIME DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `idx_professional_user` (`user_id`),
+  KEY `idx_professional_status` (`status`),
+  CONSTRAINT `fk_professional_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ------------------------------------------------------------
+-- 27. Verification documents (Increment D)
+-- Metadata for files stored by lib/private_storage.php. The file itself lives
+-- outside the web root under a random `doc_<hex>` name; `storage_id` is that
+-- name. Nothing here is ever served by a public URL.
+-- `deleted_at` is set by owner deletion or the retention job; the row is kept so
+-- the audit trail can still explain what was removed and when.
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `verification_documents` (
+  `id` VARCHAR(64) NOT NULL,
+  `user_id` VARCHAR(64) NOT NULL,
+  `scope` VARCHAR(32) NOT NULL DEFAULT 'identity',
+  `kind` VARCHAR(32) NOT NULL DEFAULT 'document_front',
+  `storage_id` VARCHAR(64) NOT NULL,
+  `mime_type` VARCHAR(100) NOT NULL DEFAULT '',
+  `bytes` INT NOT NULL DEFAULT 0,
+  `checksum_sha256` VARCHAR(64) NOT NULL DEFAULT '',
+  `uploaded_by` VARCHAR(64) DEFAULT NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `deleted_at` DATETIME DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `idx_vdoc_storage` (`storage_id`),
+  KEY `idx_vdoc_user` (`user_id`),
+  KEY `idx_vdoc_scope` (`user_id`, `scope`),
+  CONSTRAINT `fk_vdoc_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ------------------------------------------------------------
+-- 28. Verification decision history (Increment D)
+-- Append-only. The application never updates or deletes these rows: the current
+-- status lives on the verification row, while every decision stays here so a
+-- reviewer cannot silently rewrite history.
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `verification_decisions` (
+  `id` VARCHAR(64) NOT NULL,
+  `user_id` VARCHAR(64) NOT NULL,
+  `scope` VARCHAR(32) NOT NULL DEFAULT 'identity',
+  `decision` VARCHAR(32) NOT NULL,
+  `from_status` VARCHAR(32) NOT NULL DEFAULT '',
+  `to_status` VARCHAR(32) NOT NULL,
+  `note` VARCHAR(1000) DEFAULT NULL,
+  `reviewer_id` VARCHAR(64) DEFAULT NULL,
+  `reviewer_name` VARCHAR(200) DEFAULT NULL,
+  -- Microseconds so two decisions made in the same second still sort correctly.
+  `decided_at` DATETIME(6) NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_vdecision_user` (`user_id`, `scope`),
+  CONSTRAINT `fk_vdecision_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ------------------------------------------------------------
+-- 29. Fee-policy transaction snapshots (Increment E)
+--
+-- The frozen financial terms of ONE transaction. Written once, when an
+-- administrator explicitly applies an approved, active policy; never updated and
+-- never deleted. Every figure the decision depended on is copied here, including
+-- the policy's name, version, tier, percentages and approval evidence, so a
+-- later policy edit, expiry, deactivation or an agent changing tier cannot
+-- rewrite history.
+--
+-- `snapshot_hash` is a sha256 over the canonical payload; `shape_fee_snapshot()`
+-- recomputes it on read, so tampering with a stored value is visible in the API.
+--
+-- Money here is an ENTITLEMENT, not a receipt: Goodlucks revenue is recognised
+-- only when a row in `fee_remittances` says money was received.
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `fee_policy_snapshots` (
+  `id` VARCHAR(64) NOT NULL,
+  `policy_id` VARCHAR(64) NOT NULL,
+  `policy_name` VARCHAR(160) NOT NULL DEFAULT '',
+  `policy_version` INT NOT NULL DEFAULT 1,
+  `policy_category` VARCHAR(32) NOT NULL DEFAULT 'viewing_fee',
+  `agent_tier` VARCHAR(32) NOT NULL,
+  `subject_user_id` VARCHAR(64) DEFAULT NULL,
+  `transaction_type` VARCHAR(32) NOT NULL DEFAULT 'viewing_fee',
+  `transaction_id` VARCHAR(64) NOT NULL,
+  `currency` VARCHAR(8) NOT NULL DEFAULT 'GHS',
+  `calculation_method` VARCHAR(16) NOT NULL DEFAULT 'percentage',
+  `fee_total_ghs` DECIMAL(10,2) NOT NULL,
+  `agent_share_percent` DECIMAL(5,2) NOT NULL DEFAULT 0,
+  `goodlucks_share_percent` DECIMAL(5,2) NOT NULL DEFAULT 0,
+  `agent_share_fixed_ghs` DECIMAL(10,2) DEFAULT NULL,
+  `goodlucks_share_fixed_ghs` DECIMAL(10,2) DEFAULT NULL,
+  `agent_entitlement_ghs` DECIMAL(10,2) NOT NULL,
+  `goodlucks_entitlement_ghs` DECIMAL(10,2) NOT NULL,
+  `policy_status_at_use` VARCHAR(24) NOT NULL DEFAULT 'active',
+  `policy_effective_from` DATE DEFAULT NULL,
+  `policy_effective_to` DATE DEFAULT NULL,
+  `policy_approved_by` VARCHAR(64) DEFAULT NULL,
+  `policy_approved_at` DATETIME DEFAULT NULL,
+  `transaction_at` DATETIME NOT NULL,
+  `snapshot_hash` VARCHAR(64) NOT NULL DEFAULT '',
+  `snapshot_at` DATETIME(6) NOT NULL,
+  `created_by` VARCHAR(64) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `idx_fps_transaction` (`transaction_type`, `transaction_id`),
+  KEY `idx_fps_policy` (`policy_id`),
+  KEY `idx_fps_subject` (`subject_user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ------------------------------------------------------------
+-- 30. Fee-policy history (Increment E)
+-- Append-only record of every lifecycle action: created, updated, submitted,
+-- approved, rejected, activated, deactivated. The application never updates or
+-- deletes these rows, so an approval cannot be quietly undone in the record.
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `fee_policy_events` (
+  `id` VARCHAR(64) NOT NULL,
+  `policy_id` VARCHAR(64) NOT NULL,
+  `action` VARCHAR(32) NOT NULL,
+  `from_status` VARCHAR(24) NOT NULL DEFAULT '',
+  `to_status` VARCHAR(24) NOT NULL DEFAULT '',
+  `note` TEXT DEFAULT NULL,
+  `actor_id` VARCHAR(64) DEFAULT NULL,
+  `actor_name` VARCHAR(200) DEFAULT NULL,
+  `created_at` DATETIME(6) NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_fpe_policy` (`policy_id`, `created_at`),
+  CONSTRAINT `fk_fpe_policy` FOREIGN KEY (`policy_id`) REFERENCES `fee_policies` (`id`) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+
+-- ---------------------------------------------------------------------------
+-- Increment G: agent remittances, financial reconciliation, rental commissions
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS `remittance_submissions` (
+  `id` VARCHAR(64) NOT NULL,
+  `reference` VARCHAR(64) NOT NULL,
+  `agent_user_id` VARCHAR(64) NOT NULL,
+  `agent_name` VARCHAR(255) NOT NULL DEFAULT '',
+  `amount_ghs` DECIMAL(10,2) NOT NULL,
+  `currency` VARCHAR(8) NOT NULL DEFAULT 'GHS',
+  `method` VARCHAR(64) NOT NULL DEFAULT 'unknown',
+  `payment_reference` VARCHAR(128) NOT NULL DEFAULT '',
+  `paid_at` DATE NOT NULL,
+  `evidence_reference` VARCHAR(255) NOT NULL DEFAULT '',
+  `status` VARCHAR(24) NOT NULL DEFAULT 'submitted',
+  `confirmed_ghs` DECIMAL(10,2) DEFAULT NULL,
+  `confirmed_by` VARCHAR(64) DEFAULT NULL,
+  `confirmed_at` DATETIME DEFAULT NULL,
+  `requested_allocations_json` LONGTEXT DEFAULT NULL,
+  `decision_reason` TEXT DEFAULT NULL,
+  `note` TEXT DEFAULT NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` DATETIME DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uniq_remit_reference` (`reference`),
+  KEY `idx_remit_sub_agent` (`agent_user_id`, `status`),
+  KEY `idx_remit_sub_status` (`status`, `paid_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `remittance_allocations` (
+  `id` VARCHAR(64) NOT NULL,
+  `submission_id` VARCHAR(64) NOT NULL,
+  `viewing_fee_record_id` VARCHAR(64) NOT NULL,
+  `agent_user_id` VARCHAR(64) NOT NULL DEFAULT '',
+  `amount_ghs` DECIMAL(10,2) NOT NULL,
+  `created_by` VARCHAR(64) DEFAULT NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uniq_remit_alloc_once` (`submission_id`, `viewing_fee_record_id`),
+  KEY `idx_remit_alloc_record` (`viewing_fee_record_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `rental_commissions` (
+  `id` VARCHAR(64) NOT NULL,
+  `reference` VARCHAR(64) NOT NULL,
+  `property_id` VARCHAR(64) DEFAULT NULL,
+  `property_title` VARCHAR(255) NOT NULL DEFAULT '',
+  `tenant_user_id` VARCHAR(64) DEFAULT NULL,
+  `tenant_name` VARCHAR(255) NOT NULL DEFAULT '',
+  `landlord_user_id` VARCHAR(64) DEFAULT NULL,
+  `landlord_name` VARCHAR(255) NOT NULL DEFAULT '',
+  `agent_user_id` VARCHAR(64) DEFAULT NULL,
+  `agent_name` VARCHAR(255) NOT NULL DEFAULT '',
+  `rental_reference` VARCHAR(128) NOT NULL DEFAULT '',
+  `commission_amount_ghs` DECIMAL(10,2) DEFAULT NULL,
+  `currency` VARCHAR(8) NOT NULL DEFAULT 'GHS',
+  `basis` VARCHAR(32) NOT NULL DEFAULT 'manual_agreement',
+  `policy_id` VARCHAR(64) DEFAULT NULL,
+  `policy_snapshot_json` LONGTEXT DEFAULT NULL,
+  `policy_snapshot_hash` VARCHAR(64) DEFAULT NULL,
+  `due_date` DATE DEFAULT NULL,
+  `status` VARCHAR(24) NOT NULL DEFAULT 'draft',
+  `notes` TEXT DEFAULT NULL,
+  `cancel_reason` TEXT DEFAULT NULL,
+  `created_by` VARCHAR(64) DEFAULT NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` DATETIME DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uniq_commission_reference` (`reference`),
+  KEY `idx_commission_status` (`status`, `due_date`),
+  KEY `idx_commission_agent` (`agent_user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `commission_payments` (
+  `id` VARCHAR(64) NOT NULL,
+  `commission_id` VARCHAR(64) NOT NULL,
+  `amount_ghs` DECIMAL(10,2) NOT NULL,
+  `method` VARCHAR(64) NOT NULL DEFAULT 'unknown',
+  `reference` VARCHAR(128) NOT NULL DEFAULT '',
+  `received_at` DATE NOT NULL,
+  `recorded_by` VARCHAR(64) DEFAULT NULL,
+  `adjustment_id` VARCHAR(64) DEFAULT NULL,
+  `entry_type` VARCHAR(16) NOT NULL DEFAULT 'receipt',
+  `notes` TEXT DEFAULT NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_commission_payment` (`commission_id`, `received_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `financial_adjustments` (
+  `id` VARCHAR(64) NOT NULL,
+  `subject_type` VARCHAR(32) NOT NULL,
+  `subject_id` VARCHAR(64) NOT NULL,
+  `kind` VARCHAR(24) NOT NULL,
+  `amount_ghs` DECIMAL(10,2) NOT NULL,
+  `reason` TEXT NOT NULL,
+  `support_reference` VARCHAR(255) NOT NULL DEFAULT '',
+  `meta_json` LONGTEXT DEFAULT NULL,
+  `created_by` VARCHAR(64) DEFAULT NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_fin_adj_subject` (`subject_type`, `subject_id`),
+  KEY `idx_fin_adj_created` (`created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

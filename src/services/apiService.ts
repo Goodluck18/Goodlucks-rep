@@ -10,6 +10,21 @@
  */
 
 import type {
+  AdminAgentAccount,
+  AgentProfile,
+  AgentTierState,
+  FeePolicy,
+  FeePolicyEvent,
+  FeePolicyInput,
+  FeePolicyOverview,
+  FeePolicySnapshot,
+  IdentityVerification,
+  ProfessionalAuthorisation,
+  VerificationDecisionEntry,
+  VerificationDocument,
+  VerificationQueueItem,
+  VerificationReviewerDetail,
+  VerificationSummary,
   AnalyticsStats,
   Enquiry,
   EmailLog,
@@ -19,10 +34,22 @@ import type {
   PropertyStatus,
   RentReceipt,
   SearchAlertSubscription,
-  TenancyAgreement,
+  FeePolicyStatus,
   TenantRequest,
   User,
+  ViewingFeeRecord,
+  ViewingFeeSummary,
+  AgentFinanceOverview,
+  RemittanceSubmission,
+  RentalCommission,
+  FinancialAdjustment,
+  FinanceReconciliationSummary,
+  RentalCommissionStatus,
+  ViewingAction,
+  ViewingDetail,
+  ViewingHistoryEvent,
   ViewingSchedule,
+  ViewingCounts,
 } from '../types';
 
 export class ApiError extends Error {
@@ -157,6 +184,15 @@ export interface PropertyInput {
   nearbyPlaces?: { name: string; type: string; distance: string }[];
   featured?: boolean;
   status?: PropertyStatus;
+  /**
+   * Agent submissions only (Increment F): who the agent says the landlord is.
+   * The server resolves the reference without telling the caller whether an
+   * account matched, and the agent never becomes the owner.
+   */
+  landlordName?: string;
+  landlordEmail?: string;
+  landlordPhone?: string;
+  landlordId?: string;
 }
 
 export interface TenantRequestInput {
@@ -178,8 +214,12 @@ export interface ViewingInput {
   tenantPhone: string;
   tenantEmail: string;
   propertyId: string;
+  /** The tenant's *preferred* slot. The agent may propose another one. */
   date: string;
   time: string;
+  /** 'viewing' (default) or a plain 'enquiry' about the property. */
+  requestType?: 'viewing' | 'enquiry';
+  message?: string;
   notes?: string;
   tenantRequestId?: string;
 }
@@ -213,7 +253,7 @@ export const api = {
   // -------------------------------------------------------------------------
   me: () => request<SessionInfo & { success: boolean }>('/auth/me'),
 
-  login: (email: string, password: string, role?: 'tenant' | 'landlord') =>
+  login: (email: string, password: string, role?: 'tenant' | 'landlord' | 'agent') =>
     request<{ user: User }>('/auth/login', { method: 'POST', body: { email, password, role } }),
 
   adminLogin: (email: string, password: string, accessKey: string) =>
@@ -224,7 +264,13 @@ export const api = {
     email: string;
     phone: string;
     password: string;
-    role: 'tenant' | 'landlord';
+    role: 'tenant' | 'landlord' | 'agent';
+    /** Optional city/town. Contact information only — never identity data. */
+    city?: string;
+    /** Agent only: agency/business name, if there is one (Increment C). */
+    agencyName?: string;
+    /** Agent only: the city the agent works from, not a home address. */
+    operatingCity?: string;
   }) => request<{ user: User }>('/auth/register', { method: 'POST', body: data }),
 
   logout: () => request<{ success: boolean }>('/auth/logout', { method: 'POST' }),
@@ -243,6 +289,111 @@ export const api = {
 
   updateProfile: (data: Partial<User> & { password?: string }) =>
     request<{ user: User }>('/profile', { method: 'PUT', body: data }),
+
+  // -------------------------------------------------------------------------
+  // Agent account (Increment C)
+  // -------------------------------------------------------------------------
+  /** The signed-in agent's own profile. Status fields are read-only here. */
+  getAgentProfile: () =>
+    request<{ profile: AgentProfile }>('/agent/profile'),
+
+  updateAgentProfile: (data: { agencyName?: string; operatingCity?: string }) =>
+    request<{ profile: AgentProfile }>('/agent/profile', { method: 'PATCH', body: data }),
+
+  // -------------------------------------------------------------------------
+  // Verification & private documents (Increment D)
+  // -------------------------------------------------------------------------
+  /** The signed-in agent's or landlord's own verification state. */
+  getVerification: () => request<{ verification: VerificationSummary }>('/verification'),
+
+  /** Upload one private document; returns metadata only, never a public URL. */
+  uploadVerificationDocument: (file: File, kind: string, scope?: string) => {
+    const form = new FormData();
+    form.append('kind', kind);
+    if (scope) form.append('scope', scope);
+    form.append('file', file);
+    return request<{ document: VerificationDocument }>('/verification/documents', {
+      method: 'POST',
+      formData: form,
+    });
+  },
+
+  submitIdentityVerification: (data: {
+    legalName: string;
+    documentType: string;
+    documentNumber: string;
+    documentIds: string[];
+  }) => request<{ identity: IdentityVerification }>('/verification/identity', { method: 'POST', body: data }),
+
+  submitProfessionalAuthorisation: (data: {
+    licenceNumber: string;
+    issuingAuthority: string;
+    licenceCategory?: string;
+    issueDate?: string;
+    expiryDate?: string;
+    documentIds: string[];
+  }) =>
+    request<{ professional: ProfessionalAuthorisation }>('/verification/professional', {
+      method: 'POST',
+      body: data,
+    }),
+
+  deleteVerificationDocument: (id: string) =>
+    request<{ success: boolean }>(`/verification-documents/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+
+  // --- Staff: verification review (Increment D; capability-gated) -----------
+  listVerifications: (params: { status?: string; scope?: string } = {}) => {
+    const search = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value) search.set(key, value);
+    });
+    const query = search.toString();
+    return request<{ verifications: VerificationQueueItem[]; count: number }>(
+      `/admin/verifications${query ? `?${query}` : ''}`
+    );
+  },
+
+  getVerificationDetail: (userId: string) =>
+    request<{ verification: VerificationReviewerDetail }>(
+      `/admin/verifications/${encodeURIComponent(userId)}`
+    ),
+
+  decideIdentityVerification: (
+    userId: string,
+    data: { decision: 'start_review' | 'approve' | 'reject' | 'request_resubmission'; note?: string }
+  ) =>
+    request<{ identity: IdentityVerification; history: VerificationDecisionEntry[] }>(
+      `/admin/verifications/${encodeURIComponent(userId)}/identity/decision`,
+      { method: 'POST', body: data }
+    ),
+
+  decideProfessionalAuthorisation: (
+    userId: string,
+    data: {
+      decision: 'start_review' | 'approve' | 'reject' | 'request_resubmission' | 'mark_expired';
+      note?: string;
+    }
+  ) =>
+    request<{ professional: ProfessionalAuthorisation; history: VerificationDecisionEntry[] }>(
+      `/admin/verifications/${encodeURIComponent(userId)}/professional/decision`,
+      { method: 'POST', body: data }
+    ),
+
+  // --- Staff: agent account review (Increment C) -----------------------------
+  listAgents: () => request<{ agents: AdminAgentAccount[]; count: number }>('/admin/agents'),
+
+  /**
+   * Approve, suspend or return an agent account to review. `canSubmitListings`
+   * is only honoured for an active account.
+   */
+  setAgentStatus: (
+    userId: string,
+    data: { accountStatus: 'pending_review' | 'active' | 'suspended'; canSubmitListings?: boolean; note?: string }
+  ) =>
+    request<{ profile: AgentProfile }>(`/admin/agents/${encodeURIComponent(userId)}/status`, {
+      method: 'POST',
+      body: data,
+    }),
 
   // -------------------------------------------------------------------------
   // Properties
@@ -340,17 +491,65 @@ export const api = {
   // -------------------------------------------------------------------------
   // Viewings
   // -------------------------------------------------------------------------
+  /**
+   * A viewing REQUEST. It is not an appointment: the agent has to propose a
+   * time and somebody has to agree to it (Increment F).
+   */
   createViewing: (data: ViewingInput) =>
-    request<{ viewingId: string; viewing: ViewingSchedule; message: string; feeAmountGhs: number }>(
-      '/viewing-requests',
-      { method: 'POST', body: data }
-    ),
+    request<{
+      viewingId: string;
+      viewing: ViewingSchedule;
+      message: string;
+      feeAmountGhs: number;
+      awaitingAgent: boolean;
+      duplicate?: boolean;
+    }>('/viewings', { method: 'POST', body: data }),
 
   listViewings: () => request<{ viewings: ViewingSchedule[] }>('/viewings'),
 
-  listAllViewings: () => request<{ viewings: ViewingSchedule[] }>('/admin/viewings'),
+  listAllViewings: (params: { status?: string; propertyId?: string; agentUserId?: string; tenantUserId?: string } = {}) => {
+    const search = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value) search.set(key, value);
+    });
+    const query = search.toString();
+    return request<{
+      viewings: ViewingSchedule[];
+      counts?: ViewingCounts;
+      capabilities?: { viewingCorrections: boolean };
+    }>(`/admin/viewings${query ? `?${query}` : ''}`);
+  },
 
-  updateViewing: (id: string, data: { status?: string; viewingFeePaid?: boolean; outcomeNotes?: string }) =>
+  getViewing: (id: string) => request<ViewingDetail>(`/viewings/${encodeURIComponent(id)}`),
+
+  getAdminViewing: (id: string) =>
+    request<ViewingDetail & { landlordUserId: string }>(`/admin/viewings/${encodeURIComponent(id)}`),
+
+  /** One endpoint per lifecycle action; each is validated on the server. */
+  viewingAction: (
+    id: string,
+    action: ViewingAction | 'reschedule' | 'request-reschedule' | 'no-show' | 'could-not-proceed',
+    body: { date?: string; time?: string; note?: string; reason?: string; who?: 'tenant' | 'agent' } = {}
+  ) =>
+    request<{ viewing: ViewingSchedule; message: string }>(
+      `/viewings/${encodeURIComponent(id)}/${action}`,
+      { method: 'POST', body }
+    ),
+
+  correctViewing: (id: string, data: { status: ViewingSchedule['status']; reason: string }) =>
+    request<{ viewing: ViewingSchedule; message: string }>(
+      `/admin/viewings/${encodeURIComponent(id)}/correction`,
+      { method: 'POST', body: data }
+    ),
+
+  assignViewingAgent: (id: string, agentUserId: string) =>
+    request<{ viewing: ViewingSchedule; message: string }>(
+      `/admin/viewings/${encodeURIComponent(id)}/assign-agent`,
+      { method: 'POST', body: { agentUserId } }
+    ),
+
+  /** Legacy back-office update. Kept for the fee checkbox; lifecycle changes use the actions above. */
+  updateViewing: (id: string, data: { status?: string; viewingFeePaid?: boolean; outcomeNotes?: string; note?: string }) =>
     request<{ viewing: ViewingSchedule }>(`/viewings/${encodeURIComponent(id)}`, { method: 'PATCH', body: data }),
 
   // -------------------------------------------------------------------------
@@ -386,26 +585,14 @@ export const api = {
     }),
 
   // -------------------------------------------------------------------------
-  // Agreements & receipts
+  // Rent payment records
   // -------------------------------------------------------------------------
-  listAgreements: () => request<{ agreements: TenancyAgreement[] }>('/agreements'),
-
-  createAgreement: (data: Record<string, unknown>) =>
-    request<{ agreement: TenancyAgreement }>('/agreements', { method: 'POST', body: data }),
-
-  signAgreement: (id: string, role: 'landlord' | 'tenant') =>
-    request<{ agreement: TenancyAgreement }>(`/agreements/${encodeURIComponent(id)}/sign`, {
-      method: 'POST',
-      body: { role },
-    }),
-
-  emailAgreement: (id: string) =>
-    request<{ success: boolean; message: string }>(`/agreements/${encodeURIComponent(id)}/email`, {
-      method: 'POST',
-      body: {},
-    }),
-
-  listReceipts: () => request<{ receipts: RentReceipt[] }>('/receipts'),
+  /**
+   * Rent payment records. `issuingEnabled` is false while the server has
+   * receipt issuing switched off (the truthful payment model ships later).
+   */
+  listReceipts: () =>
+    request<{ receipts: RentReceipt[]; issuingEnabled?: boolean }>('/receipts'),
 
   createReceipt: (data: Record<string, unknown>) =>
     request<{ receipt: RentReceipt }>('/receipts', { method: 'POST', body: data }),
@@ -425,6 +612,280 @@ export const api = {
     }),
 
   adminStats: () => request<{ stats: AdminStats }>('/admin/stats'),
+
+  // -------------------------------------------------------------------------
+  // Viewing-fee ledger (Increment B)
+  // Agent-collected money, the share owed to Goodlucks, and remittances that
+  // Goodlucks has actually received. No percentage is ever applied here.
+  // -------------------------------------------------------------------------
+  listViewingFees: () =>
+    request<{
+      records: ViewingFeeRecord[];
+      summary: ViewingFeeSummary;
+      policy: FeePolicyStatus;
+    }>('/admin/viewing-fees'),
+
+  feePolicy: () => request<{ policy: FeePolicyStatus }>('/admin/viewing-fees/policy'),
+
+  setViewingFeeShare: (id: string, data: { amountGhs: number; note?: string }) =>
+    request<{ record: ViewingFeeRecord }>(
+      `/admin/viewing-fees/${encodeURIComponent(id)}/share`,
+      { method: 'POST', body: data }
+    ),
+
+  addFeeRemittance: (
+    id: string,
+    data: { amountGhs: number; method?: string; reference?: string; receivedAt?: string; notes?: string }
+  ) =>
+    request<{ record: ViewingFeeRecord; remittanceId: string }>(
+      `/admin/viewing-fees/${encodeURIComponent(id)}/remittances`,
+      { method: 'POST', body: data }
+    ),
+
+  setViewingFeeState: (id: string, data: { state: ViewingFeeRecord['collectionState']; note?: string }) =>
+    request<{ record: ViewingFeeRecord }>(
+      `/admin/viewing-fees/${encodeURIComponent(id)}/state`,
+      { method: 'POST', body: data }
+    ),
+
+  // ---------------------------------------------------------------------------
+  // Agent remittances, reconciliation & rental commissions (Increment G)
+  //
+  // An agent submits a claim; only a staff member holding `financeConfirm` can
+  // turn it into a recorded receipt. Every call below is re-checked on the
+  // server, so hiding a button is never the security boundary.
+  // ---------------------------------------------------------------------------
+  agentFinance: () => request<{ finance: AgentFinanceOverview }>('/agent/finance'),
+
+  submitRemittance: (data: {
+    amountGhs: number;
+    method: string;
+    paidAt: string;
+    paymentReference?: string;
+    evidenceReference?: string;
+    note?: string;
+    allocations?: { viewingFeeRecordId: string; amountGhs: number }[];
+  }) =>
+    request<{ remittance: RemittanceSubmission; message: string }>('/agent/remittances', {
+      method: 'POST',
+      body: data,
+    }),
+
+  agentRemittance: (id: string) =>
+    request<{ remittance: RemittanceSubmission }>(`/agent/remittances/${encodeURIComponent(id)}`),
+
+  financeSummary: () =>
+    request<{
+      summary: FinanceReconciliationSummary;
+      policy: FeePolicyStatus;
+      capabilities: { financeView: boolean; financeConfirm: boolean };
+    }>('/admin/finance/summary'),
+
+  listRemittances: (params: { status?: string; agentUserId?: string; from?: string; to?: string } = {}) => {
+    const search = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value) search.set(key, value);
+    });
+    const query = search.toString();
+    return request<{
+      remittances: RemittanceSubmission[];
+      capabilities: { financeView: boolean; financeConfirm: boolean };
+    }>(`/admin/finance/remittances${query ? `?${query}` : ''}`);
+  },
+
+  remittance: (id: string) =>
+    request<{ remittance: RemittanceSubmission }>(`/admin/finance/remittances/${encodeURIComponent(id)}`),
+
+  confirmRemittance: (
+    id: string,
+    data: { allocations: { viewingFeeRecordId: string; amountGhs: number }[]; note?: string }
+  ) =>
+    request<{ remittance: RemittanceSubmission; message: string }>(
+      `/admin/finance/remittances/${encodeURIComponent(id)}/confirm`,
+      { method: 'POST', body: data }
+    ),
+
+  decideRemittance: (id: string, data: { status: 'rejected' | 'disputed'; reason: string }) =>
+    request<{ remittance: RemittanceSubmission }>(
+      `/admin/finance/remittances/${encodeURIComponent(id)}/decision`,
+      { method: 'POST', body: data }
+    ),
+
+  reverseReceipt: (receiptId: string, data: { amountGhs: number; reason: string; supportReference?: string }) =>
+    request<{ adjustment: FinancialAdjustment }>(
+      `/admin/finance/receipts/${encodeURIComponent(receiptId)}/reverse`,
+      { method: 'POST', body: data }
+    ),
+
+  adminAgentFinance: (agentUserId: string) =>
+    request<{
+      agent: {
+        agentUserId: string;
+        name: string;
+        email: string;
+        accountStatus: string;
+        totals: AgentFinanceOverview['totals'];
+        recentSubmissions: RemittanceSubmission[];
+        feeRecords: ViewingFeeRecord[];
+        commissions: RentalCommission[];
+      };
+    }>(`/admin/finance/agents/${encodeURIComponent(agentUserId)}`),
+
+  listFinancialAdjustments: (params: { subjectType?: string; subjectId?: string } = {}) => {
+    const search = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value) search.set(key, value);
+    });
+    const query = search.toString();
+    return request<{ adjustments: FinancialAdjustment[] }>(
+      `/admin/finance/adjustments${query ? `?${query}` : ''}`
+    );
+  },
+
+  listCommissions: (params: { status?: string; agentUserId?: string; propertyId?: string } = {}) => {
+    const search = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value) search.set(key, value);
+    });
+    const query = search.toString();
+    return request<{
+      commissions: RentalCommission[];
+      statuses: RentalCommissionStatus[];
+      capabilities: { financeView: boolean; financeConfirm: boolean };
+    }>(`/admin/finance/commissions${query ? `?${query}` : ''}`);
+  },
+
+  createCommission: (data: {
+    propertyId: string;
+    amountGhs?: number;
+    agentUserId?: string;
+    tenantUserId?: string;
+    tenantName?: string;
+    rentalReference?: string;
+    dueDate?: string;
+    basis?: 'manual_agreement' | 'policy_snapshot';
+    policyId?: string;
+    notes?: string;
+  }) => request<{ commission: RentalCommission }>('/admin/finance/commissions', { method: 'POST', body: data }),
+
+  commission: (id: string) =>
+    request<{ commission: RentalCommission }>(`/admin/finance/commissions/${encodeURIComponent(id)}`),
+
+  updateCommission: (
+    id: string,
+    data: {
+      amountGhs?: number;
+      dueDate?: string | null;
+      rentalReference?: string;
+      tenantName?: string;
+      notes?: string;
+    }
+  ) =>
+    request<{ commission: RentalCommission }>(`/admin/finance/commissions/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: data,
+    }),
+
+  setCommissionStatus: (id: string, data: { status: RentalCommissionStatus; reason?: string }) =>
+    request<{ commission: RentalCommission }>(
+      `/admin/finance/commissions/${encodeURIComponent(id)}/status`,
+      { method: 'POST', body: data }
+    ),
+
+  addCommissionPayment: (
+    id: string,
+    data: { amountGhs: number; receivedAt: string; method?: string; reference?: string; notes?: string }
+  ) =>
+    request<{ commission: RentalCommission }>(
+      `/admin/finance/commissions/${encodeURIComponent(id)}/payments`,
+      { method: 'POST', body: data }
+    ),
+
+  adjustCommission: (
+    id: string,
+    data: { kind: 'reversal' | 'correction'; amountGhs: number; reason: string; supportReference?: string }
+  ) =>
+    request<{ adjustment: FinancialAdjustment }>(
+      `/admin/finance/commissions/${encodeURIComponent(id)}/adjustments`,
+      { method: 'POST', body: data }
+    ),
+
+  // ---------------------------------------------------------------------------
+  // Fee policies & agent tiers (Increment E)
+  //
+  // Listing and reading need either financial capability; creating/editing
+  // needs the manager capability and approving/activating the approver one. The
+  // server enforces that — the UI only hides what an account cannot use.
+  // ---------------------------------------------------------------------------
+  listFeePolicies: (params: { status?: string; category?: string; agentTier?: string } = {}) => {
+    const search = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value) search.set(key, value);
+    });
+    const query = search.toString();
+    return request<FeePolicyOverview>(`/admin/fee-policies${query ? `?${query}` : ''}`);
+  },
+
+  getFeePolicy: (id: string) =>
+    request<{ policy: FeePolicy; history: FeePolicyEvent[] }>(
+      `/admin/fee-policies/${encodeURIComponent(id)}`
+    ),
+
+  createFeePolicy: (data: FeePolicyInput) =>
+    request<{ policy: FeePolicy }>('/admin/fee-policies', { method: 'POST', body: data }),
+
+  updateFeePolicy: (id: string, data: FeePolicyInput) =>
+    request<{ policy: FeePolicy }>(`/admin/fee-policies/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: data,
+    }),
+
+  submitFeePolicy: (id: string, note?: string) =>
+    request<{ policy: FeePolicy }>(`/admin/fee-policies/${encodeURIComponent(id)}/submit`, {
+      method: 'POST',
+      body: { note },
+    }),
+
+  approveFeePolicy: (id: string, note: string) =>
+    request<{ policy: FeePolicy }>(`/admin/fee-policies/${encodeURIComponent(id)}/approve`, {
+      method: 'POST',
+      body: { note },
+    }),
+
+  rejectFeePolicy: (id: string, reason: string) =>
+    request<{ policy: FeePolicy }>(`/admin/fee-policies/${encodeURIComponent(id)}/reject`, {
+      method: 'POST',
+      body: { reason },
+    }),
+
+  activateFeePolicy: (id: string, note?: string) =>
+    request<{ policy: FeePolicy }>(`/admin/fee-policies/${encodeURIComponent(id)}/activate`, {
+      method: 'POST',
+      body: { note },
+    }),
+
+  deactivateFeePolicy: (id: string, reason: string) =>
+    request<{ policy: FeePolicy }>(`/admin/fee-policies/${encodeURIComponent(id)}/deactivate`, {
+      method: 'POST',
+      body: { reason },
+    }),
+
+  getAgentTier: (userId: string) =>
+    request<{ agent: { userId: string; name: string; email: string }; tier: AgentTierState }>(
+      `/admin/agents/${encodeURIComponent(userId)}/tier`
+    ),
+
+  linkViewingFeeAgent: (id: string, agentUserId: string) =>
+    request<{ record: ViewingFeeRecord; agentTier?: AgentTierState }>(
+      `/admin/viewing-fees/${encodeURIComponent(id)}/agent`,
+      { method: 'POST', body: { agentUserId } }
+    ),
+
+  applyFeePolicy: (id: string, policyId?: string) =>
+    request<{ record: ViewingFeeRecord; snapshot: FeePolicySnapshot; agentTier: AgentTierState }>(
+      `/admin/viewing-fees/${encodeURIComponent(id)}/apply-policy`,
+      { method: 'POST', body: policyId ? { policyId } : {} }
+    ),
 
   adminEmailLogs: () =>
     request<{ logs: EmailLog[]; outbox: EmailOutboxSummary }>('/admin/email-logs'),

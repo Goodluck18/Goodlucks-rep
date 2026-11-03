@@ -9,7 +9,7 @@
  *
  * Sends never happen inline: `send_email()` queues the message (see
  * lib/outbox.php) so a slow or failing transport cannot delay an enquiry,
- * viewing request or agreement submit. The queue is drained after the response
+ * viewing request or enquiry. The queue is drained after the response
  * and retried by cron.php with exponential backoff.
  *
  * Set EMAIL_TRANSPORT to `none` to disable delivery entirely (tests, staging):

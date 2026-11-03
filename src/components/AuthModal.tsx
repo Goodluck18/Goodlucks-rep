@@ -2,11 +2,11 @@ import React, { useRef, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { useModalA11y } from '../hooks/useModalA11y';
 import { api } from '../services/apiService';
-import { X, Building2, ShieldCheck, User, Mail, Lock, Phone, ArrowRight, MailCheck } from 'lucide-react';
+import { X, Building2, ShieldCheck, User, Mail, Lock, Phone, MapPin, ArrowRight, MailCheck } from 'lucide-react';
 
 interface AuthModalProps {
   initialMode?: 'login' | 'register';
-  initialRole?: 'tenant' | 'landlord';
+  initialRole?: 'tenant' | 'landlord' | 'agent';
   onClose: () => void;
 }
 
@@ -16,12 +16,16 @@ export const AuthModal: React.FC<AuthModalProps> = ({ initialMode = 'login', ini
   const [resetSent, setResetSent] = useState<string | null>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
   const dialogProps = useModalA11y(dialogRef, onClose);
-  const [selectedRole, setSelectedRole] = useState<'tenant' | 'landlord'>(initialRole);
+  const [selectedRole, setSelectedRole] = useState<'tenant' | 'landlord' | 'agent'>(initialRole);
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
+  // Optional city/town. Ordinary contact information, not identity verification.
+  const [city, setCity] = useState('');
+  // Agent only: agency/business name (optional) — basic registration detail.
+  const [agencyName, setAgencyName] = useState('');
 
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -54,6 +58,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({ initialMode = 'login', ini
             name: name.trim(),
             email: email.trim(),
             phone: phone.trim(),
+            // For an agent the city is the operating base, sent as its own field
+            // so it is never confused with a home address.
+            city: selectedRole === 'agent' ? undefined : city.trim(),
+            operatingCity: selectedRole === 'agent' ? city.trim() : undefined,
+            agencyName: selectedRole === 'agent' ? agencyName.trim() : undefined,
             password,
             role: selectedRole,
           });
@@ -106,7 +115,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ initialMode = 'login', ini
           {/* Role Selector Tabs */}
           <div className={`space-y-1.5 ${mode === 'forgot' ? 'hidden' : ''}`}>
             <label className="block text-xs font-semibold text-slate-300">Select Account Role:</label>
-            <div className="grid grid-cols-2 gap-1.5 bg-slate-900/80 p-1 rounded-2xl border border-white/10 text-xs">
+            <div className="grid grid-cols-3 gap-1.5 bg-slate-900/80 p-1 rounded-2xl border border-white/10 text-xs">
               <button
                 type="button"
                 onClick={() => setSelectedRole('tenant')}
@@ -126,6 +135,16 @@ export const AuthModal: React.FC<AuthModalProps> = ({ initialMode = 'login', ini
               >
                 Landlord
               </button>
+
+              <button
+                type="button"
+                onClick={() => setSelectedRole('agent')}
+                className={`py-2 rounded-xl font-bold transition-all ${
+                  selectedRole === 'agent' ? 'bg-[#08D9D6] text-[#252A34] shadow-md' : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                Agent
+              </button>
             </div>
           </div>
 
@@ -140,10 +159,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({ initialMode = 'login', ini
             <p className="text-[11px] text-slate-400 leading-tight">
               {mode === 'forgot'
                 ? 'Enter your account email and we will send a single-use link. It expires in one hour.'
-                : 'Your account is protected by Goodlucks Homes. Sign in to manage' +
-                  (selectedRole === 'landlord'
-                    ? ' your listings and viewing requests.'
-                    : ' saved homes, viewings and rental requests.')}
+                : selectedRole === 'agent'
+                  ? 'Agent accounts are reviewed before listing submissions open. Registering does not verify your identity, ' +
+                    'your licence or your authority to act for a landlord.'
+                  : 'Your account is protected by Goodlucks Homes. Sign in to manage' +
+                    (selectedRole === 'landlord'
+                      ? ' your listings and viewing requests.'
+                      : ' saved homes, viewings and rental requests.')}
             </p>
           </div>
 
@@ -197,6 +219,58 @@ export const AuthModal: React.FC<AuthModalProps> = ({ initialMode = 'login', ini
                   </div>
                   {fieldErrors.phone && <p className="text-[11px] text-[#FF8FA8] mt-1">{fieldErrors.phone}</p>}
                 </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">
+                    {selectedRole === 'agent' ? 'Operating City / Base' : 'City / Town'}{' '}
+                    {selectedRole === 'agent' ? (
+                      <span className="text-slate-500 font-normal">(where you work)</span>
+                    ) : (
+                      <span className="text-slate-500 font-normal">(optional)</span>
+                    )}
+                  </label>
+                  <div className="relative">
+                    <MapPin className="w-4 h-4 absolute left-3 top-3 text-slate-400" />
+                    <input
+                      type="text"
+                      required={selectedRole === 'agent'}
+                      value={city}
+                      onChange={(e) => setCity(e.target.value)}
+                      placeholder="e.g. East Legon, Accra"
+                      className="w-full bg-slate-900 border border-white/10 rounded-xl pl-9 pr-3 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-[#08D9D6]"
+                    />
+                  </div>
+                  {fieldErrors.operatingCity && (
+                    <p className="text-[11px] text-[#FF8FA8] mt-1">{fieldErrors.operatingCity}</p>
+                  )}
+                  {fieldErrors.city && <p className="text-[11px] text-[#FF8FA8] mt-1">{fieldErrors.city}</p>}
+                  {selectedRole === 'agent' && (
+                    <p className="text-[10px] text-slate-500 mt-1">
+                      Your base, not your home address, and not a claim of coverage.
+                    </p>
+                  )}
+                </div>
+
+                {selectedRole === 'agent' && (
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">
+                      Agency / Business Name <span className="text-slate-500 font-normal">(optional)</span>
+                    </label>
+                    <div className="relative">
+                      <Building2 className="w-4 h-4 absolute left-3 top-3 text-slate-400" />
+                      <input
+                        type="text"
+                        value={agencyName}
+                        onChange={(e) => setAgencyName(e.target.value)}
+                        placeholder="e.g. Mensah Property Partners"
+                        className="w-full bg-slate-900 border border-white/10 rounded-xl pl-9 pr-3 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-[#08D9D6]"
+                      />
+                    </div>
+                    {fieldErrors.agencyName && (
+                      <p className="text-[11px] text-[#FF8FA8] mt-1">{fieldErrors.agencyName}</p>
+                    )}
+                  </div>
+                )}
               </>
             )}
 

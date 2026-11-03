@@ -17,7 +17,7 @@ export const FindAHomeView: React.FC<FindAHomeViewProps> = ({ onOpenAuth }) => {
       <div className="min-h-screen bg-[#252A34] text-white py-12 px-4 sm:px-6 lg:px-8 flex items-center justify-center">
         <SEOHead
           title="Find a Rental Home - Custom Matching Service | Goodlucks Homes"
-          description="Submit your location, budget, bedroom requirements, and move-in date. Goodlucks Homes matches you with 100% verified rentals in Accra."
+          description="Submit your location, budget, bedroom requirements, and move-in date. Goodlucks Homes matches your request against listings reviewed by our staff."
         />
         <div className="max-w-xl w-full bg-slate-800/90 border border-[#08D9D6]/30 rounded-3xl p-6 sm:p-8 shadow-2xl text-center space-y-6 animate-fadeIn">
           <div className="w-16 h-16 rounded-2xl bg-[#08D9D6]/20 text-[#08D9D6] border border-[#08D9D6]/30 flex items-center justify-center mx-auto shadow-inner">
@@ -40,7 +40,7 @@ export const FindAHomeView: React.FC<FindAHomeViewProps> = ({ onOpenAuth }) => {
             <div className="font-bold text-slate-200">Why Log In as a Tenant?</div>
             <div className="flex items-center gap-2 text-slate-300">
               <span className="w-2 h-2 rounded-full bg-[#08D9D6]" />
-              <span>Receive verified AI property matches based on your budget in GH₵</span>
+              <span>Receive suggested property matches based on your budget in GH₵</span>
             </div>
             <div className="flex items-center gap-2 text-slate-300">
               <span className="w-2 h-2 rounded-full bg-[#08D9D6]" />
@@ -194,7 +194,7 @@ export const FindAHomeView: React.FC<FindAHomeViewProps> = ({ onOpenAuth }) => {
     <div className="min-h-screen bg-[#252A34] text-white py-10 px-4 sm:px-6 lg:px-8">
       <SEOHead
         title="Find a Rental Home - Property Matching Service | Goodlucks Homes Ghana"
-        description="Submit your target location, budget, bedroom requirements, and move-in date. Goodlucks Homes matches you with 100% verified rentals in Accra."
+        description="Submit your target location, budget, bedroom requirements, and move-in date. Goodlucks Homes matches your request against listings reviewed by our staff."
       />
       <div className="max-w-3xl mx-auto space-y-8 animate-fadeIn">
         
@@ -439,7 +439,7 @@ export const FindAHomeView: React.FC<FindAHomeViewProps> = ({ onOpenAuth }) => {
                 Request Submitted Successfully!
               </h2>
               <p className="text-sm text-slate-300 max-w-md mx-auto leading-relaxed">
-                Goodlucks Homes AI Matching Engine is actively comparing your request against our verified property inventory in Ghana.
+                Goodlucks Homes AI Matching Engine is comparing your request against the active listings in Ghana.
               </p>
             </div>
 

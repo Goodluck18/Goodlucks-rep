@@ -25,7 +25,7 @@ export const ViewingRequestModal: React.FC<ViewingRequestModalProps> = ({ proper
   const [tenantPhone, setTenantPhone] = useState(currentUser?.phone || '');
   const [tenantEmail, setTenantEmail] = useState(currentUser?.email || '');
   const [notes, setNotes] = useState('');
-  const [submitted, setSubmitted] = useState(false);
+  const [submitted, setSubmitted] = useState<null | { agent: string; date: string; time: string; reference: string }>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -49,16 +49,22 @@ export const ViewingRequestModal: React.FC<ViewingRequestModalProps> = ({ proper
 
     setIsSubmitting(true);
     try {
-      await scheduleViewing({
+      const viewing = await scheduleViewing({
         tenantName: tenantName.trim(),
         tenantPhone: tenantPhone.trim(),
         tenantEmail: tenantEmail.trim(),
         propertyId: property.id,
+        requestType: 'viewing',
         date,
         time,
-        notes: notes || `Interested in viewing ${property.title}`,
+        message: notes || `Interested in viewing ${property.title}`,
       });
-      setSubmitted(true);
+      setSubmitted({
+        agent: viewing.assignedAgent || 'the Goodlucks viewing desk',
+        date: viewing.date,
+        time: viewing.time,
+        reference: viewing.id,
+      });
     } catch (err) {
       setError(messageForError(err));
     } finally {
@@ -135,7 +141,9 @@ export const ViewingRequestModal: React.FC<ViewingRequestModalProps> = ({ proper
             <div className="bg-[#08D9D6]/10 border border-[#08D9D6]/30 rounded-2xl p-3.5 flex items-start gap-3">
               <AlertCircle className="w-5 h-5 text-[#08D9D6] shrink-0 mt-0.5" />
               <div className="text-xs text-slate-200 leading-relaxed">
-                <span className="font-bold text-[#08D9D6]">Viewing Fee Notice:</span> Standard viewing fee is <span className="font-bold text-white">GH₵ 100</span>. Fees are paid <span className="underline font-semibold">physically to Goodlucks Homes staff</span> during the property viewing. We never ask for online viewing fee payments.
+                <span className="font-bold text-[#08D9D6]">Viewing fee notice:</span> any viewing fee is agreed with the agent and paid{' '}
+                <span className="underline font-semibold">directly to the agent on site</span>. Goodlucks never asks for a viewing fee
+                online, and no payment is taken or confirmed by this form.
               </div>
             </div>
 
@@ -260,32 +268,40 @@ export const ViewingRequestModal: React.FC<ViewingRequestModalProps> = ({ proper
               {isSubmitting ? (
                 <>
                   <span className="w-4 h-4 border-2 border-[#252A34]/30 border-t-[#252A34] rounded-full animate-spin" />
-                  Scheduling...
+                  Sending request...
                 </>
               ) : (
-                'Confirm Viewing Request'
+                'Send viewing request'
               )}
             </button>
           </form>
         ) : (
           <div className="text-center py-6 space-y-4">
-            <div className="w-16 h-16 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center mx-auto">
+            <div className="w-16 h-16 rounded-full bg-[#08D9D6]/15 text-[#08D9D6] border border-[#08D9D6]/30 flex items-center justify-center mx-auto">
               <CheckCircle2 className="w-8 h-8" />
             </div>
-            <h3 className="text-2xl font-bold text-white">Viewing Scheduled!</h3>
+            <h3 className="text-2xl font-bold text-white">Request sent</h3>
             <p className="text-sm text-slate-300 max-w-sm mx-auto leading-relaxed">
-              Your viewing request for <span className="text-white font-semibold">{property.title}</span> on <span className="text-[#08D9D6] font-semibold">{date} at {time}</span> has been logged with Goodlucks Homes.
+              Your request to view <span className="text-white font-semibold">{property.title}</span> is with{' '}
+              <span className="text-[#08D9D6] font-semibold">{submitted.agent}</span>.
             </p>
+            <div className="bg-amber-500/10 border border-amber-500/30 p-4 rounded-2xl text-xs text-amber-100 text-left space-y-1">
+              <div className="font-bold">This is not a confirmed appointment yet.</div>
+              <div>
+                You asked for {submitted.date} at {submitted.time}. The agent will contact you to agree a time;
+                the request becomes confirmed when a slot is accepted.
+              </div>
+            </div>
             <div className="bg-white/5 p-4 rounded-2xl text-xs text-slate-300 text-left space-y-1">
-              <div>• Assigned Agent: <span className="font-semibold text-white">Goodlucks Field Agent</span></div>
-              <div>• Viewing Fee: <span className="font-semibold text-white">GH₵ 100</span> (Payable physically on site)</div>
-              <div>• Intermediary Status: <span className="font-semibold text-[#08D9D6]">Active</span></div>
+              <div>• Reference: <span className="font-mono font-semibold text-white">{submitted.reference}</span></div>
+              <div>• Viewing fee: <span className="font-semibold text-white">paid on site to the agent, if one applies</span></div>
+              <div>• Payment status: <span className="font-semibold text-white">nothing has been paid or recorded</span></div>
             </div>
             <button
               onClick={onClose}
               className="px-6 py-2.5 rounded-xl bg-[#08D9D6] text-[#252A34] font-bold text-sm"
             >
-              Done & Return
+              Done
             </button>
           </div>
         )}

@@ -43,7 +43,8 @@ public_html/                 <- contents of dist/ after `npm run build`
     ├── database.sql         <- MySQL schema (idempotent)
     ├── admin_bootstrap.php  <- CLI: create/reset the admin user
     ├── migrate.php          <- CLI: additive schema upgrade
-    ├── uploads/             <- writable, 0755
+    ├── uploads/             <- writable, 0755 (public property photos only)
+    ├── storage/private/     <- identity documents: NEVER public, 0700
     └── logs/                <- writable, 0755 (php-error.log)
 ```
 
@@ -94,6 +95,21 @@ OFFICIAL_EMAIL=rentals@goodlucks.co
 
 GEMINI_API_KEY=                  # optional: AI descriptions & match scores
 ADMIN_ACCESS_KEY=<long random>   # required second factor for the admin login
+
+# --- Identity verification (Increment D) -----------------------------------
+# 32-byte key used to encrypt identity-document numbers at rest (AES-256-GCM).
+# Generate on the server:   openssl rand -base64 32
+# Never commit it, never reuse another secret, and back it up: without it the
+# stored numbers cannot be decrypted (the platform will not fall back to plain
+# text — it simply keeps the masked value).
+IDENTITY_DATA_KEY=<base64 32 bytes>
+
+# How long identity data is kept after a final decision (documents + numbers).
+# Placeholder pending legal advice; the retention job reads this.
+VERIFICATION_RETENTION_DAYS=365
+
+# Identity documents are capped at 5 MB by default.
+IDENTITY_DOCUMENT_MAX_BYTES=5242880
 ```
 
 Notes:
@@ -139,13 +155,28 @@ Keep `index.html` and `assets/` at the same level; the HTML requests
    outside `public_html` and run them with an absolute path in that case.
 3. Set permissions:
    ```text
-   api/            0755
-   api/uploads/    0755  (must be writable by PHP)
-   api/logs/       0755  (must be writable by PHP)
-   api/.env        0600
+   api/                   0755
+   api/uploads/           0755  (must be writable by PHP)
+   api/storage/private/   0700  (identity documents; writable by PHP, nobody else)
+   api/logs/              0755  (must be writable by PHP)
+   api/.env               0600
    ```
 4. Make sure the uploads folder cannot execute PHP — `api/uploads/.htaccess`
    already removes PHP handlers and denies script extensions.
+5. Identity documents live in `api/storage/private/`. The shipped `.htaccess`
+   refuses `^(lib|logs|storage)/` and any `doc_<24 hex>.<pdf|jpg|png>` file, and
+   the folder carries its own deny-all guard. **If the host honours
+   `AllowOverride`, this is enough; if it does not, move the folder outside
+   `public_html` with `PRIVATE_UPLOAD_DIR=/home/cpuser/private-docs` (0700) and
+   verify with `curl https://<site>/api/storage/private/` returning 403/404.
+   Nothing in the platform ever serves these files by URL — reads go through
+   `/api/verification-documents/{id}` with a session check.
+6. Grant the verification-reviewer capability to the staff who need it (never to
+   every administrator):
+   ```bash
+   php php-backend/grant_reviewer.php --list
+   php php-backend/grant_reviewer.php --email=reviewer@goodlucks.co --reviewer=1 --documents=1
+   ```
 
 ---
 
@@ -287,6 +318,9 @@ Local data lives in `.data/dev.sqlite` (git-ignored) and is seeded from
 - [ ] HTTPS enforced (uncomment the redirect in `public/.htaccess`).
 - [ ] `ADMIN_ACCESS_KEY` set to a long random value.
 - [ ] `api/.env` (or `config.local.php`) present, `0600`, and not downloadable.
+- [ ] `IDENTITY_DATA_KEY` set (32 bytes) and backed up outside the server copy.
+- [ ] `api/storage/private/` is `0700` and not reachable by URL.
+- [ ] Retention job scheduled: `php api/verification_retention.php --apply` (dry run first).
 - [ ] `api/logs/` and `api/uploads/` not browsable (`Options -Indexes`).
 - [ ] `database.sql` not reachable from the web.
 - [ ] Resend domain verified so email passes SPF/DKIM.

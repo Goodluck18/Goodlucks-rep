@@ -39,7 +39,7 @@ export const AdminLoginView: React.FC = () => {
     metaRobots.setAttribute('content', 'noindex, nofollow, noarchive, nosnippet, noimageindex');
 
     return () => {
-      document.title = "Goodlucks Homes - Verified Rentals & Real Estate";
+      document.title = "Goodlucks Homes - Rentals & Real Estate";
       if (created && metaRobots && metaRobots.parentNode) {
         metaRobots.parentNode.removeChild(metaRobots);
       } else if (metaRobots) {
