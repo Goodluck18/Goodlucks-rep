@@ -69,10 +69,11 @@ function email_html_template(string $title, string $bodyHtml, string $reference 
             . 'font-weight:bold;text-align:center;color:#252A34;">Goodlucks'
             . '<span style="color:#FF2E63;"> Homes</span></div>';
 
-    $socialHtml = email_social_icon('Instagram', '◎', trim((string)cfg('SOCIAL_INSTAGRAM_URL', '')), '#FF2E63')
-        . email_social_icon('LinkedIn', 'in', trim((string)cfg('SOCIAL_LINKEDIN_URL', '')), '#252A34')
+    $socialHtml = email_social_icon('Facebook', 'f', trim((string)cfg('SOCIAL_FACEBOOK_URL', '')), '#252A34')
+        . email_social_icon('Instagram', '◎', trim((string)cfg('SOCIAL_INSTAGRAM_URL', '')), '#FF2E63')
+        . email_social_icon('TikTok', '♪', trim((string)cfg('SOCIAL_TIKTOK_URL', '')), '#252A34')
         . email_social_icon('X', 'X', trim((string)cfg('SOCIAL_X_URL', '')), '#252A34')
-        . email_social_icon('Facebook', 'f', trim((string)cfg('SOCIAL_FACEBOOK_URL', '')), '#252A34');
+        . email_social_icon('LinkedIn', 'in', trim((string)cfg('SOCIAL_LINKEDIN_URL', '')), '#252A34');
 
     $phone = trim((string)OFFICIAL_PHONE);
     $displayPhone = preg_match('/^\\+233(\\d{2})(\\d{3})(\\d{4})$/', $phone, $phoneParts)
