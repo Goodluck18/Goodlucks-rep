@@ -110,9 +110,10 @@ define('OFFICIAL_NAME', (string)cfg('OFFICIAL_NAME', 'Goodlucks Homes Intermedia
 define('OFFICIAL_PHONE', (string)cfg('OFFICIAL_PHONE', '+233237690080'));
 // Optional email-brand assets and official social profile destinations.
 define('EMAIL_LOGO_URL', (string)cfg('EMAIL_LOGO_URL', ''));
-define('SOCIAL_FACEBOOK_URL', (string)cfg('SOCIAL_FACEBOOK_URL', ''));
-define('SOCIAL_INSTAGRAM_URL', (string)cfg('SOCIAL_INSTAGRAM_URL', ''));
-define('SOCIAL_TIKTOK_URL', (string)cfg('SOCIAL_TIKTOK_URL', ''));
+define('SOCIAL_FACEBOOK_URL', (string)cfg('SOCIAL_FACEBOOK_URL', 'https://facebook.com/GoodlucksHomes'));
+define('SOCIAL_INSTAGRAM_URL', (string)cfg('SOCIAL_INSTAGRAM_URL', 'https://instagram.com/GoodlucksHomes'));
+define('SOCIAL_LINKEDIN_URL', (string)cfg('SOCIAL_LINKEDIN_URL', 'https://linkedin.com/company/GoodlucksHomes'));
+define('SOCIAL_X_URL', (string)cfg('SOCIAL_X_URL', 'https://x.com/GoodlucksHomes'));
 define('SITE_URL', rtrim((string)cfg('APP_URL', 'https://rent.goodlucks.co'), '/'));
 
 define('DB_DRIVER', strtolower((string)cfg('DB_DRIVER', 'mysql')));
