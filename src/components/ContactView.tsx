@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Mail, Phone, MapPin, Building2, Send, CheckCircle2, Share2, Instagram, Linkedin, Twitter, Facebook, AlertCircle } from 'lucide-react';
+import { Mail, Phone, MapPin, Building2, Send, CheckCircle2, Share2, Instagram, Linkedin, Twitter, Facebook, Music2, AlertCircle } from 'lucide-react';
 import { SEOHead } from './SEOHead';
 import { useApp } from '../context/AppContext';
 import { messageForError } from '../services/apiService';
@@ -84,16 +84,19 @@ export const ContactView: React.FC = () => {
                   <div className="font-bold text-white">Social Media</div>
                   <div className="text-xs text-[#08D9D6] font-semibold mb-1">@GoodlucksHomes on all platforms</div>
                   <div className="flex items-center gap-2 pt-1 text-slate-300">
-                    <a href="https://instagram.com/GoodlucksHomes" target="_blank" rel="noopener noreferrer" className="p-1.5 rounded-lg bg-slate-900 hover:text-[#08D9D6] transition-colors" title="Instagram">
+                    <a href="https://www.instagram.com/GoodlucksHomes" target="_blank" rel="noopener noreferrer" className="p-1.5 rounded-lg bg-slate-900 hover:text-[#08D9D6] transition-colors" title="Instagram">
                       <Instagram className="w-4 h-4" />
                     </a>
-                    <a href="https://linkedin.com/company/GoodlucksHomes" target="_blank" rel="noopener noreferrer" className="p-1.5 rounded-lg bg-slate-900 hover:text-[#08D9D6] transition-colors" title="LinkedIn">
+                    <a href="https://www.tiktok.com/@GoodlucksHomes" target="_blank" rel="noopener noreferrer" className="p-1.5 rounded-lg bg-slate-900 hover:text-[#08D9D6] transition-colors" title="TikTok @GoodlucksHomes">
+                      <Music2 className="w-4 h-4" />
+                    </a>
+                    <a href="https://www.linkedin.com/company/GoodlucksHomes" target="_blank" rel="noopener noreferrer" className="p-1.5 rounded-lg bg-slate-900 hover:text-[#08D9D6] transition-colors" title="LinkedIn">
                       <Linkedin className="w-4 h-4" />
                     </a>
                     <a href="https://x.com/GoodlucksHomes" target="_blank" rel="noopener noreferrer" className="p-1.5 rounded-lg bg-slate-900 hover:text-[#08D9D6] transition-colors" title="X / Twitter">
                       <Twitter className="w-4 h-4" />
                     </a>
-                    <a href="https://facebook.com/GoodlucksHomes" target="_blank" rel="noopener noreferrer" className="p-1.5 rounded-lg bg-slate-900 hover:text-[#08D9D6] transition-colors" title="Facebook">
+                    <a href="https://www.facebook.com/GoodlucksHomes" target="_blank" rel="noopener noreferrer" className="p-1.5 rounded-lg bg-slate-900 hover:text-[#08D9D6] transition-colors" title="Facebook">
                       <Facebook className="w-4 h-4" />
                     </a>
                   </div>
