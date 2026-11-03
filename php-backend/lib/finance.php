@@ -469,113 +469,157 @@ function list_remittance_submissions(array $filters = [], int $limit = 200): arr
  */
 function confirm_remittance(string $id, array $allocations, array $actor, string $note = ''): array
 {
-    $submission = find_remittance_submission($id);
-    if ($submission === null) {
-        error_response('Remittance not found.', 404);
-    }
-    if (!in_array((string)$submission['status'], REMITTANCE_DECIDABLE_STATUSES, true)) {
-        error_response(
-            'This remittance is already ' . (string)$submission['status'] . ' and cannot be confirmed again.',
-            409
-        );
-    }
+    $amount = 0.0;
+    $agentUserId = '';
 
-    $amount = round((float)$submission['amount_ghs'], 2);
-    $agentUserId = (string)$submission['agent_user_id'];
-
-    $validated = [];
-    $total = 0.0;
-    foreach ($allocations as $row) {
-        if (!is_array($row)) {
-            continue;
+    /*
+     * Everything that decides whether this remittance may be confirmed happens
+     * inside one write-locked transaction (audit finding R4). Reading the
+     * submission before the transaction and then updating it unconditionally is
+     * the classic double-confirm bug: two administrators both see `submitted`,
+     * both write `confirmed`, and the ledger receives the money twice.
+     *
+     * The three layers here are intentional:
+     *   1. BEGIN IMMEDIATE (SQLite) / row locks (MySQL) keep other writers out.
+     *   2. The status is re-read under that lock.
+     *   3. The UPDATE is conditional on the status it read, and its affected-row
+     *      count is checked — if anything slipped past 1 and 2, this still fails.
+     */
+    $confirmed = db_transaction_immediate(static function () use ($id, $allocations, $actor, $note, &$amount, &$agentUserId): array {
+        $submission = db_lock_row('remittance_submissions', $id);
+        if ($submission === null) {
+            error_response('Remittance not found.', 404);
         }
-        $recordId = clean_string($row['viewingFeeRecordId'] ?? $row['recordId'] ?? '', 64);
-        $rowAmount = finance_money($row['amountGhs'] ?? $row['amount'] ?? null);
-        if ($recordId === '' || $rowAmount === null || $rowAmount <= 0) {
-            error_response('Each allocation needs a viewing-fee record and an amount above zero.', 422, [
-                'allocations' => 'Choose a record and an amount for every allocation.',
-            ]);
-        }
-        if (isset($validated[$recordId])) {
-            error_response('The same viewing-fee record is allocated twice in one remittance.', 422, [
-                'allocations' => 'Each obligation may appear once per confirmation.',
-            ]);
-        }
-
-        $record = find_viewing_fee_record($recordId);
-        if ($record === null) {
-            error_response('Viewing-fee record not found: ' . $recordId, 404);
-        }
-        if ((string)($record['agent_user_id'] ?? '') !== $agentUserId) {
+        if (!in_array((string)$submission['status'], REMITTANCE_DECIDABLE_STATUSES, true)) {
             error_response(
-                'A remittance can only be applied to fee records belonging to the agent who submitted it.',
-                403
+                'This remittance is already ' . (string)$submission['status'] . ' and cannot be confirmed again.',
+                409
             );
         }
-        if ((string)$record['collection_state'] === 'void') {
-            error_response('That fee record has been voided and cannot receive money.', 409);
+
+        $submissionAmount = round((float)$submission['amount_ghs'], 2);
+        $agentUserId = (string)$submission['agent_user_id'];
+
+        $validated = [];
+        $total = 0.0;
+        foreach ($allocations as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+            $recordId = clean_string($row['viewingFeeRecordId'] ?? $row['recordId'] ?? '', 64);
+            $rowAmount = finance_money($row['amountGhs'] ?? $row['amount'] ?? null);
+            if ($recordId === '' || $rowAmount === null || $rowAmount <= 0) {
+                error_response('Each allocation needs a viewing-fee record and an amount above zero.', 422, [
+                    'allocations' => 'Choose a record and an amount for every allocation.',
+                ]);
+            }
+            $rowAmount = round($rowAmount, 2);
+            if (isset($validated[$recordId])) {
+                error_response('The same viewing-fee record is allocated twice in one remittance.', 422, [
+                    'allocations' => 'Each obligation may appear once per confirmation.',
+                ]);
+            }
+
+            // Lock the obligation too: its outstanding balance is what the
+            // allocation is measured against, and a concurrent confirmation for
+            // another remittance could otherwise consume the same headroom.
+            $record = db_lock_row('viewing_fee_records', $recordId);
+            if ($record === null) {
+                error_response('Viewing-fee record not found: ' . $recordId, 404);
+            }
+            if ((string)($record['agent_user_id'] ?? '') !== $agentUserId) {
+                error_response(
+                    'A remittance can only be applied to fee records belonging to the agent who submitted it.',
+                    403
+                );
+            }
+            if ((string)$record['collection_state'] === 'void') {
+                error_response('That fee record has been voided and cannot receive money.', 409);
+            }
+
+            $shaped = shape_viewing_fee_record($record);
+            if ($shaped['goodlucksShareGhs'] === null) {
+                error_response(
+                    'No amount is owed on ' . (string)$record['reference'] . ' yet, so money cannot be allocated to it.',
+                    422
+                );
+            }
+            $outstanding = (float)$shaped['outstandingGhs'];
+            if ($rowAmount > $outstanding + 0.005) {
+                error_response(
+                    'The allocation for ' . (string)$record['reference'] . ' exceeds its outstanding balance of GH₵ '
+                        . number_format($outstanding, 2) . '.',
+                    422
+                );
+            }
+
+            $validated[$recordId] = ['record' => $record, 'amount' => $rowAmount];
+            $total += $rowAmount;
         }
 
-        $shaped = shape_viewing_fee_record($record);
-        if ($shaped['goodlucksShareGhs'] === null) {
+        if ($total > $submissionAmount + 0.005) {
             error_response(
-                'No amount is owed on ' . (string)$record['reference'] . ' yet, so money cannot be allocated to it.',
+                'The allocations total GH₵ ' . number_format($total, 2)
+                    . ', which is more than the remittance of GH₵ ' . number_format($submissionAmount, 2) . '.',
                 422
             );
         }
-        $outstanding = (float)$shaped['outstandingGhs'];
-        if ($rowAmount > $outstanding + 0.005) {
-            error_response(
-                'The allocation for ' . (string)$record['reference'] . ' exceeds its outstanding balance of GH₵ '
-                    . number_format($outstanding, 2) . '.',
-                422
-            );
+
+        $now = db_now();
+        // Named placeholders only: PDO cannot mix positional and named
+        // parameters in one statement, and it is not portable across drivers.
+        $decidable = [];
+        $decidableParams = [];
+        foreach (array_values(REMITTANCE_DECIDABLE_STATUSES) as $i => $state) {
+            $decidable[] = ':state' . $i;
+            $decidableParams[':state' . $i] = $state;
         }
-
-        $validated[$recordId] = ['record' => $record, 'amount' => $rowAmount];
-        $total += $rowAmount;
-    }
-
-    if ($total > $amount + 0.005) {
-        error_response(
-            'The allocations total GH₵ ' . number_format($total, 2)
-                . ', which is more than the remittance of GH₵ ' . number_format($amount, 2) . '.',
-            422
-        );
-    }
-
-    db_transaction(static function () use ($id, $submission, $validated, $actor, $note, $amount, $agentUserId) {
-        db_exec(
+        $moved = db_exec(
             'UPDATE remittance_submissions
                 SET status = :status, confirmed_ghs = :confirmed, confirmed_by = :by,
                     confirmed_at = :at, decision_reason = :reason, updated_at = :at
-              WHERE id = :id',
-            [
-                ':status'    => 'confirmed',
-                ':confirmed' => $amount,
-                ':by'        => (string)($actor['id'] ?? ''),
-                ':at'        => db_now(),
-                ':reason'    => $note !== '' ? $note : null,
-                ':id'        => $id,
-            ]
+              WHERE id = :id AND status IN (' . implode(', ', $decidable) . ')',
+            array_merge(
+                [
+                    ':status'    => 'confirmed',
+                    ':confirmed' => $submissionAmount,
+                    ':by'        => (string)($actor['id'] ?? ''),
+                    ':at'        => $now,
+                    ':reason'    => $note !== '' ? $note : null,
+                    ':id'        => $id,
+                ],
+                $decidableParams
+            )
         );
+        if ($moved !== 1) {
+            error_response('This remittance was already decided by another request. Reload and try again.', 409);
+        }
 
         foreach ($validated as $recordId => $entry) {
             $allocationId = new_id('ral');
-            db_exec(
-                'INSERT INTO remittance_allocations
-                    (id, submission_id, viewing_fee_record_id, agent_user_id, amount_ghs, created_by, created_at)
-                 VALUES (:id, :submission, :record, :agent, :amount, :by, :now)',
-                [
-                    ':id'         => $allocationId,
-                    ':submission' => $id,
-                    ':record'     => $recordId,
-                    ':agent'      => $agentUserId,
-                    ':amount'     => $entry['amount'],
-                    ':by'         => (string)($actor['id'] ?? ''),
-                    ':now'        => db_now(),
-                ]
-            );
+            try {
+                db_exec(
+                    'INSERT INTO remittance_allocations
+                        (id, submission_id, viewing_fee_record_id, agent_user_id, amount_ghs, created_by, created_at)
+                     VALUES (:id, :submission, :record, :agent, :amount, :by, :now)',
+                    [
+                        ':id'         => $allocationId,
+                        ':submission' => $id,
+                        ':record'     => $recordId,
+                        ':agent'      => $agentUserId,
+                        ':amount'     => $entry['amount'],
+                        ':by'         => (string)($actor['id'] ?? ''),
+                        ':now'        => $now,
+                    ]
+                );
+            } catch (Throwable $e) {
+                // The unique (submission_id, viewing_fee_record_id) index is the
+                // last line of defence against a duplicated allocation.
+                if (db_is_unique_violation($e)) {
+                    error_response('That obligation has already been allocated from this remittance.', 409);
+                }
+                throw $e;
+            }
             // The Increment B ledger stays the source of truth for received money.
             db_exec(
                 'INSERT INTO fee_remittances
@@ -595,7 +639,7 @@ function confirm_remittance(string $id, array $allocations, array $actor, string
                     ':submission' => $id,
                     ':allocation' => $allocationId,
                     ':entry'      => 'receipt',
-                    ':now'        => db_now(),
+                    ':now'        => $now,
                 ]
             );
         }
@@ -603,12 +647,18 @@ function confirm_remittance(string $id, array $allocations, array $actor, string
         audit_log('finance.remittance_confirmed', 'remittance', $id, [
             'reference'     => (string)$submission['reference'],
             'agentUserId'   => $agentUserId,
-            'confirmedGhs'  => $amount,
+            'confirmedGhs'  => $submissionAmount,
             'allocatedGhs'  => round(array_sum(array_column($validated, 'amount')), 2),
             'records'       => array_keys($validated),
             'note'          => $note,
         ]);
+
+        $amount = $submissionAmount;
+        return ['amount' => $submissionAmount, 'agentUserId' => $agentUserId];
     });
+
+    $amount = $confirmed['amount'];
+    $agentUserId = $confirmed['agentUserId'];
 
     create_notification(
         $agentUserId,
@@ -628,47 +678,66 @@ function confirm_remittance(string $id, array $allocations, array $actor, string
 function decide_remittance(string $id, string $status, string $reason, array $actor): array
 {
     $status = strtolower(trim($status));
+    $reason = trim($reason);
     if (!in_array($status, ['rejected', 'disputed'], true)) {
-        error_response('Choose rejected or disputed.', 422, ['status' => 'A decision is rejected or disputed.']);
+        error_response('Choose reject or dispute.', 422, ['status' => 'A decision is reject or dispute.']);
     }
-    $reason = clean_text($reason, 1000);
-    if (trim($reason) === '') {
+    if ($reason === '') {
         error_response('Record why the remittance is being ' . $status . '.', 422, [
             'reason' => 'A decision needs a reason.',
         ]);
     }
 
-    $submission = find_remittance_submission($id);
-    if ($submission === null) {
-        error_response('Remittance not found.', 404);
-    }
-    if (!in_array((string)$submission['status'], REMITTANCE_DECIDABLE_STATUSES, true)) {
-        error_response('This remittance is already ' . (string)$submission['status'] . '.', 409);
-    }
+    // The decision is taken against a re-read, locked row so two administrators
+    // cannot reject a remittance that another request has just confirmed.
+    $agentUserId = db_transaction_immediate(static function () use ($id, $status, $reason, $actor): string {
+        $submission = db_lock_row('remittance_submissions', $id);
+        if ($submission === null) {
+            error_response('Remittance not found.', 404);
+        }
+        if (!in_array((string)$submission['status'], REMITTANCE_DECIDABLE_STATUSES, true)) {
+            error_response('This remittance is already ' . (string)$submission['status'] . '.', 409);
+        }
 
-    db_exec(
-        'UPDATE remittance_submissions
-            SET status = :status, decision_reason = :reason, confirmed_by = :by,
-                confirmed_at = :at, updated_at = :at
-          WHERE id = :id',
-        [
-            ':status' => $status,
-            ':reason' => $reason,
-            ':by'     => (string)($actor['id'] ?? ''),
-            ':at'     => db_now(),
-            ':id'     => $id,
-        ]
-    );
+        $decidable = [];
+        $decidableParams = [];
+        foreach (array_values(REMITTANCE_DECIDABLE_STATUSES) as $i => $state) {
+            $decidable[] = ':state' . $i;
+            $decidableParams[':state' . $i] = $state;
+        }
+        $now = db_now();
+        $moved = db_exec(
+            'UPDATE remittance_submissions
+                SET status = :status, decision_reason = :reason, confirmed_by = :by,
+                    confirmed_at = :at, updated_at = :at
+              WHERE id = :id AND status IN (' . implode(', ', $decidable) . ')',
+            array_merge(
+                [
+                    ':status' => $status,
+                    ':reason' => $reason,
+                    ':by'     => (string)($actor['id'] ?? ''),
+                    ':at'     => $now,
+                    ':id'     => $id,
+                ],
+                $decidableParams
+            )
+        );
+        if ($moved !== 1) {
+            error_response('This remittance was already decided by another request. Reload and try again.', 409);
+        }
 
-    audit_log('finance.remittance_' . $status, 'remittance', $id, [
-        'agentUserId' => (string)$submission['agent_user_id'],
-        'amountGhs'   => (float)$submission['amount_ghs'],
-        'reason'      => $reason,
-    ]);
+        audit_log('finance.remittance_' . $status, 'remittance', $id, [
+            'agentUserId' => (string)$submission['agent_user_id'],
+            'amountGhs'   => (float)$submission['amount_ghs'],
+            'reason'      => $reason,
+        ]);
+
+        return (string)$submission['agent_user_id'];
+    });
 
     create_notification(
-        (string)$submission['agent_user_id'],
-        'Remittance ' . $status . ': ' . (string)$submission['reference'],
+        $agentUserId,
+        'Remittance ' . $status . ': ' . $id,
         'Reason: ' . $reason,
         'finance'
     );
@@ -1106,17 +1175,24 @@ function set_commission_status(string $id, string $status, array $actor, string 
         }
     }
 
-    db_exec(
+    // Conditional on the status the decision was based on: if a concurrent
+    // request already moved this commission, the update matches no row and the
+    // caller is told to reload instead of overwriting the other decision.
+    $moved = db_transaction_immediate(static fn(): int => db_exec(
         'UPDATE rental_commissions
             SET status = :status, cancel_reason = :reason, updated_at = :now
-          WHERE id = :id',
+          WHERE id = :id AND status = :expected',
         [
-            ':status' => $status,
-            ':reason' => in_array($status, ['cancelled', 'disputed'], true) ? $reason : ($commission['cancel_reason'] ?? null),
-            ':now'    => db_now(),
-            ':id'     => $id,
+            ':status'   => $status,
+            ':reason'   => in_array($status, ['cancelled', 'disputed'], true) ? $reason : ($commission['cancel_reason'] ?? null),
+            ':now'      => db_now(),
+            ':id'       => $id,
+            ':expected' => $current,
         ]
-    );
+    ));
+    if ($moved !== 1) {
+        error_response('This commission changed while you were deciding. Reload and try again.', 409);
+    }
 
     audit_log('finance.commission_status', 'commission', $id, [
         'from'       => $current,
@@ -1135,56 +1211,69 @@ function set_commission_status(string $id, string $status, array $actor, string 
 /** Update the editable fields of a commission that has not been agreed yet. */
 function update_rental_commission(string $id, array $input, array $actor): array
 {
-    $commission = find_rental_commission($id);
-    if ($commission === null) {
-        error_response('Commission not found.', 404);
-    }
-    $status = (string)$commission['status'];
-    if (!in_array($status, ['draft', 'awaiting_agreement'], true)) {
-        error_response('Only a draft or awaiting-agreement commission can be edited. Use an adjustment afterwards.', 409);
-    }
-
-    $amount = finance_money($input['amountGhs'] ?? $input['commissionAmountGhs'] ?? $commission['commission_amount_ghs']);
-    if ($amount !== null && $amount <= 0) {
-        error_response('A commission amount must be greater than zero.', 422, ['amountGhs' => 'Enter an amount above zero.']);
-    }
-    $dueDate = $commission['due_date'];
-    if (array_key_exists('dueDate', $input)) {
-        $dueDate = $input['dueDate'] === '' || $input['dueDate'] === null ? null : valid_date_iso($input['dueDate']);
-        if ($input['dueDate'] !== null && $input['dueDate'] !== '' && $dueDate === null) {
-            error_response('Use a real calendar date for the due date.', 422, ['dueDate' => 'Use a real date.']);
+    /*
+     * The read, the status check and the write happen in one write-locked
+     * transaction (audit finding R4). Read-then-write across two statements is
+     * how a commission that another administrator has just agreed gets edited
+     * anyway, leaving an "agreed" commission with new terms and no record of
+     * the change.
+     *
+     * An affected-row check is not used here: writing unchanged values also
+     * reports zero affected rows on MySQL, which would turn a legitimate no-op
+     * edit into a false conflict. The lock plus the re-read is the guard.
+     */
+    db_transaction_immediate(static function () use ($id, $input, $actor): void {
+        $commission = db_lock_row('rental_commissions', $id);
+        if ($commission === null) {
+            error_response('Commission not found.', 404);
         }
-    }
+        $status = (string)$commission['status'];
+        if (!in_array($status, ['draft', 'awaiting_agreement'], true)) {
+            error_response('Only a draft or awaiting-agreement commission can be edited. Use an adjustment afterwards.', 409);
+        }
 
-    $fields = [];
-    if (array_key_exists('notes', $input)) {
-        $fields['notes'] = clean_text($input['notes'], 2000) ?: null;
-    }
-    if (array_key_exists('rentalReference', $input)) {
-        $fields['rental_reference'] = clean_string($input['rentalReference'], 128);
-    }
-    if (array_key_exists('tenantName', $input)) {
-        $fields['tenant_name'] = clean_string($input['tenantName'], 255);
-    }
+        $amount = finance_money($input['amountGhs'] ?? $input['commissionAmountGhs'] ?? $commission['commission_amount_ghs']);
+        if ($amount !== null && $amount <= 0) {
+            error_response('A commission amount must be greater than zero.', 422, ['amountGhs' => 'Enter an amount above zero.']);
+        }
+        $dueDate = $commission['due_date'];
+        if (array_key_exists('dueDate', $input)) {
+            $dueDate = $input['dueDate'] === '' || $input['dueDate'] === null ? null : valid_date_iso($input['dueDate']);
+            if ($input['dueDate'] !== null && $input['dueDate'] !== '' && $dueDate === null) {
+                error_response('Use a real calendar date for the due date.', 422, ['dueDate' => 'Use a real date.']);
+            }
+        }
 
-    db_exec(
-        'UPDATE rental_commissions
-            SET commission_amount_ghs = :amount, due_date = :due'
-        . ($fields === [] ? '' : ', ' . implode(', ', array_map(static fn($k) => $k . ' = :' . $k, array_keys($fields))))
-        . ', updated_at = :now WHERE id = :id',
-        array_merge([
-            ':amount' => $amount,
-            ':due'    => $dueDate,
-            ':now'    => db_now(),
-            ':id'     => $id,
-        ], array_combine(array_map(static fn($k) => ':' . $k, array_keys($fields)), array_values($fields)))
-    );
+        $fields = [];
+        if (array_key_exists('notes', $input)) {
+            $fields['notes'] = clean_text($input['notes'], 2000) ?: null;
+        }
+        if (array_key_exists('rentalReference', $input)) {
+            $fields['rental_reference'] = clean_string($input['rentalReference'], 128);
+        }
+        if (array_key_exists('tenantName', $input)) {
+            $fields['tenant_name'] = clean_string($input['tenantName'], 255);
+        }
 
-    audit_log('finance.commission_updated', 'commission', $id, [
-        'status' => $status,
-        'amountGhs' => $amount,
-        'dueDate' => $dueDate,
-    ]);
+        db_exec(
+            'UPDATE rental_commissions
+                SET commission_amount_ghs = :amount, due_date = :due'
+            . ($fields === [] ? '' : ', ' . implode(', ', array_map(static fn($k) => $k . ' = :' . $k, array_keys($fields))))
+            . ', updated_at = :now WHERE id = :id',
+            array_merge([
+                ':amount' => $amount,
+                ':due'    => $dueDate,
+                ':now'    => db_now(),
+                ':id'     => $id,
+            ], array_combine(array_map(static fn($k) => ':' . $k, array_keys($fields)), array_values($fields)))
+        );
+
+        audit_log('finance.commission_updated', 'commission', $id, [
+            'status' => $status,
+            'amountGhs' => $amount,
+            'dueDate' => $dueDate,
+        ]);
+    });
 
     $updated = find_rental_commission($id);
     if ($updated === null) {
@@ -1193,25 +1282,22 @@ function update_rental_commission(string $id, array $input, array $actor): array
     return shape_rental_commission($updated);
 }
 
-/** Record money actually received against a commission. */
+/**
+ * Record money actually received against a commission.
+ *
+ * The commission total and everything already received are re-read under a row
+ * lock inside the transaction (audit finding R4). Reading them outside is how a
+ * doubled click used to record the same payment twice, or how two payments
+ * could each pass the "would this exceed the total" check and then both be
+ * written, over-receiving the commission.
+ */
 function add_commission_payment(string $id, array $input, array $actor): array
 {
-    $commission = find_rental_commission($id);
-    if ($commission === null) {
-        error_response('Commission not found.', 404);
-    }
-    if (!in_array((string)$commission['status'], COMMISSION_PAYABLE_STATUSES, true)) {
-        error_response(
-            'Payments can only be recorded against an agreed, due or partially paid commission. This one is '
-                . (string)$commission['status'] . '.',
-            409
-        );
-    }
-
     $amount = finance_money($input['amountGhs'] ?? $input['amount'] ?? null);
     if ($amount === null || $amount <= 0) {
         error_response('Enter the amount received, greater than zero.', 422, ['amountGhs' => 'Enter an amount above zero.']);
     }
+    $amount = round($amount, 2);
     $receivedAt = valid_date_iso($input['receivedAt'] ?? null);
     if ($receivedAt === null) {
         error_response('Give the date the money was received.', 422, ['receivedAt' => 'Use a real date.']);
@@ -1221,20 +1307,33 @@ function add_commission_payment(string $id, array $input, array $actor): array
     }
     $method = one_of(strtolower(trim((string)($input['method'] ?? 'unknown'))), FINANCE_METHODS, 'unknown');
 
-    $total = finance_money($commission['commission_amount_ghs']);
-    if ($total === null) {
-        error_response('Set the commission amount before recording a payment.', 422);
-    }
-    $received = commission_received_total($id);
-    if ($received + $amount > $total + 0.005) {
-        error_response(
-            'That payment would exceed the agreed commission. Record an adjustment instead of over-receiving.',
-            422
-        );
-    }
-
     $paymentId = new_id('cpay');
-    db_transaction(static function () use ($id, $paymentId, $amount, $receivedAt, $method, $input, $actor) {
+
+    db_transaction_immediate(static function () use ($id, $paymentId, $amount, $receivedAt, $method, $input, $actor) {
+        $commission = db_lock_row('rental_commissions', $id);
+        if ($commission === null) {
+            error_response('Commission not found.', 404);
+        }
+        if (!in_array((string)$commission['status'], COMMISSION_PAYABLE_STATUSES, true)) {
+            error_response(
+                'Payments can only be recorded against an agreed, due or partially paid commission. This one is '
+                    . (string)$commission['status'] . '.',
+                409
+            );
+        }
+
+        $total = finance_money($commission['commission_amount_ghs']);
+        if ($total === null) {
+            error_response('Set the commission amount before recording a payment.', 422);
+        }
+        $received = commission_received_total($id);
+        if ($received + $amount > $total + 0.005) {
+            error_response(
+                'That payment would exceed the agreed commission. Record an adjustment instead of over-receiving.',
+                422
+            );
+        }
+
         db_exec(
             'INSERT INTO commission_payments
                 (id, commission_id, amount_ghs, method, reference, received_at, recorded_by, entry_type, notes, created_at)
@@ -1257,9 +1356,11 @@ function add_commission_payment(string $id, array $input, array $actor): array
             'amountGhs'  => $amount,
             'receivedAt' => $receivedAt,
         ]);
-    });
 
-    finance_recompute_commission_status($id, $actor);
+        // Derived inside the same transaction, so the summary can never be read
+        // in a state where the payment exists but the status does not reflect it.
+        finance_recompute_commission_status($id, $actor);
+    });
 
     $updated = find_rental_commission($id);
     if ($updated === null) {
@@ -1365,37 +1466,64 @@ function list_financial_adjustments(array $filters = [], int $limit = 200): arra
  */
 function reverse_viewing_fee_remittance(string $remittanceId, float $amount, string $reason, string $supportReference, array $actor): array
 {
-    $receipt = db_one('SELECT * FROM fee_remittances WHERE id = :id LIMIT 1', [':id' => $remittanceId]);
-    if ($receipt === null) {
-        error_response('That receipt does not exist.', 404);
+    $amount = round($amount, 2);
+    $reason = trim($reason);
+    if ($amount <= 0) {
+        error_response('The reversal must be above zero.', 422, ['amountGhs' => 'Enter an amount above zero.']);
     }
-    if ((string)($receipt['entry_type'] ?? 'receipt') !== 'receipt') {
-        error_response('Only a receipt can be reversed.', 409);
-    }
-    $original = (float)$receipt['amount_ghs'];
-    if ($amount <= 0 || $amount > $original + 0.005) {
-        error_response('The reversal must be above zero and no more than the original receipt.', 422, [
-            'amountGhs' => 'Enter an amount up to GH₵ ' . number_format($original, 2) . '.',
-        ]);
-    }
-    $recordId = (string)$receipt['viewing_fee_record_id'];
-    $reversed = round((float)db_value(
-        "SELECT COALESCE(SUM(amount_ghs), 0) FROM fee_remittances
-          WHERE viewing_fee_record_id = :id AND entry_type = 'reversal'",
-        [':id' => $recordId]
-    ), 2);
-    if (abs($reversed) + $amount > $original + 0.005) {
-        error_response('This receipt has already been fully reversed.', 409);
+    if ($reason === '') {
+        error_response('Record why the receipt is being reversed.', 422, ['reason' => 'A reversal needs a reason.']);
     }
 
-    $adjustmentId = new_id('fadj');
-    db_transaction(static function () use ($adjustmentId, $recordId, $receipt, $amount, $reason, $supportReference, $actor) {
+    // The whole decision is taken under the write lock: the receipt is re-read,
+    // its own reversal history is re-summed, and the reversal is written, all
+    // before another writer can look at the same receipt.
+    $adjustmentId = db_transaction_immediate(static function () use ($remittanceId, $amount, $reason, $supportReference, $actor): string {
+        $receipt = db_lock_row('fee_remittances', $remittanceId);
+        if ($receipt === null) {
+            error_response('That receipt does not exist.', 404);
+        }
+        if ((string)($receipt['entry_type'] ?? 'receipt') !== 'receipt') {
+            error_response('Only a receipt can be reversed.', 409);
+        }
+
+        $original = round((float)$receipt['amount_ghs'], 2);
+        if ($original <= 0) {
+            error_response('That ledger row is not a receipt with money to reverse.', 409);
+        }
+
+        // Cumulative reversals are measured against THIS receipt only. Two
+        // receipts on the same obligation keep independent headroom, so fully
+        // reversing one never consumes another's (audit finding R3).
+        $alreadyReversed = round(abs((float)db_value(
+            "SELECT COALESCE(SUM(amount_ghs), 0) FROM fee_remittances
+              WHERE reversal_of_receipt_id = :receipt AND entry_type = 'reversal'",
+            [':receipt' => (string)$receipt['id']]
+        )), 2);
+
+        $reversible = round($original - $alreadyReversed, 2);
+        if ($reversible <= 0.004) {
+            error_response('That receipt has already been fully reversed.', 409, [
+                'amountGhs' => 'Nothing remains to reverse on this receipt.',
+            ]);
+        }
+        if ($amount > $reversible + 0.005) {
+            error_response(
+                'The reversal is larger than what is left on this receipt (GH₵ ' . number_format($reversible, 2) . ').',
+                422,
+                ['amountGhs' => 'Enter an amount up to GH₵ ' . number_format($reversible, 2) . '.']
+            );
+        }
+
+        $recordId = (string)$receipt['viewing_fee_record_id'];
+        $newAdjustmentId = new_id('fadj');
+
         db_exec(
             'INSERT INTO financial_adjustments
                 (id, subject_type, subject_id, kind, amount_ghs, reason, support_reference, meta_json, created_by, created_at)
              VALUES (:id, :type, :subject, :kind, :amount, :reason, :support, :meta, :by, :now)',
             [
-                ':id'      => $adjustmentId,
+                ':id'      => $newAdjustmentId,
                 ':type'    => 'viewing_fee_remittance',
                 ':subject' => (string)$receipt['id'],
                 ':kind'    => 'reversal',
@@ -1403,9 +1531,10 @@ function reverse_viewing_fee_remittance(string $remittanceId, float $amount, str
                 ':reason'  => $reason,
                 ':support' => $supportReference,
                 ':meta'    => json_encode([
-                    'viewingFeeRecordId' => $recordId,
-                    'originalReceiptGhs' => (float)$receipt['amount_ghs'],
-                    'reversalGhs'        => $amount,
+                    'viewingFeeRecordId'   => $recordId,
+                    'originalReceiptGhs'   => $original,
+                    'previouslyReversedGhs'=> $alreadyReversed,
+                    'reversalGhs'          => $amount,
                 ]),
                 ':by'      => (string)($actor['id'] ?? ''),
                 ':now'     => db_now(),
@@ -1414,29 +1543,33 @@ function reverse_viewing_fee_remittance(string $remittanceId, float $amount, str
         db_exec(
             'INSERT INTO fee_remittances
                 (id, viewing_fee_record_id, amount_ghs, method, reference, received_at, recorded_by,
-                 notes, submission_id, allocation_id, entry_type, adjustment_id, created_at)
+                 notes, submission_id, allocation_id, entry_type, adjustment_id, reversal_of_receipt_id, created_at)
              VALUES (:id, :record, :amount, :method, :reference, :received, :by,
-                 :notes, NULL, NULL, :entry, :adjustment, :now)',
+                 :notes, NULL, NULL, :entry, :adjustment, :reversed_receipt, :now)',
             [
-                ':id'         => new_id('frm'),
-                ':record'     => $recordId,
-                ':amount'     => -$amount,
-                ':method'     => (string)($receipt['method'] ?? 'unknown'),
-                ':reference'  => (string)($receipt['reference'] ?? ''),
-                ':received'   => finance_today(),
-                ':by'         => (string)($actor['id'] ?? ''),
-                ':notes'      => 'Reversal: ' . $reason,
-                ':entry'      => 'reversal',
-                ':adjustment' => $adjustmentId,
-                ':now'        => db_now(),
+                ':id'               => new_id('frm'),
+                ':record'           => $recordId,
+                ':amount'           => -$amount,
+                ':method'           => (string)($receipt['method'] ?? 'unknown'),
+                ':reference'        => (string)($receipt['reference'] ?? ''),
+                ':received'         => finance_today(),
+                ':by'               => (string)($actor['id'] ?? ''),
+                ':notes'            => 'Reversal of receipt ' . (string)$receipt['id'] . ': ' . $reason,
+                ':entry'            => 'reversal',
+                ':adjustment'       => $newAdjustmentId,
+                ':reversed_receipt' => (string)$receipt['id'],
+                ':now'              => db_now(),
             ]
         );
         audit_log('finance.remittance_reversed', 'remittance', (string)$receipt['id'], [
-            'viewingFeeRecordId' => $recordId,
-            'reversalGhs'        => $amount,
-            'reason'             => $reason,
-            'adjustmentId'       => $adjustmentId,
+            'viewingFeeRecordId'    => $recordId,
+            'reversalGhs'           => $amount,
+            'previouslyReversedGhs' => $alreadyReversed,
+            'reason'                => $reason,
+            'adjustmentId'          => $newAdjustmentId,
         ]);
+
+        return $newAdjustmentId;
     });
 
     $created = find_financial_adjustment($adjustmentId);
@@ -1446,30 +1579,61 @@ function reverse_viewing_fee_remittance(string $remittanceId, float $amount, str
     return shape_financial_adjustment($created);
 }
 
+/** How much of a receipt is still reversible (0 when fully reversed). */
+function receipt_reversible_balance(string $receiptId): float
+{
+    $receipt = db_one('SELECT * FROM fee_remittances WHERE id = :id LIMIT 1', [':id' => $receiptId]);
+    if ($receipt === null || (string)($receipt['entry_type'] ?? 'receipt') !== 'receipt') {
+        return 0.0;
+    }
+    $reversed = abs((float)db_value(
+        "SELECT COALESCE(SUM(amount_ghs), 0) FROM fee_remittances
+          WHERE reversal_of_receipt_id = :receipt AND entry_type = 'reversal'",
+        [':receipt' => $receiptId]
+    ));
+    return round(max(0.0, (float)$receipt['amount_ghs'] - $reversed), 2);
+}
+
 /**
  * Adjust a commission: reverse money that was recorded received, or correct the
  * agreed amount. Both keep the original rows and add a linked record.
  */
 function adjust_rental_commission(string $commissionId, string $kind, float $amount, string $reason, string $supportReference, array $actor): array
 {
-    $commission = find_rental_commission($commissionId);
-    if ($commission === null) {
-        error_response('Commission not found.', 404);
-    }
     if (!in_array($kind, ['reversal', 'correction'], true)) {
         error_response('Choose reversal or correction.', 422, ['kind' => 'An adjustment is a reversal or a correction.']);
+    }
+    $amount = round($amount, 2);
+    $reason = trim($reason);
+    if ($reason === '') {
+        error_response('Record why the commission is being adjusted.', 422, ['reason' => 'An adjustment needs a reason.']);
     }
 
     $adjustmentId = new_id('fadj');
 
-    if ($kind === 'reversal') {
-        $received = commission_received_total($commissionId);
-        if ($amount <= 0 || $amount > $received + 0.005) {
-            error_response('The reversal must be above zero and no more than the amount received.', 422, [
-                'amountGhs' => 'Enter an amount up to GH₵ ' . number_format($received, 2) . '.',
-            ]);
+    // Both branches take the commission row lock and re-measure the money that
+    // has actually been received inside the transaction. Two simultaneous
+    // reversals can therefore never take back more than was received, and a
+    // correction can never drop the commission below what is already paid.
+    db_transaction_immediate(static function () use ($adjustmentId, $commissionId, $kind, $amount, $reason, $supportReference, $actor) {
+        $commission = db_lock_row('rental_commissions', $commissionId);
+        if ($commission === null) {
+            error_response('Commission not found.', 404);
         }
-        db_transaction(static function () use ($adjustmentId, $commissionId, $amount, $reason, $supportReference, $actor) {
+
+        if ($kind === 'reversal') {
+            if ($amount <= 0) {
+                error_response('The reversal must be above zero.', 422, [
+                    'amountGhs' => 'Enter an amount above zero.',
+                ]);
+            }
+            $received = commission_received_total($commissionId);
+            if ($amount > $received + 0.005) {
+                error_response('The reversal must be above zero and no more than the amount received.', 422, [
+                    'amountGhs' => 'Enter an amount up to GH₵ ' . number_format($received, 2) . '.',
+                ]);
+            }
+
             db_exec(
                 'INSERT INTO financial_adjustments
                     (id, subject_type, subject_id, kind, amount_ghs, reason, support_reference, meta_json, created_by, created_at)
@@ -1482,7 +1646,7 @@ function adjust_rental_commission(string $commissionId, string $kind, float $amo
                     ':amount'  => -$amount,
                     ':reason'  => $reason,
                     ':support' => $supportReference,
-                    ':meta'    => json_encode(['reversalGhs' => $amount]),
+                    ':meta'    => json_encode(['reversalGhs' => $amount, 'receivedBeforeGhs' => $received]),
                     ':by'      => (string)($actor['id'] ?? ''),
                     ':now'     => db_now(),
                 ]
@@ -1506,30 +1670,28 @@ function adjust_rental_commission(string $commissionId, string $kind, float $amo
                 ]
             );
             audit_log('finance.commission_reversed', 'commission', $commissionId, [
-                'reversalGhs'  => $amount,
-                'reason'       => $reason,
-                'adjustmentId' => $adjustmentId,
+                'reversalGhs'   => $amount,
+                'receivedBeforeGhs' => $received,
+                'reason'        => $reason,
+                'adjustmentId'  => $adjustmentId,
             ]);
-        });
-        finance_recompute_commission_status($commissionId, $actor);
-    } else {
-        $currentAmount = finance_money($commission['commission_amount_ghs']);
-        if ($currentAmount === null) {
-            error_response('Set the commission amount before correcting it.', 422);
-        }
-        $newAmount = round($currentAmount + $amount, 2);
-        $received = commission_received_total($commissionId);
-        if ($newAmount <= 0) {
-            error_response('A correction cannot take the commission to zero or below.', 422);
-        }
-        if ($newAmount + 0.005 < $received) {
-            error_response('A correction cannot put the commission below the amount already received.', 422);
-        }
-        if (abs($amount) < 0.005) {
-            error_response('A correction needs a non-zero amount.', 422);
-        }
+        } else {
+            $currentAmount = finance_money($commission['commission_amount_ghs']);
+            if ($currentAmount === null) {
+                error_response('Set the commission amount before correcting it.', 422);
+            }
+            if (abs($amount) < 0.005) {
+                error_response('A correction needs a non-zero amount.', 422);
+            }
+            $newAmount = round($currentAmount + $amount, 2);
+            $received = commission_received_total($commissionId);
+            if ($newAmount <= 0) {
+                error_response('A correction cannot take the commission to zero or below.', 422);
+            }
+            if ($newAmount + 0.005 < $received) {
+                error_response('A correction cannot put the commission below the amount already received.', 422);
+            }
 
-        db_transaction(static function () use ($adjustmentId, $commissionId, $amount, $newAmount, $currentAmount, $reason, $supportReference, $actor) {
             db_exec(
                 'INSERT INTO financial_adjustments
                     (id, subject_type, subject_id, kind, amount_ghs, reason, support_reference, meta_json, created_by, created_at)
@@ -1557,9 +1719,10 @@ function adjust_rental_commission(string $commissionId, string $kind, float $amo
                 'reason'       => $reason,
                 'adjustmentId' => $adjustmentId,
             ]);
-        });
+        }
+
         finance_recompute_commission_status($commissionId, $actor);
-    }
+    });
 
     $created = find_financial_adjustment($adjustmentId);
     if ($created === null) {

@@ -29,6 +29,13 @@ function dispatch_api_request(): void
         [$handler, $params] = $route;
         $handler($params);
     } catch (Throwable $e) {
+        // A database that is momentarily held by another writer is not a server
+        // fault: SQLite's busy timeout and MySQL's lock-wait timeout both end
+        // here, and the caller can retry safely because the failed transaction
+        // was rolled back.
+        if (db_is_busy_error($e)) {
+            error_response('Another payment is being recorded right now. Nothing was changed — please try again.', 409);
+        }
         server_error_response($e);
     }
 }

@@ -637,6 +637,7 @@ CREATE TABLE IF NOT EXISTS `fee_remittances` (
   `allocation_id` VARCHAR(64) DEFAULT NULL,
   `entry_type` VARCHAR(16) NOT NULL DEFAULT 'receipt',
   `adjustment_id` VARCHAR(64) DEFAULT NULL,
+  `reversal_of_receipt_id` VARCHAR(64) DEFAULT NULL,
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `idx_fee_remit_record` (`viewing_fee_record_id`),

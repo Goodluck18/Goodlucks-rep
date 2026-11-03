@@ -644,6 +644,12 @@ export interface FeeRemittance {
   entryType?: 'receipt' | 'reversal';
   submissionId?: string;
   adjustmentId?: string;
+  /**
+   * For a reversal row: the receipt it reverses. Reversals are counted against
+   * that receipt only, so two receipts on one obligation can be reversed
+   * independently.
+   */
+  reversalOfReceiptId?: string;
   createdAt: string;
 }
 

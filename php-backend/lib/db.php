@@ -114,33 +114,170 @@ function db_future(int $seconds): string
  * calls join the outer transaction instead of starting a second one, because
  * neither MySQL's InnoDB nor SQLite supports real nesting via PDO.
  *
+ * This is the *deferred* form: on SQLite the write lock is taken by the first
+ * write, which is fine for read-then-write sequences that do not need a
+ * guarantee against another writer. Financial state machines use
+ * `db_transaction_immediate()` instead.
+ *
  * @template T
  * @param callable():T $callback
  * @return T
  */
 function db_transaction(callable $callback)
 {
-    static $depth = 0;
+    return db_tx_run($callback, false);
+}
 
-    if ($depth > 0) {
+/**
+ * Run a callback inside one transaction that holds the write lock from the
+ * start. Use this for every financial state change.
+ *
+ * Why the two forms exist:
+ *   - MySQL/InnoDB takes row locks at `SELECT ... FOR UPDATE` (see
+ *     `db_lock_row()`), and `beginTransaction()` opens the transaction that
+ *     holds them until commit.
+ *   - SQLite has no row locks. Its `BEGIN DEFERRED` (what PDO uses) lets two
+ *     writers both read, then one of them fails with `database is locked` when
+ *     it tries to upgrade — or, worse, one silently overwrites the other's
+ *     decision. `BEGIN IMMEDIATE` takes the write lock up front, so the second
+ *     caller waits (busy_timeout is 5 s) and then sees the committed result.
+ *
+ * @template T
+ * @param callable():T $callback
+ * @return T
+ */
+function db_transaction_immediate(callable $callback)
+{
+    return db_tx_run($callback, true);
+}
+
+/**
+ * Shared transaction runner. Depth lives in one global so the deferred and
+ * immediate forms cannot accidentally nest inside each other.
+ *
+ * @template T
+ * @param callable():T $callback
+ * @return T
+ */
+function db_tx_run(callable $callback, bool $immediate)
+{
+    if (empty($GLOBALS['__goodlucks_tx_depth'])) {
+        $GLOBALS['__goodlucks_tx_depth'] = 0;
+    }
+    if ($GLOBALS['__goodlucks_tx_depth'] > 0) {
         return $callback();
     }
 
     $pdo = db();
-    $pdo->beginTransaction();
-    $depth++;
+    $rawSqlite = db_driver() === 'sqlite';
+    if ($rawSqlite) {
+        // PDO's beginTransaction() issues BEGIN DEFERRED; we need IMMEDIATE for
+        // the writer to be alone. Raw BEGIN/COMMIT is used from here on, so
+        // PDO::inTransaction() is not consulted for SQLite.
+        $pdo->exec($immediate ? 'BEGIN IMMEDIATE' : 'BEGIN');
+    } else {
+        $pdo->beginTransaction();
+    }
+
+    $GLOBALS['__goodlucks_tx_depth']++;
+    db_tx_register_shutdown_guard();
     try {
         $result = $callback();
-        $pdo->commit();
+        if ($rawSqlite) {
+            $pdo->exec('COMMIT');
+        } else {
+            $pdo->commit();
+        }
         return $result;
     } catch (Throwable $e) {
-        if ($pdo->inTransaction()) {
-            $pdo->rollBack();
+        try {
+            if ($rawSqlite) {
+                $pdo->exec('ROLLBACK');
+            } elseif ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+        } catch (Throwable $ignored) {
+            // The transaction is already gone (for example the connection was
+            // closed). Nothing to roll back; the original error is what matters.
         }
         throw $e;
     } finally {
-        $depth--;
+        $GLOBALS['__goodlucks_tx_depth']--;
     }
+}
+
+/**
+ * If a request dies mid-transaction (an `error_response()` call exits the
+ * process), close the transaction cleanly instead of leaving it to the
+ * connection teardown. Without this the rollback still happens — PDO rolls back
+ * an open transaction when the connection closes — but doing it explicitly
+ * makes "never leave a partial financial write" true on every path, including
+ * the ones that end in an early exit.
+ */
+function db_tx_register_shutdown_guard(): void
+{
+    static $registered = false;
+    if ($registered) {
+        return;
+    }
+    $registered = true;
+    register_shutdown_function('db_tx_shutdown_rollback');
+}
+
+function db_tx_shutdown_rollback(): void
+{
+    if (empty($GLOBALS['__goodlucks_tx_depth'])) {
+        return;
+    }
+    try {
+        $pdo = db();
+        if (db_driver() === 'sqlite') {
+            $pdo->exec('ROLLBACK');
+        } elseif ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+    } catch (Throwable $ignored) {
+        // Nothing left to roll back.
+    }
+    $GLOBALS['__goodlucks_tx_depth'] = 0;
+}
+
+/**
+ * Read a row and hold a write lock on it for the rest of the transaction.
+ *
+ * MySQL/MariaDB: `SELECT ... FOR UPDATE` locks the row so a second request
+ * blocks until this transaction commits, then re-reads the new state.
+ * SQLite: there is no row lock; the `BEGIN IMMEDIATE` transaction that
+ * `db_transaction_immediate()` opened already excludes other writers, so a
+ * plain read is correct and `FOR UPDATE` is not valid syntax.
+ *
+ * MUST be called inside a transaction for the lock to mean anything.
+ */
+function db_lock_row(string $table, string $id, string $columns = '*'): ?array
+{
+    if (!preg_match('/^[a-z_][a-z0-9_]*$/', $table)) {
+        throw new InvalidArgumentException('Unsafe table name for row lock.');
+    }
+    if (!preg_match('/^[a-zA-Z0-9_:*., ]+$/', $columns)) {
+        throw new InvalidArgumentException('Unsafe column list for row lock.');
+    }
+
+    $sql = 'SELECT ' . $columns . ' FROM ' . $table . ' WHERE id = :id';
+    if (db_driver() !== 'sqlite') {
+        $sql .= ' FOR UPDATE';
+    }
+
+    return db_one($sql . ' LIMIT 1', [':id' => $id]);
+}
+
+/** True when the driver refused a write because another writer held the lock. */
+function db_is_busy_error(Throwable $e): bool
+{
+    $message = strtolower($e->getMessage());
+    return str_contains($message, 'database is locked')
+        || str_contains($message, 'database table is locked')
+        || str_contains($message, 'lock wait timeout')
+        || str_contains($message, 'deadlock found');
 }
 
 function db_is_unique_violation(Throwable $e): bool

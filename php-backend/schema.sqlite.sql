@@ -493,6 +493,10 @@ CREATE TABLE IF NOT EXISTS fee_remittances (
   allocation_id TEXT,
   entry_type TEXT NOT NULL DEFAULT 'receipt',
   adjustment_id TEXT,
+  -- Increment G audit remediation R3: the receipt this row reverses. Cumulative
+  -- reversals are measured against this receipt only, never across the whole
+  -- obligation, so reversing one receipt cannot consume another's headroom.
+  reversal_of_receipt_id TEXT,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 

@@ -12,7 +12,7 @@
     "lint": "tsc --noEmit",
     "dev:web": "tsx server.ts",
     "api:dev": "node scripts/api-dev.mjs",
-    "test:api": "node --test tests/api.test.mjs"
+    "test:api": "node --test --test-concurrency=1 tests/api.test.mjs tests/migration.test.mjs tests/concurrency.test.mjs"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

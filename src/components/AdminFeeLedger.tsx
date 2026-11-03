@@ -549,10 +549,19 @@ export const AdminFeeLedger: React.FC = () => {
                             <CheckCircle2 className="w-3 h-3" /> Received by Goodlucks:
                           </span>
                           {record.remittances.map((remittance) => (
-                            <span key={remittance.id} className="flex items-center gap-1 text-slate-300">
+                            <span
+                              key={remittance.id}
+                              className={`flex items-center gap-1 ${remittance.entryType === 'reversal' ? 'text-amber-300' : 'text-slate-300'}`}
+                            >
                               <Wallet className="w-3 h-3 text-slate-400" />
+                              {remittance.entryType === 'reversal' ? 'Reversal ' : ''}
                               {money(remittance.amountGhs)} · {remittance.method || 'unknown'} · {remittance.receivedAt}
                               {remittance.reference ? ` · ${remittance.reference}` : ''}
+                              {/* A reversal names the receipt it reverses; each receipt is
+                                  reversed against its own balance, never the whole obligation. */}
+                              {remittance.entryType === 'reversal' && remittance.reversalOfReceiptId
+                                ? ` · reverses receipt ${remittance.reversalOfReceiptId}`
+                                : ''}
                             </span>
                           ))}
                         </div>

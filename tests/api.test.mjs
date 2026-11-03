@@ -5781,3 +5781,462 @@ describe('Agent remittances, reconciliation and rental commissions (Increment G)
     await admin.post(`/api/admin/agents/${g.otherAgent.id}/status`, { accountStatus: 'active' });
   });
 });
+
+/**
+ * Audit corrections R3 and R4.
+ *
+ * R3: a reversal must reference the receipt it reverses, and cumulative
+ * reversals are measured per receipt — reversing one receipt on an obligation
+ * must never consume another receipt's headroom.
+ *
+ * R4: every financial decision is taken inside a write-locked transaction with
+ * a conditional update, so two simultaneous requests cannot double-confirm,
+ * over-allocate, overpay or over-reverse. The suite covers this at two levels:
+ * parallel HTTP requests (which prove the request-level guards) and two real
+ * PHP processes racing on the same SQLite file (which proves the locks).
+ */
+describe('Receipt-specific reversals and concurrency (audit R3/R4)', () => {
+  const local = { clients: {}, users: {} };
+
+  const visitor = () => new ApiClient(baseUrl);
+
+  const loginAs = async (email, password) => {
+    const client = visitor();
+    const res = await client.post('/api/auth/login', { email, password });
+    assert.equal(res.status, 200, JSON.stringify(res.body));
+    return client;
+  };
+
+  const makeAdmin = async (key, flags = {}) => {
+    const email = uniqueEmail(`r3-admin-${key}`);
+    const password = 'R3-Finance-Admin-Pass-1';
+    const created = runPhpScript(
+      'tests/create-user.php',
+      [`--email=${email}`, `--password=${password}`, `--name=R3 Admin ${key}`, '--role=admin'],
+      state.testEnv
+    );
+    assert.equal(created.status, 0, created.stdout + created.stderr);
+
+    const args = [`--email=${email}`];
+    if ('view' in flags) args.push(`--view=${flags.view ? 1 : 0}`);
+    if ('confirm' in flags) args.push(`--confirm=${flags.confirm ? 1 : 0}`);
+    if ('manage' in flags) args.push(`--manage=${flags.manage ? 1 : 0}`);
+    if (args.length > 1) {
+      const granted = runPhpScript('php-backend/grant_finance.php', args, state.testEnv);
+      assert.match(granted.stdout, /(View|Confirm|Manage)\s*:/, granted.stdout + granted.stderr);
+    }
+
+    const client = visitor();
+    const login = await client.post('/api/auth/admin-login', {
+      email,
+      password,
+      accessKey: ADMIN_ACCESS_KEY,
+    });
+    assert.equal(login.status, 200, JSON.stringify(login.body));
+    return { client, email, id: login.body.user.id };
+  };
+
+  const registerAgent = async (key) => {
+    const client = visitor();
+    const email = uniqueEmail(`r3-agent-${key}`);
+    const password = 'R3-Agent-Pass-1234';
+    const res = await client.post('/api/auth/register', {
+      name: `R3 Agent ${key}`,
+      email,
+      phone: '+233 20 640 0300',
+      password,
+      role: 'agent',
+      operatingCity: 'Accra',
+      agencyName: 'R3 Test Agency',
+    });
+    assert.equal(res.status, 201, JSON.stringify(res.body));
+    const activated = await local.admin.post(`/api/admin/agents/${res.body.user.id}/status`, { accountStatus: 'active' });
+    assert.equal(activated.status, 200, JSON.stringify(activated.body));
+    local.clients[key] = await loginAs(email, password);
+    local.users[key] = res.body.user;
+    return res.body.user;
+  };
+
+  /** A completed, fee-paid viewing linked to an agent and priced by agreement. */
+  const createLedgerRecord = async (managerClient, agentUserId, shareGhs) => {
+    const booking = await guest.post('/api/viewing-requests', {
+      tenantName: `R3 Ledger ${Date.now()}-${Math.random().toString(16).slice(2, 6)}`,
+      tenantPhone: '+233 24 640 0400',
+      tenantEmail: uniqueEmail('r3-ledger'),
+      propertyId: local.propertyId,
+      date: new Date(Date.now() + 2 * 86400_000).toISOString().slice(0, 10),
+      time: '10:00 AM',
+    });
+    assert.equal(booking.status, 201, JSON.stringify(booking.body));
+    const viewingId = booking.body.viewingId;
+
+    await completeViewingAs(local.admin, viewingId);
+    const paid = await local.admin.patch(`/api/viewings/${viewingId}`, { viewingFeePaid: true });
+    assert.equal(paid.status, 200, JSON.stringify(paid.body));
+
+    const ledger = await local.admin.get('/api/admin/viewing-fees');
+    const record = ledger.body.records.find((entry) => entry.viewingId === viewingId);
+    assert.ok(record, 'the paid viewing created a fee record');
+
+    const linked = await managerClient.post(`/api/admin/viewing-fees/${record.id}/agent`, { agentUserId });
+    assert.equal(linked.status, 200, JSON.stringify(linked.body));
+    const agreed = await managerClient.post(`/api/admin/viewing-fees/${record.id}/share`, {
+      amountGhs: shareGhs,
+      note: 'Agreed in writing with the agent.',
+    });
+    assert.equal(agreed.status, 200, JSON.stringify(agreed.body));
+    return record;
+  };
+
+  const submitRemittance = async (agentClient, amountGhs) => {
+    const res = await agentClient.post('/api/agent/remittances', {
+      amountGhs,
+      method: 'momo',
+      paymentReference: `MOMO-R3-${Math.random().toString(16).slice(2, 10)}`,
+      paidAt: new Date().toISOString().slice(0, 10),
+      note: 'Sent to the Goodlucks collections number.',
+    });
+    assert.equal(res.status, 201, JSON.stringify(res.body));
+    return res.body.remittance;
+  };
+
+  const confirmRemittance = async (adminClient, submissionId, allocations) =>
+    adminClient.post(`/api/admin/finance/remittances/${submissionId}/confirm`, {
+      allocations: allocations.map(([recordId, amount]) => ({ viewingFeeRecordId: recordId, amountGhs: amount })),
+    });
+
+  const reverse = async (amountGhs, receiptId, reason = 'Bank returned part of the transfer.') =>
+    local.admin.post(`/api/admin/finance/receipts/${receiptId}/reverse`, { amountGhs, reason });
+
+  const findRecord = async (recordId) => {
+    const ledger = await local.admin.get('/api/admin/viewing-fees');
+    return ledger.body.records.find((entry) => entry.id === recordId);
+  };
+
+  /**
+   * The ledger row a confirmation wrote. The receipt id is read back from the
+   * record's own history (by submission), never guessed.
+   */
+  const receiptFor = async (recordId, submissionId) => {
+    const record = await findRecord(recordId);
+    const receipt = record.remittances.find(
+      (row) => row.entryType === 'receipt' && row.submissionId === submissionId
+    );
+    assert.ok(receipt, 'the confirmation wrote a receipt linked to its submission');
+    return receipt.id;
+  };
+
+  before(async () => {
+    // Signed in here rather than borrowed from another suite: these tests must
+    // pass on their own and in any order. Administrators use the admin console
+    // entry point, which is the only one that accepts an admin account.
+    local.admin = new ApiClient(baseUrl);
+    const adminLogin = await local.admin.post('/api/auth/admin-login', {
+      email: ADMIN_EMAIL,
+      password: ADMIN_PASSWORD,
+      accessKey: ADMIN_ACCESS_KEY,
+    });
+    assert.equal(adminLogin.status, 200, JSON.stringify(adminLogin.body));
+
+    // Resolved here, not borrowed from another suite's side effects.
+    const catalogue = await guest.get('/api/properties');
+    assert.equal(catalogue.status, 200);
+    local.propertyId = state.seededPropertyId ?? catalogue.body.properties[0].id;
+    local.agent = await registerAgent('primary');
+    local.manager = await makeAdmin('manager', { view: true, confirm: true, manage: true });
+
+    // GH₵40 owed to Goodlucks on this obligation, settled by two separate
+    // receipts: GH₵25 and GH₵15.
+    local.record = await createLedgerRecord(local.manager.client, local.agent.id, 40);
+
+    const first = await submitRemittance(local.clients.primary, 25);
+    const confirmedFirst = await confirmRemittance(local.manager.client, first.id, [[local.record.id, 25]]);
+    assert.equal(confirmedFirst.status, 200, JSON.stringify(confirmedFirst.body));
+    local.receiptA = await receiptFor(local.record.id, first.id);
+
+    const second = await submitRemittance(local.clients.primary, 15);
+    const confirmedSecond = await confirmRemittance(local.manager.client, second.id, [[local.record.id, 15]]);
+    assert.equal(confirmedSecond.status, 200, JSON.stringify(confirmedSecond.body));
+    local.receiptB = await receiptFor(local.record.id, second.id);
+
+    // An unrelated obligation that must never move.
+    local.otherRecord = await createLedgerRecord(local.manager.client, local.agent.id, 30);
+    const third = await submitRemittance(local.clients.primary, 30);
+    const confirmedThird = await confirmRemittance(local.manager.client, third.id, [[local.otherRecord.id, 30]]);
+    assert.equal(confirmedThird.status, 200, JSON.stringify(confirmedThird.body));
+    local.otherReceipt = await receiptFor(local.otherRecord.id, third.id);
+  });
+
+  test('1. an obligation can hold two separate receipts, each with its own headroom', async () => {
+    assert.ok(local.receiptA && local.receiptB, 'both confirmations produced a receipt');
+    assert.notEqual(local.receiptA, local.receiptB);
+
+    const record = await findRecord(local.record.id);
+    const receipts = record.remittances.filter((row) => row.entryType === 'receipt');
+    assert.equal(receipts.length, 2, 'two receipts on one obligation');
+    assert.deepEqual(receipts.map((row) => row.amountGhs).sort((a, b) => a - b), [15, 25]);
+    assert.equal(record.remittedGhs, 40);
+    assert.equal(record.outstandingGhs, 0);
+  });
+
+  test('2. fully reversing receipt A leaves receipt B reversible', async () => {
+    const recordBefore = await findRecord(local.record.id);
+
+    const reversedA = await reverse(25, local.receiptA, 'The GH₵25 transfer was returned by the bank.');
+    assert.equal(reversedA.status, 201, JSON.stringify(reversedA.body));
+    assert.equal(reversedA.body.adjustment.kind, 'reversal');
+    assert.equal(reversedA.body.adjustment.amountGhs, -25);
+
+    const recordAfter = await findRecord(local.record.id);
+    assert.equal(recordAfter.remittedGhs, recordBefore.remittedGhs - 25);
+    assert.equal(recordAfter.outstandingGhs, recordBefore.outstandingGhs + 25);
+
+    // The old behaviour summed reversals across the whole obligation, so this
+    // second reversal would have been refused as "already fully reversed".
+    const reversedB = await reverse(5, local.receiptB, 'Part of the GH₵15 transfer was returned.');
+    assert.equal(reversedB.status, 201, JSON.stringify(reversedB.body));
+
+    const recordFinal = await findRecord(local.record.id);
+    assert.equal(recordFinal.remittedGhs, 10);
+    assert.equal(recordFinal.outstandingGhs, 30);
+    local.reversedOnB = 5;
+  });
+
+  test('3. a reversal larger than what is left on that receipt is refused', async () => {
+    // GH₵15 receipt, GH₵5 already reversed: only GH₵10 remains.
+    const tooMuch = await reverse(20, local.receiptB, 'Too much.');
+    assert.equal(tooMuch.status, 422, JSON.stringify(tooMuch.body));
+    assert.match(tooMuch.body.error, /10\.00/);
+
+    const record = await findRecord(local.record.id);
+    assert.equal(record.remittedGhs, 10, 'a refused reversal writes nothing');
+  });
+
+  test('4. the rest of receipt B can be reversed, and the totals follow', async () => {
+    const rest = await reverse(10, local.receiptB, 'The remainder of the GH₵15 transfer was returned.');
+    assert.equal(rest.status, 201, JSON.stringify(rest.body));
+
+    const record = await findRecord(local.record.id);
+    assert.equal(record.remittedGhs, 0, 'receipt A and receipt B are both fully reversed');
+    assert.equal(record.outstandingGhs, 40);
+    assert.equal(record.remittances.filter((row) => row.entryType === 'receipt').length, 2);
+  });
+
+  test('5. a fully reversed receipt cannot be reversed again', async () => {
+    const againB = await reverse(1, local.receiptB);
+    assert.equal(againB.status, 409, JSON.stringify(againB.body));
+    assert.match(againB.body.error, /fully reversed/i);
+
+    const againA = await reverse(1, local.receiptA);
+    assert.equal(againA.status, 409, JSON.stringify(againA.body));
+
+    const record = await findRecord(local.record.id);
+    assert.equal(record.remittedGhs, 0, 'nothing was written by the refused attempts');
+  });
+
+  test('6. every reversal names its original receipt and no receipt is ever edited', async () => {
+    const record = await findRecord(local.record.id);
+    const reversals = record.remittances.filter((row) => row.entryType === 'reversal');
+    assert.equal(reversals.length, 3, 'A once, B twice: three separate audit rows');
+
+    const forA = reversals.filter((row) => row.reversalOfReceiptId === local.receiptA);
+    const forB = reversals.filter((row) => row.reversalOfReceiptId === local.receiptB);
+    assert.equal(forA.length, 1);
+    assert.equal(forB.length, 2);
+    assert.equal(forA[0].amountGhs, -25);
+    assert.deepEqual(forB.map((row) => row.amountGhs).sort((a, b) => a - b), [-10, -5]);
+
+    // The originals are still there, unchanged and positive.
+    const originalA = record.remittances.find((row) => row.id === local.receiptA);
+    const originalB = record.remittances.find((row) => row.id === local.receiptB);
+    assert.equal(originalA.amountGhs, 25);
+    assert.equal(originalB.amountGhs, 15);
+
+    // Each reversal is its own adjustment, not an edit of a previous one.
+    const adjustments = await local.admin.get('/api/admin/finance/adjustments');
+    const mine = adjustments.body.adjustments.filter((row) => row.subjectId === local.receiptA || row.subjectId === local.receiptB);
+    assert.equal(mine.length, 3);
+    assert.equal(new Set(mine.map((row) => row.id)).size, 3);
+    assert.ok(mine.every((row) => row.kind === 'reversal' && row.amountGhs < 0));
+  });
+
+  test('7. the reconciliation summary follows the reversals, per receipt', async () => {
+    const res = await local.admin.get('/api/admin/finance/summary');
+    assert.equal(res.status, 200);
+    const s = res.body.summary;
+
+    assert.equal(
+      s.remittances.confirmedReceivedGhs,
+      s.remittances.appliedToObligationsGhs + s.remittances.unallocatedGhs,
+      'confirmed = applied + unallocated still holds after reversals'
+    );
+    assert.equal(s.confirmedRevenue.viewingFeeRemittancesGhs, s.viewingFees.receivedGhs);
+
+    const agentView = await local.clients.primary.get('/api/agent/finance');
+    assert.equal(agentView.status, 200);
+    const mine = agentView.body.finance.viewingFees.find((row) => row.id === local.record.id);
+    assert.equal(mine.remittedGhs, 0);
+    assert.equal(mine.outstandingGhs, 40);
+  });
+
+  test('8. receipts on other obligations are unaffected throughout', async () => {
+    const other = await findRecord(local.otherRecord.id);
+    assert.equal(other.remittedGhs, 30);
+    assert.equal(other.outstandingGhs, 0);
+    assert.equal(other.remittances.filter((row) => row.entryType === 'reversal').length, 0);
+
+    // And the untouched receipt is still reversible on its own.
+    const stillReversible = await reverse(5, local.otherReceipt, 'A partial refund on the other obligation.');
+    assert.equal(stillReversible.status, 201, JSON.stringify(stillReversible.body));
+    const after = await findRecord(local.otherRecord.id);
+    assert.equal(after.remittedGhs, 25);
+  });
+
+  // -------------------------------------------------------------------------
+  // R4: concurrency
+  //
+  // These prove the request-level guards: two HTTP requests for the same
+  // decision are settled by the locked re-read and the conditional update.
+  // The truly parallel case — two separate OS processes writing the same
+  // SQLite file at once — lives in tests/concurrency.test.mjs, which runs
+  // without an API server in front of the database.
+  // -------------------------------------------------------------------------
+
+  test('9. two simultaneous confirmations of one remittance record the money once', async () => {
+    const record = await createLedgerRecord(local.manager.client, local.agent.id, 20);
+    const submission = await submitRemittance(local.clients.primary, 20);
+
+    const [first, second] = await Promise.all([
+      confirmRemittance(local.manager.client, submission.id, [[record.id, 20]]),
+      confirmRemittance(local.manager.client, submission.id, [[record.id, 20]]),
+    ]);
+
+    const statuses = [first.status, second.status].sort((a, b) => a - b);
+    assert.deepEqual(statuses, [200, 409], `expected exactly one confirmation, got ${JSON.stringify(statuses)}`);
+
+    const after = await findRecord(record.id);
+    assert.equal(after.remittances.filter((row) => row.entryType === 'receipt').length, 1, 'one receipt, not two');
+    assert.equal(after.remittedGhs, 20);
+    assert.equal(after.outstandingGhs, 0);
+
+    const detail = await local.admin.get(`/api/admin/finance/remittances/${submission.id}`);
+    assert.equal(detail.status, 200);
+    assert.equal(detail.body.remittance.status, 'confirmed');
+    assert.equal(detail.body.remittance.allocations.length, 1, 'no duplicated allocation');
+  });
+
+  test('10. two simultaneous confirmations cannot both take the same outstanding balance', async () => {
+    const record = await createLedgerRecord(local.manager.client, local.agent.id, 20);
+    const firstSubmission = await submitRemittance(local.clients.primary, 20);
+    const secondSubmission = await submitRemittance(local.clients.primary, 20);
+
+    const [a, b] = await Promise.all([
+      confirmRemittance(local.manager.client, firstSubmission.id, [[record.id, 20]]),
+      confirmRemittance(local.manager.client, secondSubmission.id, [[record.id, 20]]),
+    ]);
+
+    const statuses = [a.status, b.status].sort((x, y) => x - y);
+    assert.deepEqual(statuses, [200, 422], `one confirmation must be refused, got ${JSON.stringify(statuses)}`);
+
+    const after = await findRecord(record.id);
+    assert.equal(after.remittedGhs, 20, 'never more than the obligation');
+    assert.equal(after.outstandingGhs, 0);
+    assert.ok(after.remittedGhs <= 20);
+  });
+
+  test('11. two simultaneous commission payments cannot over-receive', async () => {
+    const created = await local.admin.post('/api/admin/finance/commissions', {
+      propertyId: local.propertyId,
+      amountGhs: 100,
+      agentUserId: local.agent.id,
+      dueDate: new Date().toISOString().slice(0, 10),
+      basis: 'manual_agreement',
+    });
+    assert.equal(created.status, 201, JSON.stringify(created.body));
+    const commission = created.body.commission;
+
+    await local.admin.post(`/api/admin/finance/commissions/${commission.id}/status`, { status: 'awaiting_agreement' });
+    await local.admin.patch(`/api/admin/finance/commissions/${commission.id}`, {
+      rentalReference: 'TENANCY-R4-2026-01',
+      notes: 'Flat commission of GH₵100 agreed in writing between landlord, tenant and agent.',
+    });
+    const agreed = await local.admin.post(`/api/admin/finance/commissions/${commission.id}/status`, { status: 'agreed' });
+    assert.equal(agreed.status, 200, JSON.stringify(agreed.body));
+
+    const pay = () =>
+      local.admin.post(`/api/admin/finance/commissions/${commission.id}/payments`, {
+        amountGhs: 60,
+        receivedAt: new Date().toISOString().slice(0, 10),
+        method: 'cash',
+        reference: 'RACE-CASH',
+      });
+
+    const [first, second] = await Promise.all([pay(), pay()]);
+    const statuses = [first.status, second.status].sort((a, b) => a - b);
+    assert.deepEqual(statuses, [201, 422], `only one GH₵60 payment may be accepted, got ${JSON.stringify(statuses)}`);
+
+    const after = await local.admin.get(`/api/admin/finance/commissions/${commission.id}`);
+    assert.equal(after.body.commission.receivedGhs, 60);
+    assert.equal(after.body.commission.outstandingGhs, 40);
+    assert.equal(
+      after.body.commission.payments.filter((row) => row.entryType === 'receipt').length,
+      1,
+      'one payment row'
+    );
+    local.commission = commission;
+  });
+
+  test('12. two simultaneous reversals of one receipt cannot over-reverse it', async () => {
+    const record = await createLedgerRecord(local.manager.client, local.agent.id, 20);
+    const submission = await submitRemittance(local.clients.primary, 20);
+    const confirmed = await confirmRemittance(local.manager.client, submission.id, [[record.id, 20]]);
+    assert.equal(confirmed.status, 200, JSON.stringify(confirmed.body));
+    const receiptId = await receiptFor(record.id, submission.id);
+
+    const [first, second] = await Promise.all([reverse(20, receiptId), reverse(20, receiptId)]);
+    const statuses = [first.status, second.status].sort((a, b) => a - b);
+    assert.deepEqual(statuses, [201, 409], `only one full reversal may succeed, got ${JSON.stringify(statuses)}`);
+
+    const after = await findRecord(record.id);
+    const reversals = after.remittances.filter((row) => row.entryType === 'reversal');
+    assert.equal(reversals.length, 1);
+    assert.equal(reversals[0].amountGhs, -20);
+    assert.equal(after.remittedGhs, 0);
+    assert.equal(after.outstandingGhs, 20);
+  });
+
+  test('13. two simultaneous status decisions on one commission: one wins', async () => {
+    const created = await local.admin.post('/api/admin/finance/commissions', {
+      propertyId: local.propertyId,
+      amountGhs: 50,
+      agentUserId: local.agent.id,
+      basis: 'manual_agreement',
+    });
+    assert.equal(created.status, 201, JSON.stringify(created.body));
+
+    const [first, second] = await Promise.all([
+      local.admin.post(`/api/admin/finance/commissions/${created.body.commission.id}/status`, { status: 'awaiting_agreement' }),
+      local.admin.post(`/api/admin/finance/commissions/${created.body.commission.id}/status`, { status: 'awaiting_agreement' }),
+    ]);
+    const statuses = [first.status, second.status].sort((a, b) => a - b);
+    assert.deepEqual(statuses, [200, 409], `one transition only, got ${JSON.stringify(statuses)}`);
+  });
+
+  test('14. a rollback leaves no partial financial records behind', async () => {
+    // An allocation larger than the remittance is refused; the whole attempt
+    // must leave the submission untouched and no receipt behind.
+    const record = await createLedgerRecord(local.manager.client, local.agent.id, 30);
+    const submission = await submitRemittance(local.clients.primary, 10);
+
+    const refused = await confirmRemittance(local.manager.client, submission.id, [[record.id, 30]]);
+    assert.equal(refused.status, 422, JSON.stringify(refused.body));
+
+    const detail = await local.admin.get(`/api/admin/finance/remittances/${submission.id}`);
+    assert.equal(detail.body.remittance.status, 'submitted');
+    assert.equal(detail.body.remittance.allocations.length, 0);
+
+    const after = await findRecord(record.id);
+    assert.equal(after.remittedGhs, 0);
+    assert.equal(after.remittances.length, 0, 'no receipt was written');
+  });
+});
