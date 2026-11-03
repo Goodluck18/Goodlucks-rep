@@ -18,23 +18,92 @@
 
 declare(strict_types=1);
 
+/**
+ * Render a compact, light Goodlucks Homes email shell.
+ *
+ * Social profile URLs and the logo image are optional deployment settings.
+ * When an image URL is unavailable, the accessible text wordmark is used.
+ */
+function email_social_icon(string $label, string $mark, string $url, string $background): string
+{
+    $icon = '<span style="display:inline-block;width:30px;height:30px;line-height:30px;'
+        . 'border-radius:50%;background:' . e($background) . ';color:#FFFFFF;'
+        . 'font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:bold;'
+        . 'text-align:center;">' . e($mark) . '</span>';
+
+    if ($url === '') {
+        return '<span aria-label="' . e($label) . '" title="' . e($label) . '" '
+            . 'style="display:inline-block;margin:0 5px;">' . $icon . '</span>';
+    }
+
+    return '<a href="' . e($url) . '" aria-label="' . e($label) . '" title="' . e($label) . '" '
+        . 'style="display:inline-block;margin:0 5px;text-decoration:none;">' . $icon . '</a>';
+}
+
 function email_html_template(string $title, string $bodyHtml, string $reference = ''): string
 {
     $safeTitle = e($title);
-    $refHtml = $reference !== '' ? '<p style="font-size:11px;color:#64748B;margin:0 0 12px 0;">Reference: ' . e($reference) . '</p>' : '';
-    return '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' . $safeTitle . '</title></head>'
-        . '<body style="font-family:Arial,Helvetica,sans-serif;background-color:#252A34;color:#EAEAEA;padding:20px;margin:0;">'
-        . '<div style="max-width:600px;margin:0 auto;background-color:#1A1D24;border-radius:12px;padding:24px;border:1px solid #2E3542;">'
-        . '<h2 style="color:#08D9D6;margin-top:0;">Goodlucks<span style="color:#FFFFFF;">Homes</span></h2>'
-        . '<p style="font-size:12px;color:#94A3B8;margin:0 0 16px 0;">Accra, Ghana &bull; Trusted Rental Intermediary</p>'
-        . '<hr style="border:0;border-top:1px solid #2E3542;margin:16px 0;">'
+    $refHtml = $reference !== ''
+        ? '<p style="font-size:11px;line-height:1.35;color:#6B7280;margin:0 0 10px 0;">Reference: ' . e($reference) . '</p>'
+        : '';
+
+    // Existing messages were authored for the old dark template. Normalize
+    // those inline colors here so every transactional email is readable on
+    // the new light card without changing each message's business content.
+    $bodyHtml = strtr($bodyHtml, [
+        '#CBD5E1' => '#4B5563',
+        '#94A3B8' => '#6B7280',
+        '#E2E8F0' => '#374151',
+        '#FFFFFF' => '#252A34',
+        '#38BDF8' => '#08D9D6',
+        '#F59E0B' => '#FF2E63',
+        'background:#252A34' => 'background:#F7F7F7',
+        'background-color:#252A34' => 'background-color:#F7F7F7',
+    ]);
+
+    $logoUrl = trim((string)cfg('EMAIL_LOGO_URL', ''));
+    $logoHtml = $logoUrl !== ''
+        ? '<img src="' . e($logoUrl) . '" alt="Goodlucks Homes" width="190" '
+            . 'style="display:block;width:190px;max-width:100%;height:auto;border:0;margin:0 auto;">'
+        : '<div style="font-family:Arial,Helvetica,sans-serif;font-size:25px;line-height:1.2;'
+            . 'font-weight:bold;text-align:center;color:#252A34;">Goodlucks'
+            . '<span style="color:#FF2E63;"> Homes</span></div>';
+
+    $socialHtml = email_social_icon('Facebook', 'f', trim((string)cfg('SOCIAL_FACEBOOK_URL', '')), '#252A34')
+        . email_social_icon('Instagram', '◎', trim((string)cfg('SOCIAL_INSTAGRAM_URL', '')), '#FF2E63')
+        . email_social_icon('TikTok', '♪', trim((string)cfg('SOCIAL_TIKTOK_URL', '')), '#252A34');
+
+    $phone = trim((string)OFFICIAL_PHONE);
+    $displayPhone = preg_match('/^\\+233(\\d{2})(\\d{3})(\\d{4})$/', $phone, $phoneParts)
+        ? '+233 ' . $phoneParts[1] . ' ' . $phoneParts[2] . ' ' . $phoneParts[3]
+        : $phone;
+
+    return '<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
+        . '<title>' . $safeTitle . '</title></head>'
+        . '<body style="font-family:Arial,Helvetica,sans-serif;background-color:#EAEAEA;color:#252A34;'
+        . 'padding:18px 10px;margin:0;">'
+        . '<div style="max-width:600px;margin:0 auto;background-color:#FFFFFF;border-radius:10px;'
+        . 'padding:24px 22px;border:1px solid #E2E2E2;">'
+        . '<div style="text-align:center;margin:0 0 8px 0;">' . $logoHtml . '</div>'
+        . '<p style="font-size:11px;line-height:1.35;color:#6B7280;text-align:center;margin:0 0 16px 0;">'
+        . 'PROPERTY RENTALS &amp; INTERMEDIARY SERVICES</p>'
+        . '<hr style="border:0;border-top:1px solid #EAEAEA;margin:0 0 18px 0;">'
         . $refHtml
         . $bodyHtml
-        . '<hr style="border:0;border-top:1px solid #2E3542;margin:20px 0;">'
-        . '<p style="font-size:11px;color:#64748B;text-align:center;margin:0;">'
-        . e(OFFICIAL_NAME) . ' &bull; ' . e(OFFICIAL_EMAIL) . ' &bull; ' . e(OFFICIAL_PHONE)
-        . '<br>Goodlucks Tower, Ridge, Accra, Ghana</p>'
-        . '</div></body></html>';
+        . '<hr style="border:0;border-top:1px solid #EAEAEA;margin:20px 0 12px 0;">'
+        . '<div style="text-align:center;font-family:Arial,Helvetica,sans-serif;">'
+        . '<p style="font-size:11px;line-height:1.3;font-weight:bold;letter-spacing:.5px;color:#FF2E63;margin:0 0 3px 0;">GOODLUCKS HOMES</p>'
+        . '<p style="font-size:11px;line-height:1.3;color:#6B7280;margin:0 0 8px 0;">Property rentals made easier.</p>'
+        . '<div style="text-align:center;margin:0 0 8px 0;">' . $socialHtml . '</div>'
+        . '<p style="font-size:11px;line-height:1.35;color:#4B5563;margin:0 0 3px 0;">'
+        . '<a href="mailto:' . e(OFFICIAL_EMAIL) . '" style="color:#4B5563;text-decoration:none;">'
+        . '<span style="color:#FF2E63;font-weight:bold;">&#9993;</span> ' . e(OFFICIAL_EMAIL) . '</a></p>'
+        . '<p style="font-size:11px;line-height:1.35;color:#4B5563;margin:0 0 7px 0;">'
+        . '<a href="tel:' . e($phone) . '" style="color:#4B5563;text-decoration:none;">'
+        . '<span style="color:#FF2E63;font-weight:bold;">&#9742;</span> ' . e($displayPhone) . '</a></p>'
+        . '<p style="font-size:10px;line-height:1.3;color:#8A8A8A;margin:0;">'
+        . '&copy; ' . gmdate('Y') . ' Goodlucks Homes. All rights reserved.</p>'
+        . '</div></div></body></html>';
 }
 
 /**
