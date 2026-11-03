@@ -1202,6 +1202,10 @@ function list_fee_remittances(string $recordId): array
         'entryType'  => (string)($row['entry_type'] ?? 'receipt'),
         'submissionId' => (string)($row['submission_id'] ?? ''),
         'adjustmentId' => (string)($row['adjustment_id'] ?? ''),
+        // Increment G audit remediation R3: which receipt this reversal
+        // reverses, and how much of that receipt is still reversible. Reversals
+        // are counted per receipt, not per obligation.
+        'reversalOfReceiptId' => (string)($row['reversal_of_receipt_id'] ?? ''),
         'createdAt'  => to_iso($row['created_at'] ?? null),
     ], $rows);
 }
