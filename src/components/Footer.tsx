@@ -1,6 +1,6 @@
 import React from 'react';
 import { useApp } from '../context/AppContext';
-import { Building2, Mail, Phone, Instagram, Linkedin, Twitter, Facebook, ShieldCheck } from 'lucide-react';
+import { Building2, Mail, Phone, Instagram, Linkedin, Twitter, Facebook, Music2, ShieldCheck } from 'lucide-react';
 
 export const Footer: React.FC = () => {
   const { setCurrentView } = useApp();
@@ -54,7 +54,7 @@ export const Footer: React.FC = () => {
           </span>
           <div className="flex items-center gap-3 text-slate-400">
             <a 
-              href="https://instagram.com/GoodlucksHomes" 
+              href="https://www.instagram.com/GoodlucksHomes" 
               target="_blank" 
               rel="noopener noreferrer" 
               className="p-2 rounded-lg bg-white/5 hover:text-[#08D9D6] hover:bg-white/10 transition-colors" 
@@ -62,8 +62,17 @@ export const Footer: React.FC = () => {
             >
               <Instagram className="w-5 h-5" />
             </a>
+            <a
+              href="https://www.tiktok.com/@GoodlucksHomes"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="p-2 rounded-lg bg-white/5 hover:text-[#08D9D6] hover:bg-white/10 transition-colors"
+              title="TikTok @GoodlucksHomes"
+            >
+              <Music2 className="w-5 h-5" />
+            </a>
             <a 
-              href="https://linkedin.com/company/GoodlucksHomes" 
+              href="https://www.linkedin.com/company/GoodlucksHomes" 
               target="_blank" 
               rel="noopener noreferrer" 
               className="p-2 rounded-lg bg-white/5 hover:text-[#08D9D6] hover:bg-white/10 transition-colors" 
@@ -81,7 +90,7 @@ export const Footer: React.FC = () => {
               <Twitter className="w-5 h-5" />
             </a>
             <a 
-              href="https://facebook.com/GoodlucksHomes" 
+              href="https://www.facebook.com/GoodlucksHomes" 
               target="_blank" 
               rel="noopener noreferrer" 
               className="p-2 rounded-lg bg-white/5 hover:text-[#08D9D6] hover:bg-white/10 transition-colors" 
