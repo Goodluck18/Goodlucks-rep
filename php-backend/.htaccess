@@ -15,9 +15,18 @@ Options -Indexes
     RewriteEngine On
     RewriteBase /api/
 
-    # 1. Never expose internals.
-    RewriteRule ^(lib|logs)/ - [F,L]
+    # 1. Never expose internals. `storage/` holds the private document store;
+    # it must never be reachable over HTTP, even if the platform ignores the
+    # directory's own .htaccess.
+    RewriteRule ^(lib|logs|storage)/ - [F,L]
     RewriteRule \.(sql|md|log|ini|bak)$ - [F,L]
+
+    # 1b. Private verification documents (Increment D) are named
+    # doc_<24 hex>.<pdf|jpg|png> and have no public URL at all. Refuse them
+    # wherever a request tries to place them, as a second line of defence behind
+    # the storage/ rule above.
+    RewriteRule (^|/)doc_[a-f0-9]{24}\.(pdf|jpe?g|png)$ - [F,L]
+    RewriteRule (^|/)doc_[a-f0-9]{24}\.json$ - [F,L]
 
     # 2. Serve already-uploaded images directly (faster than streaming in PHP).
     RewriteCond %{REQUEST_URI} ^/api/uploads/ [NC]

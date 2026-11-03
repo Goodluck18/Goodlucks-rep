@@ -22,6 +22,7 @@ import {
   FileText,
   Receipt
 } from 'lucide-react';
+import { VerificationPanel } from './VerificationPanel';
 
 export const LandlordDashboard: React.FC = () => {
   const { 
@@ -37,7 +38,7 @@ export const LandlordDashboard: React.FC = () => {
     showSuccessToast
   } = useApp();
 
-  const [activeTab, setActiveTab] = useState<'my-properties' | 'viewings' | 'profile'>('my-properties');
+  const [activeTab, setActiveTab] = useState<'my-properties' | 'viewings' | 'profile' | 'identity'>('my-properties');
   const [deleteModalPropId, setDeleteModalPropId] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -138,7 +139,7 @@ export const LandlordDashboard: React.FC = () => {
           <div className="flex items-center gap-2">
             <span className="inline-flex items-center gap-1.5 text-xs text-[#08D9D6] bg-[#08D9D6]/10 px-3 py-1.5 rounded-full border border-[#08D9D6]/30 font-bold">
               <ShieldCheck className="w-3.5 h-3.5 text-[#08D9D6]" />
-              Verified Landlord Partner
+              Landlord account
             </span>
           </div>
         </div>
@@ -224,11 +225,11 @@ export const LandlordDashboard: React.FC = () => {
               </button>
 
               <button
-                onClick={() => setCurrentView('agreements')}
+                onClick={() => setCurrentView('receipts')}
                 className="w-full py-2 px-3 rounded-xl bg-[#08D9D6]/10 hover:bg-[#08D9D6]/20 text-[#08D9D6] text-xs font-extrabold border border-[#08D9D6]/30 transition-colors flex items-center justify-center gap-1.5"
               >
                 <FileCheck className="w-3.5 h-3.5 text-[#08D9D6]" />
-                <span>Agreements & Receipts</span>
+                <span>Payment Records</span>
               </button>
             </div>
           </div>
@@ -359,6 +360,16 @@ export const LandlordDashboard: React.FC = () => {
             >
               <User className="w-4 h-4" /> Landlord Profile
             </button>
+
+            {/* Increment D: optional identity verification. Never ownership. */}
+            <button
+              onClick={() => setActiveTab('identity')}
+              className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-2 ${
+                activeTab === 'identity' ? 'bg-[#08D9D6] text-[#252A34] shadow-md' : 'bg-white/5 text-slate-300 hover:bg-white/10'
+              }`}
+            >
+              <ShieldCheck className="w-4 h-4" /> Identity (optional)
+            </button>
           </div>
 
           {/* Tab 1: My Properties Table / Cards */}
@@ -460,18 +471,42 @@ export const LandlordDashboard: React.FC = () => {
                     <div className="flex justify-between items-start">
                       <div>
                         <div className="text-xs font-bold text-[#08D9D6]">{v.propertyTitle}</div>
-                        <div className="text-xs text-slate-300 font-medium">Scheduled for: {v.date} at {v.time}</div>
+                        <div className="text-xs text-slate-300 font-medium">
+                          {v.isConfirmed ? 'Agreed for' : 'Requested for'}: {v.date || '—'} {v.time ? `at ${v.time}` : ''}
+                        </div>
                       </div>
                       <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
                         {v.status}
                       </span>
                     </div>
                     <p className="text-xs text-slate-400 leading-relaxed">
-                      Handled by Goodlucks Field Agent: <strong className="text-white">{v.assignedAgent}</strong>. Physical viewing fee status: <strong className="text-emerald-400">{v.viewingFeePaid ? 'Paid On Site' : 'Pending Physical Payment'}</strong>.
+                      Viewing agent: <strong className="text-white">{v.assignedAgent || 'not yet assigned'}</strong>.{' '}
+                      {v.isConfirmed ? 'A time has been agreed.' : 'No time has been agreed yet.'} Viewing fee:{' '}
+                      <strong className="text-emerald-400">
+                        {v.viewingFeePaid ? 'recorded as collected on site by the agent' : 'not recorded'}
+                      </strong>
+                      . Goodlucks did not take this payment.
                     </p>
                   </div>
                 ))}
               </div>
+            </div>
+          )}
+
+          {/* Tab 4: optional identity verification (Increment D) */}
+          {activeTab === 'identity' && (
+            <div className="space-y-4">
+              <div className="bg-slate-900/60 border border-white/10 rounded-2xl p-4">
+                <h2 className="text-sm font-bold text-white flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 text-[#08D9D6]" /> Identity verification is optional
+                </h2>
+                <p className="text-[11px] text-slate-400 mt-1 leading-snug">
+                  You can register and list properties without it. Verifying your identity does not verify that you
+                  own or may let any particular property — ownership is a separate question and no listing is marked
+                  verified because of this check.
+                </p>
+              </div>
+              <VerificationPanel scope="landlord" />
             </div>
           )}
 

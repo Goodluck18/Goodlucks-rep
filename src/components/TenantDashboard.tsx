@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { api, PropertyMatch } from '../services/apiService';
+import { api, messageForError, PropertyMatch } from '../services/apiService';
+import type { ViewingSchedule } from '../types';
 import { PropertyCard } from './PropertyCard';
 import { 
   User, 
@@ -23,6 +24,190 @@ import {
   Check,
   FileCheck
 } from 'lucide-react';
+
+const VIEWING_TONES: Record<ViewingSchedule['status'], string> = {
+  enquiry_received: 'bg-slate-500/20 text-slate-200 border-white/10',
+  viewing_requested: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
+  awaiting_agent: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
+  proposed: 'bg-sky-500/15 text-sky-300 border-sky-500/30',
+  confirmed: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30',
+  reschedule_requested: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
+  rescheduled: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30',
+  cancelled: 'bg-slate-600/20 text-slate-300 border-white/10',
+  completed: 'bg-emerald-500/10 text-emerald-200 border-emerald-500/20',
+  tenant_no_show: 'bg-[#FF2E63]/15 text-[#FF8FA8] border-[#FF2E63]/30',
+  agent_no_show: 'bg-[#FF2E63]/15 text-[#FF8FA8] border-[#FF2E63]/30',
+  could_not_proceed: 'bg-[#FF2E63]/10 text-[#FF8FA8] border-[#FF2E63]/20',
+};
+
+/**
+ * One viewing request, from the tenant's side.
+ *
+ * The wording matters: a request is not a booking, "confirmed" means a time was
+ * agreed, and a fee is only ever shown as recorded by staff — never as paid by
+ * the tenant through the platform.
+ */
+const TenantViewingCard: React.FC<{ viewing: ViewingSchedule; onOpenProperty: (id: string) => void }> = ({
+  viewing,
+  onOpenProperty,
+}) => {
+  const { runViewingAction, refreshViewings, showErrorToast } = useApp();
+  const [open, setOpen] = useState(false);
+  const [note, setNote] = useState('');
+  const [date, setDate] = useState(viewing.preferredDate || viewing.date);
+  const [time, setTime] = useState(viewing.preferredTime || viewing.time);
+  const [busy, setBusy] = useState<string | null>(null);
+
+  const run = async (action: 'cancel' | 'request-reschedule' | 'confirm' | 'no-show') => {
+    setBusy(action);
+    const result = await runViewingAction(
+      viewing.id,
+      action,
+      action === 'cancel'
+        ? { reason: note || 'Cancelled by the tenant', note: note || undefined }
+        : action === 'request-reschedule'
+          ? { date, time, note: note || undefined }
+          : action === 'no-show'
+            ? { who: 'agent', note: note || undefined }
+            : { note: note || undefined }
+    );
+    setBusy(null);
+    if (!result.ok) {
+      showErrorToast('That did not go through', result.error || 'Please try again.');
+      return;
+    }
+    setNote('');
+    setOpen(false);
+    await refreshViewings();
+  };
+
+  return (
+    <div className="bg-slate-900/80 border border-white/10 rounded-2xl p-5 space-y-3 shadow-lg">
+      <div className="flex justify-between items-start gap-2">
+        <div>
+          <span className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">
+            {viewing.requestType === 'enquiry' ? 'Property enquiry' : 'Viewing request'}
+          </span>
+          <h3 className="text-base font-bold text-white">{viewing.propertyTitle}</h3>
+          <p className="text-xs text-slate-400 flex items-center gap-1 mt-0.5">
+            <MapPin className="w-3.5 h-3.5 text-[#08D9D6]" /> {viewing.propertyLocation}
+          </p>
+        </div>
+        <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold border ${VIEWING_TONES[viewing.status]}`}>
+          {viewing.statusLabel}
+        </span>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs bg-slate-950/80 p-3 rounded-xl border border-white/5">
+        <div>
+          <div className="text-slate-400">{viewing.isConfirmed ? 'Agreed date & time' : 'Requested date & time'}</div>
+          <div className="font-bold text-white">
+            {viewing.date || '—'} {viewing.time ? `at ${viewing.time}` : ''}
+          </div>
+        </div>
+        <div>
+          <div className="text-slate-400">Agent</div>
+          <div className="font-bold text-white">{viewing.assignedAgent || 'No named agent assigned yet'}</div>
+        </div>
+      </div>
+
+      {!viewing.isConfirmed && !viewing.isTerminal && (
+        <p className="text-[11px] text-amber-300/90">
+          Not confirmed yet. The agent will contact you to agree a time; until then nothing is booked.
+        </p>
+      )}
+      {viewing.cancelReason && (
+        <p className="text-[11px] text-[#FF8FA8]">Cancellation reason: {viewing.cancelReason}</p>
+      )}
+      <p className="text-[11px] text-slate-500">
+        {viewing.viewingFeePaid
+          ? 'Staff have recorded a viewing fee collected by the agent on site. Goodlucks did not take this payment.'
+          : 'No viewing fee has been recorded. Any fee is agreed with the agent and paid on site.'}
+      </p>
+
+      <div className="flex flex-wrap items-center gap-2 pt-1">
+        <button
+          onClick={() => onOpenProperty(viewing.propertyId)}
+          className="text-[#08D9D6] font-semibold text-xs hover:underline"
+        >
+          View property
+        </button>
+        {!viewing.isTerminal && (
+          <button
+            onClick={() => setOpen((prev) => !prev)}
+            className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-[11px] font-bold"
+          >
+            {open ? 'Close' : 'Change or cancel'}
+          </button>
+        )}
+      </div>
+
+      {open && !viewing.isTerminal && (
+        <div className="space-y-2 border-t border-white/10 pt-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <input
+              type="date"
+              value={date}
+              min={new Date().toISOString().slice(0, 10)}
+              onChange={(event) => setDate(event.target.value)}
+              className="bg-slate-800 border border-white/10 rounded-lg px-2 py-1.5 text-[11px] text-white"
+            />
+            <input
+              type="time"
+              value={time}
+              onChange={(event) => setTime(event.target.value)}
+              className="bg-slate-800 border border-white/10 rounded-lg px-2 py-1.5 text-[11px] text-white"
+            />
+          </div>
+          <input
+            value={note}
+            onChange={(event) => setNote(event.target.value)}
+            placeholder="Add a note (e.g. why the time no longer works)"
+            className="w-full bg-slate-800 border border-white/10 rounded-lg px-2 py-1.5 text-[11px] text-white"
+          />
+          <div className="flex flex-wrap gap-2">
+            <button
+              disabled={busy !== null}
+              onClick={() => void run('request-reschedule')}
+              className="px-3 py-1.5 rounded-lg bg-[#08D9D6]/15 text-[#08D9D6] text-[11px] font-bold disabled:opacity-50"
+            >
+              {busy === 'request-reschedule' ? 'Sending…' : 'Ask for another time'}
+            </button>
+            {viewing.status === 'proposed' && (
+              <button
+                disabled={busy !== null}
+                onClick={() => void run('confirm')}
+                className="px-3 py-1.5 rounded-lg bg-emerald-500/15 text-emerald-300 text-[11px] font-bold disabled:opacity-50"
+              >
+                Accept this time
+              </button>
+            )}
+            {viewing.isConfirmed && (
+              <button
+                disabled={busy !== null}
+                onClick={() => void run('no-show')}
+                className="px-3 py-1.5 rounded-lg bg-[#FF2E63]/15 text-[#FF8FA8] text-[11px] font-bold disabled:opacity-50"
+              >
+                The agent did not attend
+              </button>
+            )}
+            <button
+              disabled={busy !== null}
+              onClick={() => void run('cancel')}
+              className="px-3 py-1.5 rounded-lg bg-[#FF2E63]/15 text-[#FF8FA8] text-[11px] font-bold disabled:opacity-50"
+            >
+              {busy === 'cancel' ? 'Cancelling…' : 'Cancel request'}
+            </button>
+          </div>
+          <p className="text-[10px] text-slate-500">
+            Asking for another time does not move the appointment. It stays where it is until the agent proposes a new
+            slot and it is agreed.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+};
 
 export const TenantDashboard: React.FC = () => {
   const { 
@@ -104,9 +289,9 @@ export const TenantDashboard: React.FC = () => {
   const TIMELINE_STEPS = [
     { key: 'submitted', label: 'Request Submitted', desc: 'Received by Goodlucks' },
     { key: 'searching', label: 'Searching', desc: 'AI matching properties' },
-    { key: 'matched', label: 'Property Found', desc: 'Matches verified' },
-    { key: 'viewing_scheduled', label: 'Viewing Scheduled', desc: 'Agent assigned' },
-    { key: 'completed', label: 'Completed', desc: 'Keys handed over' },
+    { key: 'matched', label: 'Property Found', desc: 'Matches proposed' },
+    { key: 'viewing_scheduled', label: 'Viewing Requested', desc: 'Waiting for the agent to agree a time' },
+    { key: 'completed', label: 'Completed', desc: 'Tenancy arranged outside Goodlucks' },
   ];
 
   const getStepStatus = (stepKey: string) => {
@@ -246,7 +431,7 @@ export const TenantDashboard: React.FC = () => {
                 <Sparkles className="w-4 h-4 text-[#08D9D6]" />
               </div>
               <h3 className="text-base font-bold text-white mb-1">Find Your Next Home</h3>
-              <p className="text-xs text-slate-400">Submit a matching request or explore verified listings.</p>
+              <p className="text-xs text-slate-400">Submit a matching request or explore available listings.</p>
             </div>
 
             <div className="space-y-2">
@@ -267,11 +452,11 @@ export const TenantDashboard: React.FC = () => {
               </button>
 
               <button
-                onClick={() => setCurrentView('agreements')}
+                onClick={() => setCurrentView('receipts')}
                 className="w-full py-2 px-3 rounded-xl bg-[#08D9D6]/10 hover:bg-[#08D9D6]/20 text-[#08D9D6] text-xs font-extrabold border border-[#08D9D6]/30 transition-colors flex items-center justify-center gap-1.5"
               >
                 <FileCheck className="w-3.5 h-3.5 text-[#08D9D6]" />
-                <span>My Agreements & Receipts</span>
+                <span>My Payment Records</span>
               </button>
             </div>
           </div>
@@ -361,7 +546,7 @@ export const TenantDashboard: React.FC = () => {
             }`}
           >
             <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-bold text-slate-400">Scheduled Viewings</span>
+              <span className="text-xs font-bold text-slate-400">Viewing requests</span>
               <Calendar className="w-4 h-4 text-[#08D9D6]" />
             </div>
             <div className="text-2xl font-black text-white">{myViewings.length}</div>
@@ -502,7 +687,7 @@ export const TenantDashboard: React.FC = () => {
               <div className="bg-[#08D9D6]/10 border border-[#08D9D6]/30 p-4 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs text-slate-200">
                 <div className="flex items-center gap-2.5">
                   <ShieldCheck className="w-5 h-5 text-[#08D9D6] shrink-0" />
-                  <span>Assigned Field Intermediary: <strong className="text-white">{activeRequest?.assignedAgent || 'Michael Quarshie (Goodlucks Lead Agent)'}</strong></span>
+                  <span>Assigned Field Intermediary: <strong className="text-white">{activeRequest?.assignedAgent || 'No named agent assigned yet'}</strong></span>
                 </div>
                 <button 
                   onClick={() => setActiveTab('matches')}
@@ -568,58 +753,30 @@ export const TenantDashboard: React.FC = () => {
             </div>
           )}
 
-          {/* Tab 3: Viewing Schedule */}
+          {/* Tab 3: Viewing requests and appointments (Increment F) */}
           {activeTab === 'viewings' && (
             <div className="space-y-4">
-              <h2 className="text-xl font-bold text-white">Scheduled Physical Viewings</h2>
+              <div>
+                <h2 className="text-xl font-bold text-white">My viewing requests</h2>
+                <p className="text-xs text-slate-400 mt-1 max-w-2xl">
+                  A request is not a booking. It becomes a confirmed appointment when you and the agent agree a time;
+                  until then the status below tells you exactly where it stands.
+                </p>
+              </div>
 
               {myViewings.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {myViewings.map(v => (
-                    <div key={v.id} className="bg-slate-900/80 border border-white/10 rounded-2xl p-5 space-y-3 shadow-lg">
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <span className="text-[10px] font-bold uppercase text-[#08D9D6] tracking-wider">Scheduled Viewing</span>
-                          <h3 className="text-base font-bold text-white">{v.propertyTitle}</h3>
-                          <p className="text-xs text-slate-400 flex items-center gap-1 mt-0.5">
-                            <MapPin className="w-3.5 h-3.5 text-[#08D9D6]" /> {v.propertyLocation}
-                          </p>
-                        </div>
-                        <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                          {v.status.toUpperCase()}
-                        </span>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-2 text-xs bg-slate-950/80 p-3 rounded-xl border border-white/5">
-                        <div>
-                          <div className="text-slate-400">Date & Time</div>
-                          <div className="font-bold text-white">{v.date} at {v.time}</div>
-                        </div>
-                        <div>
-                          <div className="text-slate-400">Viewing Fee (GH₵ 100)</div>
-                          <div className="font-bold text-[#08D9D6]">
-                            {v.viewingFeePaid ? 'Paid On Site' : 'Pay On Site to Agent'}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="text-xs text-slate-300 flex items-center justify-between pt-1">
-                        <span>Agent: <strong className="text-white">{v.assignedAgent}</strong></span>
-                        <button 
-                          onClick={() => navigateToProperty(v.propertyId)}
-                          className="text-[#08D9D6] font-semibold hover:underline"
-                        >
-                          View Details
-                        </button>
-                      </div>
-                    </div>
+                  {myViewings.map((v) => (
+                    <TenantViewingCard key={v.id} viewing={v} onOpenProperty={navigateToProperty} />
                   ))}
                 </div>
               ) : (
                 <div className="text-center py-12 bg-slate-900/50 rounded-3xl border border-white/10">
                   <Calendar className="w-12 h-12 text-slate-500 mx-auto mb-3" />
-                  <div className="text-base font-bold text-white">No Scheduled Viewings Yet</div>
-                  <p className="text-xs text-slate-400 max-w-xs mx-auto mt-1">Browse properties and click "Request Viewing" to book a physical tour.</p>
+                  <div className="text-base font-bold text-white">No viewing requests yet</div>
+                  <p className="text-xs text-slate-400 max-w-xs mx-auto mt-1">
+                    Browse properties and choose &quot;Request viewing&quot; to ask an agent for a physical viewing.
+                  </p>
                 </div>
               )}
             </div>

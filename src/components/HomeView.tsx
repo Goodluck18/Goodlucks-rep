@@ -37,7 +37,7 @@ export const HomeView: React.FC = () => {
     "name": "Goodlucks Homes",
     "url": typeof window !== 'undefined' ? window.location.origin : "https://rent.goodlucks.co",
     "logo": "https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=800&q=80",
-    "description": "Ghana's premier property matching and verified rental platform in Greater Accra.",
+    "description": "Ghana's property matching and rental platform in Greater Accra.",
     "address": {
       "@type": "PostalAddress",
       "addressLocality": "Accra",
@@ -64,8 +64,8 @@ export const HomeView: React.FC = () => {
   return (
     <div className="space-y-16 pb-12 animate-fadeIn">
       <SEOHead
-        title="Goodlucks Homes - Verified Rentals & Real Estate in Greater Accra, Ghana"
-        description="Find 100% verified rental apartments, luxury houses, and commercial properties in Accra, Ghana. Zero fake listings, direct landlord connections & transparent viewing scheduling."
+        title="Goodlucks Homes - Rentals & Real Estate in Greater Accra, Ghana"
+        description="Find rental apartments, houses and commercial property in Accra, Ghana. Staff-reviewed listings, direct landlord connections and transparent viewing scheduling."
         keywords="rentals Accra, homes for rent Ghana, East Legon apartments, Cantonments luxury homes, Airport Residential rental, Goodlucks Homes"
         jsonLd={homeJsonLd}
       />
@@ -88,7 +88,7 @@ export const HomeView: React.FC = () => {
           </h1>
 
           <p className="text-sm sm:text-base text-slate-300 max-w-xl mx-auto leading-relaxed">
-            Goodlucks Homes coordinates every enquiry, physical viewing, and tenancy agreement. Rent luxury apartments, villas, and studios in Accra and Kumasi with complete confidence.
+            Goodlucks Homes coordinates every enquiry and physical viewing. Rent luxury apartments, villas, and studios in Accra with complete confidence, then complete your tenancy agreement directly with the landlord.
           </p>
 
           {/* Search Control Bar */}
@@ -167,7 +167,7 @@ export const HomeView: React.FC = () => {
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-2 border-b border-white/10 pb-4">
           <div>
             <div className="text-xs font-extrabold text-[#08D9D6] uppercase tracking-wider">
-              Verified Intermediary Listings
+              Intermediary-managed listings
             </div>
             <h2 className="text-2xl sm:text-3xl font-black text-white">
               Featured Luxury Properties
@@ -244,7 +244,7 @@ export const HomeView: React.FC = () => {
               <div className="text-xs font-bold text-[#08D9D6] uppercase tracking-wider">Step 3</div>
               <h3 className="text-lg font-bold text-white">Move In</h3>
               <p className="text-xs text-slate-300 leading-relaxed">
-                We handle the tenancy contract, key transfer, and landlord relationship so you can move into your dream home safely.
+                We connect you with the landlord or authorised agent and coordinate your enquiries and viewing appointments. Your tenancy agreement is completed directly with the landlord, outside the platform.
               </p>
             </div>
 
@@ -270,10 +270,12 @@ export const HomeView: React.FC = () => {
           <div className="bg-[#252A34] p-5 rounded-2xl border border-white/10 space-y-2">
             <div className="flex items-center gap-2 text-[#08D9D6] font-bold text-sm">
               <CheckCircle2 className="w-5 h-5 shrink-0" />
-              <span>Verified Properties</span>
+              <span>Staff-reviewed listings</span>
             </div>
             <p className="text-xs text-slate-300 leading-relaxed">
-              Every listing is inspected for physical quality, power backup, security, and valid documentation.
+              Every listing is reviewed by Goodlucks staff before it appears. A physical inspection and
+              document check is not recorded for every property, so review is not a guarantee of title
+              or condition.
             </p>
           </div>
 

@@ -128,7 +128,7 @@ export const GetNotifiedModal: React.FC<GetNotifiedModalProps> = ({
                 Get Notified for New Listings
               </h2>
               <p className="text-xs text-slate-300 mt-0.5">
-                Subscribe to email or WhatsApp alerts whenever a matching home is verified.
+                Subscribe to email alerts whenever a matching home is listed.
               </p>
             </div>
           </div>

@@ -92,10 +92,10 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAuth }) => {
                 List Property
               </button>
               <button 
-                onClick={() => handleNavClick('agreements')}
-                className={`px-3.5 py-2 rounded-lg transition-all ${currentView === 'agreements' || currentView === 'agreement-generator' ? 'text-[#08D9D6] bg-white/5 font-semibold' : 'text-slate-300 hover:text-white hover:bg-white/5'}`}
+                onClick={() => handleNavClick('receipts')}
+                className={`px-3.5 py-2 rounded-lg transition-all ${currentView === 'receipts' ? 'text-[#08D9D6] bg-white/5 font-semibold' : 'text-slate-300 hover:text-white hover:bg-white/5'}`}
               >
-                Agreements & Receipts
+                Receipts
               </button>
               <button 
                 onClick={() => handleNavClick('about')}
@@ -134,10 +134,10 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAuth }) => {
                 Find a Home
               </button>
               <button 
-                onClick={() => handleNavClick('agreements')}
-                className={`px-3 py-2 rounded-lg transition-all ${currentView === 'agreements' || currentView === 'agreement-generator' ? 'text-[#08D9D6] bg-white/5 font-semibold' : 'text-slate-300 hover:text-white hover:bg-white/5'}`}
+                onClick={() => handleNavClick('receipts')}
+                className={`px-3 py-2 rounded-lg transition-all ${currentView === 'receipts' ? 'text-[#08D9D6] bg-white/5 font-semibold' : 'text-slate-300 hover:text-white hover:bg-white/5'}`}
               >
-                Agreements & Receipts
+                Receipts
               </button>
               <button 
                 onClick={() => handleNavClick('dashboard')}
@@ -152,6 +152,39 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAuth }) => {
                 Profile
               </button>
               <button 
+                onClick={() => handleNavClick('notifications')}
+                className={`relative px-3 py-2 rounded-lg transition-all ${currentView === 'notifications' ? 'text-[#08D9D6] bg-white/5 font-semibold' : 'text-slate-300 hover:text-white hover:bg-white/5'}`}
+              >
+                Notifications
+                {unreadCount > 0 && (
+                  <span className="absolute top-1.5 right-1 w-2 h-2 rounded-full bg-[#FF2E63] animate-pulse" />
+                )}
+              </button>
+            </>
+          )}
+
+          {/* Agent Nav (Increment C) */}
+          {currentRole === 'agent' && (
+            <>
+              <button
+                onClick={() => handleNavClick('home')}
+                className={`px-3 py-2 rounded-lg transition-all ${currentView === 'home' ? 'text-[#08D9D6] bg-white/5 font-semibold' : 'text-slate-300 hover:text-white hover:bg-white/5'}`}
+              >
+                Home
+              </button>
+              <button
+                onClick={() => handleNavClick('browse')}
+                className={`px-3 py-2 rounded-lg transition-all ${currentView === 'browse' ? 'text-[#08D9D6] bg-white/5 font-semibold' : 'text-slate-300 hover:text-white hover:bg-white/5'}`}
+              >
+                Browse Properties
+              </button>
+              <button
+                onClick={() => handleNavClick('dashboard')}
+                className={`px-3 py-2 rounded-lg transition-all ${currentView === 'dashboard' ? 'text-[#08D9D6] bg-white/5 font-semibold' : 'text-slate-300 hover:text-white hover:bg-white/5'}`}
+              >
+                Agent Dashboard
+              </button>
+              <button
                 onClick={() => handleNavClick('notifications')}
                 className={`relative px-3 py-2 rounded-lg transition-all ${currentView === 'notifications' ? 'text-[#08D9D6] bg-white/5 font-semibold' : 'text-slate-300 hover:text-white hover:bg-white/5'}`}
               >
@@ -197,10 +230,10 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAuth }) => {
                 My Properties
               </button>
               <button 
-                onClick={() => handleNavClick('agreements')}
-                className={`px-3 py-2 rounded-lg transition-all ${currentView === 'agreements' || currentView === 'agreement-generator' ? 'text-[#08D9D6] bg-white/5 font-semibold' : 'text-slate-300 hover:text-white hover:bg-white/5'}`}
+                onClick={() => handleNavClick('receipts')}
+                className={`px-3 py-2 rounded-lg transition-all ${currentView === 'receipts' ? 'text-[#08D9D6] bg-white/5 font-semibold' : 'text-slate-300 hover:text-white hover:bg-white/5'}`}
               >
-                Agreements & Receipts
+                Receipts
               </button>
               <button 
                 onClick={() => handleNavClick('profile')}
@@ -398,6 +431,48 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAuth }) => {
               </button>
               <div className="pt-3 border-t border-white/10">
                 <button 
+                  onClick={logout}
+                  className="w-full py-2.5 text-center text-sm font-semibold text-[#FF2E63] bg-[#FF2E63]/10 rounded-xl"
+                >
+                  Logout ({currentUser?.name})
+                </button>
+              </div>
+            </>
+          )}
+
+          {currentRole === 'agent' && (
+            <>
+              <button
+                onClick={() => handleNavClick('home')}
+                className="w-full text-left px-4 py-2.5 rounded-xl text-slate-200 hover:bg-white/5 font-medium"
+              >
+                Home
+              </button>
+              <button
+                onClick={() => handleNavClick('browse')}
+                className="w-full text-left px-4 py-2.5 rounded-xl text-slate-200 hover:bg-white/5 font-medium"
+              >
+                Browse Properties
+              </button>
+              <button
+                onClick={() => handleNavClick('dashboard')}
+                className="w-full text-left px-4 py-2.5 rounded-xl text-slate-200 hover:bg-white/5 font-medium"
+              >
+                Agent Dashboard
+              </button>
+              <button
+                onClick={() => handleNavClick('notifications')}
+                className="w-full text-left px-4 py-2.5 rounded-xl text-slate-200 hover:bg-white/5 font-medium flex justify-between items-center"
+              >
+                Notifications
+                {unreadCount > 0 && (
+                  <span className="px-2 py-0.5 rounded-full bg-[#FF2E63] text-white text-xs font-bold">
+                    {unreadCount}
+                  </span>
+                )}
+              </button>
+              <div className="pt-3 border-t border-white/10">
+                <button
                   onClick={logout}
                   className="w-full py-2.5 text-center text-sm font-semibold text-[#FF2E63] bg-[#FF2E63]/10 rounded-xl"
                 >

@@ -186,7 +186,7 @@ export const ListPropertyView: React.FC<ListPropertyViewProps> = ({ onOpenAuth }
       <div className="min-h-[80vh] bg-[#252A34] text-white py-12 px-4 sm:px-6 lg:px-8 flex items-center justify-center">
         <SEOHead
           title="List Property for Rent - Landlord Portal | Goodlucks Homes Ghana"
-          description="List your property with Goodlucks Homes Ghana. We coordinate tenant vetting, viewings, and tenancy agreements seamlessly."
+          description="List your property with Goodlucks Homes Ghana. We coordinate tenant enquiries and supervised physical viewings in Greater Accra."
         />
         <div className="max-w-xl w-full bg-slate-800/90 border border-white/10 rounded-3xl p-6 sm:p-10 text-center space-y-6 shadow-2xl animate-fadeIn">
           
@@ -206,7 +206,7 @@ export const ListPropertyView: React.FC<ListPropertyViewProps> = ({ onOpenAuth }
             
             <p className="text-sm text-slate-300 leading-relaxed max-w-md mx-auto">
               {!currentUser
-                ? 'To ensure verified listings and safety for tenants across Ghana, you must log in or register as a Landlord on Goodlucks Homes to submit properties.'
+                ? 'To keep every listing reviewed before it appears, you must log in or register as a Landlord on Goodlucks Homes to submit properties.'
                 : `You are currently signed in as ${currentUser.name} (${currentUser.role.toUpperCase()} Account). Please switch to a Landlord account to list properties.`}
             </p>
           </div>
@@ -305,7 +305,7 @@ export const ListPropertyView: React.FC<ListPropertyViewProps> = ({ onOpenAuth }
             List Your Property with Goodlucks Homes
           </h1>
           <p className="text-sm text-slate-300 max-w-xl mx-auto leading-relaxed">
-            We handle tenant enquiries, schedule physical viewings, verify tenant background, and manage rental contracts. No direct hassle for landlords.
+            We handle tenant enquiries and schedule supervised physical viewings. You keep control of your tenancy agreement and deal directly with your tenant.
           </p>
         </div>
 

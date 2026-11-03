@@ -17,11 +17,12 @@ const FindAHomeView = lazy(() => import('./components/FindAHomeView').then((m) =
 const ListPropertyView = lazy(() => import('./components/ListPropertyView').then((m) => ({ default: m.ListPropertyView })));
 const TenantDashboard = lazy(() => import('./components/TenantDashboard').then((m) => ({ default: m.TenantDashboard })));
 const LandlordDashboard = lazy(() => import('./components/LandlordDashboard').then((m) => ({ default: m.LandlordDashboard })));
+const AgentDashboard = lazy(() => import('./components/AgentDashboard').then((m) => ({ default: m.AgentDashboard })));
 const AdminDashboard = lazy(() => import('./components/AdminDashboard').then((m) => ({ default: m.AdminDashboard })));
 const AdminLoginView = lazy(() => import('./components/AdminLoginView').then((m) => ({ default: m.AdminLoginView })));
 const AboutView = lazy(() => import('./components/AboutView').then((m) => ({ default: m.AboutView })));
 const ContactView = lazy(() => import('./components/ContactView').then((m) => ({ default: m.ContactView })));
-const TenancyAgreementView = lazy(() => import('./components/TenancyAgreementView').then((m) => ({ default: m.TenancyAgreementView })));
+const ReceiptsView = lazy(() => import('./components/ReceiptsView').then((m) => ({ default: m.ReceiptsView })));
 
 /** Lightweight placeholder shown while a lazy view chunk downloads. */
 const ViewFallback: React.FC = () => (
@@ -85,10 +86,8 @@ const AppContent: React.FC = () => {
         return <AboutView />;
       case 'contact':
         return <ContactView />;
-      case 'agreement-generator':
-      case 'agreements':
       case 'receipts':
-        return <TenancyAgreementView />;
+        return <ReceiptsView />;
       case 'my-properties':
         return <LandlordDashboard />;
       case 'profile':
@@ -96,6 +95,7 @@ const AppContent: React.FC = () => {
       case 'dashboard':
         if (currentRole === 'tenant') return <TenantDashboard />;
         if (currentRole === 'landlord') return <LandlordDashboard />;
+        if (currentRole === 'agent') return <AgentDashboard />;
         if (currentRole === 'admin') return <AdminDashboard />;
         // If guest clicks dashboard, prompt auth
         return (
@@ -127,7 +127,7 @@ const AppContent: React.FC = () => {
         </div>
         <div className="space-y-1">
           <p className="text-sm font-bold text-white">Loading Goodlucks Homes</p>
-          <p className="text-xs text-slate-400">Fetching verified listings and your account…</p>
+          <p className="text-xs text-slate-400">Loading listings and your account…</p>
         </div>
       </div>
     );

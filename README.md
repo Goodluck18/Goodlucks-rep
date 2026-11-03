@@ -1,8 +1,13 @@
 # Goodlucks Homes
 
-A rental intermediary platform for Accra, Ghana: tenants find verified homes,
-landlords list property, and Goodlucks staff approve listings, arrange physical
-viewings and issue tenancy agreements and rent receipts.
+A property intermediary platform for Greater Accra, Ghana: tenants find homes,
+landlords and their agents list property, and Goodlucks staff approve listings,
+arrange supervised physical viewings and keep rent payment records.
+
+Goodlucks does not draft, sign or store tenancy agreements — tenants and
+landlords complete their agreement between themselves — and it never issues a
+receipt for money it did not receive. Receipt issuing is currently disabled
+until the truthful payment-record model ships (see `docs/INCREMENT_A_REPORT.md`).
 
 Every screen is backed by a real API and a real database — there are no demo
 logins, no simulated emails and no business data kept in the browser.
@@ -164,14 +169,37 @@ and concurrent requests are all idempotent.
 
 - Landlord submissions are created as `pending` and **unverified**; only an
   admin can approve or reject them, and the landlord is notified + emailed
-  either way. The "verified landlord" badge is earned through a staff
-  inspection (`POST /properties/{id}/verify`), never assumed.
+  either way. Registering never marks anyone verified, and staff-created
+  listings are not auto-verified either. The badge now reads "listing reviewed":
+  it reflects a staff review of the listing, **not** an ownership or identity
+  check. Agent/landlord identity and agent professional authorisation are
+  separate, reviewer-decided checks (Increment D) — approving any of them never
+  approves a listing or proves property ownership.
+- Identity verification and professional authorisation are two independent
+  records. Submitting a Ghana Card or a licence number creates a
+  `pending_review` record and grants **nothing**; only a staff member holding
+  the verification-reviewer capability can decide, the decision is append-only,
+  and the licence's own expiry can make an approved record read as `expired`.
+  Full identity numbers and the uploaded files need a second, separately granted
+  capability, are stored outside the public uploads folder, are never listed or
+  logged, and are deleted once the retention window passes. No regulator is
+  contacted: there is no registry integration, and the UI says so.
 - Enquiries move through `new → contacted → closed`, so the dashboard's "new
   enquiries" figure is a real work queue rather than a synonym for the total.
 - `DELETE /api/properties/{id}` deactivates a listing (`?purge=1`, admin only,
   hard-deletes).
 - Viewings are scheduled by Goodlucks staff; the GH₵ 100 viewing fee is paid in
-  cash on site and recorded, never charged online.
+  cash on site to the agent, never charged online.
+- That fee is **not** Goodlucks revenue. The ledger (`viewing_fee_records` +
+  `fee_remittances`) keeps four separate figures: money agents collected, the
+  share Goodlucks is owed under an explicitly agreed amount, money Goodlucks has
+  actually received (remittances only), and what is still outstanding. The
+  proposed 60/40 and 70/30 splits are provisional constants that are never used
+  in a calculation — see `docs/INCREMENT_B_REPORT.md`.
+- Rent paid to a landlord is recorded as a payment between tenant and landlord.
+  Receipt issuing stays disabled (`RECEIPT_ISSUING_ENABLED=false`) and every
+  stored record is presented as "reported, not verified"; Goodlucks never claims
+  to have received rent it did not receive.
 - Price-drop alerts are unique per property + email; search alerts belong to the
   signed-in user and can be removed.
 - Property views and visitor analytics are recorded from real requests, not
@@ -205,10 +233,11 @@ and concurrent requests are all idempotent.
 `health` · `auth/{register,login,admin-login,logout,me,password-reset/request,password-reset/confirm}` · `profile` ·
 `properties` (+ `/{id}`, `/{id}/status`, `/{id}/feature`) · `uploads` ·
 `enquiries` · `tenant-requests` · `viewing-requests` · `viewings` ·
-`price-alerts` · `search-alerts` · `saved-properties` · `agreements`
-(+ `/{id}/sign`, `/{id}/email`) · `receipts` · `notifications`
+`price-alerts` · `search-alerts` · `saved-properties` · `receipts` (+ `/{id}`,
+read-only while issuing is disabled) · `notifications`
 (+ `/read-all`) · `matches` ·
 `admin/{stats,properties,enquiries,tenant-requests,viewings,price-alerts,email-logs,alerts/run,emails/run}` ·
+`admin/viewing-fees` (+ `/policy`, `/{id}/share`, `/{id}/remittances`, `/{id}/state`, admin only) ·
 `track/pageview` · `ai/{describe,match}` · `sitemap.xml` (XML, not JSON)
 
 ### Security notes

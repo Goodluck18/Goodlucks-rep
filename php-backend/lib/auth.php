@@ -231,10 +231,24 @@ function is_admin(?array $user = null): bool
 /** Ownership check used for landlord property access. */
 function can_manage_property(array $user, array $property): bool
 {
-    if (($user['role'] ?? '') === 'admin') {
+    $role = (string)($user['role'] ?? '');
+    if ($role === 'admin') {
         return true;
     }
-    return ($user['role'] ?? '') === 'landlord' && (string)$property['landlord_id'] === (string)$user['id'];
+
+    if ($role === 'landlord') {
+        return (string)$property['landlord_id'] === (string)$user['id'];
+    }
+
+    // Increment C: an agent manages only the listings they submitted. This says
+    // nothing about owning the property or representing the landlord — that
+    // authority is explicitly unverified (`landlord_authority_state`).
+    if ($role === 'agent') {
+        $submittedBy = (string)($property['submitted_by_user_id'] ?? '');
+        return $submittedBy !== '' && $submittedBy === (string)$user['id'];
+    }
+
+    return false;
 }
 
 /**
@@ -242,7 +256,7 @@ function can_manage_property(array $user, array $property): bool
  */
 function public_user(array $row): array
 {
-    return [
+    $user = [
         'id'                 => (string)$row['id'],
         'email'              => (string)$row['email'],
         'name'               => (string)$row['name'],
@@ -260,6 +274,30 @@ function public_user(array $row): array
         'additionalNotes'    => (string)($row['additional_notes'] ?? ''),
         'createdAt'          => to_iso($row['created_at'] ?? null),
     ];
+
+    // Increment C: an agent account carries its own profile (agency, operating
+    // base, review status). Only ever the signed-in agent's own record.
+    if ((string)($row['role'] ?? '') === 'agent') {
+        $profile = find_agent_profile_by_user((string)($row['id'] ?? ''));
+        $user['agentProfile'] = $profile ? shape_agent_profile($profile) : null;
+    }
+
+    // Increment D: staff capabilities, so the console can hide review screens
+    // from administrators who do not hold them. This is a hint for the UI only;
+    // every endpoint re-checks it server-side.
+    if ((string)($row['role'] ?? '') === 'admin') {
+        // Increment E adds the financial-policy capabilities to the same hint,
+        // so the console can hide policy actions the account cannot use. Every
+        // endpoint re-checks them server-side.
+        // Increment F adds the viewing-correction capability: correcting a
+        // viewing is exceptional and audited, so it is not part of the default
+        // administrator role either.
+        $user['capabilities'] = verification_capabilities($row)
+            + finance_capabilities($row)
+            + viewing_capabilities($row);
+    }
+
+    return $user;
 }
 
 /** Convert a DB datetime (UTC) to an ISO-8601 string for the client. */

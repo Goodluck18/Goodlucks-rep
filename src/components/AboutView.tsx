@@ -14,13 +14,13 @@ const FAQ_DATA: FAQItem[] = [
     id: 'faq-1',
     category: 'General',
     question: 'How does Goodlucks Homes work as a trusted intermediary?',
-    answer: 'Unlike standard classified listing sites where buyers and renters communicate directly with unverified contacts, Goodlucks Homes acts as a licensed, trusted intermediary desk. We screen property listings, conduct physical verification, manage all viewing logistics with certified Goodlucks field agents, and facilitate secure tenancy documentation.'
+    answer: 'Goodlucks Homes is a property intermediary: we review the listings submitted to us, coordinate enquiries and physical viewings with our field team, and keep a record of every appointment. We do not draft, sign or store tenancy agreements - tenants and landlords complete their agreement directly with each other - and we do not provide legal or licensed professional services.'
   },
   {
     id: 'faq-2',
     category: 'Tenants',
     question: 'How does the AI Property Matching service work for tenants?',
-    answer: 'Tenants can submit their exact location preferences, bedroom requirements, and budget parameters in GH₵ via the "Find a Home" portal. Our automated matching system cross-references active verified listings and routes your request to dedicated agents who source and verify matching properties within 24–48 hours.'
+    answer: 'Tenants can submit their exact location preferences, bedroom requirements, and budget parameters in GH₵ via the "Find a Home" portal. Our matching system cross-references active listings reviewed by Goodlucks staff and routes your request to the agents responsible for those properties.'
   },
   {
     id: 'faq-3',
@@ -38,13 +38,13 @@ const FAQ_DATA: FAQItem[] = [
     id: 'faq-5',
     category: 'General',
     question: 'Why are landlord and tenant contact numbers managed through Goodlucks?',
-    answer: 'To eliminate middleman fraud, duplicate listing spam, and off-platform listing poaching, all initial enquiries and viewing appointments are handled through Goodlucks Homes official communications. Once a tenancy agreement is finalized, direct contact details are released for long-term landlord-tenant relations.'
+    answer: 'To eliminate middleman fraud, duplicate listing spam, and off-platform listing poaching, all initial enquiries and viewing appointments are handled through Goodlucks Homes official communications. Direct contact details are released once a viewing is confirmed, so tenant and landlord can deal with each other directly afterwards.'
   },
   {
     id: 'faq-6',
     category: 'Tenants',
     question: 'Are properties available outside Accra?',
-    answer: 'Yes! While our primary coverage focuses on high-demand residential hubs in Greater Accra (Cantonments, East Legon, Airport Residential, Labone, Osu, Ridge), we also manage verified luxury units in Kumasi, Takoradi, and Tema.'
+    answer: 'Yes! While our primary coverage focuses on high-demand residential hubs in Greater Accra (Cantonments, East Legon, Airport Residential, Labone, Osu, Ridge), we also list properties in Kumasi, Takoradi, and Tema.'
   }
 ];
 
@@ -71,8 +71,8 @@ export const AboutView: React.FC = () => {
   return (
     <div className="min-h-screen bg-[#252A34] text-white py-12 px-4 sm:px-6 lg:px-8">
       <SEOHead
-        title="About Goodlucks Homes - Verified Rentals Intermediary in Ghana"
-        description="Learn how Goodlucks Homes eliminates rental fraud in Accra, Ghana through verified property listings, professional viewing coordination, and AI matching."
+        title="About Goodlucks Homes - Rental Intermediary in Ghana"
+        description="Learn how Goodlucks Homes works in Accra, Ghana: staff-reviewed listings, coordinated physical viewings, and assisted matching."
         keywords="About Goodlucks Homes, real estate Ghana, rental verification Accra, trusted real estate agent Ghana"
         jsonLd={faqJsonLd}
       />
@@ -86,7 +86,7 @@ export const AboutView: React.FC = () => {
           </div>
           <h1 className="text-3xl sm:text-4xl font-black text-white">About Goodlucks Homes</h1>
           <p className="text-sm text-slate-300 max-w-xl mx-auto leading-relaxed">
-            Redefining residential property leasing in West Africa through trusted intermediary management, verified property listings, and AI-powered tenant matching.
+            Redefining residential property leasing in West Africa through intermediary management, staff-reviewed listings, and assisted tenant matching.
           </p>
         </div>
 
@@ -94,10 +94,10 @@ export const AboutView: React.FC = () => {
         <div className="bg-gradient-to-r from-slate-800 to-[#1A1E26] p-8 rounded-3xl border border-white/10 space-y-4 shadow-xl">
           <h2 className="text-xl font-bold text-[#08D9D6]">Our Intermediary Model</h2>
           <p className="text-sm text-slate-200 leading-relaxed">
-            Unlike standard peer-to-peer property marketplaces where unverified direct contacts often lead to disputes, Goodlucks Homes acts as the <strong>sole trusted intermediary</strong> between property owners and tenants.
+            Unlike standard peer-to-peer property marketplaces where unverified direct contacts often lead to disputes, Goodlucks Homes acts as the <strong>intermediary</strong> between property owners and tenants.
           </p>
           <p className="text-sm text-slate-300 leading-relaxed">
-            We manage all property enquiries, schedule physical viewings with trained field staff, verify tenant background credentials, and execute secure tenancy contracts. This guarantees peace of mind for landlords and maximum safety for tenants.
+            We manage property enquiries and schedule physical viewings with our field team, and we keep a clear record of every appointment. Goodlucks Homes is not a law firm: tenants and landlords meet and complete their tenancy agreement between themselves, outside the platform.
           </p>
         </div>
 
@@ -105,8 +105,8 @@ export const AboutView: React.FC = () => {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
           <div className="bg-slate-800/80 p-6 rounded-2xl border border-white/10 space-y-2">
             <ShieldCheck className="w-8 h-8 text-[#08D9D6]" />
-            <h3 className="font-bold text-base text-white">100% Verified</h3>
-            <p className="text-xs text-slate-300">Every home undergoes document verification and physical inspection before approval.</p>
+            <h3 className="font-bold text-base text-white">Listings reviewed</h3>
+            <p className="text-xs text-slate-300">Every listing is reviewed by our team before it goes live. That review covers the listing details and photos - it is not an ownership or identity check.</p>
           </div>
 
           <div className="bg-slate-800/80 p-6 rounded-2xl border border-white/10 space-y-2">

@@ -63,7 +63,7 @@ export const BrowseView: React.FC = () => {
   const browseJsonLd = {
     "@context": "https://schema.org",
     "@type": "ItemList",
-    "name": "Verified Rental Properties in Greater Accra",
+    "name": "Rental Properties in Greater Accra",
     "description": "Active real estate listings for apartments, houses, studios, and luxury rentals in Accra.",
     "numberOfItems": activeProperties.length,
     "itemListElement": activeProperties.map((p, index) => ({
@@ -119,8 +119,8 @@ export const BrowseView: React.FC = () => {
   return (
     <div className="min-h-screen bg-[#1F242D] text-white py-8 px-4 sm:px-6 lg:px-8">
       <SEOHead
-        title="Browse Verified Properties & Rentals in Accra, Ghana | Goodlucks Homes"
-        description="Explore verified 1, 2, 3, and 4-bedroom apartments, townhouses, and luxury homes for rent in East Legon, Cantonments, Osu, Airport, and Labone."
+        title="Browse Properties & Rentals in Accra, Ghana | Goodlucks Homes"
+        description="Explore 1, 2, 3, and 4-bedroom apartments, townhouses, and luxury homes for rent in East Legon, Cantonments, Osu, Airport, and Labone. Listings are reviewed by Goodlucks staff before they appear."
         keywords="browse rentals Accra, East Legon apartments, Cantonments rentals, Accra real estate listings, Goodlucks Homes properties"
         jsonLd={browseJsonLd}
       />
@@ -131,10 +131,10 @@ export const BrowseView: React.FC = () => {
           <div>
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#08D9D6]/10 text-[#08D9D6] text-xs font-bold border border-[#08D9D6]/20 mb-1">
               <Building2 className="w-3.5 h-3.5" />
-              Verified Ghana Real Estate Catalog
+              Ghana Real Estate Catalogue
             </div>
             <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
-              Browse Verified Rentals in Ghana
+              Browse Rentals in Ghana
             </h1>
             <p className="text-xs sm:text-sm text-slate-300 mt-0.5">
               Intermediary Listings Managed Exclusively by Goodlucks Homes
@@ -370,7 +370,7 @@ export const BrowseView: React.FC = () => {
                 )}
               </div>
               <p className="text-[11px] sm:text-xs text-slate-300 mt-0.5">
-                Get instant email or WhatsApp alerts when a verified <strong className="text-[#08D9D6]">{selectedType === 'All' ? 'Property' : selectedType}</strong> in <strong className="text-white">{selectedLocation === 'All' ? 'Accra' : selectedLocation}</strong> (under GH₵ {maxRent.toLocaleString()}/mo) goes live.
+                Get instant email or WhatsApp alerts when a matching <strong className="text-[#08D9D6]">{selectedType === 'All' ? 'Property' : selectedType}</strong> in <strong className="text-white">{selectedLocation === 'All' ? 'Accra' : selectedLocation}</strong> (under GH₵ {maxRent.toLocaleString()}/mo) goes live.
               </p>
             </div>
           </div>
@@ -400,7 +400,7 @@ export const BrowseView: React.FC = () => {
             <div className="space-y-1">
               <div className="text-lg font-bold text-white">No Properties Matched Your Search</div>
               <p className="text-xs text-slate-400 max-w-md mx-auto">
-                No active listings match your criteria right now. Subscribe to instant alerts and we'll notify you as soon as a matching home is verified!
+                No active listings match your criteria right now. Subscribe to instant alerts and we'll notify you as soon as a matching home is listed.
               </p>
             </div>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-2 pt-2">

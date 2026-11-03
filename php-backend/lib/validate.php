@@ -15,7 +15,7 @@ const PROPERTY_STATUSES = ['active', 'pending', 'rejected', 'rented', 'deactivat
 const ENQUIRY_STATUSES = ['new', 'contacted', 'closed'];
 const REQUEST_STATUSES = ['submitted', 'searching', 'matched', 'viewing_scheduled', 'completed', 'cancelled'];
 const VIEWING_STATUSES = ['scheduled', 'completed', 'cancelled'];
-const USER_ROLES = ['tenant', 'landlord', 'admin'];
+const USER_ROLES = ['tenant', 'landlord', 'agent', 'admin'];
 
 /** Trim, normalise and length-cap a string. */
 function clean_string($value, int $maxLength = 1000): string

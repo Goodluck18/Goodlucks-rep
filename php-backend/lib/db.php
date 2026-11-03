@@ -83,10 +83,64 @@ function db_now(): string
     return gmdate('Y-m-d H:i:s');
 }
 
+/**
+ * Timestamp with microsecond precision (UTC), for append-only ordering.
+ *
+ * Two decisions recorded in the same second must still sort in the order the
+ * reviewer made them, so the decision history stores microseconds. MySQL uses
+ * DATETIME(6); SQLite stores the text as-is and sorts it lexicographically,
+ * which is correct for this fixed-width format.
+ */
+function db_now_precise(): string
+{
+    $micro = (int)round(fmod(microtime(true), 1) * 1000000);
+    if ($micro > 999999) {
+        $micro = 999999;
+    }
+    return gmdate('Y-m-d H:i:s') . '.' . sprintf('%06d', $micro);
+}
+
 /** Timestamp $seconds in the future (UTC, DB format). */
 function db_future(int $seconds): string
 {
     return gmdate('Y-m-d H:i:s', time() + $seconds);
+}
+
+/**
+ * Run a callback inside one database transaction.
+ *
+ * Used by financial writes that must never be half-applied (Increment E: a
+ * policy snapshot and the ledger row it prices are written together). Nested
+ * calls join the outer transaction instead of starting a second one, because
+ * neither MySQL's InnoDB nor SQLite supports real nesting via PDO.
+ *
+ * @template T
+ * @param callable():T $callback
+ * @return T
+ */
+function db_transaction(callable $callback)
+{
+    static $depth = 0;
+
+    if ($depth > 0) {
+        return $callback();
+    }
+
+    $pdo = db();
+    $pdo->beginTransaction();
+    $depth++;
+    try {
+        $result = $callback();
+        $pdo->commit();
+        return $result;
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        throw $e;
+    } finally {
+        $depth--;
+    }
 }
 
 function db_is_unique_violation(Throwable $e): bool

@@ -443,7 +443,7 @@ export const PropertyDetailView: React.FC = () => {
                   Rent Safely & Directly Through Goodlucks
                 </h3>
                 <p className="text-xs text-slate-300 leading-relaxed">
-                  All property enquiries, physical viewings, background checks, and tenancy contracts are handled strictly by Goodlucks Homes as your trusted intermediary.
+                  Goodlucks Homes facilitates property enquiries and viewing coordination between tenants, landlords and authorised agents. Any tenancy agreement is arranged directly between the tenant and landlord, outside the platform.
                 </p>
               </div>
 
@@ -489,8 +489,8 @@ export const PropertyDetailView: React.FC = () => {
                   />
                   <span>
                     {property.isLandlordVerified
-                      ? 'Landlord identity verified by our team'
-                      : 'Landlord verification in progress'}
+                      ? 'Listing details reviewed by our team (not an ownership check)'
+                      : 'Listing not yet reviewed by our team'}
                   </span>
                 </div>
               </div>
@@ -529,7 +529,7 @@ export const PropertyDetailView: React.FC = () => {
                   Similar Properties in {property.city || 'Accra'}
                 </h2>
                 <p className="text-xs text-slate-300">
-                  Explore other verified properties with matching locations, budgets, or features.
+                  Explore other listings with matching locations, budgets, or features.
                 </p>
               </div>
 
