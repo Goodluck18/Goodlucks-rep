@@ -73,7 +73,7 @@ export const PropertyDetailView: React.FC = () => {
           <h1 className="text-xl font-black text-white">This property is no longer available</h1>
           <p className="text-xs text-slate-300 leading-relaxed">
             The listing you are looking for may have been rented or removed by the landlord.
-            Browse our current verified rentals, or ask us to find a similar home for you.
+            Browse our current available rentals, or ask us to find a similar home for you.
           </p>
           <div className="flex flex-col sm:flex-row gap-2 justify-center pt-2">
             <button
