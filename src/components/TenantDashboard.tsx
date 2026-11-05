@@ -3,27 +3,37 @@ import { useApp } from '../context/AppContext';
 import { api, messageForError, PropertyMatch } from '../services/apiService';
 import type { ViewingSchedule } from '../types';
 import { PropertyCard } from './PropertyCard';
-import { 
-  User, 
-  Clock, 
+import {
+  User,
+  Clock,
   AlertCircle,
-  CheckCircle2, 
-  MapPin, 
-  Calendar, 
-  Heart, 
-  Bell, 
-  ShieldCheck, 
+  CheckCircle2,
+  MapPin,
+  Calendar,
+  Heart,
+  Bell,
+  ShieldCheck,
   ChevronRight,
   Sparkles,
   Phone,
   Mail,
   Edit,
   Plus,
-  Activity,
   Search,
   Check,
-  FileCheck
+  FileCheck,
+  ArrowRight,
 } from 'lucide-react';
+import {
+  Avatar,
+  DashboardShell,
+  EmptyState,
+  SectionHeader,
+  SummaryCard,
+  dashboardNav,
+} from './dashboard/DashboardShell';
+import { NotificationsView } from './dashboard/NotificationsView';
+import { AccountSettingsView } from './dashboard/AccountSettingsView';
 
 const VIEWING_TONES: Record<ViewingSchedule['status'], string> = {
   enquiry_received: 'bg-slate-500/20 text-slate-200 border-white/10',
@@ -210,37 +220,39 @@ const TenantViewingCard: React.FC<{ viewing: ViewingSchedule; onOpenProperty: (i
 };
 
 export const TenantDashboard: React.FC = () => {
-  const { 
-    currentUser, 
-    tenantRequests, 
-    properties, 
-    viewingSchedules, 
-    savedPropertyIds, 
+  const {
+    currentUser,
+    tenantRequests,
+    properties,
+    viewingSchedules,
+    savedPropertyIds,
     searchAlerts,
     unsubscribeFromSearchAlerts,
     notifications,
     setCurrentView,
     sectionTab,
-    setSectionTab,
+    navigate,
     updateUserProfile,
     navigateToProperty,
     showErrorToast,
-    showSuccessToast
+    showSuccessToast,
   } = useApp();
 
-  // The active tab lives in the URL (/tenant/viewings, /tenant/saved-properties…),
-  // so a refresh, a shared link and Back all return to the same tab.
-  const activeTab = (sectionTab || 'requests') as
+  // The active section lives in the URL (/tenant/viewings, /tenant/settings…),
+  // so a refresh, a shared link and Back all return to the same place.
+  const activeSection = (sectionTab || 'overview') as
+    | 'overview'
     | 'requests'
     | 'matches'
     | 'viewings'
     | 'saved'
     | 'alerts'
-    | 'profile';
-  const setActiveTab = setSectionTab;
+    | 'notifications'
+    | 'profile'
+    | 'settings';
+
   const [profileName, setProfileName] = useState(currentUser?.name || '');
   const [profilePhone, setProfilePhone] = useState(currentUser?.phone || '');
-  const [profileEmail, setProfileEmail] = useState(currentUser?.email || '');
   const [profileAddress, setProfileAddress] = useState(currentUser?.address || '');
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
@@ -250,17 +262,17 @@ export const TenantDashboard: React.FC = () => {
     if (!currentUser) return;
     setProfileName(currentUser.name || '');
     setProfilePhone(currentUser.phone || '');
-    setProfileEmail(currentUser.email || '');
     setProfileAddress(currentUser.address || '');
   }, [currentUser]);
 
   const myRequests = tenantRequests.filter(
-    r => r.tenantId === currentUser?.id || (!!currentUser?.email && r.tenantEmail === currentUser.email)
+    (r) => r.tenantId === currentUser?.id || (!!currentUser?.email && r.tenantEmail === currentUser.email)
   );
   const activeRequest = myRequests[0];
 
-  const myViewings = viewingSchedules.filter(v => v.tenantName === currentUser?.name || v.tenantPhone === currentUser?.phone) || viewingSchedules;
-  const savedProps = properties.filter(p => savedPropertyIds.includes(p.id));
+  const myViewings = viewingSchedules.filter((v) => v.tenantName === currentUser?.name || v.tenantPhone === currentUser?.phone);
+  const savedProps = properties.filter((p) => savedPropertyIds.includes(p.id));
+  const unreadNotifications = notifications.filter((n) => !n.read).length;
 
   // Real match scores from the backend (the same engine the listing page uses),
   // so this dashboard never invents a percentage. Staff-curated matches come
@@ -277,8 +289,9 @@ export const TenantDashboard: React.FC = () => {
 
     let cancelled = false;
     setMatchesLoading(true);
-    api.matches()
-      .then(result => {
+    api
+      .matches()
+      .then((result) => {
         if (!cancelled) setMatches(result.matches ?? []);
       })
       .catch(() => {
@@ -293,15 +306,14 @@ export const TenantDashboard: React.FC = () => {
     };
   }, [currentUser, activeRequest?.id]);
 
-  const matchedProps = matches.map(match => match.property);
+  const matchedProps = matches.map((match) => match.property);
   const topMatchScore = matches[0]?.score ?? 0;
 
-  // Timeline Steps
   const TIMELINE_STEPS = [
-    { key: 'submitted', label: 'Request Submitted', desc: 'Received by Goodlucks' },
-    { key: 'searching', label: 'Searching', desc: 'AI matching properties' },
-    { key: 'matched', label: 'Property Found', desc: 'Matches proposed' },
-    { key: 'viewing_scheduled', label: 'Viewing Requested', desc: 'Waiting for the agent to agree a time' },
+    { key: 'submitted', label: 'Request submitted', desc: 'Received by Goodlucks' },
+    { key: 'searching', label: 'Searching', desc: 'Matching properties' },
+    { key: 'matched', label: 'Property found', desc: 'Matches proposed' },
+    { key: 'viewing_scheduled', label: 'Viewing requested', desc: 'Waiting for the agent to agree a time' },
     { key: 'completed', label: 'Completed', desc: 'Tenancy arranged outside Goodlucks' },
   ];
 
@@ -320,10 +332,11 @@ export const TenantDashboard: React.FC = () => {
     e.preventDefault();
     setIsSavingProfile(true);
     setActionError(null);
+    // Email is not part of the server's profile allow-list: it is shown on the
+    // profile page but changed through support, never silently edited here.
     const result = await updateUserProfile({
       name: profileName,
       phone: profilePhone,
-      email: profileEmail,
       address: profileAddress,
     });
     setIsSavingProfile(false);
@@ -342,596 +355,526 @@ export const TenantDashboard: React.FC = () => {
     try {
       await unsubscribeFromSearchAlerts(alertId);
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Could not remove the alert.';
+      const message = messageForError(error);
       setActionError(message);
       showErrorToast('Could not remove alert', message);
     }
   };
 
-  const myNotifications = notifications.slice(0, 3);
+  const navItems = dashboardNav('tenant', { unreadNotifications });
 
   return (
-    <div className="min-h-screen bg-[#1F242D] text-white py-8 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-7xl mx-auto space-y-6 animate-fadeIn">
-
-        {actionError && (
-          <div role="alert" className="p-3 rounded-xl bg-[#FF2E63]/15 border border-[#FF2E63]/30 text-[#FF8FA8] text-xs flex items-start gap-2">
-            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-            <span className="flex-1">{actionError}</span>
-            <button type="button" onClick={() => setActionError(null)} className="font-bold">Dismiss</button>
-          </div>
-        )}
-        
-        {/* Header Title */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/10 pb-4">
-          <div>
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#08D9D6]/10 text-[#08D9D6] text-xs font-bold border border-[#08D9D6]/20 mb-1">
-              <Activity className="w-3.5 h-3.5" />
-              Tenant Operations Hub
-            </div>
-            <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
-              Welcome back, {currentUser?.name?.split(' ')[0] || 'Kofi'}
-            </h1>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 text-xs text-emerald-400 bg-emerald-500/10 px-3 py-1.5 rounded-full border border-emerald-500/20 font-bold">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-              Verified Tenant Account
-            </span>
-          </div>
+    <DashboardShell role="tenant" active={activeSection} items={navItems}>
+      {actionError && (
+        <div
+          role="alert"
+          className="p-3 rounded-xl bg-[#FF2E63]/15 border border-[#FF2E63]/30 text-[#FF8FA8] text-xs flex items-start gap-2"
+        >
+          <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+          <span className="flex-1">{actionError}</span>
+          <button type="button" onClick={() => setActionError(null)} className="font-bold">
+            Dismiss
+          </button>
         </div>
+      )}
 
-        {/* ================= BENTO GRID LEVEL 1: TOP 3 DISTINCT GLASSMORPHIC CARDS ================= */}
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-4 sm:gap-6">
-          
-          {/* Bento Card 1: Profile Glassmorphic Card (Col 6) */}
-          <div className="md:col-span-6 bg-[#252A34]/70 backdrop-blur-xl border border-white/10 rounded-3xl p-6 shadow-2xl hover:border-white/20 transition-all flex flex-col justify-between space-y-4">
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex items-center gap-4">
-                <div className="relative">
-                  <img 
-                    src={currentUser?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80'} 
-                    alt={currentUser?.name}
-                    loading="lazy"
-                    decoding="async"
-                    className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl object-cover border-2 border-[#08D9D6] shadow-xl" 
-                  />
-                  <div className="absolute -bottom-1 -right-1 bg-[#08D9D6] text-[#252A34] p-1 rounded-lg text-[10px] font-black">
-                    <ShieldCheck className="w-3.5 h-3.5" />
-                  </div>
-                </div>
+      {/* ============================ OVERVIEW ============================ */}
+      {activeSection === 'overview' && (
+        <div className="space-y-5 animate-fadeIn">
+          <SectionHeader
+            title={`Welcome back, ${currentUser?.name?.split(' ')[0] || 'there'}`}
+            description="Your rental request, matched homes, viewings and saved properties — each section has its own page."
+            actions={
+              <button
+                type="button"
+                onClick={() => setCurrentView('find-home')}
+                className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-[#08D9D6] text-[#252A34] text-xs font-extrabold hover:bg-[#08D9D6]/90 transition-colors"
+              >
+                <Plus className="w-4 h-4" />
+                New rental request
+              </button>
+            }
+          />
 
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <h2 className="text-xl font-black text-white">{currentUser?.name || 'Kofi Mensah'}</h2>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+            <SummaryCard
+              label="Rental request"
+              value={activeRequest ? activeRequest.status.replace('_', ' ') : 'None yet'}
+              hint={activeRequest ? 'Open the request tracker' : 'Tell us what you need'}
+              icon={Clock}
+              onClick={() => navigate('/tenant/rental-requests')}
+            />
+            <SummaryCard
+              label="Matched properties"
+              value={matchedProps.length}
+              hint={matchesLoading ? 'Scoring homes…' : topMatchScore > 0 ? `Top score ${topMatchScore}%` : 'No matches yet'}
+              icon={Sparkles}
+              onClick={() => navigate('/tenant/matches')}
+            />
+            <SummaryCard
+              label="Viewing requests"
+              value={myViewings.length}
+              hint={myViewings.length > 0 ? 'See where each one stands' : 'None requested yet'}
+              icon={Calendar}
+              onClick={() => navigate('/tenant/viewings')}
+            />
+            <SummaryCard
+              label="Saved properties"
+              value={savedProps.length}
+              hint="Homes you kept"
+              icon={Heart}
+              onClick={() => navigate('/tenant/saved-properties')}
+            />
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            {/* Account card */}
+            <section className="lg:col-span-2 bg-[#252A34]/70 border border-white/10 rounded-2xl p-5 space-y-4">
+              <div className="flex items-start gap-4">
+                <Avatar name={currentUser?.name} src={currentUser?.avatar} size="lg" />
+                <div className="min-w-0 space-y-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h2 className="text-lg font-black text-white truncate">{currentUser?.name || 'Your account'}</h2>
                     <span className="px-2 py-0.5 rounded-md text-[10px] font-bold uppercase bg-[#08D9D6]/20 text-[#08D9D6] border border-[#08D9D6]/30">
                       Tenant
                     </span>
                   </div>
-
-                  <p className="text-xs text-slate-300 flex items-center gap-1">
-                    <MapPin className="w-3.5 h-3.5 text-[#08D9D6]" /> {currentUser?.address || 'Cantonments, Accra'}
-                  </p>
-
+                  {currentUser?.address && (
+                    <p className="text-xs text-slate-300 flex items-center gap-1">
+                      <MapPin className="w-3.5 h-3.5 text-[#08D9D6]" /> {currentUser.address}
+                    </p>
+                  )}
                   <div className="text-xs text-slate-400 flex flex-wrap gap-3 pt-1">
-                    <span className="flex items-center gap-1"><Phone className="w-3 h-3 text-[#08D9D6]" /> {currentUser?.phone}</span>
-                    <span className="flex items-center gap-1"><Mail className="w-3 h-3 text-[#08D9D6]" /> {currentUser?.email}</span>
+                    <span className="flex items-center gap-1">
+                      <Phone className="w-3 h-3 text-[#08D9D6]" /> {currentUser?.phone || 'No phone saved'}
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <Mail className="w-3 h-3 text-[#08D9D6]" /> {currentUser?.email}
+                    </span>
                   </div>
                 </div>
               </div>
-            </div>
-
-            <div className="pt-3 border-t border-white/10 flex items-center justify-between text-xs text-slate-300">
-              <span className="text-slate-400">Intermediary Preference: <strong className="text-white">Accra Suburbs</strong></span>
-              <button
-                onClick={() => setActiveTab('profile')}
-                className="px-3.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs transition-colors flex items-center gap-1.5"
-              >
-                <Edit className="w-3.5 h-3.5 text-[#08D9D6]" />
-                <span>Edit Profile</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Bento Card 2: Primary Actions Glassmorphic Card (Col 3) */}
-          <div className="md:col-span-3 bg-[#252A34]/70 backdrop-blur-xl border border-white/10 rounded-3xl p-6 shadow-2xl flex flex-col justify-between space-y-4 hover:border-white/20 transition-all">
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-[11px] font-extrabold uppercase tracking-wider text-[#08D9D6]">Quick Actions</span>
-                <Sparkles className="w-4 h-4 text-[#08D9D6]" />
-              </div>
-              <h3 className="text-base font-bold text-white mb-1">Find Your Next Home</h3>
-              <p className="text-xs text-slate-400">Submit a matching request or explore available listings.</p>
-            </div>
-
-            <div className="space-y-2">
-              <button
-                onClick={() => setCurrentView('find-home')}
-                className="w-full py-2.5 px-3 rounded-xl bg-[#08D9D6] text-[#252A34] text-xs font-extrabold hover:bg-[#08D9D6]/90 transition-all shadow-lg shadow-[#08D9D6]/20 flex items-center justify-center gap-1.5"
-              >
-                <Plus className="w-4 h-4" />
-                <span>New Rental Request</span>
-              </button>
-
-              <button
-                onClick={() => setCurrentView('browse')}
-                className="w-full py-2 px-3 rounded-xl bg-slate-800/80 hover:bg-slate-800 text-white text-xs font-semibold border border-white/10 transition-colors flex items-center justify-center gap-1.5"
-              >
-                <Search className="w-3.5 h-3.5 text-[#08D9D6]" />
-                <span>Browse All Properties</span>
-              </button>
-
-              <button
-                onClick={() => setCurrentView('receipts')}
-                className="w-full py-2 px-3 rounded-xl bg-[#08D9D6]/10 hover:bg-[#08D9D6]/20 text-[#08D9D6] text-xs font-extrabold border border-[#08D9D6]/30 transition-colors flex items-center justify-center gap-1.5"
-              >
-                <FileCheck className="w-3.5 h-3.5 text-[#08D9D6]" />
-                <span>My Payment Records</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Bento Card 3: Notifications Glassmorphic Card (Col 3) */}
-          <div className="md:col-span-3 bg-[#252A34]/70 backdrop-blur-xl border border-white/10 rounded-3xl p-6 shadow-2xl flex flex-col justify-between space-y-3 hover:border-white/20 transition-all">
-            <div>
-              <div className="flex items-center justify-between mb-2">
+              <div className="pt-3 border-t border-white/10 flex flex-wrap items-center justify-between gap-2 text-xs">
+                <span className="text-slate-400">Profile and account settings are separate pages.</span>
                 <div className="flex items-center gap-2">
-                  <Bell className="w-4 h-4 text-[#08D9D6]" />
-                  <span className="text-xs font-bold text-white">Activity Feed</span>
+                  <button
+                    type="button"
+                    onClick={() => navigate('/tenant/profile')}
+                    className="px-3.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs transition-colors flex items-center gap-1.5"
+                  >
+                    <Edit className="w-3.5 h-3.5 text-[#08D9D6]" />
+                    Edit profile
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => navigate('/tenant/settings')}
+                    className="px-3.5 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-200 font-bold text-xs transition-colors"
+                  >
+                    Settings
+                  </button>
                 </div>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-[#08D9D6]/20 text-[#08D9D6]">
-                  {notifications.length} New
-                </span>
               </div>
+            </section>
 
-              <div className="space-y-2 max-h-[120px] overflow-y-auto pr-1">
-                {myNotifications.map((notif, idx) => (
-                  <div key={idx} className="bg-slate-900/60 p-2.5 rounded-xl border border-white/5 space-y-0.5">
-                    <div className="text-[11px] font-bold text-white truncate">{notif.title}</div>
-                    <div className="text-[10px] text-slate-400 line-clamp-1">{notif.message}</div>
+            {/* Recent notifications — nothing is marked read by viewing this. */}
+            <section className="bg-[#252A34]/70 border border-white/10 rounded-2xl p-5 flex flex-col justify-between gap-3">
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <Bell className="w-4 h-4 text-[#08D9D6]" />
+                    <h2 className="text-xs font-bold text-white">Notifications</h2>
                   </div>
-                ))}
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-[#08D9D6]/20 text-[#08D9D6]">
+                    {unreadNotifications} unread
+                  </span>
+                </div>
+                {notifications.length === 0 ? (
+                  <p className="text-[11px] text-slate-400 leading-relaxed">
+                    No notifications yet. Viewing updates and account changes will appear here.
+                  </p>
+                ) : (
+                  <ul className="space-y-2 max-h-[132px] overflow-y-auto pr-1">
+                    {notifications.slice(0, 3).map((notif) => (
+                      <li key={notif.id} className="bg-slate-900/60 p-2.5 rounded-xl border border-white/5 space-y-0.5">
+                        <div className="text-[11px] font-bold text-white truncate">{notif.title}</div>
+                        <div className="text-[10px] text-slate-400 line-clamp-1">{notif.message}</div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
-            </div>
-
-            <div className="pt-2 border-t border-white/10 text-[11px] text-slate-400 flex items-center justify-between">
-              <span>Auto-Resend Email Enabled</span>
-              <span className="text-emerald-400 font-bold">Active</span>
-            </div>
+              <button
+                type="button"
+                onClick={() => navigate('/tenant/notifications')}
+                className="text-[11px] font-bold text-[#08D9D6] hover:underline flex items-center gap-1 self-start"
+              >
+                View all notifications <ArrowRight className="w-3 h-3" />
+              </button>
+            </section>
           </div>
 
+          {/* Quick actions */}
+          <section className="bg-[#252A34]/70 border border-white/10 rounded-2xl p-5 space-y-3">
+            <h2 className="text-xs font-extrabold uppercase tracking-wider text-[#08D9D6]">Quick actions</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <button
+                type="button"
+                onClick={() => navigate('/tenant/search-alerts')}
+                className="px-3 py-2.5 rounded-xl bg-slate-900/70 border border-white/10 text-xs font-bold text-white hover:border-[#08D9D6]/40 transition-colors flex items-center justify-between gap-2"
+              >
+                <span className="flex items-center gap-1.5">
+                  <Bell className="w-3.5 h-3.5 text-[#08D9D6]" /> Search alerts
+                </span>
+                <span className="text-slate-500">{searchAlerts.length}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setCurrentView('browse')}
+                className="px-3 py-2.5 rounded-xl bg-slate-900/70 border border-white/10 text-xs font-bold text-white hover:border-[#08D9D6]/40 transition-colors flex items-center gap-1.5"
+              >
+                <Search className="w-3.5 h-3.5 text-[#08D9D6]" /> Browse properties
+              </button>
+              <button
+                type="button"
+                onClick={() => setCurrentView('receipts')}
+                className="px-3 py-2.5 rounded-xl bg-slate-900/70 border border-white/10 text-xs font-bold text-white hover:border-[#08D9D6]/40 transition-colors flex items-center gap-1.5"
+              >
+                <FileCheck className="w-3.5 h-3.5 text-[#08D9D6]" /> My payment records
+              </button>
+            </div>
+          </section>
         </div>
+      )}
 
-        {/* ================= BENTO GRID LEVEL 2: 4 STATS & HIGHLIGHT GLASS TILES ================= */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          
-          <button
-            onClick={() => setActiveTab('requests')}
-            className={`p-5 rounded-2xl border text-left transition-all ${
-              activeTab === 'requests'
-                ? 'bg-[#08D9D6]/15 border-[#08D9D6] shadow-lg shadow-[#08D9D6]/10'
-                : 'bg-[#252A34]/70 backdrop-blur-xl border-white/10 hover:border-white/20'
-            }`}
-          >
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-bold text-slate-400">Rental Request</span>
-              <Clock className="w-4 h-4 text-[#08D9D6]" />
-            </div>
-            <div className="text-lg font-black text-white capitalize truncate">
-              {activeRequest?.status?.replace('_', ' ') || 'Submitted'}
-            </div>
-            <div className="text-[11px] text-[#08D9D6] font-semibold mt-1 flex items-center gap-1">
-              <span>GH₵ {activeRequest?.budgetMin?.toLocaleString()} - {activeRequest?.budgetMax?.toLocaleString()}</span>
-              <ChevronRight className="w-3 h-3" />
-            </div>
-          </button>
+      {/* ======================== RENTAL REQUEST ========================= */}
+      {activeSection === 'requests' && (
+        <div className="space-y-5 animate-fadeIn">
+          <SectionHeader
+            title="Rental request"
+            description="Your active search criteria and where the request currently stands."
+          />
 
-          <button
-            onClick={() => setActiveTab('matches')}
-            className={`p-5 rounded-2xl border text-left transition-all ${
-              activeTab === 'matches'
-                ? 'bg-[#08D9D6]/15 border-[#08D9D6] shadow-lg shadow-[#08D9D6]/10'
-                : 'bg-[#252A34]/70 backdrop-blur-xl border-white/10 hover:border-white/20'
-            }`}
-          >
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-bold text-slate-400">AI Matches</span>
-              <Sparkles className="w-4 h-4 text-emerald-400" />
-            </div>
-            <div className="text-2xl font-black text-emerald-400">{matchedProps.length}</div>
-            <div className="text-[11px] text-slate-300 font-semibold mt-1 flex items-center gap-1">
-              <span>
-                {matchesLoading ? 'Scoring homes…' : topMatchScore > 0 ? `${topMatchScore}% Top Match Score` : 'No matches yet'}
-              </span>
-              <ChevronRight className="w-3 h-3" />
-            </div>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('viewings')}
-            className={`p-5 rounded-2xl border text-left transition-all ${
-              activeTab === 'viewings'
-                ? 'bg-[#08D9D6]/15 border-[#08D9D6] shadow-lg shadow-[#08D9D6]/10'
-                : 'bg-[#252A34]/70 backdrop-blur-xl border-white/10 hover:border-white/20'
-            }`}
-          >
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-bold text-slate-400">Viewing requests</span>
-              <Calendar className="w-4 h-4 text-[#08D9D6]" />
-            </div>
-            <div className="text-2xl font-black text-white">{myViewings.length}</div>
-            <div className="text-[11px] text-[#08D9D6] font-semibold mt-1 flex items-center gap-1">
-              <span>Verified Agent Tours</span>
-              <ChevronRight className="w-3 h-3" />
-            </div>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('saved')}
-            className={`p-5 rounded-2xl border text-left transition-all ${
-              activeTab === 'saved'
-                ? 'bg-[#08D9D6]/15 border-[#08D9D6] shadow-lg shadow-[#08D9D6]/10'
-                : 'bg-[#252A34]/70 backdrop-blur-xl border-white/10 hover:border-white/20'
-            }`}
-          >
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-bold text-slate-400">Saved Homes</span>
-              <Heart className="w-4 h-4 text-[#FF2E63]" />
-            </div>
-            <div className="text-2xl font-black text-[#FF2E63]">{savedProps.length}</div>
-            <div className="text-[11px] text-slate-300 font-semibold mt-1 flex items-center gap-1">
-              <span>Favorite Properties</span>
-              <ChevronRight className="w-3 h-3" />
-            </div>
-          </button>
-
-        </div>
-
-        {/* ================= BENTO GRID LEVEL 3: MAIN DYNAMIC WORKSPACE CARD ================= */}
-        <div className="bg-[#252A34]/70 backdrop-blur-xl border border-white/10 rounded-3xl p-6 sm:p-8 space-y-6 shadow-2xl">
-          
-          {/* Navigation Pills */}
-          <div className="flex items-center gap-2 overflow-x-auto pb-2 border-b border-white/10">
-            <button
-              onClick={() => setActiveTab('requests')}
-              className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-2 ${
-                activeTab === 'requests' ? 'bg-[#08D9D6] text-[#252A34] shadow-md' : 'bg-white/5 text-slate-300 hover:bg-white/10'
-              }`}
-            >
-              <Clock className="w-4 h-4" /> Request Tracker
-            </button>
-
-            <button
-              onClick={() => setActiveTab('matches')}
-              className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-2 ${
-                activeTab === 'matches' ? 'bg-[#08D9D6] text-[#252A34] shadow-md' : 'bg-white/5 text-slate-300 hover:bg-white/10'
-              }`}
-            >
-              <Sparkles className="w-4 h-4" /> Matched Properties ({matchedProps.length})
-            </button>
-
-            <button
-              onClick={() => setActiveTab('viewings')}
-              className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-2 ${
-                activeTab === 'viewings' ? 'bg-[#08D9D6] text-[#252A34] shadow-md' : 'bg-white/5 text-slate-300 hover:bg-white/10'
-              }`}
-            >
-              <Calendar className="w-4 h-4" /> Viewing Schedule ({myViewings.length})
-            </button>
-
-            <button
-              onClick={() => setActiveTab('saved')}
-              className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-2 ${
-                activeTab === 'saved' ? 'bg-[#08D9D6] text-[#252A34] shadow-md' : 'bg-white/5 text-slate-300 hover:bg-white/10'
-              }`}
-            >
-              <Heart className="w-4 h-4" /> Saved Homes ({savedProps.length})
-            </button>
-
-            <button
-              onClick={() => setActiveTab('alerts')}
-              className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-2 ${
-                activeTab === 'alerts' ? 'bg-[#08D9D6] text-[#252A34] shadow-md' : 'bg-white/5 text-slate-300 hover:bg-white/10'
-              }`}
-            >
-              <Bell className="w-4 h-4" /> Search Alerts ({searchAlerts.length})
-            </button>
-
-            <button
-              onClick={() => setActiveTab('profile')}
-              className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-2 ${
-                activeTab === 'profile' ? 'bg-[#08D9D6] text-[#252A34] shadow-md' : 'bg-white/5 text-slate-300 hover:bg-white/10'
-              }`}
-            >
-              <User className="w-4 h-4" /> Profile Management
-            </button>
-          </div>
-
-          {/* Tab 1: Request Progress Timeline */}
-          {activeTab === 'requests' && (
-            <div className="space-y-6">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div>
-                  <div className="text-xs font-bold text-[#08D9D6] uppercase tracking-wider">Active Search Criteria</div>
-                  <h2 className="text-xl font-bold text-white mt-0.5">
-                    Target Areas: {activeRequest?.preferredLocations?.join(', ') || 'Cantonments, East Legon'}
+          {!activeRequest ? (
+            <EmptyState
+              icon={Clock}
+              title="No rental request yet"
+              description="Tell us your budget, preferred areas and bedrooms, and we will match live listings against your request."
+              action={
+                <button
+                  type="button"
+                  onClick={() => setCurrentView('find-home')}
+                  className="px-5 py-2.5 rounded-xl bg-[#08D9D6] text-[#252A34] font-extrabold text-xs"
+                >
+                  Start a rental request
+                </button>
+              }
+            />
+          ) : (
+            <>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="text-[11px] font-bold text-[#08D9D6] uppercase tracking-wider">Search criteria</div>
+                  <h2 className="text-lg font-bold text-white mt-0.5 break-words">
+                    Target areas: {activeRequest.preferredLocations?.join(', ') || 'Not stated'}
                   </h2>
                 </div>
-                <div className="text-xs bg-slate-900/90 px-3.5 py-2 rounded-xl border border-white/10 text-slate-300 self-start sm:self-auto">
-                  Budget: <strong className="text-[#08D9D6]">GH₵ {activeRequest?.budgetMin?.toLocaleString()} - GH₵ {activeRequest?.budgetMax?.toLocaleString()} / mo</strong>
+                <div className="text-xs bg-slate-900/90 px-3.5 py-2 rounded-xl border border-white/10 text-slate-300 shrink-0">
+                  Budget:{' '}
+                  <strong className="text-[#08D9D6]">
+                    GH₵ {activeRequest.budgetMin?.toLocaleString()} – GH₵ {activeRequest.budgetMax?.toLocaleString()} / mo
+                  </strong>
                 </div>
               </div>
 
-              {/* Status Timeline Bar */}
-              <div className="pt-2">
-                <div className="text-xs font-semibold text-slate-400 mb-4">Goodlucks Verification & Match Pipeline</div>
-                
-                <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
-                  {TIMELINE_STEPS.map((step, idx) => {
-                    const status = getStepStatus(step.key);
-                    return (
-                      <div 
-                        key={step.key} 
-                        className={`p-4 rounded-2xl border transition-all ${
-                          status === 'completed'
-                            ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
-                            : status === 'current'
-                            ? 'bg-[#08D9D6]/20 border-[#08D9D6] text-[#08D9D6] shadow-lg shadow-[#08D9D6]/10'
+              <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
+                {TIMELINE_STEPS.map((step, idx) => {
+                  const status = getStepStatus(step.key);
+                  return (
+                    <div
+                      key={step.key}
+                      className={`p-4 rounded-2xl border ${
+                        status === 'completed'
+                          ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                          : status === 'current'
+                            ? 'bg-[#08D9D6]/20 border-[#08D9D6] text-[#08D9D6]'
                             : 'bg-slate-900/50 border-white/5 text-slate-500'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-[10px] font-bold uppercase tracking-wider">Step 0{idx + 1}</span>
-                          {status === 'completed' && <CheckCircle2 className="w-4 h-4 text-emerald-400" />}
-                          {status === 'current' && <Clock className="w-4 h-4 text-[#08D9D6] animate-pulse" />}
-                        </div>
-                        <div className="font-bold text-xs text-white">{step.label}</div>
-                        <div className="text-[10px] text-slate-400 mt-1">{step.desc}</div>
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-[10px] font-bold uppercase tracking-wider">Step 0{idx + 1}</span>
+                        {status === 'completed' && <CheckCircle2 className="w-4 h-4 text-emerald-400" />}
+                        {status === 'current' && <Clock className="w-4 h-4 text-[#08D9D6] animate-pulse" />}
                       </div>
-                    );
-                  })}
-                </div>
+                      <div className="font-bold text-xs text-white">{step.label}</div>
+                      <div className="text-[10px] text-slate-400 mt-1">{step.desc}</div>
+                    </div>
+                  );
+                })}
               </div>
 
-              {/* Intermediary Note */}
               <div className="bg-[#08D9D6]/10 border border-[#08D9D6]/30 p-4 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs text-slate-200">
                 <div className="flex items-center gap-2.5">
                   <ShieldCheck className="w-5 h-5 text-[#08D9D6] shrink-0" />
-                  <span>Assigned Field Intermediary: <strong className="text-white">{activeRequest?.assignedAgent || 'No named agent assigned yet'}</strong></span>
+                  <span>
+                    Assigned agent: <strong className="text-white">{activeRequest.assignedAgent || 'No named agent assigned yet'}</strong>
+                  </span>
                 </div>
-                <button 
-                  onClick={() => setActiveTab('matches')}
+                <button
+                  type="button"
+                  onClick={() => navigate('/tenant/matches')}
                   className="text-[#08D9D6] font-bold underline hover:text-white shrink-0"
                 >
-                  Explore Matched Homes →
+                  Explore matched homes →
                 </button>
               </div>
-            </div>
+            </>
           )}
+        </div>
+      )}
 
-          {/* Tab 2: Matched Properties */}
-          {activeTab === 'matches' && (
-            <div className="space-y-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-xl font-bold text-white">AI Matched Properties for You</h2>
-                  <p className="text-xs text-slate-400">Verified homes matching your target location and budget</p>
-                </div>
-                <span className="px-3 py-1 rounded-full bg-[#08D9D6]/20 text-[#08D9D6] text-xs font-bold border border-[#08D9D6]/30">
-                  {matchedProps.length} Verified Matches
-                </span>
-              </div>
+      {/* ============================ MATCHES ============================ */}
+      {activeSection === 'matches' && (
+        <div className="space-y-5 animate-fadeIn">
+          <SectionHeader
+            title="Matched properties"
+            description="Live listings scored against your request's budget, bedrooms and preferred areas."
+            actions={
+              <span className="px-3 py-1 rounded-full bg-[#08D9D6]/20 text-[#08D9D6] text-xs font-bold border border-[#08D9D6]/30">
+                {matchedProps.length} {matchedProps.length === 1 ? 'match' : 'matches'}
+              </span>
+            }
+          />
 
-              {matches.length > 0 ? (
-                <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6">
-                  {matches.map(({ property, score, reason, curated }) => (
-                    <div key={property.id} className="relative">
-                      <div
-                        title={reason}
-                        className={`absolute top-3 left-3 z-20 font-black text-[10px] px-2 py-0.5 rounded-md shadow-md flex items-center gap-1 ${
-                          curated ? 'bg-[#08D9D6] text-[#252A34]' : 'bg-emerald-500 text-slate-950'
-                        }`}
-                      >
-                        <Sparkles className="w-3 h-3" />
-                        {curated ? 'Chosen for you' : `${score}% match`}
-                      </div>
-                      <PropertyCard property={property} />
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="bg-slate-900/70 border border-white/10 rounded-2xl p-8 text-center space-y-3">
-                  <Sparkles className="w-8 h-8 text-[#08D9D6] mx-auto" />
-                  <h3 className="text-base font-bold text-white">
-                    {matchesLoading ? 'Scoring verified homes…' : 'No matches to show yet'}
-                  </h3>
-                  <p className="text-xs text-slate-400 max-w-md mx-auto">
-                    {activeRequest
-                      ? 'We score every live listing against your budget, bedrooms and preferred areas. Check back soon — new homes are added weekly.'
-                      : 'Tell us your budget, preferred areas and bedrooms and we will score every verified listing against your request.'}
-                  </p>
-                  {!activeRequest && (
-                    <button
-                      onClick={() => setCurrentView('find-home')}
-                      className="px-5 py-2.5 rounded-xl bg-[#08D9D6] text-[#252A34] font-extrabold text-xs shadow-lg shadow-[#08D9D6]/20"
-                    >
-                      Start a Rental Request
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Tab 3: Viewing requests and appointments (Increment F) */}
-          {activeTab === 'viewings' && (
-            <div className="space-y-4">
-              <div>
-                <h2 className="text-xl font-bold text-white">My viewing requests</h2>
-                <p className="text-xs text-slate-400 mt-1 max-w-2xl">
-                  A request is not a booking. It becomes a confirmed appointment when you and the agent agree a time;
-                  until then the status below tells you exactly where it stands.
-                </p>
-              </div>
-
-              {myViewings.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {myViewings.map((v) => (
-                    <TenantViewingCard key={v.id} viewing={v} onOpenProperty={navigateToProperty} />
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-12 bg-slate-900/50 rounded-3xl border border-white/10">
-                  <Calendar className="w-12 h-12 text-slate-500 mx-auto mb-3" />
-                  <div className="text-base font-bold text-white">No viewing requests yet</div>
-                  <p className="text-xs text-slate-400 max-w-xs mx-auto mt-1">
-                    Browse properties and choose &quot;Request viewing&quot; to ask an agent for a physical viewing.
-                  </p>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Tab 4: Saved Properties */}
-          {activeTab === 'saved' && (
-            <div className="space-y-4">
-              <h2 className="text-xl font-bold text-white">Saved Favorite Properties</h2>
-              {savedProps.length > 0 ? (
-                <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6">
-                  {savedProps.map(property => (
-                    <PropertyCard key={property.id} property={property} />
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-12 bg-slate-900/50 rounded-3xl border border-white/10">
-                  <Heart className="w-12 h-12 text-slate-500 mx-auto mb-3" />
-                  <div className="text-base font-bold text-white">No Saved Properties</div>
-                  <p className="text-xs text-slate-400 mt-1">Click the heart icon on any property card to save it here.</p>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Tab 5: Search Alert Subscriptions */}
-          {activeTab === 'alerts' && (
-            <div className="space-y-6">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div>
-                  <h2 className="text-xl font-black text-white flex items-center gap-2">
-                    <Bell className="w-5 h-5 text-[#08D9D6]" />
-                    Subscribed Search Alerts
-                  </h2>
-                  <p className="text-xs text-slate-300 mt-0.5">
-                    Manage active email and WhatsApp listing subscriptions for Ghana real estate.
-                  </p>
-                </div>
-
-                <button
-                  onClick={() => setCurrentView('browse')}
-                  className="px-4 py-2 rounded-xl bg-[#08D9D6] text-[#252A34] text-xs font-black hover:bg-[#08D9D6]/90 transition-all flex items-center gap-1.5 self-start sm:self-auto cursor-pointer"
-                >
-                  <Plus className="w-4 h-4" /> Add New Search Alert
-                </button>
-              </div>
-
-              {searchAlerts.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {searchAlerts.map((alert) => (
-                    <div 
-                      key={alert.id}
-                      className="bg-slate-900/80 border border-white/10 rounded-2xl p-5 space-y-4 hover:border-white/20 transition-all relative overflow-hidden"
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex items-center gap-3">
-                          <div className="p-2.5 rounded-xl bg-[#08D9D6]/15 text-[#08D9D6] border border-[#08D9D6]/30">
-                            <Bell className="w-5 h-5" />
-                          </div>
-                          <div>
-                            <div className="text-sm font-black text-white">
-                              {alert.location === 'All' ? 'Greater Accra' : alert.location} ({alert.propertyType})
-                            </div>
-                            <div className="text-xs text-slate-400 mt-0.5">
-                              Alert sent to: <strong className="text-slate-200">{alert.email}</strong>
-                            </div>
-                          </div>
-                        </div>
-
-                        <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                          Active
-                        </span>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-2 text-xs bg-[#252A34] p-3 rounded-xl border border-white/5">
-                        <div>
-                          <span className="block text-[10px] text-slate-400 font-bold uppercase">Max Rent Budget</span>
-                          <span className="font-extrabold text-[#08D9D6]">GH₵ {alert.maxRentGhs.toLocaleString()}/mo</span>
-                        </div>
-                        <div>
-                          <span className="block text-[10px] text-slate-400 font-bold uppercase">Bedrooms</span>
-                          <span className="font-bold text-white">{alert.bedrooms === 'All' ? 'Any Bedrooms' : `${alert.bedrooms} Bed`}</span>
-                        </div>
-                        <div>
-                          <span className="block text-[10px] text-slate-400 font-bold uppercase">Frequency</span>
-                          <span className="font-bold text-slate-200 capitalize">{alert.frequency}</span>
-                        </div>
-                        <div>
-                          <span className="block text-[10px] text-slate-400 font-bold uppercase">Subscribed On</span>
-                          <span className="font-bold text-slate-300">{new Date(alert.createdAt).toLocaleDateString()}</span>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center justify-between pt-1">
-                        <span className="text-[11px] text-slate-400 flex items-center gap-1">
-                          <Mail className="w-3.5 h-3.5 text-[#08D9D6]" /> Email alerts active
-                        </span>
-                        <button
-                          onClick={() => void handleUnsubscribe(alert.id)}
-                          className="text-xs font-bold text-[#FF2E63] hover:underline"
-                        >
-                          Remove Alert
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-12 bg-slate-900/50 rounded-3xl border border-white/10 space-y-3">
-                  <Bell className="w-12 h-12 text-slate-500 mx-auto" />
-                  <div className="text-base font-bold text-white">No Active Search Alerts</div>
-                  <p className="text-xs text-slate-400 max-w-sm mx-auto">
-                    Subscribe to listing alerts on the Browse Properties page to get notified whenever new matching homes are verified.
-                  </p>
-                  <button
-                    onClick={() => setCurrentView('browse')}
-                    className="px-5 py-2.5 rounded-xl bg-[#08D9D6] text-[#252A34] text-xs font-black shadow-lg hover:bg-[#08D9D6]/90 transition-all cursor-pointer"
+          {matches.length > 0 ? (
+            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6">
+              {matches.map(({ property, score, reason, curated }) => (
+                <div key={property.id} className="relative">
+                  <div
+                    title={reason}
+                    className={`absolute top-3 left-3 z-20 font-black text-[10px] px-2 py-0.5 rounded-md shadow-md flex items-center gap-1 ${
+                      curated ? 'bg-[#08D9D6] text-[#252A34]' : 'bg-emerald-500 text-slate-950'
+                    }`}
                   >
-                    Set Up Search Alert
-                  </button>
+                    <Sparkles className="w-3 h-3" />
+                    {curated ? 'Chosen for you' : `${score}% match`}
+                  </div>
+                  <PropertyCard property={property} />
                 </div>
-              )}
+              ))}
             </div>
+          ) : (
+            <EmptyState
+              icon={Sparkles}
+              title={matchesLoading ? 'Scoring listings…' : 'No matches to show yet'}
+              description={
+                activeRequest
+                  ? 'We score every live listing against your budget, bedrooms and preferred areas. Check back soon.'
+                  : 'Tell us your budget, preferred areas and bedrooms and we will score every live listing against your request.'
+              }
+              action={
+                !activeRequest ? (
+                  <button
+                    type="button"
+                    onClick={() => setCurrentView('find-home')}
+                    className="px-5 py-2.5 rounded-xl bg-[#08D9D6] text-[#252A34] font-extrabold text-xs"
+                  >
+                    Start a rental request
+                  </button>
+                ) : undefined
+              }
+            />
           )}
+        </div>
+      )}
 
-          {/* Tab 6: Profile Management */}
-          {activeTab === 'profile' && (
-            <div className="max-w-2xl bg-slate-900/80 border border-white/10 rounded-3xl p-6 sm:p-8 space-y-6">
-              <div className="flex items-center justify-between">
-                <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                  <User className="w-5 h-5 text-[#08D9D6]" />
-                  Tenant Profile Management
+      {/* ============================ VIEWINGS =========================== */}
+      {activeSection === 'viewings' && (
+        <div className="space-y-4 animate-fadeIn">
+          <SectionHeader
+            title="Viewings"
+            description="A request is not a booking. It becomes a confirmed appointment when you and the agent agree a time."
+          />
+
+          {myViewings.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {myViewings.map((v) => (
+                <TenantViewingCard key={v.id} viewing={v} onOpenProperty={navigateToProperty} />
+              ))}
+            </div>
+          ) : (
+            <EmptyState
+              icon={Calendar}
+              title="No viewing requests yet"
+              description='Browse properties and choose "Request viewing" to ask an agent for a physical viewing.'
+              action={
+                <button
+                  type="button"
+                  onClick={() => setCurrentView('browse')}
+                  className="px-5 py-2.5 rounded-xl bg-[#08D9D6] text-[#252A34] font-extrabold text-xs"
+                >
+                  Browse properties
+                </button>
+              }
+            />
+          )}
+        </div>
+      )}
+
+      {/* ============================= SAVED ============================= */}
+      {activeSection === 'saved' && (
+        <div className="space-y-4 animate-fadeIn">
+          <SectionHeader title="Saved properties" description="Homes you kept for later." />
+          {savedProps.length > 0 ? (
+            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6">
+              {savedProps.map((property) => (
+                <PropertyCard key={property.id} property={property} />
+              ))}
+            </div>
+          ) : (
+            <EmptyState
+              icon={Heart}
+              title="No saved properties"
+              description="Use the heart on any property card to keep it here."
+            />
+          )}
+        </div>
+      )}
+
+      {/* ========================= SEARCH ALERTS ========================= */}
+      {activeSection === 'alerts' && (
+        <div className="space-y-5 animate-fadeIn">
+          <SectionHeader
+            title="Search alerts"
+            description="Active email subscriptions you have set up for new listings."
+            actions={
+              <button
+                type="button"
+                onClick={() => setCurrentView('browse')}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#08D9D6] text-[#252A34] text-xs font-black hover:bg-[#08D9D6]/90 transition-colors"
+              >
+                <Plus className="w-4 h-4" /> Add search alert
+              </button>
+            }
+          />
+
+          {searchAlerts.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {searchAlerts.map((alert) => (
+                <div key={alert.id} className="bg-slate-900/80 border border-white/10 rounded-2xl p-5 space-y-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="p-2.5 rounded-xl bg-[#08D9D6]/15 text-[#08D9D6] border border-[#08D9D6]/30 shrink-0">
+                        <Bell className="w-5 h-5" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-sm font-black text-white truncate">
+                          {alert.location === 'All' ? 'Greater Accra' : alert.location} ({alert.propertyType})
+                        </div>
+                        <div className="text-xs text-slate-400 mt-0.5 truncate">
+                          Alert sent to: <strong className="text-slate-200">{alert.email}</strong>
+                        </div>
+                      </div>
+                    </div>
+                    <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shrink-0">
+                      Active
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 text-xs bg-[#252A34] p-3 rounded-xl border border-white/5">
+                    <div>
+                      <span className="block text-[10px] text-slate-400 font-bold uppercase">Max rent budget</span>
+                      <span className="font-extrabold text-[#08D9D6]">GH₵ {alert.maxRentGhs.toLocaleString()}/mo</span>
+                    </div>
+                    <div>
+                      <span className="block text-[10px] text-slate-400 font-bold uppercase">Bedrooms</span>
+                      <span className="font-bold text-white">
+                        {alert.bedrooms === 'All' ? 'Any bedrooms' : `${alert.bedrooms} bed`}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="block text-[10px] text-slate-400 font-bold uppercase">Frequency</span>
+                      <span className="font-bold text-slate-200 capitalize">{alert.frequency}</span>
+                    </div>
+                    <div>
+                      <span className="block text-[10px] text-slate-400 font-bold uppercase">Subscribed on</span>
+                      <span className="font-bold text-slate-300">{new Date(alert.createdAt).toLocaleDateString()}</span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-1">
+                    <span className="text-[11px] text-slate-400 flex items-center gap-1">
+                      <Mail className="w-3.5 h-3.5 text-[#08D9D6]" /> Email alerts active
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => void handleUnsubscribe(alert.id)}
+                      className="text-xs font-bold text-[#FF2E63] hover:underline"
+                    >
+                      Remove alert
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <EmptyState
+              icon={Bell}
+              title="No search alerts"
+              description="Create an alert from the Browse properties page to be emailed when new matching listings appear."
+              action={
+                <button
+                  type="button"
+                  onClick={() => setCurrentView('browse')}
+                  className="px-5 py-2.5 rounded-xl bg-[#08D9D6] text-[#252A34] text-xs font-black"
+                >
+                  Browse properties
+                </button>
+              }
+            />
+          )}
+        </div>
+      )}
+
+      {/* =========================== NOTIFICATIONS ======================= */}
+      {activeSection === 'notifications' && <NotificationsView role="tenant" />}
+
+      {/* ============================= PROFILE =========================== */}
+      {activeSection === 'profile' && (
+        <div className="space-y-5 animate-fadeIn">
+          <SectionHeader
+            title="Profile"
+            description="The name and contact details attached to your account. Your picture and password are on Account settings."
+            actions={
+              <button
+                type="button"
+                onClick={() => navigate('/tenant/settings')}
+                className="px-3.5 py-2 rounded-xl bg-white/5 border border-white/10 text-xs font-bold text-slate-200 hover:text-white hover:bg-white/10 transition-colors"
+              >
+                Account settings
+              </button>
+            }
+          />
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div className="lg:col-span-2 bg-slate-900/60 border border-white/10 rounded-2xl p-5 sm:p-6 space-y-4">
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="text-sm font-bold text-white flex items-center gap-2">
+                  <User className="w-4 h-4 text-[#08D9D6]" /> Your details
                 </h2>
                 {saveSuccess && (
-                  <span className="text-xs font-bold text-emerald-400 bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/20 flex items-center gap-1">
-                    <Check className="w-3.5 h-3.5" /> Saved & Resend Email Sent
+                  <span className="text-[11px] font-bold text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20 flex items-center gap-1">
+                    <Check className="w-3 h-3" /> Saved
                   </span>
                 )}
               </div>
 
               <form onSubmit={handleSaveProfile} className="space-y-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">Full Name</label>
+                  <label htmlFor="tenant-profile-name" className="block text-xs font-semibold text-slate-300 mb-1.5">
+                    Full name
+                  </label>
                   <input
+                    id="tenant-profile-name"
                     type="text"
                     required
                     value={profileName}
@@ -942,8 +885,11 @@ export const TenantDashboard: React.FC = () => {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1.5">Phone Number</label>
+                    <label htmlFor="tenant-profile-phone" className="block text-xs font-semibold text-slate-300 mb-1.5">
+                      Phone number
+                    </label>
                     <input
+                      id="tenant-profile-phone"
                       type="tel"
                       required
                       value={profilePhone}
@@ -953,20 +899,29 @@ export const TenantDashboard: React.FC = () => {
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1.5">Email Address</label>
+                    <label htmlFor="tenant-profile-email" className="block text-xs font-semibold text-slate-300 mb-1.5">
+                      Email address
+                    </label>
                     <input
+                      id="tenant-profile-email"
                       type="email"
-                      required
-                      value={profileEmail}
-                      onChange={(e) => setProfileEmail(e.target.value)}
-                      className="w-full bg-slate-950 border border-white/10 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-[#08D9D6]"
+                      value={currentUser?.email || ''}
+                      readOnly
+                      aria-describedby="tenant-profile-email-hint"
+                      className="w-full bg-slate-950/60 border border-white/10 rounded-xl p-3 text-sm text-slate-400 cursor-not-allowed"
                     />
+                    <p id="tenant-profile-email-hint" className="text-[10px] text-slate-500 mt-1">
+                      Contact Goodlucks Homes support to change the email on your account.
+                    </p>
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">Current Address in Ghana</label>
+                  <label htmlFor="tenant-profile-address" className="block text-xs font-semibold text-slate-300 mb-1.5">
+                    Current address in Ghana
+                  </label>
                   <input
+                    id="tenant-profile-address"
                     type="text"
                     value={profileAddress}
                     onChange={(e) => setProfileAddress(e.target.value)}
@@ -976,18 +931,57 @@ export const TenantDashboard: React.FC = () => {
 
                 <button
                   type="submit"
-                  className="w-full py-3 rounded-xl bg-[#08D9D6] text-[#252A34] font-extrabold text-sm hover:bg-[#08D9D6]/90 transition-all shadow-lg shadow-[#08D9D6]/20"
+                  disabled={isSavingProfile}
+                  className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-[#08D9D6] text-[#252A34] font-extrabold text-sm hover:bg-[#08D9D6]/90 disabled:opacity-60 transition-colors"
                 >
-                  Save Profile Details
+                  {isSavingProfile ? 'Saving…' : 'Save profile details'}
                 </button>
               </form>
             </div>
-          )}
 
+            <div className="bg-slate-900/60 border border-white/10 rounded-2xl p-5 space-y-3">
+              <Avatar name={currentUser?.name} src={currentUser?.avatar} size="lg" />
+              <div>
+                <p className="text-sm font-bold text-white truncate">{currentUser?.name}</p>
+                <p className="text-[11px] text-slate-400 break-words">{currentUser?.email}</p>
+              </div>
+              <p className="text-[11px] text-slate-400 leading-relaxed">
+                Your profile picture is used next to your name across your account. Change it, or your password, in
+                Account settings.
+              </p>
+              <button
+                type="button"
+                onClick={() => navigate('/tenant/settings')}
+                className="w-full px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-xs font-bold text-slate-200 hover:text-white hover:bg-white/10 transition-colors"
+              >
+                Open account settings
+              </button>
+            </div>
+          </div>
         </div>
+      )}
 
-      </div>
-    </div>
+      {/* ============================ SETTINGS =========================== */}
+      {activeSection === 'settings' && <AccountSettingsView role="tenant" />}
+
+      {/* Unknown section inside the tenant area falls back to the overview. */}
+      {!['overview', 'requests', 'matches', 'viewings', 'saved', 'alerts', 'notifications', 'profile', 'settings'].includes(
+        activeSection
+      ) && (
+        <EmptyState
+          icon={ChevronRight}
+          title="This section does not exist"
+          action={
+            <button
+              type="button"
+              onClick={() => navigate('/tenant/dashboard')}
+              className="text-xs font-bold text-[#08D9D6] hover:underline"
+            >
+              Back to overview
+            </button>
+          }
+        />
+      )}
+    </DashboardShell>
   );
 };
-

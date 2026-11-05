@@ -67,7 +67,14 @@ function numberToWordsGhs(amount: number): string {
  * and commission model lands; `receiptIssuingEnabled` mirrors that flag so the
  * form cannot be submitted while it is off.
  */
-export const ReceiptsView: React.FC = () => {
+/**
+ * Payment records and receipts.
+ *
+ * `embedded` drops the full-page chrome so the same component can render inside
+ * the landlord account shell. It is still the one and only receipt view: no
+ * second receipt screen exists.
+ */
+export const ReceiptsView: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
   const {
     currentUser,
     properties,
@@ -177,7 +184,13 @@ export const ReceiptsView: React.FC = () => {
   );
 
   return (
-    <div className="min-h-screen bg-[#252A34] text-white py-10 px-4 sm:px-6 lg:px-8">
+    <div
+      className={
+        embedded
+          ? 'text-white'
+          : 'min-h-screen bg-[#252A34] text-white py-10 px-4 sm:px-6 lg:px-8'
+      }
+    >
       <SEOHead
         title="Rent Payment Records - Goodlucks Homes Accra"
         description="Records of rent paid directly between tenants and landlords. Goodlucks Homes is a property intermediary and does not receive rent payments."

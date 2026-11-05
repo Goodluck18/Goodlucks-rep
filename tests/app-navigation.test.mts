@@ -120,6 +120,8 @@ elementPrototype.animate = inertAnimation;
 const calls: string[] = [];
 /** Who `/api/auth/me` says is signed in for the current test. */
 let signedIn: Record<string, unknown> | null = null;
+/** Notifications the stubbed `/api/notifications` returns for the current test. */
+let stubNotifications: Array<Record<string, unknown>> = [];
 
 /**
  * The admin console reads named counters, so the stub spells them out with
@@ -271,6 +273,15 @@ globalThis.fetch = (async (input: RequestInfo | URL) => {
   if (url.includes('/auth/me')) {
     return json({ success: true, user: signedIn, savedPropertyIds: [] });
   }
+  // Notifications are per-test so the "nothing is marked read on open" rule can
+  // be asserted against real content rather than an empty list.
+  if (url.includes('/notifications/read-all')) {
+    stubNotifications = stubNotifications.map((n) => ({ ...n, read: true }));
+    return json({ notifications: stubNotifications });
+  }
+  if (url.includes('/notifications')) {
+    return json({ notifications: stubNotifications });
+  }
   for (const [fragment, body] of Object.entries(EMPTY)) {
     if (url.includes(fragment)) return json(body);
   }
@@ -303,8 +314,14 @@ const { createRoot } = await import('react-dom/client');
 const { default: App } = await import('../src/App.tsx');
 
 /** Mount the app at `path`, exactly like a reload at that URL. */
-async function renderAt(path: string, role: 'tenant' | 'landlord' | 'agent' | 'admin' | null = null) {
+async function renderAt(
+  path: string,
+  role: 'tenant' | 'landlord' | 'agent' | 'admin' | null = null,
+  options: { notifications?: Array<Record<string, unknown>> } = {}
+) {
   signedIn = role ? userFor(role) : null;
+  stubNotifications = options.notifications ?? [];
+  calls.length = 0;
   window.history.replaceState({}, '', path);
   document.body.innerHTML = '<div id="root"></div>';
   const container = document.getElementById('root') as HTMLElement;
@@ -475,7 +492,9 @@ test('a landlord opens the landlord workspace, and only that', async () => {
 test('an agent opens the agent workspace sections by URL', async () => {
   const app = await renderAt('/agent/finance', 'agent');
   assert.equal(app.path(), '/agent/finance');
-  assert.match(app.text(), /agent workspace/i);
+  // The agent area is a set of sections now: /agent/finance shows finance only.
+  assert.match(app.text(), /finance|money position/i);
+  assert.doesNotMatch(app.text(), /listings you submitted/i);
   await app.unmount();
 
   const denied = await renderAt('/admin', 'agent');
@@ -512,10 +531,10 @@ test('a bare role root normalises to the canonical workspace URL', async () => {
 /* L. Tab navigation is real navigation                                       */
 /* -------------------------------------------------------------------------- */
 
-test('clicking a dashboard tab changes the URL, and the URL is what selects the tab', async () => {
+test('clicking a dashboard section changes the URL, and the URL is what selects the section', async () => {
   const app = await renderAt('/tenant/dashboard', 'tenant');
-  await app.clickContaining('Viewing Schedule');
-  assert.equal(app.path(), '/tenant/viewings', 'the tab click wrote the URL');
+  await app.click('Viewings');
+  assert.equal(app.path(), '/tenant/viewings', 'the sidebar click wrote the URL');
   assert.match(app.text(), /viewing/i);
   await app.unmount();
 
@@ -580,5 +599,154 @@ test('"Reset all filters" clears every parameter in one go', async () => {
   const app = await renderAt('/properties?type=Apartment&bedrooms=2&maxRent=6000&q=villa');
   await app.clickContaining('Reset');
   assert.equal(app.path(), '/properties');
+  await app.unmount();
+});
+
+/* -------------------------------------------------------------------------- */
+/* N. Account sections (Task 02): one shell, one page per section             */
+/* -------------------------------------------------------------------------- */
+
+const UNREAD_NOTIFICATION = {
+  id: 'notif-1',
+  userId: 'user-tenant',
+  title: 'Viewing requested for Cantonments apartment',
+  message: 'An agent will contact you to agree a time.',
+  type: 'viewing',
+  read: false,
+  createdAt: '2026-03-01T10:00:00+00:00',
+};
+
+const READ_NOTIFICATION = {
+  id: 'notif-2',
+  userId: 'user-tenant',
+  title: 'Your rental request was received',
+  message: 'We have started matching homes for you.',
+  type: 'success',
+  read: true,
+  createdAt: '2026-02-20T09:00:00+00:00',
+};
+
+test('every account section is a real page reached by its own URL', async () => {
+  const sections: Array<[string, 'tenant' | 'landlord' | 'agent', RegExp]> = [
+    ['/tenant/dashboard', 'tenant', /welcome back/i],
+    ['/tenant/rental-requests', 'tenant', /rental request/i],
+    ['/tenant/matches', 'tenant', /matched propert/i],
+    ['/tenant/viewings', 'tenant', /viewing/i],
+    ['/tenant/saved-properties', 'tenant', /saved propert/i],
+    ['/tenant/search-alerts', 'tenant', /search alert/i],
+    ['/tenant/notifications', 'tenant', /notification/i],
+    ['/tenant/profile', 'tenant', /profile/i],
+    ['/tenant/settings', 'tenant', /account settings/i],
+    ['/landlord/dashboard', 'landlord', /welcome back/i],
+    ['/landlord/properties', 'landlord', /my propert/i],
+    ['/landlord/viewings', 'landlord', /viewing/i],
+    ['/landlord/verification', 'landlord', /verification/i],
+    ['/landlord/notifications', 'landlord', /notification/i],
+    ['/landlord/profile', 'landlord', /profile/i],
+    ['/landlord/settings', 'landlord', /account settings/i],
+    ['/agent/dashboard', 'agent', /welcome/i],
+    ['/agent/properties', 'agent', /submitted listings/i],
+    ['/agent/finance', 'agent', /finance/i],
+    ['/agent/verification', 'agent', /verification/i],
+    ['/agent/status', 'agent', /account status/i],
+    ['/agent/notifications', 'agent', /notification/i],
+    ['/agent/profile', 'agent', /profile/i],
+    ['/agent/settings', 'agent', /account settings/i],
+  ];
+
+  for (const [path, role, expected] of sections) {
+    const app = await renderAt(path, role);
+    assert.equal(app.path(), path, `${path} keeps its URL on load`);
+    assert.match(app.text(), expected, `${path} renders its own section`);
+    await app.unmount();
+  }
+});
+
+test('the dashboard shell names the signed-in account and marks the active section', async () => {
+  const app = await renderAt('/tenant/viewings', 'tenant');
+  const text = app.text();
+  assert.match(text, /Test tenant/i, 'the account name is on screen');
+  assert.match(text, /Tenant account/i, 'the account type is on screen');
+
+  const active = [...app.container.querySelectorAll('[aria-current="page"]')];
+  assert.equal(active.length, 1, 'exactly one section is marked active');
+  assert.match(active[0].textContent ?? '', /viewings/i);
+  await app.unmount();
+
+  const elsewhere = await renderAt('/tenant/settings', 'tenant');
+  const activeThere = [...elsewhere.container.querySelectorAll('[aria-current="page"]')];
+  assert.equal(activeThere.length, 1);
+  assert.match(activeThere[0].textContent ?? '', /account settings/i);
+  await elsewhere.unmount();
+});
+
+test('profile and settings are separate pages with separate forms', async () => {
+  const settings = await renderAt('/tenant/settings', 'tenant');
+  const settingsText = settings.text();
+  assert.match(settingsText, /current password/i);
+  assert.match(settingsText, /new password/i);
+  assert.match(settingsText, /confirm new password/i);
+  assert.match(settingsText, /profile picture/i);
+  assert.doesNotMatch(settingsText, /save profile details/i, 'settings is not the profile form');
+  await settings.unmount();
+
+  const profile = await renderAt('/tenant/profile', 'tenant');
+  const profileText = profile.text();
+  assert.match(profileText, /save profile details/i);
+  assert.doesNotMatch(profileText, /current password/i, 'profile is not the password form');
+  await profile.unmount();
+});
+
+test('opening the notifications page marks nothing read and lists the account record', async () => {
+  const app = await renderAt('/tenant/notifications', 'tenant', {
+    notifications: [UNREAD_NOTIFICATION, READ_NOTIFICATION],
+  });
+
+  assert.match(app.text(), /Viewing requested for Cantonments apartment/);
+  assert.match(app.text(), /1 unread notification/i);
+  assert.equal(
+    calls.some((url) => url.includes('/notifications/read-all')),
+    false,
+    'opening the page must not mark everything read'
+  );
+  assert.equal(
+    calls.some((url) => /\/notifications\/notif-/.test(url) && url.includes('PATCH')),
+    false,
+    'no per-notification update is sent just by opening the page'
+  );
+
+  // The unread one can still be marked read individually.
+  await app.clickContaining('Mark as read');
+  assert.ok(
+    calls.some((url) => url.includes('/notifications/notif-1')),
+    'marking one notification read calls the API for that record'
+  );
+  await app.unmount();
+});
+
+test('an empty notifications page says so instead of inventing records', async () => {
+  const app = await renderAt('/landlord/notifications', 'landlord');
+  assert.match(app.text(), /no notifications yet/i);
+  await app.unmount();
+});
+
+test('the landlord payment records section reuses the receipt view', async () => {
+  const app = await renderAt('/landlord/receipts', 'landlord');
+  const text = app.text();
+  assert.match(text, /payment records/i);
+  assert.match(text, /rent|receipt/i);
+  await app.unmount();
+});
+
+test('an overview card navigates to the section behind it', async () => {
+  const app = await renderAt('/tenant/dashboard', 'tenant');
+  await app.click('Saved properties');
+  assert.equal(app.path(), '/tenant/saved-properties');
+  await app.unmount();
+});
+
+test('a section URL is refused to another role, which lands in its own area', async () => {
+  const app = await renderAt('/tenant/settings', 'landlord');
+  assert.equal(app.path(), '/landlord/dashboard');
   await app.unmount();
 });

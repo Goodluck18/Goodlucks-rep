@@ -148,6 +148,19 @@ interface AppContextType {
   updateUserProfile: (data: Partial<User> & { password?: string }) => Promise<SignInResult>;
   /** Update the signed-in agent's own profile (agency name, operating city). */
   updateAgentProfile: (data: { agencyName?: string; operatingCity?: string }) => Promise<SignInResult>;
+  /**
+   * Change the signed-in account's own password. The server re-verifies the
+   * current password; nothing here is trusted on its own.
+   */
+  changePassword: (data: {
+    currentPassword: string;
+    newPassword: string;
+    confirmPassword: string;
+  }) => Promise<SignInResult>;
+  /** Upload a new profile picture for the signed-in account. */
+  uploadAvatar: (file: File) => Promise<SignInResult>;
+  /** Remove the signed-in account's profile picture. */
+  removeAvatar: () => Promise<SignInResult>;
 
   // Properties
   addProperty: (data: PropertyInput) => Promise<Property>;
@@ -743,6 +756,51 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     [currentUser, showSuccessToast]
   );
 
+  /**
+   * Account settings: password change and profile picture.
+   *
+   * Both are server-first: the response replaces the local session user, and a
+   * failure is reported back to the form instead of being swallowed. Neither
+   * can name another account — the session decides whose record changes.
+   */
+  const changePassword = useCallback(
+    async (data: { currentPassword: string; newPassword: string; confirmPassword: string }): Promise<SignInResult> => {
+      try {
+        const result = await api.changePassword(data);
+        showSuccessToast('Password changed', result.message || 'Your password has been updated.');
+        return { ok: true };
+      } catch (error) {
+        return { ok: false, error: messageForError(error), fields: (error as any)?.fields || {} };
+      }
+    },
+    [showSuccessToast]
+  );
+
+  const uploadAvatar = useCallback(
+    async (file: File): Promise<SignInResult> => {
+      try {
+        const result = await api.uploadAvatar(file);
+        if (result.user) setCurrentUser(result.user);
+        showSuccessToast('Profile picture updated', 'Your new picture is now used across your account.');
+        return { ok: true };
+      } catch (error) {
+        return { ok: false, error: messageForError(error), fields: (error as any)?.fields || {} };
+      }
+    },
+    [showSuccessToast]
+  );
+
+  const removeAvatar = useCallback(async (): Promise<SignInResult> => {
+    try {
+      const result = await api.removeAvatar();
+      if (result.user) setCurrentUser(result.user);
+      showInfoToast('Profile picture removed', 'Your account now shows your initials.');
+      return { ok: true };
+    } catch (error) {
+      return { ok: false, error: messageForError(error), fields: (error as any)?.fields || {} };
+    }
+  }, [showInfoToast]);
+
   // -------------------------------------------------------------------------
   // Properties
   // -------------------------------------------------------------------------
@@ -1046,10 +1104,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, []);
 
   /**
-   * Clear the unread badge. Called when the notifications view opens, so the
-   * bell stops advertising alerts the member has already looked at.
-   */
-  /**
    * Drain the email outbox on demand (no shell cron on shared hosting).
    * Refreshes the audit log afterwards so statuses flip from queued to sent.
    */
@@ -1130,6 +1184,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       logout,
       updateUserProfile,
       updateAgentProfile,
+      changePassword,
+      uploadAvatar,
+      removeAvatar,
       addProperty,
       updateProperty,
       updatePropertyStatus,
@@ -1194,6 +1251,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       adminLogin,
       logout,
       updateUserProfile,
+      updateAgentProfile,
+      changePassword,
+      uploadAvatar,
+      removeAvatar,
       addProperty,
       updateProperty,
       updatePropertyStatus,

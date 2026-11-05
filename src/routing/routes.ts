@@ -77,7 +77,10 @@ export interface SectionMap {
 export const ROLE_SECTIONS: Record<'tenant' | 'landlord' | 'agent' | 'admin', SectionMap> = {
   tenant: {
     accepted: {
-      dashboard: 'requests',
+      // `/tenant/dashboard` is the overview, not the request tracker: every
+      // section lives on its own URL (Task 02).
+      dashboard: 'overview',
+      overview: 'overview',
       'rental-requests': 'requests',
       requests: 'requests',
       matches: 'matches',
@@ -86,38 +89,46 @@ export const ROLE_SECTIONS: Record<'tenant' | 'landlord' | 'agent' | 'admin', Se
       saved: 'saved',
       'search-alerts': 'alerts',
       alerts: 'alerts',
+      notifications: 'notifications',
       profile: 'profile',
-      // There is no separate notifications screen: the dashboard's Activity
-      // Feed is the notification surface, so this URL focuses it and marks it
-      // read. It is kept because the header bell has always linked to it.
-      notifications: 'requests',
+      settings: 'settings',
     },
     canonical: {
-      requests: 'dashboard',
+      overview: 'dashboard',
+      requests: 'rental-requests',
       matches: 'matches',
       viewings: 'viewings',
       saved: 'saved-properties',
       alerts: 'search-alerts',
+      notifications: 'notifications',
       profile: 'profile',
+      settings: 'settings',
     },
     fallback: 'dashboard',
   },
   landlord: {
     accepted: {
-      dashboard: 'my-properties',
+      dashboard: 'overview',
+      overview: 'overview',
       properties: 'my-properties',
       'my-properties': 'my-properties',
       viewings: 'viewings',
+      receipts: 'receipts',
       profile: 'profile',
       verification: 'identity',
       identity: 'identity',
-      notifications: 'my-properties',
+      notifications: 'notifications',
+      settings: 'settings',
     },
     canonical: {
+      overview: 'dashboard',
       'my-properties': 'properties',
       viewings: 'viewings',
+      receipts: 'receipts',
       profile: 'profile',
       identity: 'verification',
+      notifications: 'notifications',
+      settings: 'settings',
     },
     fallback: 'dashboard',
   },
@@ -130,7 +141,9 @@ export const ROLE_SECTIONS: Record<'tenant' | 'landlord' | 'agent' | 'admin', Se
       viewings: 'viewings',
       finance: 'finance',
       verification: 'verification',
-      notifications: 'overview',
+      status: 'status',
+      notifications: 'notifications',
+      settings: 'settings',
     },
     canonical: {
       overview: 'dashboard',
@@ -139,6 +152,9 @@ export const ROLE_SECTIONS: Record<'tenant' | 'landlord' | 'agent' | 'admin', Se
       viewings: 'viewings',
       finance: 'finance',
       verification: 'verification',
+      status: 'status',
+      notifications: 'notifications',
+      settings: 'settings',
     },
     fallback: 'dashboard',
   },
@@ -491,7 +507,11 @@ export function viewForRoute(route: RouteState): string {
     case 'tenant':
     case 'landlord':
     case 'agent':
-      return route.section === 'notifications' ? 'notifications' : 'dashboard';
+      // The account area is one "dashboard" for the top navigation, but the
+      // notifications and profile screens have their own header links.
+      if (route.section === 'notifications') return 'notifications';
+      if (route.section === 'profile') return 'profile';
+      return 'dashboard';
     default:
       return 'not-found';
   }
@@ -527,8 +547,6 @@ export function pathForView(view: string, role: UserRole, current: RouteState): 
       return '/about';
     case 'contact':
       return '/contact';
-    case 'receipts':
-      return '/receipts';
     case 'list-property':
       return '/list-property';
     case 'admin-login':
@@ -543,10 +561,16 @@ export function pathForView(view: string, role: UserRole, current: RouteState): 
       if (role === 'admin') return '/admin';
       if (role === 'tenant' || role === 'landlord' || role === 'agent') return `/${role}/profile`;
       return '/login';
+    case 'settings':
+      if (role === 'admin') return '/admin';
+      if (role === 'tenant' || role === 'landlord' || role === 'agent') return `/${role}/settings`;
+      return '/login';
     case 'notifications':
       if (role === 'admin') return '/admin';
       if (role === 'tenant' || role === 'landlord' || role === 'agent') return `/${role}/notifications`;
       return '/login';
+    case 'receipts':
+      return role === 'landlord' ? '/landlord/receipts' : '/receipts';
     default:
       return dashboardPath(role);
   }
