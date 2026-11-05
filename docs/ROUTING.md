@@ -1,6 +1,7 @@
 # URL routing and navigation
 
-**Scope:** Task 01 — website-wide URL routing and navigation correction.
+**Scope:** Task 01 — website-wide URL routing and navigation correction —
+extended by Task 02 (dashboard re-organisation into one page per section).
 This document is the reference for how the address bar, the pages and the
 role permissions fit together. It replaces nothing else in the repo; the
 business logic (dashboards, receipts, verification, finance) is unchanged.
@@ -51,8 +52,11 @@ that a generic router would still have to be taught.
 | `src/App.tsx` | Renders the component for `route.name`; hosts the auth modal on `/login` and `/register`; renders `NotFoundView` for unknown URLs. |
 | `src/components/NotFoundView.tsx` | The not-found page. |
 | `src/components/Navbar.tsx`, `MobileBottomNav.tsx` | Every control navigates to a real path. |
-| `src/components/{Tenant,Landlord,Admin}Dashboard.tsx` | Their tab state is read from the URL (`sectionTab`) and written back with `setSectionTab()`. |
-| `src/components/AgentDashboard.tsx` | Single-page workspace; the URL section scrolls to the matching panel. |
+| `src/components/{Tenant,Landlord,Agent}Dashboard.tsx` | One shell, one page per section. The section comes from the URL (`sectionTab`), never from local state. |
+| `src/components/dashboard/DashboardShell.tsx` | Shared account shell: desktop sidebar, mobile drawer, account identity block, active-section marker, section nav table. |
+| `src/components/dashboard/NotificationsView.tsx` | The notification page for every role. Opening it marks nothing read. |
+| `src/components/dashboard/AccountSettingsView.tsx` | Password change (`POST /account/password`) and profile picture (`POST|DELETE /account/avatar`). |
+| `src/components/AdminDashboard.tsx` | Staff console; its tab state is read from the URL (`sectionTab`). |
 | `src/components/BrowseView.tsx` | Search filters live in the query string. |
 | `public/.htaccess` | Serves `index.html` for every unknown path so direct links and refreshes reach the app. |
 | `tests/routing.test.mts` | 35 unit tests for the route table and guards. |
@@ -79,25 +83,48 @@ that a generic router would still have to be taught.
 
 ### Tenant — `/tenant/…`
 
-`dashboard` (rental requests) · `matches` · `viewings` · `saved-properties` ·
-`search-alerts` · `profile` · `notifications` (the workspace's Activity Feed)
-
-Accepted aliases (`/tenant/rental-requests`, `/tenant/saved`, `/tenant/alerts`)
-resolve to the same tab; each tab has exactly one canonical URL, which is what
-tab clicks produce.
+| Path | Section |
+| --- | --- |
+| `/tenant/dashboard` | Overview: summaries and links only |
+| `/tenant/rental-requests` | Rental request tracker (alias `/tenant/requests`) |
+| `/tenant/matches` | Matched properties |
+| `/tenant/viewings` | Viewings |
+| `/tenant/saved-properties` | Saved properties (alias `/tenant/saved`) |
+| `/tenant/search-alerts` | Search alerts (alias `/tenant/alerts`) |
+| `/tenant/notifications` | Notifications page (nothing is marked read on open) |
+| `/tenant/profile` | Name, phone, address (email is read-only) |
+| `/tenant/settings` | Password and profile picture |
 
 ### Landlord — `/landlord/…`
 
-`dashboard` · `properties` · `viewings` · `profile` · `verification` ·
-`notifications`
+| Path | Section |
+| --- | --- |
+| `/landlord/dashboard` | Overview: totals, review states, upcoming viewings, verification status |
+| `/landlord/properties` | My properties (own listings only; alias `/landlord/my-properties`) |
+| `/landlord/viewings` | Viewings for own properties |
+| `/landlord/receipts` | Payment records & receipts (the existing `ReceiptsView`) |
+| `/landlord/verification` | Optional identity verification (alias `/landlord/identity`) |
+| `/landlord/notifications` | Notifications page |
+| `/landlord/profile` | Profile |
+| `/landlord/settings` | Password and profile picture |
 
 ### Agent — `/agent/…`
 
-`dashboard` · `profile` · `properties` · `viewings` · `finance` ·
-`verification` · `notifications`
+| Path | Section |
+| --- | --- |
+| `/agent/dashboard` | Overview (alias `/agent/overview`) |
+| `/agent/properties` | Submitted listings + submission form |
+| `/agent/viewings` | Viewings assigned to the agent |
+| `/agent/finance` | Finance & commissions (existing backend figures) |
+| `/agent/verification` | Identity + professional authorisation |
+| `/agent/status` | Account status and what the account may do |
+| `/agent/notifications` | Notifications page |
+| `/agent/profile` | Agency name, operating city, contact details |
+| `/agent/settings` | Password and profile picture |
 
-The agent workspace is one scrolling page, so these URLs select the matching
-panel rather than swapping the layout.
+Every section has exactly one canonical URL, which is what the navigation
+produces. Older links (`/tenant/rental-requests`, `/landlord/my-properties`,
+`/landlord/identity`, `/agent/overview`) still resolve to the same page.
 
 ### Admin — `/admin/…`
 
@@ -111,7 +138,7 @@ panel rather than swapping the layout.
 | `/blog`, `/blog/:slug` | No blog exists in this codebase. Adding a route would mean inventing a page. |
 | `/forgot-password` | The reset request is a panel inside the sign-in modal, not a page. The URL stays `/login`. |
 | `/verify-account` | There is no self-service account verification screen; identity/professional verification is `/landlord/verification` and `/agent/verification`. |
-| `/tenant/rental-requests/:id` etc. | The dashboards have no per-record detail pages; records are shown in the tab. |
+| `/tenant/rental-requests/:id` etc. | The dashboards have no per-record detail pages; records are shown in the section. |
 | `/landlord/submit-property` | Property submission is one page for everybody at `/list-property`; a second URL for the same screen was not added. |
 
 Unknown paths render `NotFoundView` (`/no-such-page`), they are not redirected to

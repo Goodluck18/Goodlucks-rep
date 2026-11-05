@@ -179,10 +179,80 @@ test('every tab has exactly one canonical URL that parses back to that tab', () 
 test('aliases resolve to a real tab', () => {
   assert.equal(tabForRoute(parseLocation('/tenant/rental-requests')), 'requests');
   assert.equal(tabForRoute(parseLocation('/tenant/saved')), 'saved');
-  assert.equal(tabForRoute(parseLocation('/tenant/notifications')), 'requests');
+  // Task 02: notifications is a page of its own, not the request tracker.
+  assert.equal(tabForRoute(parseLocation('/tenant/notifications')), 'notifications');
+  assert.equal(tabForRoute(parseLocation('/tenant/settings')), 'settings');
   assert.equal(tabForRoute(parseLocation('/landlord/identity')), 'identity');
-  assert.equal(tabForRoute(parseLocation('/landlord/dashboard')), 'my-properties');
+  assert.equal(tabForRoute(parseLocation('/landlord/verification')), 'identity');
+  assert.equal(tabForRoute(parseLocation('/landlord/notifications')), 'notifications');
+  assert.equal(tabForRoute(parseLocation('/landlord/settings')), 'settings');
+  assert.equal(tabForRoute(parseLocation('/agent/status')), 'status');
+  assert.equal(tabForRoute(parseLocation('/agent/settings')), 'settings');
+  assert.equal(tabForRoute(parseLocation('/landlord/dashboard')), 'overview');
   assert.equal(tabForRoute(parseLocation('/admin/dashboard')), 'analytics');
+});
+
+/* -------------------------------------------------------------------------- */
+/* Task 02: every dashboard section is its own address                        */
+/* -------------------------------------------------------------------------- */
+
+test('each dashboard section has its own URL, and the overview is not a tab list', () => {
+  const expected: Array<[ 'tenant' | 'landlord' | 'agent', string, string]> = [
+    ['tenant', 'overview', '/tenant/dashboard'],
+    ['tenant', 'requests', '/tenant/rental-requests'],
+    ['tenant', 'matches', '/tenant/matches'],
+    ['tenant', 'viewings', '/tenant/viewings'],
+    ['tenant', 'saved', '/tenant/saved-properties'],
+    ['tenant', 'alerts', '/tenant/search-alerts'],
+    ['tenant', 'notifications', '/tenant/notifications'],
+    ['tenant', 'profile', '/tenant/profile'],
+    ['tenant', 'settings', '/tenant/settings'],
+    ['landlord', 'overview', '/landlord/dashboard'],
+    ['landlord', 'my-properties', '/landlord/properties'],
+    ['landlord', 'viewings', '/landlord/viewings'],
+    ['landlord', 'receipts', '/landlord/receipts'],
+    ['landlord', 'identity', '/landlord/verification'],
+    ['landlord', 'notifications', '/landlord/notifications'],
+    ['landlord', 'profile', '/landlord/profile'],
+    ['landlord', 'settings', '/landlord/settings'],
+    ['agent', 'overview', '/agent/dashboard'],
+    ['agent', 'properties', '/agent/properties'],
+    ['agent', 'viewings', '/agent/viewings'],
+    ['agent', 'finance', '/agent/finance'],
+    ['agent', 'verification', '/agent/verification'],
+    ['agent', 'status', '/agent/status'],
+    ['agent', 'notifications', '/agent/notifications'],
+    ['agent', 'profile', '/agent/profile'],
+    ['agent', 'settings', '/agent/settings'],
+  ];
+
+  for (const [role, tab, path] of expected) {
+    assert.equal(tabPath(role, tab), path, `${role}/${tab} path`);
+    const route = parseLocation(path);
+    assert.equal(route.name, role, `${path} belongs to ${role}`);
+    assert.equal(route.isKnown, true, `${path} is known`);
+    assert.equal(tabForRoute(route), tab, `${path} resolves to ${tab}`);
+  }
+});
+
+test('profile and settings are different pages for every account type', () => {
+  for (const role of ['tenant', 'landlord', 'agent'] as const) {
+    assert.notEqual(tabPath(role, 'profile'), tabPath(role, 'settings'));
+    assert.equal(parseLocation(tabPath(role, 'profile')).section, 'profile');
+    assert.equal(parseLocation(tabPath(role, 'settings')).section, 'settings');
+  }
+});
+
+test('a section URL is refused to the wrong role even when it exists for another', () => {
+  const tenantSettings = parseLocation('/tenant/settings');
+  assert.equal(accessDecision(tenantSettings, 'landlord', tenantSettings.path).action, 'forbidden');
+  assert.equal(accessDecision(tenantSettings, 'admin', tenantSettings.path).action, 'forbidden');
+
+  const landlordReceipts = parseLocation('/landlord/receipts');
+  assert.equal(accessDecision(landlordReceipts, 'tenant', landlordReceipts.path).action, 'forbidden');
+
+  const agentStatus = parseLocation('/agent/status');
+  assert.equal(accessDecision(agentStatus, 'landlord', agentStatus.path).action, 'forbidden');
 });
 
 test('a bare role root is recognised (and the guard normalises it)', () => {

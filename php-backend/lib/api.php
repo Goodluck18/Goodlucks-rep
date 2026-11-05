@@ -62,6 +62,9 @@ function resolve_route(string $method, string $path): ?array
         ['POST', '#^/auth/logout$#', 'handle_logout'],
         ['GET',  '#^/auth/me$#', 'handle_me'],
         ['PUT',  '#^/profile$#', 'handle_update_profile'],
+        ['POST', '#^/account/password$#', 'handle_change_password'],
+        ['POST', '#^/account/avatar$#', 'handle_upload_avatar'],
+        ['DELETE', '#^/account/avatar$#', 'handle_delete_avatar'],
 
         // --- Properties -------------------------------------------------
         ['GET',  '#^/matches$#', 'handle_matches'],
@@ -641,6 +644,209 @@ function handle_update_profile(): void
     update_user((string)$user['id'], $fields);
     $updated = find_user_by_id((string)$user['id']);
 
+    json_response(['success' => true, 'user' => $updated ? public_user($updated) : null]);
+}
+
+// ===========================================================================
+// Account settings (password change, profile picture)
+//
+// Routine account housekeeping that every signed-in role may do for *their own*
+// account only. Nothing here can name another user: the account is always taken
+// from the session, never from the request body.
+// ===========================================================================
+
+/**
+ * Change the signed-in user's password.
+ *
+ * The current password is re-verified against the stored bcrypt hash, so a
+ * borrowed session cannot silently lock the real owner out. The new password
+ * runs through the same strength rule as registration and reset, and every
+ * *other* session is revoked afterwards while the current one is kept, so the
+ * person who just changed it stays signed in.
+ */
+function handle_change_password(): void
+{
+    $user = require_auth();
+    enforce_rate_limit('password-change', 10, 3600, (string)$user['id']);
+
+    $input = request_json();
+    $current = is_string($input['currentPassword'] ?? null) ? (string)$input['currentPassword'] : '';
+    $new = is_string($input['newPassword'] ?? null) ? (string)$input['newPassword'] : '';
+    $confirm = is_string($input['confirmPassword'] ?? null) ? (string)$input['confirmPassword'] : '';
+
+    $errors = [];
+    if ($current === '') {
+        $errors['currentPassword'] = 'Enter your current password.';
+    }
+    if (!password_is_strong_enough($new)) {
+        $errors['newPassword'] = 'Use at least 8 characters.';
+    }
+    if ($confirm !== $new || $confirm === '') {
+        $errors['confirmPassword'] = 'The two new passwords do not match.';
+    }
+    if ($errors) {
+        error_response('Please correct the highlighted fields.', 422, $errors);
+    }
+
+    $row = find_user_by_id((string)$user['id']);
+    if (!$row) {
+        error_response('Your account could not be loaded. Please sign in again.', 401);
+    }
+
+    $hash = (string)($row['password_hash'] ?? '');
+    if ($hash === '' || !password_verify($current, $hash)) {
+        error_response('Your current password is not correct.', 422, [
+            'currentPassword' => 'That is not your current password.',
+        ]);
+    }
+
+    if (password_verify($new, $hash)) {
+        error_response('Choose a password you have not used here before.', 422, [
+            'newPassword' => 'The new password must be different from the current one.',
+        ]);
+    }
+
+    update_user((string)$row['id'], ['password_hash' => password_hash($new, PASSWORD_BCRYPT)]);
+
+    // Keep the session that made the change; drop every other device.
+    $token = (string)($_COOKIE[SESSION_COOKIE] ?? '');
+    if ($token !== '') {
+        db_exec(
+            'DELETE FROM auth_sessions WHERE user_id = :uid AND token_hash <> :hash',
+            [':uid' => $row['id'], ':hash' => hash_session_token($token)]
+        );
+    }
+
+    create_notification(
+        (string)$row['id'],
+        'Password changed',
+        'Your password was changed from your account settings. Other devices were signed out.',
+        'success'
+    );
+    audit_log('account.password_changed', 'user', (string)$row['id'], []);
+    gl_log('info', 'Password changed by account owner', ['user_id' => $row['id']]);
+
+    json_response([
+        'success' => true,
+        'message' => 'Your password has been changed. Other devices were signed out.',
+    ]);
+}
+
+/** Resolve the stored avatar filename of an uploaded avatar, or null. */
+function avatar_file_path(string $avatar): ?string
+{
+    if (!preg_match('#^' . preg_quote(UPLOAD_URL_PATH, '#') . '/([A-Za-z0-9\-_.]+)$#', $avatar, $m)) {
+        return null;
+    }
+    $name = $m[1];
+    // Only files this endpoint created are ever touched.
+    if (!str_starts_with($name, 'avatar-') || str_contains($name, '..')) {
+        return null;
+    }
+    $root = realpath(rtrim(UPLOAD_DIR, '/'));
+    $real = realpath(rtrim(UPLOAD_DIR, '/') . '/' . $name);
+    if ($root === false || $real === false || !str_starts_with($real, $root . DIRECTORY_SEPARATOR) || !is_file($real)) {
+        return null;
+    }
+    return $real;
+}
+
+/**
+ * Upload (or replace) the signed-in user's profile picture.
+ *
+ * Deliberately separate from `/uploads` (which is for listing photographs and
+ * is limited to landlord/agent/admin): an avatar is a small, single image on
+ * one account, so it gets its own validation, its own rate limit and its own
+ * naming scheme. The file goes into the same uploads directory and is served by
+ * the same static/`/api/uploads` path — no second storage system.
+ */
+function handle_upload_avatar(): void
+{
+    $user = require_auth();
+    enforce_rate_limit('avatar-upload', 20, 3600, (string)$user['id']);
+
+    if (!isset($_FILES['file'])) {
+        error_response('No image was uploaded.', 400, ['file' => 'Choose an image to upload.']);
+    }
+    $file = $_FILES['file'];
+    if (is_array($file['name'] ?? null)) {
+        error_response('Upload one image at a time.', 400, ['file' => 'Upload one image at a time.']);
+    }
+    if ((int)($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
+        error_response('The image did not upload. Please try again.', 422, ['file' => 'The upload failed.']);
+    }
+
+    $maxBytes = 2 * 1024 * 1024;
+    $size = (int)($file['size'] ?? 0);
+    if ($size <= 0) {
+        error_response('That file is empty.', 422, ['file' => 'Choose an image to upload.']);
+    }
+    if ($size > $maxBytes) {
+        error_response('Profile pictures must be smaller than 2 MB.', 422, [
+            'file' => 'Use an image under 2 MB.',
+        ]);
+    }
+    if (!is_uploaded_file((string)$file['tmp_name'])) {
+        error_response('Invalid upload.', 400, ['file' => 'Invalid upload.']);
+    }
+
+    $allowedTypes = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp'];
+    $finfo = new finfo(FILEINFO_MIME_TYPE);
+    $mime = (string)$finfo->file((string)$file['tmp_name']);
+    if (!isset($allowedTypes[$mime])) {
+        error_response('Use a JPG, PNG or WEBP image.', 422, ['file' => 'Unsupported image type.']);
+    }
+    $dimensions = @getimagesize((string)$file['tmp_name']);
+    if ($dimensions === false || $dimensions[0] < 50 || $dimensions[1] < 50) {
+        error_response('That file is not a usable image.', 422, ['file' => 'The image is too small.']);
+    }
+
+    if (!is_dir(UPLOAD_DIR) && !@mkdir(UPLOAD_DIR, 0755, true)) {
+        gl_log('error', 'Avatar directory could not be created: ' . UPLOAD_DIR);
+        error_response('Uploads are temporarily unavailable.', 500);
+    }
+
+    $filename = 'avatar-' . gmdate('Ymd') . '-' . bin2hex(random_bytes(10)) . '.' . $allowedTypes[$mime];
+    $target = rtrim(UPLOAD_DIR, '/') . '/' . $filename;
+    if (!@move_uploaded_file((string)$file['tmp_name'], $target)) {
+        gl_log('error', 'Could not move avatar upload', ['target' => $target]);
+        error_response('The server could not save the image.', 500);
+    }
+    @chmod($target, 0644);
+
+    $previous = (string)($user['avatar'] ?? '');
+    $avatarUrl = UPLOAD_URL_PATH . '/' . $filename;
+    update_user((string)$user['id'], ['avatar' => $avatarUrl]);
+
+    // Remove the picture this upload replaces, but only if it is one of ours.
+    $oldPath = $previous !== '' ? avatar_file_path($previous) : null;
+    if ($oldPath !== null) {
+        @unlink($oldPath);
+    }
+
+    $updated = find_user_by_id((string)$user['id']);
+    audit_log('account.avatar_updated', 'user', (string)$user['id'], []);
+    json_response([
+        'success' => true,
+        'avatar'  => $avatarUrl,
+        'user'    => $updated ? public_user($updated) : null,
+    ], 201);
+}
+
+/** Remove the signed-in user's profile picture (falls back to initials). */
+function handle_delete_avatar(): void
+{
+    $user = require_auth();
+    $previous = (string)($user['avatar'] ?? '');
+
+    update_user((string)$user['id'], ['avatar' => '']);
+    $oldPath = $previous !== '' ? avatar_file_path($previous) : null;
+    if ($oldPath !== null) {
+        @unlink($oldPath);
+    }
+
+    $updated = find_user_by_id((string)$user['id']);
+    audit_log('account.avatar_removed', 'user', (string)$user['id'], []);
     json_response(['success' => true, 'user' => $updated ? public_user($updated) : null]);
 }
 

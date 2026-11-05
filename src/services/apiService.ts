@@ -291,6 +291,23 @@ export const api = {
     request<{ user: User }>('/profile', { method: 'PUT', body: data }),
 
   // -------------------------------------------------------------------------
+  // Account settings (password change, profile picture)
+  //
+  // Both act on the signed-in account only: the session decides whose record is
+  // touched, never a field in the request.
+  // -------------------------------------------------------------------------
+  changePassword: (data: { currentPassword: string; newPassword: string; confirmPassword: string }) =>
+    request<{ success: boolean; message: string }>('/account/password', { method: 'POST', body: data }),
+
+  uploadAvatar: (file: File) => {
+    const form = new FormData();
+    form.append('file', file, file.name);
+    return request<{ avatar: string; user: User }>('/account/avatar', { method: 'POST', formData: form });
+  },
+
+  removeAvatar: () => request<{ user: User }>('/account/avatar', { method: 'DELETE' }),
+
+  // -------------------------------------------------------------------------
   // Agent account (Increment C)
   // -------------------------------------------------------------------------
   /** The signed-in agent's own profile. Status fields are read-only here. */

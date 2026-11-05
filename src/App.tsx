@@ -45,8 +45,6 @@ const AppContent: React.FC = () => {
     bootError,
     retryBootstrap,
     currentUser,
-    notifications,
-    markAllNotificationsRead,
   } = useApp();
 
   const [authInitialRole, setAuthInitialRole] = useState<'tenant' | 'landlord' | 'agent'>('tenant');
@@ -56,13 +54,8 @@ const AppContent: React.FC = () => {
 
   const isAuthRoute = route.name === 'login' || route.name === 'register';
 
-  // Opening the notifications view clears the badge: anything the member has
-  // just looked at should not keep counting as unread.
-  useEffect(() => {
-    if (currentView !== 'notifications' || !currentUser) return;
-    if (!notifications.some((notification) => !notification.read)) return;
-    void markAllNotificationsRead();
-  }, [currentView, currentUser, notifications, markAllNotificationsRead]);
+  // Task 02: opening the notifications page no longer marks everything read.
+  // A notification stays unread until the member marks it (or all of them) read.
 
   /**
    * Authentication lives at real URLs now (`/login`, `/register`), so a sign-in
