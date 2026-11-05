@@ -114,7 +114,7 @@ function dispatch_price_drop_alerts(array $propertyRow, float $oldRent, float $n
             . '</div>'
             . '<p style="color:#CBD5E1;font-size:14px;">Viewings are arranged and supervised by a Goodlucks agent. '
             . 'The GH₵ ' . number_format(VIEWING_FEE_GHS, 0) . ' viewing fee is paid in cash on site, never online.</p>'
-            . '<p style="color:#94A3B8;font-size:12px;">Open the listing: ' . e(SITE_URL) . '/?property=' . e($propertyId) . '</p>';
+            . '<p style="color:#94A3B8;font-size:12px;">Open the listing: ' . e(SITE_URL) . '/property/' . rawurlencode((string)$propertyId) . '</p>';
 
         send_email(
             $email,
@@ -196,7 +196,7 @@ function dispatch_search_alert_matches(array $propertyRow): int
             . '<span style="color:#94A3B8;font-size:13px;">' . $bedrooms . ' bedrooms &bull; ' . (int)($propertyRow['bathrooms'] ?? 0) . ' bathrooms</span>'
             . '</div>'
             . '<p style="color:#CBD5E1;font-size:14px;">Reply to this email or call +233 23 769 0080 and a Goodlucks agent will arrange the viewing.</p>'
-            . '<p style="color:#94A3B8;font-size:12px;">View it: ' . e(SITE_URL) . '/?property=' . e($propertyId) . '</p>';
+            . '<p style="color:#94A3B8;font-size:12px;">View it: ' . e(SITE_URL) . '/property/' . rawurlencode((string)$propertyId) . '</p>';
 
         send_email(
             $email,

@@ -5,6 +5,7 @@ import { ViewingRequestModal } from './ViewingRequestModal';
 import { GetNotifiedModal } from './GetNotifiedModal';
 import { SEOHead } from './SEOHead';
 import { Property, PropertyType } from '../types';
+import { buildQuery, parseQuery } from '../routing/routes';
 import { 
   Search, 
   MapPin, 
@@ -45,14 +46,53 @@ const CATEGORIES: CategoryItem[] = [
   { id: 'Commercial', label: 'Commercial', icon: Briefcase },
 ];
 
+const MAX_RENT = 25000;
+
 export const BrowseView: React.FC = () => {
-  const { properties, searchAlerts } = useApp();
-  
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedLocation, setSelectedLocation] = useState('All');
-  const [selectedType, setSelectedType] = useState('All');
-  const [selectedBedrooms, setSelectedBedrooms] = useState<number | 'All'>('All');
-  const [maxRent, setMaxRent] = useState(25000);
+  const { properties, searchAlerts, route, navigate } = useApp();
+
+  /**
+   * Search filters live in the URL (/properties?q=villa&location=East+Legon&
+   * type=Apartment&bedrooms=2&maxRent=8000). Refreshing, sharing the link and
+   * using Back therefore all restore exactly the same result set, and no
+   * secrets or tokens are involved — these are the values already on screen.
+   */
+  const applyFilters = (patch: Record<string, string | number | null>) => {
+    // Compose against the live URL, not the value captured by this render:
+    // "Reset all filters" changes five values in one click.
+    const base = parseQuery(typeof window === 'undefined' ? '' : window.location.search);
+    const next: Record<string, string | number | null | undefined> = { ...base, ...patch };
+    Object.keys(next).forEach((key) => {
+      const value = next[key];
+      if (value === null || value === undefined || value === '') delete next[key];
+    });
+    // Defaults are dropped so `/properties` stays the canonical, clean URL.
+    if (next.location === 'All') delete next.location;
+    if (next.type === 'All') delete next.type;
+    if (Number(next.maxRent) >= MAX_RENT) delete next.maxRent;
+    navigate(`/properties${buildQuery(next)}`, { replace: true, scroll: false });
+  };
+
+  const searchQuery = route.query.q ?? '';
+  const selectedLocation = route.query.location ?? 'All';
+  const selectedType = route.query.type ?? 'All';
+  const bedroomParam = Number(route.query.bedrooms);
+  const selectedBedrooms: number | 'All' =
+    Number.isFinite(bedroomParam) && bedroomParam > 0 ? bedroomParam : 'All';
+  const rentParam = Number(route.query.maxRent);
+  const maxRent = Number.isFinite(rentParam) && rentParam > 0 ? Math.min(rentParam, MAX_RENT) : MAX_RENT;
+
+  const setSearchQuery = (value: string) => applyFilters({ q: value });
+  const setSelectedLocation = (value: string) => applyFilters({ location: value === 'All' ? null : value });
+  const setSelectedType = (value: string) => applyFilters({ type: value === 'All' ? null : value });
+  const setSelectedBedrooms = (value: number | 'All') =>
+    applyFilters({ bedrooms: value === 'All' ? null : String(value) });
+  const setMaxRent = (value: number) => applyFilters({ maxRent: value >= MAX_RENT ? null : String(value) });
+
+  /** Clear every filter in one navigation (one history entry, one render). */
+  const resetFilters = () =>
+    applyFilters({ q: null, location: null, type: null, bedrooms: null, maxRent: null });
+
   const [selectedViewingProp, setSelectedViewingProp] = useState<Property | null>(null);
   const [isNotifiedModalOpen, setIsNotifiedModalOpen] = useState(false);
 
@@ -73,7 +113,7 @@ export const BrowseView: React.FC = () => {
         "@type": "RealEstateListing",
         "name": p.title,
         "description": p.description,
-        "url": typeof window !== 'undefined' ? `${window.location.origin}/?property=${p.id}` : `https://rent.goodlucks.co/?property=${p.id}`,
+        "url": typeof window !== 'undefined' ? `${window.location.origin}/property/${p.id}` : `https://rent.goodlucks.co/property/${p.id}`,
         "offers": {
           "@type": "Offer",
           "price": p.rentGhs,
@@ -155,13 +195,7 @@ export const BrowseView: React.FC = () => {
             </span>
             {isFiltered && (
               <button
-                onClick={() => {
-                  setSelectedType('All');
-                  setSelectedLocation('All');
-                  setSelectedBedrooms('All');
-                  setSearchQuery('');
-                  setMaxRent(25000);
-                }}
+                onClick={resetFilters}
                 className="text-xs font-semibold text-slate-300 hover:text-white bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-full transition-colors flex items-center gap-1"
               >
                 <RotateCcw className="w-3 h-3 text-[#08D9D6]" /> Reset
@@ -412,7 +446,7 @@ export const BrowseView: React.FC = () => {
                 <span>Get Notified When Listed</span>
               </button>
               <button
-                onClick={() => { setSelectedLocation('All'); setSelectedType('All'); setSearchQuery(''); setSelectedBedrooms('All'); setMaxRent(25000); }}
+                onClick={resetFilters}
                 className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-semibold transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 <RotateCcw className="w-3.5 h-3.5 text-[#08D9D6]" /> Reset All Filters

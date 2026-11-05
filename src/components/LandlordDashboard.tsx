@@ -31,6 +31,8 @@ export const LandlordDashboard: React.FC = () => {
     updatePropertyStatus, 
     deleteProperty, 
     setCurrentView,
+    sectionTab,
+    setSectionTab,
     updateUserProfile,
     viewingSchedules,
     notifications,
@@ -38,7 +40,14 @@ export const LandlordDashboard: React.FC = () => {
     showSuccessToast
   } = useApp();
 
-  const [activeTab, setActiveTab] = useState<'my-properties' | 'viewings' | 'profile' | 'identity'>('my-properties');
+  // Tab state comes from the URL (/landlord/properties, /landlord/viewings,
+  // /landlord/profile, /landlord/verification) so it survives a refresh.
+  const activeTab = (sectionTab || 'my-properties') as
+    | 'my-properties'
+    | 'viewings'
+    | 'profile'
+    | 'identity';
+  const setActiveTab = setSectionTab;
   const [deleteModalPropId, setDeleteModalPropId] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);

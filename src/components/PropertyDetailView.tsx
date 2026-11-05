@@ -117,7 +117,7 @@ export const PropertyDetailView: React.FC = () => {
     "@type": "RealEstateListing",
     "name": property.title,
     "description": property.description,
-    "url": typeof window !== 'undefined' ? window.location.href : `https://rent.goodlucks.co/?property=${property.id}`,
+    "url": typeof window !== 'undefined' ? `${window.location.origin}/property/${property.id}` : `https://rent.goodlucks.co/property/${property.id}`,
     "image": property.images,
     "datePosted": property.createdAt || "2026-08-01T00:00:00Z",
     "offers": {

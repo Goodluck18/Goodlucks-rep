@@ -26,7 +26,7 @@ import { AgentFinancePanel } from './AgentFinancePanel';
  * yet, so every card says so explicitly.
  */
 export const AgentDashboard: React.FC = () => {
-  const { currentUser, properties, updateAgentProfile, showErrorToast, showSuccessToast } = useApp();
+  const { currentUser, properties, updateAgentProfile, sectionTab, showErrorToast, showSuccessToast } = useApp();
 
   const profile = currentUser?.agentProfile ?? null;
   const [agencyName, setAgencyName] = useState(profile?.agencyName ?? '');
@@ -39,6 +39,21 @@ export const AgentDashboard: React.FC = () => {
     setAgencyName(profile?.agencyName ?? '');
     setOperatingCity(profile?.operatingCity ?? '');
   }, [profile?.agencyName, profile?.operatingCity]);
+
+  /**
+   * The agent workspace is one page of panels, not a tabbed dashboard. The URL
+   * section (/agent/verification, /agent/finance…) scrolls to the matching
+   * panel so the address still identifies what the agent is looking at.
+   */
+  useEffect(() => {
+    if (!sectionTab || sectionTab === 'overview') return;
+    const target = document.getElementById(`agent-section-${sectionTab}`);
+    if (!target) return;
+    const frame = window.requestAnimationFrame(() => {
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [sectionTab]);
 
   const submissions = properties.filter(
     (property) => property.submittedByUserId && property.submittedByUserId === currentUser?.id
@@ -168,19 +183,31 @@ export const AgentDashboard: React.FC = () => {
         </div>
 
         {/* Identity verification and professional authorisation (Increment D) */}
-        <VerificationPanel scope="agent" />
+        <div id="agent-section-verification" className="scroll-mt-24">
+          <VerificationPanel scope="agent" />
+        </div>
 
         {/* Viewing enquiries and appointments assigned to this agent (Increment F) */}
-        <AgentViewingsPanel operational={status === 'active'} />
+        <div id="agent-section-viewings" className="scroll-mt-24">
+          <AgentViewingsPanel operational={status === 'active'} />
+        </div>
 
         {/* Own money position: collections, what is owed, claims and confirmed receipts (Increment G) */}
-        <AgentFinancePanel operational={status === 'active'} />
+        <div id="agent-section-finance" className="scroll-mt-24">
+          <AgentFinancePanel operational={status === 'active'} />
+        </div>
 
         {/* Listing submission on a landlord's behalf (Increment C backend, F interface) */}
-        <AgentListingForm canSubmit={Boolean(profile?.canSubmitListings) && status === 'active'} />
+        <div id="agent-section-properties" className="scroll-mt-24">
+          <AgentListingForm canSubmit={Boolean(profile?.canSubmitListings) && status === 'active'} />
+        </div>
 
         {/* Profile: personal/contact vs operating base, kept separate */}
-        <form onSubmit={handleSaveProfile} className="bg-[#252A34]/70 border border-white/10 rounded-3xl p-6 space-y-4">
+        <form
+          id="agent-section-profile"
+          onSubmit={handleSaveProfile}
+          className="scroll-mt-24 bg-[#252A34]/70 border border-white/10 rounded-3xl p-6 space-y-4"
+        >
           <div className="flex items-center gap-2">
             <MapPin className="w-4 h-4 text-[#08D9D6]" />
             <h2 className="text-sm font-bold">Agent profile</h2>

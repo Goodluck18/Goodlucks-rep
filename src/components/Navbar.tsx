@@ -25,7 +25,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAuth }) => {
     currentUser, 
     currentRole, 
     currentView, 
-    setCurrentView, 
+    navigate, 
     logout, 
     notifications
   } = useApp();
@@ -33,8 +33,14 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAuth }) => {
 
   const unreadCount = notifications.filter(n => !n.read).length;
 
-  const handleNavClick = (view: string) => {
-    setCurrentView(view);
+  // Where this account's own pages live. Every header link is a real URL, so it
+  // can be opened in a new tab, bookmarked, or reached with Back.
+  const dashboardPath = currentRole === 'admin' ? '/admin' : `/${currentRole}/dashboard`;
+  const profilePath = currentRole === 'admin' ? '/admin' : `/${currentRole}/profile`;
+  const notificationsPath = currentRole === 'admin' ? '/admin' : `/${currentRole}/notifications`;
+
+  const handleNavClick = (path: string) => {
+    navigate(path);
     setMobileMenuOpen(false);
   };
 
@@ -44,7 +50,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAuth }) => {
         
         {/* Brand Logo */}
         <button 
-          onClick={() => handleNavClick('home')}
+          onClick={() => handleNavClick('/')}
           className="flex items-center gap-2.5 group text-left focus:outline-none"
         >
           <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-[#08D9D6] to-[#08D9D6]/70 p-0.5 shadow-md shadow-[#08D9D6]/20 group-hover:scale-105 transition-transform duration-200">
@@ -68,43 +74,43 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAuth }) => {
           {currentRole === 'guest' && (
             <>
               <button 
-                onClick={() => handleNavClick('home')}
+                onClick={() => handleNavClick('/')}
                 className={`px-3.5 py-2 rounded-lg transition-all ${currentView === 'home' ? 'text-[#08D9D6] bg-white/5 font-semibold' : 'text-slate-300 hover:text-white hover:bg-white/5'}`}
               >
                 Home
               </button>
               <button 
-                onClick={() => handleNavClick('browse')}
+                onClick={() => handleNavClick('/properties')}
                 className={`px-3.5 py-2 rounded-lg transition-all ${currentView === 'browse' ? 'text-[#08D9D6] bg-white/5 font-semibold' : 'text-slate-300 hover:text-white hover:bg-white/5'}`}
               >
                 Browse Properties
               </button>
               <button 
-                onClick={() => handleNavClick('find-home')}
+                onClick={() => handleNavClick('/find-a-home')}
                 className={`px-3.5 py-2 rounded-lg transition-all ${currentView === 'find-home' ? 'text-[#08D9D6] bg-white/5 font-semibold' : 'text-slate-300 hover:text-white hover:bg-white/5'}`}
               >
                 Find a Home
               </button>
               <button 
-                onClick={() => handleNavClick('list-property')}
+                onClick={() => handleNavClick('/list-property')}
                 className={`px-3.5 py-2 rounded-lg transition-all ${currentView === 'list-property' ? 'text-[#08D9D6] bg-white/5 font-semibold' : 'text-slate-300 hover:text-white hover:bg-white/5'}`}
               >
                 List Property
               </button>
               <button 
-                onClick={() => handleNavClick('receipts')}
+                onClick={() => handleNavClick('/receipts')}
                 className={`px-3.5 py-2 rounded-lg transition-all ${currentView === 'receipts' ? 'text-[#08D9D6] bg-white/5 font-semibold' : 'text-slate-300 hover:text-white hover:bg-white/5'}`}
               >
                 Receipts
               </button>
               <button 
-                onClick={() => handleNavClick('about')}
+                onClick={() => handleNavClick('/about')}
                 className={`px-3.5 py-2 rounded-lg transition-all ${currentView === 'about' ? 'text-[#08D9D6] bg-white/5 font-semibold' : 'text-slate-300 hover:text-white hover:bg-white/5'}`}
               >
                 About
               </button>
               <button 
-                onClick={() => handleNavClick('contact')}
+                onClick={() => handleNavClick('/contact')}
                 className={`px-3.5 py-2 rounded-lg transition-all ${currentView === 'contact' ? 'text-[#08D9D6] bg-white/5 font-semibold' : 'text-slate-300 hover:text-white hover:bg-white/5'}`}
               >
                 Contact
@@ -116,43 +122,43 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAuth }) => {
           {currentRole === 'tenant' && (
             <>
               <button 
-                onClick={() => handleNavClick('home')}
+                onClick={() => handleNavClick('/')}
                 className={`px-3 py-2 rounded-lg transition-all ${currentView === 'home' ? 'text-[#08D9D6] bg-white/5 font-semibold' : 'text-slate-300 hover:text-white hover:bg-white/5'}`}
               >
                 Home
               </button>
               <button 
-                onClick={() => handleNavClick('browse')}
+                onClick={() => handleNavClick('/properties')}
                 className={`px-3 py-2 rounded-lg transition-all ${currentView === 'browse' ? 'text-[#08D9D6] bg-white/5 font-semibold' : 'text-slate-300 hover:text-white hover:bg-white/5'}`}
               >
                 Browse Properties
               </button>
               <button 
-                onClick={() => handleNavClick('find-home')}
+                onClick={() => handleNavClick('/find-a-home')}
                 className={`px-3 py-2 rounded-lg transition-all ${currentView === 'find-home' ? 'text-[#08D9D6] bg-white/5 font-semibold' : 'text-slate-300 hover:text-white hover:bg-white/5'}`}
               >
                 Find a Home
               </button>
               <button 
-                onClick={() => handleNavClick('receipts')}
+                onClick={() => handleNavClick('/receipts')}
                 className={`px-3 py-2 rounded-lg transition-all ${currentView === 'receipts' ? 'text-[#08D9D6] bg-white/5 font-semibold' : 'text-slate-300 hover:text-white hover:bg-white/5'}`}
               >
                 Receipts
               </button>
               <button 
-                onClick={() => handleNavClick('dashboard')}
+                onClick={() => handleNavClick(dashboardPath)}
                 className={`px-3 py-2 rounded-lg transition-all ${currentView === 'dashboard' ? 'text-[#08D9D6] bg-white/5 font-semibold' : 'text-slate-300 hover:text-white hover:bg-white/5'}`}
               >
                 Dashboard
               </button>
               <button 
-                onClick={() => handleNavClick('profile')}
+                onClick={() => handleNavClick(profilePath)}
                 className={`px-3 py-2 rounded-lg transition-all ${currentView === 'profile' ? 'text-[#08D9D6] bg-white/5 font-semibold' : 'text-slate-300 hover:text-white hover:bg-white/5'}`}
               >
                 Profile
               </button>
               <button 
-                onClick={() => handleNavClick('notifications')}
+                onClick={() => handleNavClick(notificationsPath)}
                 className={`relative px-3 py-2 rounded-lg transition-all ${currentView === 'notifications' ? 'text-[#08D9D6] bg-white/5 font-semibold' : 'text-slate-300 hover:text-white hover:bg-white/5'}`}
               >
                 Notifications
@@ -167,25 +173,25 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAuth }) => {
           {currentRole === 'agent' && (
             <>
               <button
-                onClick={() => handleNavClick('home')}
+                onClick={() => handleNavClick('/')}
                 className={`px-3 py-2 rounded-lg transition-all ${currentView === 'home' ? 'text-[#08D9D6] bg-white/5 font-semibold' : 'text-slate-300 hover:text-white hover:bg-white/5'}`}
               >
                 Home
               </button>
               <button
-                onClick={() => handleNavClick('browse')}
+                onClick={() => handleNavClick('/properties')}
                 className={`px-3 py-2 rounded-lg transition-all ${currentView === 'browse' ? 'text-[#08D9D6] bg-white/5 font-semibold' : 'text-slate-300 hover:text-white hover:bg-white/5'}`}
               >
                 Browse Properties
               </button>
               <button
-                onClick={() => handleNavClick('dashboard')}
+                onClick={() => handleNavClick(dashboardPath)}
                 className={`px-3 py-2 rounded-lg transition-all ${currentView === 'dashboard' ? 'text-[#08D9D6] bg-white/5 font-semibold' : 'text-slate-300 hover:text-white hover:bg-white/5'}`}
               >
                 Agent Dashboard
               </button>
               <button
-                onClick={() => handleNavClick('notifications')}
+                onClick={() => handleNavClick(notificationsPath)}
                 className={`relative px-3 py-2 rounded-lg transition-all ${currentView === 'notifications' ? 'text-[#08D9D6] bg-white/5 font-semibold' : 'text-slate-300 hover:text-white hover:bg-white/5'}`}
               >
                 Notifications
@@ -200,43 +206,43 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAuth }) => {
           {currentRole === 'landlord' && (
             <>
               <button 
-                onClick={() => handleNavClick('home')}
+                onClick={() => handleNavClick('/')}
                 className={`px-3 py-2 rounded-lg transition-all ${currentView === 'home' ? 'text-[#08D9D6] bg-white/5 font-semibold' : 'text-slate-300 hover:text-white hover:bg-white/5'}`}
               >
                 Home
               </button>
               <button 
-                onClick={() => handleNavClick('browse')}
+                onClick={() => handleNavClick('/properties')}
                 className={`px-3 py-2 rounded-lg transition-all ${currentView === 'browse' ? 'text-[#08D9D6] bg-white/5 font-semibold' : 'text-slate-300 hover:text-white hover:bg-white/5'}`}
               >
                 Browse Properties
               </button>
               <button 
-                onClick={() => handleNavClick('list-property')}
+                onClick={() => handleNavClick('/list-property')}
                 className={`px-3 py-2 rounded-lg transition-all ${currentView === 'list-property' ? 'text-[#08D9D6] bg-white/5 font-semibold' : 'text-slate-300 hover:text-white hover:bg-white/5'}`}
               >
                 List Property
               </button>
               <button 
-                onClick={() => handleNavClick('dashboard')}
+                onClick={() => handleNavClick(dashboardPath)}
                 className={`px-3 py-2 rounded-lg transition-all ${currentView === 'dashboard' ? 'text-[#08D9D6] bg-white/5 font-semibold' : 'text-slate-300 hover:text-white hover:bg-white/5'}`}
               >
                 Dashboard
               </button>
               <button 
-                onClick={() => handleNavClick('my-properties')}
+                onClick={() => handleNavClick('/landlord/properties')}
                 className={`px-3 py-2 rounded-lg transition-all ${currentView === 'my-properties' ? 'text-[#08D9D6] bg-white/5 font-semibold' : 'text-slate-300 hover:text-white hover:bg-white/5'}`}
               >
                 My Properties
               </button>
               <button 
-                onClick={() => handleNavClick('receipts')}
+                onClick={() => handleNavClick('/receipts')}
                 className={`px-3 py-2 rounded-lg transition-all ${currentView === 'receipts' ? 'text-[#08D9D6] bg-white/5 font-semibold' : 'text-slate-300 hover:text-white hover:bg-white/5'}`}
               >
                 Receipts
               </button>
               <button 
-                onClick={() => handleNavClick('profile')}
+                onClick={() => handleNavClick(profilePath)}
                 className={`px-3 py-2 rounded-lg transition-all ${currentView === 'profile' ? 'text-[#08D9D6] bg-white/5 font-semibold' : 'text-slate-300 hover:text-white hover:bg-white/5'}`}
               >
                 Profile
@@ -252,7 +258,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAuth }) => {
                 Goodlucks SaaS Admin
               </span>
               <button 
-                onClick={() => handleNavClick('dashboard')}
+                onClick={() => handleNavClick(dashboardPath)}
                 className={`px-3.5 py-2 rounded-lg transition-all ${currentView === 'dashboard' ? 'text-[#08D9D6] bg-white/5 font-semibold' : 'text-slate-300 hover:text-white hover:bg-white/5'}`}
               >
                 Admin Workspace
@@ -334,37 +340,37 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAuth }) => {
           {currentRole === 'guest' && (
             <>
               <button 
-                onClick={() => handleNavClick('home')}
+                onClick={() => handleNavClick('/')}
                 className="w-full text-left px-4 py-2.5 rounded-xl text-slate-200 hover:bg-white/5 hover:text-[#08D9D6] font-medium"
               >
                 Home
               </button>
               <button 
-                onClick={() => handleNavClick('browse')}
+                onClick={() => handleNavClick('/properties')}
                 className="w-full text-left px-4 py-2.5 rounded-xl text-slate-200 hover:bg-white/5 hover:text-[#08D9D6] font-medium"
               >
                 Browse Properties
               </button>
               <button 
-                onClick={() => handleNavClick('find-home')}
+                onClick={() => handleNavClick('/find-a-home')}
                 className="w-full text-left px-4 py-2.5 rounded-xl text-slate-200 hover:bg-white/5 hover:text-[#08D9D6] font-medium"
               >
                 Find a Home
               </button>
               <button 
-                onClick={() => handleNavClick('list-property')}
+                onClick={() => handleNavClick('/list-property')}
                 className="w-full text-left px-4 py-2.5 rounded-xl text-slate-200 hover:bg-white/5 hover:text-[#08D9D6] font-medium"
               >
                 List Property
               </button>
               <button 
-                onClick={() => handleNavClick('about')}
+                onClick={() => handleNavClick('/about')}
                 className="w-full text-left px-4 py-2.5 rounded-xl text-slate-200 hover:bg-white/5 hover:text-[#08D9D6] font-medium"
               >
                 About
               </button>
               <button 
-                onClick={() => handleNavClick('contact')}
+                onClick={() => handleNavClick('/contact')}
                 className="w-full text-left px-4 py-2.5 rounded-xl text-slate-200 hover:bg-white/5 hover:text-[#08D9D6] font-medium"
               >
                 Contact
@@ -389,37 +395,37 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAuth }) => {
           {currentRole === 'tenant' && (
             <>
               <button 
-                onClick={() => handleNavClick('home')}
+                onClick={() => handleNavClick('/')}
                 className="w-full text-left px-4 py-2.5 rounded-xl text-slate-200 hover:bg-white/5 font-medium"
               >
                 Home
               </button>
               <button 
-                onClick={() => handleNavClick('browse')}
+                onClick={() => handleNavClick('/properties')}
                 className="w-full text-left px-4 py-2.5 rounded-xl text-slate-200 hover:bg-white/5 font-medium"
               >
                 Browse Properties
               </button>
               <button 
-                onClick={() => handleNavClick('find-home')}
+                onClick={() => handleNavClick('/find-a-home')}
                 className="w-full text-left px-4 py-2.5 rounded-xl text-slate-200 hover:bg-white/5 font-medium"
               >
                 Find a Home
               </button>
               <button 
-                onClick={() => handleNavClick('dashboard')}
+                onClick={() => handleNavClick(dashboardPath)}
                 className="w-full text-left px-4 py-2.5 rounded-xl text-slate-200 hover:bg-white/5 font-medium"
               >
                 Dashboard
               </button>
               <button 
-                onClick={() => handleNavClick('profile')}
+                onClick={() => handleNavClick(profilePath)}
                 className="w-full text-left px-4 py-2.5 rounded-xl text-slate-200 hover:bg-white/5 font-medium"
               >
                 Profile
               </button>
               <button 
-                onClick={() => handleNavClick('notifications')}
+                onClick={() => handleNavClick(notificationsPath)}
                 className="w-full text-left px-4 py-2.5 rounded-xl text-slate-200 hover:bg-white/5 font-medium flex justify-between items-center"
               >
                 Notifications
@@ -443,25 +449,25 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAuth }) => {
           {currentRole === 'agent' && (
             <>
               <button
-                onClick={() => handleNavClick('home')}
+                onClick={() => handleNavClick('/')}
                 className="w-full text-left px-4 py-2.5 rounded-xl text-slate-200 hover:bg-white/5 font-medium"
               >
                 Home
               </button>
               <button
-                onClick={() => handleNavClick('browse')}
+                onClick={() => handleNavClick('/properties')}
                 className="w-full text-left px-4 py-2.5 rounded-xl text-slate-200 hover:bg-white/5 font-medium"
               >
                 Browse Properties
               </button>
               <button
-                onClick={() => handleNavClick('dashboard')}
+                onClick={() => handleNavClick(dashboardPath)}
                 className="w-full text-left px-4 py-2.5 rounded-xl text-slate-200 hover:bg-white/5 font-medium"
               >
                 Agent Dashboard
               </button>
               <button
-                onClick={() => handleNavClick('notifications')}
+                onClick={() => handleNavClick(notificationsPath)}
                 className="w-full text-left px-4 py-2.5 rounded-xl text-slate-200 hover:bg-white/5 font-medium flex justify-between items-center"
               >
                 Notifications
@@ -485,37 +491,37 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAuth }) => {
           {currentRole === 'landlord' && (
             <>
               <button 
-                onClick={() => handleNavClick('home')}
+                onClick={() => handleNavClick('/')}
                 className="w-full text-left px-4 py-2.5 rounded-xl text-slate-200 hover:bg-white/5 font-medium"
               >
                 Home
               </button>
               <button 
-                onClick={() => handleNavClick('browse')}
+                onClick={() => handleNavClick('/properties')}
                 className="w-full text-left px-4 py-2.5 rounded-xl text-slate-200 hover:bg-white/5 font-medium"
               >
                 Browse Properties
               </button>
               <button 
-                onClick={() => handleNavClick('list-property')}
+                onClick={() => handleNavClick('/list-property')}
                 className="w-full text-left px-4 py-2.5 rounded-xl text-slate-200 hover:bg-white/5 font-medium"
               >
                 List Property
               </button>
               <button 
-                onClick={() => handleNavClick('dashboard')}
+                onClick={() => handleNavClick(dashboardPath)}
                 className="w-full text-left px-4 py-2.5 rounded-xl text-slate-200 hover:bg-white/5 font-medium"
               >
                 Dashboard
               </button>
               <button 
-                onClick={() => handleNavClick('my-properties')}
+                onClick={() => handleNavClick('/landlord/properties')}
                 className="w-full text-left px-4 py-2.5 rounded-xl text-slate-200 hover:bg-white/5 font-medium"
               >
                 My Properties
               </button>
               <button 
-                onClick={() => handleNavClick('profile')}
+                onClick={() => handleNavClick(profilePath)}
                 className="w-full text-left px-4 py-2.5 rounded-xl text-slate-200 hover:bg-white/5 font-medium"
               >
                 Profile
@@ -534,7 +540,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAuth }) => {
           {currentRole === 'admin' && (
             <>
               <button 
-                onClick={() => handleNavClick('dashboard')}
+                onClick={() => handleNavClick(dashboardPath)}
                 className="w-full text-left px-4 py-2.5 rounded-xl text-slate-200 hover:bg-white/5 font-medium"
               >
                 Admin Dashboard
