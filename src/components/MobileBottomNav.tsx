@@ -7,9 +7,13 @@ interface MobileBottomNavProps {
 }
 
 export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({ onOpenAuth }) => {
-  const { currentRole, currentView, setCurrentView, notifications } = useApp();
+  const { currentRole, currentView, navigate, notifications } = useApp();
 
   const unreadCount = notifications.filter(n => !n.read).length;
+
+  // Each tab is a real URL, so the bottom bar behaves like the rest of the site.
+  const dashboardPath = currentRole === 'admin' ? '/admin' : `/${currentRole}/dashboard`;
+  const profilePath = currentRole === 'admin' ? '/admin' : `/${currentRole}/profile`;
 
   return (
     <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#252A34]/95 backdrop-blur-lg border-t border-white/10 px-2 py-1.5 shadow-2xl">
@@ -17,7 +21,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({ onOpenAuth }) 
         
         {/* Home */}
         <button
-          onClick={() => setCurrentView('home')}
+          onClick={() => navigate('/')}
           className={`flex flex-col items-center py-1 px-3 rounded-xl transition-all ${
             currentView === 'home' ? 'text-[#08D9D6] font-bold scale-105' : 'hover:text-white'
           }`}
@@ -28,7 +32,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({ onOpenAuth }) 
 
         {/* Browse */}
         <button
-          onClick={() => setCurrentView('browse')}
+          onClick={() => navigate('/properties')}
           className={`flex flex-col items-center py-1 px-3 rounded-xl transition-all ${
             currentView === 'browse' ? 'text-[#08D9D6] font-bold scale-105' : 'hover:text-white'
           }`}
@@ -40,7 +44,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({ onOpenAuth }) 
         {/* Role Specific Action */}
         {currentRole === 'guest' && (
           <button
-            onClick={() => setCurrentView('find-home')}
+            onClick={() => navigate('/find-a-home')}
             className={`flex flex-col items-center py-1 px-3 rounded-xl transition-all ${
               currentView === 'find-home' ? 'text-[#08D9D6] font-bold scale-105' : 'hover:text-white'
             }`}
@@ -52,7 +56,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({ onOpenAuth }) 
 
         {currentRole === 'tenant' && (
           <button
-            onClick={() => setCurrentView('find-home')}
+            onClick={() => navigate('/find-a-home')}
             className={`flex flex-col items-center py-1 px-3 rounded-xl transition-all ${
               currentView === 'find-home' ? 'text-[#08D9D6] font-bold scale-105' : 'hover:text-white'
             }`}
@@ -64,7 +68,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({ onOpenAuth }) 
 
         {currentRole === 'landlord' && (
           <button
-            onClick={() => setCurrentView('list-property')}
+            onClick={() => navigate('/list-property')}
             className={`flex flex-col items-center py-1 px-3 rounded-xl transition-all ${
               currentView === 'list-property' ? 'text-[#08D9D6] font-bold scale-105' : 'hover:text-white'
             }`}
@@ -85,7 +89,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({ onOpenAuth }) 
           </button>
         ) : (
           <button
-            onClick={() => setCurrentView('dashboard')}
+            onClick={() => navigate(dashboardPath)}
             className={`flex flex-col items-center py-1 px-3 rounded-xl transition-all ${
               currentView === 'dashboard' ? 'text-[#08D9D6] font-bold scale-105' : 'hover:text-white'
             }`}
@@ -98,7 +102,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({ onOpenAuth }) 
         {/* Profile / Notifications */}
         {currentRole !== 'guest' && (
           <button
-            onClick={() => setCurrentView('profile')}
+            onClick={() => navigate(profilePath)}
             className={`relative flex flex-col items-center py-1 px-3 rounded-xl transition-all ${
               currentView === 'profile' ? 'text-[#08D9D6] font-bold scale-105' : 'hover:text-white'
             }`}

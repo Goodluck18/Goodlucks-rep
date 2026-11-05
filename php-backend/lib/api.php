@@ -3633,8 +3633,12 @@ function handle_sitemap(): void
 {
     $core = [
         ['loc' => SITE_URL . '/', 'priority' => '1.0', 'changefreq' => 'daily'],
-        ['loc' => SITE_URL . '/browse', 'priority' => '0.9', 'changefreq' => 'daily'],
-        ['loc' => SITE_URL . '/find-home', 'priority' => '0.8', 'changefreq' => 'weekly'],
+        // These must be the app's real routes (src/routing/routes.ts): the
+        // sitemap previously advertised /browse and /find-home, which the site
+        // never served.
+        ['loc' => SITE_URL . '/properties', 'priority' => '0.9', 'changefreq' => 'daily'],
+        ['loc' => SITE_URL . '/find-a-home', 'priority' => '0.8', 'changefreq' => 'weekly'],
+        ['loc' => SITE_URL . '/list-property', 'priority' => '0.6', 'changefreq' => 'monthly'],
         ['loc' => SITE_URL . '/about', 'priority' => '0.5', 'changefreq' => 'monthly'],
         ['loc' => SITE_URL . '/contact', 'priority' => '0.5', 'changefreq' => 'monthly'],
     ];

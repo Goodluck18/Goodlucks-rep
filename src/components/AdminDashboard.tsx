@@ -48,6 +48,8 @@ export const AdminDashboard: React.FC = () => {
     enquiries,
     analytics, 
     setCurrentView,
+    sectionTab,
+    setSectionTab,
     updatePropertyStatus, 
     updateTenantRequestStatus, 
     scheduleViewing, 
@@ -89,7 +91,9 @@ export const AdminDashboard: React.FC = () => {
     };
   }, []);
 
-  const [activeAdminTab, setActiveAdminTab] = useState<
+  // The console section is a URL (/admin/approval-queue, /admin/finance…): the
+  // address bar says which screen is open, and reloading keeps it.
+  const activeAdminTab = (sectionTab || 'analytics') as
     | 'analytics'
     | 'approval-queue'
     | 'manage'
@@ -99,8 +103,8 @@ export const AdminDashboard: React.FC = () => {
     | 'email-logs'
     | 'agents'
     | 'fee-policies'
-    | 'finance'
-  >('analytics');
+    | 'finance';
+  const setActiveAdminTab = setSectionTab;
 
   // Real data export: CSV of the listings currently loaded from the API.
   const handleExportCsv = () => {

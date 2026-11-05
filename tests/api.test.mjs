@@ -2869,7 +2869,7 @@ describe('Enquiry workflow', () => {
 // ---------------------------------------------------------------------------
 describe('Notifications & analytics', () => {
   test('page views are recorded and exposed as real analytics', async () => {
-    for (const page of ['/', '/browse', '/about']) {
+    for (const page of ['/', '/properties', '/about']) {
       const res = await guest.post('/api/track/pageview', { path: page });
       assert.equal(res.status, 200);
     }
@@ -3355,7 +3355,12 @@ describe('Match scoring, notifications & SEO', () => {
 
     const xml = res.body.raw;
     assert.ok(xml.includes('https://rent.goodlucks.co/'));
-    assert.ok(xml.includes('/browse'));
+    // The sitemap must advertise the routes the app actually serves
+    // (src/routing/routes.ts). /browse and /find-home were never real pages.
+    assert.ok(xml.includes('/properties'));
+    assert.ok(xml.includes('/find-a-home'));
+    assert.ok(!xml.includes('/browse'), 'the sitemap must not advertise a route the app does not serve');
+    assert.ok(!xml.includes('/find-home'), 'the sitemap must not advertise a route the app does not serve');
     assert.ok(xml.includes(`/property/${state.seededPropertyId}`));
 
     // Landlord submissions start pending, so they are the honest negative case.

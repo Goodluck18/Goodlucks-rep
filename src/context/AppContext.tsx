@@ -17,6 +17,18 @@ import {
 } from '../types';
 import { ToastContainer } from '../components/ToastContainer';
 import {
+  RouteState,
+  accessDecision,
+  dashboardPath,
+  isSafeRedirect,
+  legacyRedirect,
+  parseLocation,
+  pathForView,
+  tabForRoute,
+  tabPath,
+  viewForRoute,
+} from '../routing/routes';
+import {
   AdminStats,
   PropertyInput,
   SearchAlertInput,
@@ -93,9 +105,18 @@ interface AppContextType {
   savedPropertyIds: string[];
   searchAlerts: SearchAlertSubscription[];
 
-  // Navigation
+  // Navigation — the URL is the source of truth
+  /** The route parsed from the browser URL (never stored separately). */
+  route: RouteState;
   currentView: string;
   selectedPropertyId: string | null;
+  /** Dashboard section (tab id) taken from the URL. */
+  sectionTab: string;
+  /** Go to a path; every navigation control in the app funnels through this. */
+  navigate: (path: string, options?: { replace?: boolean; scroll?: boolean }) => void;
+  /** Switch dashboard tab → updates the URL. */
+  setSectionTab: (tab: string) => void;
+  /** @deprecated legacy view names — resolved to real routes; prefer `navigate()`. */
   setCurrentView: (view: string) => void;
   navigateToProperty: (propertyId: string) => void;
 
@@ -205,25 +226,32 @@ function writeGuestSaved(ids: string[]) {
   }
 }
 
-function initialView(): string {
-  if (typeof window === 'undefined') return 'home';
-  const pathname = window.location.pathname.toLowerCase();
-  const hash = window.location.hash.toLowerCase();
-  const search = window.location.search.toLowerCase();
-  if (/^\/property\//.test(pathname) || hash.includes('/property/')) {
-    return 'property-detail';
+/** The address bar exactly as it is right now (path + query + hash). */
+function currentLocation(): string {
+  if (typeof window === 'undefined') return '/';
+  return `${window.location.pathname}${window.location.search}${window.location.hash}`;
+}
+
+/**
+ * The route the browser is on at first paint.
+ *
+ * Older links (`?property=<id>`, `#/property/<id>`, `?reset=<token>`, mixed-case
+ * paths) are rewritten to their canonical URL with `replaceState` so the app
+ * starts on the address the rest of the session will use — no extra history
+ * entry, and the shared link keeps working.
+ */
+function initialRoute(): RouteState {
+  if (typeof window === 'undefined') return parseLocation('/');
+  const legacy = legacyRedirect(currentLocation());
+  if (legacy) {
+    try {
+      window.history.replaceState({}, '', legacy);
+    } catch {
+      /* a blocked history API still leaves the parsed route usable */
+    }
+    return parseLocation(legacy);
   }
-  if (
-    pathname.includes('/admin-login') ||
-    pathname.includes('/admin') ||
-    hash.includes('admin-login') ||
-    hash.includes('admin') ||
-    search.includes('admin=1') ||
-    search.includes('admin=true')
-  ) {
-    return 'admin-login';
-  }
-  return 'home';
+  return parseLocation(currentLocation());
 }
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -251,17 +279,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [searchAlerts, setSearchAlerts] = useState<SearchAlertSubscription[]>([]);
   const [savedPropertyIds, setSavedPropertyIds] = useState<string[]>(() => readGuestSaved());
 
-  const [currentView, setCurrentViewState] = useState<string>(() => initialView());
-  const [selectedPropertyId, setSelectedPropertyId] = useState<string | null>(() => {
-    if (typeof window === 'undefined') return null;
-    const params = new URLSearchParams(window.location.search);
-    return params.get('property') || params.get('p') || null;
-  });
+  // The browser URL is the only source of truth for "which page am I on".
+  // `currentView` (below) is derived from it for the existing components that
+  // compare view names; nothing else stores a copy of the current page.
+  const [route, setRoute] = useState<RouteState>(() => initialRoute());
   const [toasts, setToasts] = useState<ToastNotification[]>([]);
 
   const viewedPropertyIds = useRef<Set<string>>(new Set());
 
   const currentRole: UserRole = currentUser ? currentUser.role : 'guest';
+
+  // Derived, never stored: both values come from the URL.
+  const currentView = viewForRoute(route);
+  const selectedPropertyId = route.name === 'property-detail' ? (route.params.id ?? null) : null;
+  /** Tab id of the dashboard section in the URL (dashboards read this). */
+  const sectionTab = tabForRoute(route);
 
   // -------------------------------------------------------------------------
   // Toasts
@@ -440,35 +472,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const retryBootstrap = useCallback(() => setBootAttempt((n) => n + 1), []);
 
   // -------------------------------------------------------------------------
-  // Deep links (?property=...), admin paths, and back/forward navigation
+  // URL → application state (refresh, deep links, Back / Forward)
   // -------------------------------------------------------------------------
   useEffect(() => {
-    const syncFromUrl = () => {
-      const params = new URLSearchParams(window.location.search);
-      const propertyParam = params.get('property') || params.get('p');
-      if (propertyParam) {
-        setSelectedPropertyId(propertyParam);
-        setCurrentViewState('property-detail');
+    const syncFromBrowser = () => {
+      const legacy = legacyRedirect(currentLocation());
+      if (legacy) {
+        try {
+          window.history.replaceState({}, '', legacy);
+        } catch {
+          /* ignore a blocked history API */
+        }
+        setRoute(parseLocation(legacy));
         return;
       }
-      const pathname = window.location.pathname.toLowerCase();
-      // Clean, shareable listing URLs: /property/<id>
-      const pathMatch = pathname.match(/^\/property\/([a-z0-9\-_]+)/);
-      if (pathMatch) {
-        setSelectedPropertyId(pathMatch[1]);
-        setCurrentViewState('property-detail');
-        return;
-      }
-      if (pathname.includes('/admin-login') || pathname.includes('/admin')) {
-        setCurrentViewState('admin-login');
-      }
+      setRoute(parseLocation(currentLocation()));
     };
-    syncFromUrl();
-    window.addEventListener('popstate', syncFromUrl);
-    window.addEventListener('hashchange', syncFromUrl);
+
+    // The initial render already parsed the URL; this also catches the case
+    // where the location changed between render and effect.
+    syncFromBrowser();
+    window.addEventListener('popstate', syncFromBrowser);
+    window.addEventListener('hashchange', syncFromBrowser);
     return () => {
-      window.removeEventListener('popstate', syncFromUrl);
-      window.removeEventListener('hashchange', syncFromUrl);
+      window.removeEventListener('popstate', syncFromBrowser);
+      window.removeEventListener('hashchange', syncFromBrowser);
     };
   }, []);
 
@@ -500,51 +528,108 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [selectedPropertyId, properties]);
 
   // -------------------------------------------------------------------------
-  // Navigation
+  // Navigation — one function, one source of truth (the address bar)
   // -------------------------------------------------------------------------
-  const setCurrentView = useCallback((view: string) => {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-    if (typeof window !== 'undefined') {
-      if (view === 'admin-login') {
-        if (!window.location.pathname.includes('/admin-login')) {
-          try {
-            window.history.pushState({}, '', '/admin-login');
-          } catch {
-            window.location.hash = '#/admin-login';
-          }
-        }
-      } else if (
-        window.location.pathname.includes('/admin-login') ||
-        window.location.pathname.toLowerCase().startsWith('/property/')
-      ) {
+  /**
+   * Move to `path`, updating the browser URL and the rendered page together.
+   *
+   *   replace  true → replace the history entry (filters, redirects, guards)
+   *   scroll   false → keep the scroll position (typing in a search field)
+   */
+  const navigate = useCallback(
+    (target: string, options: { replace?: boolean; scroll?: boolean } = {}) => {
+      if (typeof window === 'undefined') return;
+      const path = target.startsWith('/') ? target : `/${target}`;
+      const here = currentLocation();
+      const sameUrl = path === here;
+
+      if (!sameUrl) {
         try {
-          window.history.pushState({}, '', '/');
+          if (options.replace) window.history.replaceState({}, '', path);
+          else window.history.pushState({}, '', path);
         } catch {
-          window.location.hash = '#/';
+          // A blocked history API (sandboxed iframe) still navigates; the URL
+          // just falls back to the hash form the old build used.
+          window.location.hash = `#${path}`;
         }
       }
-    }
-    setCurrentViewState(view);
-    void api.trackPageView(view);
-  }, []);
+
+      const next = parseLocation(path);
+      setRoute(next);
+      if (options.scroll !== false) window.scrollTo({ top: 0, behavior: 'smooth' });
+      // Analytics counts pages, not filter or tab tweaks on the same page.
+      if (!sameUrl && parseLocation(here).path !== next.path) void api.trackPageView(next.path);
+    },
+    []
+  );
+
+  /**
+   * Compatibility shim for the pre-routing call sites (`setCurrentView('browse')`).
+   * It resolves the view name to a real route and delegates to `navigate`, so
+   * every existing navigation control updates the URL. New code should call
+   * `navigate('/path')` directly.
+   */
+  const setCurrentView = useCallback(
+    (view: string) => {
+      navigate(pathForView(view, currentRole, route));
+    },
+    [navigate, currentRole, route]
+  );
 
   const navigateToProperty = useCallback(
     (propertyId: string) => {
-      setSelectedPropertyId(propertyId);
       const local = properties.find((p) => p.id === propertyId);
       if (local) setSelectedProperty(local);
-      if (typeof window !== 'undefined') {
-        try {
-          window.history.pushState({}, '', `/property/${encodeURIComponent(propertyId)}`);
-        } catch {
-          window.location.hash = `#/property/${propertyId}`;
-        }
-      }
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-      setCurrentViewState('property-detail');
+      navigate(`/property/${encodeURIComponent(propertyId)}`);
     },
-    [properties]
+    [properties, navigate]
   );
+
+  /** Switch the dashboard section (dashboards call this from their tab bars). */
+  const setSectionTab = useCallback(
+    (tab: string) => {
+      if (currentRole !== 'tenant' && currentRole !== 'landlord' && currentRole !== 'agent' && currentRole !== 'admin') {
+        return;
+      }
+      navigate(tabPath(currentRole, tab));
+    },
+    [currentRole, navigate]
+  );
+
+  /**
+   * Where to go once authentication succeeds.
+   *
+   * A protected URL that redirected a signed-out visitor here carries `?next=`,
+   * and the destination is only honoured when the new account is actually
+   * allowed to open it (no open redirect, no cross-role jump).
+   */
+  const destinationAfterAuth = useCallback((role: UserRole): string => {
+    if (typeof window === 'undefined') return dashboardPath(role);
+    const next = parseLocation(currentLocation()).query.next;
+    return isSafeRedirect(next, role) ? next : dashboardPath(role);
+  }, []);
+
+  /**
+   * Route guards.
+   *
+   * Runs once the session has been restored (so a refresh never bounces a
+   * signed-in member to the login screen). The server still enforces every
+   * permission; this only decides which screen is shown and where to send the
+   * visitor when the page is not theirs.
+   */
+  useEffect(() => {
+    if (isBooting) return;
+    const decision = accessDecision(route, currentRole, route.path);
+    if (decision.action === 'allow') return;
+
+    if (decision.action === 'forbidden') {
+      showInfoToast(
+        'Not available for this account',
+        'That page belongs to a different account type. You have been taken to your own dashboard.'
+      );
+    }
+    navigate(decision.to, { replace: true });
+  }, [route, currentRole, isBooting, navigate, showInfoToast]);
 
   // -------------------------------------------------------------------------
   // Auth actions
@@ -563,13 +648,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const result = await api.login(email, password, role);
         await handleSignIn(result.user);
         showSuccessToast('Welcome Back!', `Signed in as ${result.user.name}`);
-        setCurrentView('dashboard');
+        // Back to the page they were sent away from, or their own dashboard.
+        navigate(destinationAfterAuth(result.user.role), { replace: true });
         return { ok: true };
       } catch (error) {
         return { ok: false, error: messageForError(error), fields: (error as any)?.fields || {} };
       }
     },
-    [handleSignIn, setCurrentView, showSuccessToast]
+    [handleSignIn, navigate, destinationAfterAuth, showSuccessToast]
   );
 
   const register = useCallback(
@@ -587,13 +673,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const result = await api.register(data);
         await handleSignIn(result.user);
         showSuccessToast('Account Created', `Welcome to Goodlucks Homes, ${result.user.name}!`);
-        setCurrentView('dashboard');
+        navigate(destinationAfterAuth(result.user.role), { replace: true });
         return { ok: true };
       } catch (error) {
         return { ok: false, error: messageForError(error), fields: (error as any)?.fields || {} };
       }
     },
-    [handleSignIn, setCurrentView, showSuccessToast]
+    [handleSignIn, navigate, destinationAfterAuth, showSuccessToast]
   );
 
   const adminLogin = useCallback(
@@ -602,13 +688,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const result = await api.adminLogin(email, password, accessKey);
         await handleSignIn(result.user);
         showSuccessToast('Authentication Granted', 'Welcome to the Goodlucks admin console.');
-        setCurrentViewState('dashboard');
+        navigate('/admin', { replace: true });
         return { ok: true };
       } catch (error) {
         return { ok: false, error: messageForError(error), fields: (error as any)?.fields || {} };
       }
     },
-    [handleSignIn, showSuccessToast]
+    [handleSignIn, navigate, showSuccessToast]
   );
 
   const logout = useCallback(async () => {
@@ -622,8 +708,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setProperties([]);
     setBootAttempt((n) => n + 1);
     showInfoToast('Signed Out', 'You have been logged out of Goodlucks Homes.');
-    setCurrentViewState('home');
-  }, [showInfoToast]);
+    navigate('/', { replace: true });
+  }, [showInfoToast, navigate]);
 
   const updateUserProfile = useCallback(
     async (data: Partial<User> & { password?: string }): Promise<SignInResult> => {
@@ -1024,8 +1110,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       analytics,
       savedPropertyIds,
       searchAlerts,
+      route,
       currentView,
       selectedPropertyId,
+      sectionTab,
+      navigate,
+      setSectionTab,
       setCurrentView,
       navigateToProperty,
       toasts,
@@ -1085,8 +1175,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       analytics,
       savedPropertyIds,
       searchAlerts,
+      route,
       currentView,
       selectedPropertyId,
+      sectionTab,
+      navigate,
+      setSectionTab,
       setCurrentView,
       navigateToProperty,
       toasts,

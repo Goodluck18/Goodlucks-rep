@@ -18,13 +18,13 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({ property, onRequestV
       itemType="https://schema.org/RealEstateListing"
       className="group relative bg-[#252A34]/90 rounded-2xl border border-white/10 overflow-hidden shadow-lg hover:border-[#08D9D6]/50 hover:shadow-2xl hover:shadow-[#08D9D6]/10 transition-all duration-300 flex flex-col h-full active:scale-[0.99]"
     >
-      <meta itemProp="url" content={`${typeof window !== 'undefined' ? window.location.origin : ''}/?property=${property.id}`} />
+      <meta itemProp="url" content={`${typeof window !== 'undefined' ? window.location.origin : 'https://rent.goodlucks.co'}/property/${property.id}`} />
       <meta itemProp="name" content={property.title} />
       <meta itemProp="description" content={property.description} />
       
       {/* Property Image Container */}
       <a 
-        href={`/?property=${property.id}`}
+        href={`/property/${property.id}`}
         onClick={(e) => {
           e.preventDefault();
           navigateToProperty(property.id);
@@ -101,7 +101,7 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({ property, onRequestV
           {/* Title */}
           <h3 className="text-xs sm:text-sm font-bold text-white line-clamp-2 hover:text-[#08D9D6] transition-colors leading-tight sm:leading-snug">
             <a 
-              href={`/?property=${property.id}`}
+              href={`/property/${property.id}`}
               onClick={(e) => {
                 e.preventDefault();
                 navigateToProperty(property.id);

@@ -12,7 +12,9 @@
     "lint": "tsc --noEmit",
     "dev:web": "tsx server.ts",
     "api:dev": "node scripts/api-dev.mjs",
-    "test:api": "node --test --test-concurrency=1 tests/api.test.mjs tests/migration.test.mjs tests/concurrency.test.mjs"
+    "test:api": "node --test --test-concurrency=1 tests/api.test.mjs tests/migration.test.mjs tests/concurrency.test.mjs",
+    "test:routing": "node --import tsx --test tests/routing.test.mts",
+    "test:navigation": "node --import tsx --test tests/app-navigation.test.mts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
@@ -34,6 +36,7 @@
     "@types/node": "^22.14.0",
     "autoprefixer": "^10.4.21",
     "esbuild": "^0.25.0",
+    "happy-dom": "^21.0.4",
     "tailwindcss": "^4.1.14",
     "tsx": "^4.21.0",
     "typescript": "~5.8.2",

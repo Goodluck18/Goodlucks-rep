@@ -24,7 +24,11 @@ DirectoryIndex index.html index.php
     RewriteCond %{REQUEST_FILENAME} -d
     RewriteRule ^ - [L]
 
-    # 4. Every other URL is a client-side route handled by React Router.
+    # 4. Every other URL is a client-side route: the app's own router
+    #    (src/routing/routes.ts) reads the path and renders the matching page,
+    #    or its not-found page for an unknown path. Direct links, bookmarks and
+    #    a refresh on /properties, /property/<id>, /tenant/dashboard all land
+    #    here and work without a server round trip.
     RewriteRule ^ index.html [L]
 </IfModule>
 

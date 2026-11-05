@@ -220,13 +220,24 @@ export const TenantDashboard: React.FC = () => {
     unsubscribeFromSearchAlerts,
     notifications,
     setCurrentView,
+    sectionTab,
+    setSectionTab,
     updateUserProfile,
     navigateToProperty,
     showErrorToast,
     showSuccessToast
   } = useApp();
 
-  const [activeTab, setActiveTab] = useState<'requests' | 'matches' | 'viewings' | 'saved' | 'alerts' | 'profile'>('requests');
+  // The active tab lives in the URL (/tenant/viewings, /tenant/saved-properties…),
+  // so a refresh, a shared link and Back all return to the same tab.
+  const activeTab = (sectionTab || 'requests') as
+    | 'requests'
+    | 'matches'
+    | 'viewings'
+    | 'saved'
+    | 'alerts'
+    | 'profile';
+  const setActiveTab = setSectionTab;
   const [profileName, setProfileName] = useState(currentUser?.name || '');
   const [profilePhone, setProfilePhone] = useState(currentUser?.phone || '');
   const [profileEmail, setProfileEmail] = useState(currentUser?.email || '');

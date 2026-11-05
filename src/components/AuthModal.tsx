@@ -8,11 +8,20 @@ interface AuthModalProps {
   initialMode?: 'login' | 'register';
   initialRole?: 'tenant' | 'landlord' | 'agent';
   onClose: () => void;
+  /**
+   * Told whenever the visitor switches between signing in and registering, so
+   * the address bar can follow the screen (/login ↔ /register).
+   */
+  onModeChange?: (mode: 'login' | 'register' | 'forgot') => void;
 }
 
-export const AuthModal: React.FC<AuthModalProps> = ({ initialMode = 'login', initialRole = 'tenant', onClose }) => {
+export const AuthModal: React.FC<AuthModalProps> = ({ initialMode = 'login', initialRole = 'tenant', onClose, onModeChange }) => {
   const { login, register } = useApp();
-  const [mode, setMode] = useState<'login' | 'register' | 'forgot'>(initialMode);
+  const [mode, setModeState] = useState<'login' | 'register' | 'forgot'>(initialMode);
+  const setMode = (next: 'login' | 'register' | 'forgot') => {
+    setModeState(next);
+    onModeChange?.(next);
+  };
   const [resetSent, setResetSent] = useState<string | null>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
   const dialogProps = useModalA11y(dialogRef, onClose);

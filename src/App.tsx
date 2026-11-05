@@ -1,4 +1,4 @@
-import React, { Suspense, lazy, useEffect, useState } from 'react';
+import React, { Suspense, lazy, useEffect, useRef, useState } from 'react';
 import { HelmetProvider } from 'react-helmet-async';
 import { AppProvider, useApp } from './context/AppContext';
 import { Navbar } from './components/Navbar';
@@ -7,6 +7,9 @@ import { MobileBottomNav } from './components/MobileBottomNav';
 import { AuthModal } from './components/AuthModal';
 import { ResetPasswordView } from './components/ResetPasswordView';
 import { HomeView } from './components/HomeView';
+import { NotFoundView } from './components/NotFoundView';
+import { accessDecision } from './routing/routes';
+import { UserRole } from './types';
 
 // Everything below the home page is split into its own chunk: the landing view
 // stays instantly interactive while dashboards (the heaviest screens) load on
@@ -34,8 +37,10 @@ const ViewFallback: React.FC = () => (
 
 const AppContent: React.FC = () => {
   const {
+    route,
     currentRole,
     currentView,
+    navigate,
     isBooting,
     bootError,
     retryBootstrap,
@@ -43,7 +48,14 @@ const AppContent: React.FC = () => {
     notifications,
     markAllNotificationsRead,
   } = useApp();
-  const [authModalOpen, setAuthModalOpen] = useState(false);
+
+  const [authInitialRole, setAuthInitialRole] = useState<'tenant' | 'landlord' | 'agent'>('tenant');
+  // Where the auth modal was opened from, so closing it returns the visitor to
+  // the page they were reading instead of dumping them on the home page.
+  const authReturnTo = useRef<string | null>(null);
+
+  const isAuthRoute = route.name === 'login' || route.name === 'register';
+
   // Opening the notifications view clears the badge: anything the member has
   // just looked at should not keep counting as unread.
   useEffect(() => {
@@ -52,26 +64,38 @@ const AppContent: React.FC = () => {
     void markAllNotificationsRead();
   }, [currentView, currentUser, notifications, markAllNotificationsRead]);
 
-  // Emailed reset links land on /?reset=<token>; that view replaces the whole site.
-  const [resetToken, setResetToken] = useState<string | null>(() => {
-    if (typeof window === 'undefined') return null;
-    return new URLSearchParams(window.location.search).get('reset');
-  });
-  const [authInitialMode, setAuthInitialMode] = useState<'login' | 'register'>('login');
-  const [authInitialRole, setAuthInitialRole] = useState<'tenant' | 'landlord'>('tenant');
-
-  const handleOpenAuth = (mode: 'login' | 'register' = 'login', role: 'tenant' | 'landlord' = 'tenant') => {
-    setAuthInitialMode(mode);
+  /**
+   * Authentication lives at real URLs now (`/login`, `/register`), so a sign-in
+   * screen can be linked, bookmarked and reloaded. The modal is still the same
+   * component; it is simply driven by the route instead of local state.
+   */
+  const handleOpenAuth = (
+    mode: 'login' | 'register' = 'login',
+    role: 'tenant' | 'landlord' | 'agent' = 'tenant'
+  ) => {
     setAuthInitialRole(role);
-    setAuthModalOpen(true);
+    if (!isAuthRoute) authReturnTo.current = route.path;
+    navigate(mode === 'register' ? '/register' : '/login');
   };
 
-  // Render current view component
-  const renderView = () => {
-    switch (currentView) {
-      case 'admin-login':
-        // An authenticated admin who reloads /admin goes straight to the console.
-        return currentRole === 'admin' ? <AdminDashboard /> : <AdminLoginView />;
+  const closeAuth = () => {
+    // If signing in already navigated (to `?next=` or the role dashboard),
+    // leave that destination alone.
+    if (route.name !== 'login' && route.name !== 'register') return;
+    navigate(authReturnTo.current ?? '/', { replace: true });
+  };
+
+  const switchAuthMode = (mode: 'login' | 'register' | 'forgot') => {
+    // The reset request is a panel inside the same modal and has no page of its
+    // own, so only sign-in and registration get their own URL.
+    if (mode === 'forgot') return;
+    const target = mode === 'register' ? '/register' : '/login';
+    if (route.path !== target) navigate(target, { replace: true });
+  };
+
+  /** The component for the current route (or null when a guard is redirecting). */
+  const renderRoute = (): React.ReactNode => {
+    switch (route.name) {
       case 'home':
         return <HomeView />;
       case 'browse':
@@ -79,44 +103,48 @@ const AppContent: React.FC = () => {
       case 'property-detail':
         return <PropertyDetailView />;
       case 'find-home':
-        return <FindAHomeView onOpenAuth={() => handleOpenAuth('login')} />;
+        return <FindAHomeView onOpenAuth={(mode) => handleOpenAuth(mode || 'login')} />;
       case 'list-property':
-        return <ListPropertyView onOpenAuth={(mode, role) => handleOpenAuth(mode || 'login', role || 'landlord')} />;
+        return (
+          <ListPropertyView
+            onOpenAuth={(mode, role) => handleOpenAuth(mode || 'login', role || 'landlord')}
+          />
+        );
       case 'about':
         return <AboutView />;
       case 'contact':
         return <ContactView />;
       case 'receipts':
         return <ReceiptsView />;
-      case 'my-properties':
-        return <LandlordDashboard />;
-      case 'profile':
-      case 'notifications':
-      case 'dashboard':
-        if (currentRole === 'tenant') return <TenantDashboard />;
-        if (currentRole === 'landlord') return <LandlordDashboard />;
-        if (currentRole === 'agent') return <AgentDashboard />;
-        if (currentRole === 'admin') return <AdminDashboard />;
-        // If guest clicks dashboard, prompt auth
-        return (
-          <div className="min-h-[70vh] flex flex-col items-center justify-center p-6 text-center space-y-4">
-            <h2 className="text-2xl font-bold text-white">Please Sign In to Access Your Dashboard</h2>
-            <p className="text-xs text-slate-400 max-w-sm">Sign in as a Tenant or Landlord to manage your rental requests and property listings.</p>
-            <button
-              onClick={() => handleOpenAuth('login')}
-              className="px-6 py-3 rounded-xl bg-[#08D9D6] text-[#252A34] font-extrabold text-sm shadow-lg shadow-[#08D9D6]/20"
-            >
-              Sign In / Register
-            </button>
-          </div>
-        );
-      default:
+      case 'login':
+      case 'register':
+        // The sign-in screen is a modal over the landing page.
         return <HomeView />;
+      case 'admin-login':
+        return currentRole === 'admin' ? <AdminDashboard /> : <AdminLoginView />;
+      case 'admin':
+        return <AdminDashboard />;
+      case 'tenant':
+        return <TenantDashboard />;
+      case 'landlord':
+        return <LandlordDashboard />;
+      case 'agent':
+        return <AgentDashboard />;
+      case 'not-found':
+      default:
+        return <NotFoundView path={route.path} />;
     }
   };
 
-  if (resetToken) {
-    return <ResetPasswordView token={resetToken} onDone={() => setResetToken(null)} />;
+  // Emailed reset links land on /reset-password?token=…; that screen replaces
+  // the whole site (it is used before anyone is signed in).
+  if (route.name === 'reset-password') {
+    return (
+      <ResetPasswordView
+        token={route.query.token ?? ''}
+        onDone={() => navigate('/', { replace: true })}
+      />
+    );
   }
 
   if (isBooting) {
@@ -153,31 +181,42 @@ const AppContent: React.FC = () => {
     );
   }
 
+  // A guard is about to send this visitor somewhere they are allowed to be
+  // (login with `?next=`, their own dashboard, or the admin console). Showing
+  // the protected screen for one frame would leak its layout, so show the
+  // ordinary loading placeholder instead.
+  const decision = accessDecision(route, currentRole as UserRole, route.path);
+  const isRedirecting = decision.action !== 'allow';
+
+  const hideChrome = currentRole === 'admin' || route.name === 'admin-login' || route.name === 'admin';
+
   return (
     <div className="min-h-screen flex flex-col bg-[#252A34] text-[#EAEAEA] font-sans antialiased selection:bg-[#08D9D6] selection:text-[#252A34]">
-      
+
       {/* Header Navbar */}
       <Navbar onOpenAuth={handleOpenAuth} />
 
       {/* Main Content Area */}
       <main className="flex-grow pb-12 md:pb-0">
-        <Suspense fallback={<ViewFallback />}>{renderView()}</Suspense>
+        <Suspense fallback={<ViewFallback />}>
+          {isRedirecting ? <ViewFallback /> : renderRoute()}
+        </Suspense>
       </main>
 
       {/* Footer (Clean & minimal per specs) */}
-      {currentRole !== 'admin' && currentView !== 'admin-login' && <Footer />}
+      {!hideChrome && <Footer />}
 
       {/* Mobile Bottom Bar for native app feel */}
-      {currentRole !== 'admin' && currentView !== 'admin-login' && (
-        <MobileBottomNav onOpenAuth={() => handleOpenAuth('login')} />
-      )}
+      {!hideChrome && <MobileBottomNav onOpenAuth={() => handleOpenAuth('login')} />}
 
-      {/* Authentication Modal */}
-      {authModalOpen && (
-        <AuthModal 
-          initialMode={authInitialMode}
+      {/* Authentication Modal — presence follows the URL */}
+      {isAuthRoute && (
+        <AuthModal
+          key={route.name}
+          initialMode={route.name === 'register' ? 'register' : 'login'}
           initialRole={authInitialRole}
-          onClose={() => setAuthModalOpen(false)} 
+          onClose={closeAuth}
+          onModeChange={switchAuthMode}
         />
       )}
 

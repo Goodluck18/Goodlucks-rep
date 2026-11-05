@@ -43,14 +43,12 @@ export const ResetPasswordView: React.FC<ResetPasswordViewProps> = ({ token, onD
     }
   };
 
+  /**
+   * The router owns the address bar: `onDone()` moves the visitor off
+   * /reset-password?token=… (replacing the entry), so the one-time token does
+   * not stay in the URL or in the Back history.
+   */
   const clearTokenFromUrl = () => {
-    try {
-      const url = new URL(window.location.href);
-      url.searchParams.delete('reset');
-      window.history.replaceState({}, '', url.pathname + (url.search ? url.search : '') + url.hash);
-    } catch {
-      /* ignore — cosmetic only */
-    }
     onDone();
   };
 
