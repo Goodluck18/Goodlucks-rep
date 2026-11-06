@@ -341,7 +341,18 @@ export const ViewingRequestModal: React.FC<ViewingRequestModalProps> = ({ proper
             </div>
             <div className="bg-white/5 p-4 rounded-2xl text-xs text-slate-300 text-left space-y-1">
               <div>• Reference: <span className="font-mono font-semibold text-white">{submitted.reference}</span></div>
-              <div>• Viewing fee: <span className="font-semibold text-white">paid on site to the agent, if one applies</span></div>
+              <div>
+                • Viewing fee:{' '}
+                <span className="font-semibold text-white">
+                  {property.viewingTerms?.source === 'platform_policy'
+                    ? `${
+                        property.viewingTerms.feeGhs
+                          ? `GH₵ ${property.viewingTerms.feeGhs.toLocaleString()} `
+                          : ''
+                      }paid to Goodlucks Homes after the viewing, if one applies`
+                    : 'paid on site to the agent after the viewing, if one applies'}
+                </span>
+              </div>
               <div>• Payment status: <span className="font-semibold text-white">nothing has been paid or recorded</span></div>
             </div>
             <button

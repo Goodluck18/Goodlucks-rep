@@ -124,7 +124,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ initialMode = 'login', ini
               {mode === 'login' ? 'Welcome Back' : mode === 'register' ? 'Create Goodlucks Account' : 'Reset Your Password'}
             </h2>
             <p className="text-xs text-slate-400">
-              Goodlucks Homes Intermediary Rental Platform
+              Property discovery and viewing arrangements
             </p>
           </div>
 
@@ -197,8 +197,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({ initialMode = 'login', ini
             <div className="font-bold text-white flex items-center gap-1">
               <ShieldCheck className="w-4 h-4 text-[#08D9D6]" />
               {mode === 'forgot'
-                ? 'Secure password reset'
-                : `Secure ${selectedRole} ${mode === 'login' ? 'sign-in' : 'registration'}`}
+                ? 'Password reset link'
+                : `${selectedRole === 'tenant' ? 'Tenant' : selectedRole === 'landlord' ? 'Landlord' : 'Agent'} ${
+                    mode === 'login' ? 'sign-in' : 'registration'
+                  }`}
             </div>
             <p className="text-[11px] text-slate-400 leading-tight">
               {mode === 'forgot'
@@ -206,7 +208,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ initialMode = 'login', ini
                 : selectedRole === 'agent'
                   ? 'Agent accounts are reviewed before listing submissions open. Registering does not verify your identity, ' +
                     'your licence or your authority to act for a landlord.'
-                  : 'Your account is protected by Goodlucks Homes. Sign in to manage' +
+                  : 'We use your details to run your account and, for providers, for the checks shown on your dashboard. ' +
+                    'Sign in to manage' +
                     (selectedRole === 'landlord'
                       ? ' your listings and viewing requests.'
                       : ' saved homes, viewings and rental requests.')}

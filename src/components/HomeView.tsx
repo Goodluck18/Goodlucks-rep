@@ -33,11 +33,11 @@ export const HomeView: React.FC = () => {
 
   const homeJsonLd = {
     "@context": "https://schema.org",
-    "@type": "RealEstateAgent",
+    "@type": "Organization",
     "name": "Goodlucks Homes",
     "url": typeof window !== 'undefined' ? window.location.origin : "https://rent.goodlucks.co",
     "logo": "https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=800&q=80",
-    "description": "Ghana's property matching and rental platform in Greater Accra.",
+    "description": "Property discovery and rental intermediary connecting tenants with landlords and agents in Greater Accra, Ghana.",
     "address": {
       "@type": "PostalAddress",
       "addressLocality": "Accra",
@@ -65,7 +65,7 @@ export const HomeView: React.FC = () => {
     <div className="space-y-16 pb-12 animate-fadeIn">
       <SEOHead
         title="Goodlucks Homes - Rentals & Real Estate in Greater Accra, Ghana"
-        description="Find rental apartments, houses and commercial property in Accra, Ghana. Staff-reviewed listings, direct landlord connections and transparent viewing scheduling."
+        description="Find rental apartments, houses and commercial property in Accra, Ghana. Listings are submitted by registered landlords and agents, reviewed before publishing, and viewings are arranged through Goodlucks Homes."
         keywords="rentals Accra, homes for rent Ghana, East Legon apartments, Cantonments luxury homes, Airport Residential rental, Goodlucks Homes"
         jsonLd={homeJsonLd}
       />
@@ -80,7 +80,7 @@ export const HomeView: React.FC = () => {
           
           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/5 border border-white/10 backdrop-blur-md text-xs font-semibold text-slate-200">
             <span className="w-2 h-2 rounded-full bg-[#08D9D6] animate-pulse" />
-            Ghana’s Premier Intermediary Rental Platform
+            Property discovery and viewing arrangements · Accra
           </div>
 
           <h1 className="text-4xl sm:text-5xl md:text-6xl font-black text-white tracking-tight leading-[1.1]">
@@ -88,7 +88,7 @@ export const HomeView: React.FC = () => {
           </h1>
 
           <p className="text-sm sm:text-base text-slate-300 max-w-xl mx-auto leading-relaxed">
-            Goodlucks Homes coordinates every enquiry and physical viewing. Rent luxury apartments, villas, and studios in Accra with complete confidence, then complete your tenancy agreement directly with the landlord.
+            Goodlucks Homes connects people looking for a home with the landlords and agents who list them. Browse the catalogue, request a viewing, and agree a time with the landlord or agent. Your tenancy agreement is completed directly with them.
           </p>
 
           {/* Search Control Bar */}
@@ -153,7 +153,7 @@ export const HomeView: React.FC = () => {
               onClick={() => setCurrentView('find-home')}
               className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#08D9D6]/20 to-[#FF2E63]/20 hover:from-[#08D9D6]/30 hover:to-[#FF2E63]/30 text-xs font-bold text-white transition-all border border-[#08D9D6]/30 flex items-center gap-1.5 cursor-pointer"
             >
-              <Compass className="w-4 h-4 text-[#08D9D6]" /> Find a Home (AI Match)
+              <Compass className="w-4 h-4 text-[#08D9D6]" /> Find a Home (matched for you)
             </button>
           </div>
 
@@ -167,10 +167,10 @@ export const HomeView: React.FC = () => {
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-2 border-b border-white/10 pb-4">
           <div>
             <div className="text-xs font-extrabold text-[#08D9D6] uppercase tracking-wider">
-              Intermediary-managed listings
+              Submitted by registered landlords and agents
             </div>
             <h2 className="text-2xl sm:text-3xl font-black text-white">
-              Featured Luxury Properties
+              Featured properties
             </h2>
           </div>
 
@@ -220,7 +220,7 @@ export const HomeView: React.FC = () => {
               <div className="text-xs font-bold text-[#08D9D6] uppercase tracking-wider">Step 1</div>
               <h3 className="text-lg font-bold text-white">Search</h3>
               <p className="text-xs text-slate-300 leading-relaxed">
-                Explore our curated luxury listings or submit your location and budget preferences for AI property matching.
+                Browse the live listings, or tell us your preferred area, budget and number of bedrooms and we will suggest homes that fit.
               </p>
             </div>
 
@@ -232,7 +232,7 @@ export const HomeView: React.FC = () => {
               <div className="text-xs font-bold text-[#08D9D6] uppercase tracking-wider">Step 2</div>
               <h3 className="text-lg font-bold text-white">Schedule Viewing</h3>
               <p className="text-xs text-slate-300 leading-relaxed">
-                Goodlucks Homes schedules a guided physical viewing with assigned staff. Viewing fee is paid physically on site.
+                Request a viewing on any listing. The request goes to the landlord or agent responsible for it, and they contact you to agree a time. Nothing is confirmed until you have both agreed.
               </p>
             </div>
 
@@ -244,7 +244,7 @@ export const HomeView: React.FC = () => {
               <div className="text-xs font-bold text-[#08D9D6] uppercase tracking-wider">Step 3</div>
               <h3 className="text-lg font-bold text-white">Move In</h3>
               <p className="text-xs text-slate-300 leading-relaxed">
-                We connect you with the landlord or authorised agent and coordinate your enquiries and viewing appointments. Your tenancy agreement is completed directly with the landlord, outside the platform.
+                After the viewing, any viewing fee is paid as the listing states — never online. Your tenancy agreement is completed directly with the landlord or agent, outside the platform.
               </p>
             </div>
 
@@ -273,29 +273,29 @@ export const HomeView: React.FC = () => {
               <span>Staff-reviewed listings</span>
             </div>
             <p className="text-xs text-slate-300 leading-relaxed">
-              Every listing is reviewed by Goodlucks staff before it appears. A physical inspection and
-              document check is not recorded for every property, so review is not a guarantee of title
-              or condition.
+              Every listing is checked by Goodlucks staff before it goes live. That check covers the
+              listing details and photos only: it is not an ownership check, an inspection of the property
+              or a guarantee of its condition.
             </p>
           </div>
 
           <div className="bg-[#252A34] p-5 rounded-2xl border border-white/10 space-y-2">
             <div className="flex items-center gap-2 text-[#08D9D6] font-bold text-sm">
               <ShieldCheck className="w-5 h-5 shrink-0" />
-              <span>Trusted Assistance</span>
+              <span>One place to sort it out</span>
             </div>
             <p className="text-xs text-slate-300 leading-relaxed">
-              We own the customer relationship, ensuring tenants and property owners have a secure, professional experience.
+              Enquiries, viewing requests and their records stay with Goodlucks Homes, so you are not passed around between unknown contacts.
             </p>
           </div>
 
           <div className="bg-[#252A34] p-5 rounded-2xl border border-white/10 space-y-2">
             <div className="flex items-center gap-2 text-[#08D9D6] font-bold text-sm">
               <Sparkles className="w-5 h-5 shrink-0" />
-              <span>Easy Viewing Process</span>
+              <span>Viewing guidance</span>
             </div>
             <p className="text-xs text-slate-300 leading-relaxed">
-              Book tours conveniently with assigned Goodlucks agents. Physical viewing fees are paid after the viewing — never online.
+              Agree the time before you travel, meet the landlord or agent at the property, and view it before you commit to anything. A viewing fee, where one applies, is paid after the viewing — never online.
             </p>
           </div>
 
@@ -313,7 +313,7 @@ export const HomeView: React.FC = () => {
           </h2>
 
           <p className="text-sm text-slate-300 max-w-lg mx-auto leading-relaxed">
-            Submit your rental requirements today or speak directly to a Goodlucks Homes property specialist in Accra.
+            Send us your requirements, or call our team in Accra and we will help you find a home that fits.
           </p>
 
           <div className="flex flex-wrap items-center justify-center gap-4 pt-2">

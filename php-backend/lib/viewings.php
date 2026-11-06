@@ -496,7 +496,7 @@ function viewing_notify(array $viewing, string $action, string $statusLabel, ?st
                 'Viewing update',
                 '<p style="color:#CBD5E1;font-size:14px;">Hello ' . e((string)($viewing['tenantName'] ?? '')) . ',</p>'
                 . '<p style="color:#CBD5E1;font-size:14px;">' . nl2br(e($body)) . '</p>'
-                . '<p style="color:#94A3B8;font-size:12px;">This message reflects the current record. A viewing fee, if any, is paid on site — Goodlucks never asks for a viewing fee online.</p>'
+                . '<p style="color:#94A3B8;font-size:12px;">This message reflects the current record. A viewing fee, if any, is paid only after the viewing, and the listing states who it is paid to. Goodlucks never asks for a viewing fee online.</p>'
             ),
             'viewing_update',
             'Viewing update'

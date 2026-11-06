@@ -32,7 +32,7 @@ export const ContactView: React.FC = () => {
     <div className="min-h-screen bg-[#252A34] text-white py-12 px-4 sm:px-6 lg:px-8">
       <SEOHead
         title="Contact Goodlucks Homes - Accra Rental Support & Inquiries"
-        description="Get in touch with Goodlucks Homes in Ridge, Accra. Speak with our rental agents for property viewing bookings, listings support, or general enquiries."
+        description="Contact Goodlucks Homes in Ridge, Accra for help with viewings, listings or rental enquiries."
       />
       <div className="max-w-4xl mx-auto space-y-10 animate-fadeIn">
         

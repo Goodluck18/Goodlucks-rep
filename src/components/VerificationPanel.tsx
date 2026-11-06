@@ -381,13 +381,24 @@ export const VerificationPanel: React.FC<{ scope: 'agent' | 'landlord'; classNam
           </dl>
         )}
 
-        <p className="text-[10px] text-slate-500 leading-snug flex items-start gap-1.5">
+        {/* Task 05: this used to describe the server's key configuration to the
+            customer. What a member needs to know is who can see their documents
+            and for how long — and every sentence here is one the implementation
+            actually supports (private storage, capability-gated access with an
+            audit row, and the retention job). */}
+        <div className="text-[10px] text-slate-500 leading-snug flex items-start gap-1.5">
           <ShieldAlert className="w-3.5 h-3.5 mt-0.5 shrink-0 text-amber-300" />
-          {summary.encryptionActive
-            ? 'Identity numbers are held encrypted; only an authorised reviewer can reveal the full number.'
-            : 'This deployment has no identity-encryption key configured, so the full number is not retained at all — a reviewer works from the uploaded document.'}{' '}
-          Documents are kept privately for {summary.retentionDays} days after a decision, then deleted.
-        </p>
+          <span>
+            Your documents are used only to check your identity and to administer your account. They are stored
+            privately and are never shown on your public profile or on a listing. Only you and authorised reviewers can
+            open them, and every time a document is opened it is recorded.
+            {summary.encryptionActive
+              ? ' The identity number you enter is held encrypted, and a reviewer can only reveal it for a review.'
+              : ' The full identity number you enter is not retained; a reviewer works from the uploaded document.'}{' '}
+            Documents are kept for {summary.retentionDays} days after a decision and are then deleted by the retention
+            job.
+          </span>
+        </div>
 
         {documentsForIdentity.length > 0 && (
           <div className="space-y-2">

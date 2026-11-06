@@ -26,7 +26,7 @@ export const Footer: React.FC = () => {
 
         {/* Short Company Description */}
         <p className="text-sm text-slate-300 max-w-xl leading-relaxed">
-          Goodlucks Homes is Ghana’s premier trusted intermediary rental platform. We manage all enquiries, viewings, and property matches to provide tenants and property owners with a seamless, high-security rental experience.
+          Goodlucks Homes is a property discovery and rental intermediary in Ghana. We connect people looking for a home with the landlords and agents who list them, arrange viewings, and keep the enquiries and records in one place. We do not own or manage the properties listed here.
         </p>
 
         {/* Direct Contact Info */}

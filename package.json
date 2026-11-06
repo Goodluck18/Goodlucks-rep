@@ -14,7 +14,8 @@
     "api:dev": "node scripts/api-dev.mjs",
     "test:api": "node --test --test-concurrency=1 tests/api.test.mjs tests/account-settings.test.mjs tests/task03.test.mjs tests/migration.test.mjs tests/concurrency.test.mjs",
     "test:routing": "node --import tsx --test tests/routing.test.mts",
-    "test:navigation": "node --import tsx --test tests/app-navigation.test.mts"
+    "test:navigation": "node --import tsx --test tests/app-navigation.test.mts",
+    "test:content": "node --test tests/content.test.mjs"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

@@ -144,16 +144,15 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({ property, onRequestV
           </div>
         ) : null}
 
-        {/* Intermediary Guarantee Notice */}
+        {/* Task 05: a card states only what the platform actually knows. A listing
+            Goodlucks staff have reviewed says so; nothing claims the property is
+            owned, managed or inspected by Goodlucks, and an unreviewed listing
+            makes no claim at all. */}
         {property.isLandlordVerified ? (
           <div className="text-[9px] sm:text-[10px] text-emerald-300 bg-emerald-500/10 px-2 py-1 rounded-md text-center border border-emerald-500/20 font-semibold flex items-center justify-center gap-1">
-            <ShieldCheck className="w-3 h-3" /> Listing reviewed
+            <ShieldCheck className="w-3 h-3" /> Reviewed by Goodlucks
           </div>
-        ) : (
-          <div className="text-[9px] sm:text-[10px] text-slate-400 bg-white/5 px-2 py-1 rounded-md text-center border border-white/5 font-medium">
-            Managed by Goodlucks Intermediary
-          </div>
-        )}
+        ) : null}
 
         {/* Actions */}
         <div className="grid grid-cols-2 gap-1.5 pt-1">

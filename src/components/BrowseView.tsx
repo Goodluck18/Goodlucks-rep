@@ -160,7 +160,7 @@ export const BrowseView: React.FC = () => {
     <div className="min-h-screen bg-[#1F242D] text-white py-8 px-4 sm:px-6 lg:px-8">
       <SEOHead
         title="Browse Properties & Rentals in Accra, Ghana | Goodlucks Homes"
-        description="Explore 1, 2, 3, and 4-bedroom apartments, townhouses, and luxury homes for rent in East Legon, Cantonments, Osu, Airport, and Labone. Listings are reviewed by Goodlucks staff before they appear."
+        description="Explore 1, 2, 3, and 4-bedroom apartments, townhouses and homes for rent in East Legon, Cantonments, Osu, Airport and Labone. Listings come from registered landlords and agents and are reviewed before they appear."
         keywords="browse rentals Accra, East Legon apartments, Cantonments rentals, Accra real estate listings, Goodlucks Homes properties"
         jsonLd={browseJsonLd}
       />
@@ -177,7 +177,7 @@ export const BrowseView: React.FC = () => {
               Browse Rentals in Ghana
             </h1>
             <p className="text-xs sm:text-sm text-slate-300 mt-0.5">
-              Intermediary Listings Managed Exclusively by Goodlucks Homes
+              Listings submitted by registered landlords and agents
             </p>
           </div>
 

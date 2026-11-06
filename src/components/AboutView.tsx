@@ -13,14 +13,14 @@ const FAQ_DATA: FAQItem[] = [
   {
     id: 'faq-1',
     category: 'General',
-    question: 'How does Goodlucks Homes work as a trusted intermediary?',
-    answer: 'Goodlucks Homes is a property intermediary: we review the listings submitted to us, coordinate enquiries and physical viewings with our field team, and keep a record of every appointment. We do not draft, sign or store tenancy agreements - tenants and landlords complete their agreement directly with each other - and we do not provide legal or licensed professional services.'
+    question: 'What does Goodlucks Homes do?',
+    answer: 'Goodlucks Homes is a property discovery and rental intermediary. Landlords and agents submit listings, our team reviews each one before it is published, and tenants use the platform to find homes, request viewings and keep track of the arrangements. We do not draft, sign or store tenancy agreements - tenants and landlords complete their agreement directly with each other - and we do not provide legal or licensed professional services.'
   },
   {
     id: 'faq-2',
     category: 'Tenants',
-    question: 'How does the AI Property Matching service work for tenants?',
-    answer: 'Tenants can submit their exact location preferences, bedroom requirements, and budget parameters in GH₵ via the "Find a Home" portal. Our matching system cross-references active listings reviewed by Goodlucks staff and routes your request to the agents responsible for those properties.'
+    question: 'How does property matching work for tenants?',
+    answer: 'Submit your preferred areas, number of bedrooms and budget in GH₵ through the "Find a Home" page. We score the live listings against your request and show the closest matches on your dashboard with the reason each one was suggested. A match is a suggestion, not a reservation: the property still has to be available and you still agree the viewing with the landlord or agent.'
   },
   {
     id: 'faq-3',
@@ -32,19 +32,19 @@ const FAQ_DATA: FAQItem[] = [
     id: 'faq-4',
     category: 'Landlords',
     question: 'How do landlords list properties on Goodlucks Homes?',
-    answer: 'Property owners or authorized property managers can create a Landlord account and submit property details, high-resolution photos, location pins, and rental prices in GH₵. Our approval team reviews and physically inspects the premises before publishing the property onto our public showcase.'
+    answer: 'Property owners, or agents acting with the owner\'s agreement, can create an account and submit the property\'s details, photos, location and rent in GH₵. A member of our team reviews the listing before it is published. That review covers the listing itself - it is not a physical inspection of the property, and it is not proof of ownership or of the rent.'
   },
   {
     id: 'faq-5',
     category: 'General',
-    question: 'Why are landlord and tenant contact numbers managed through Goodlucks?',
-    answer: 'To eliminate middleman fraud, duplicate listing spam, and off-platform listing poaching, all initial enquiries and viewing appointments are handled through Goodlucks Homes official communications. Direct contact details are released once a viewing is confirmed, so tenant and landlord can deal with each other directly afterwards.'
+    question: 'Why are enquiries and viewings arranged through Goodlucks Homes?',
+    answer: 'Listings do not publish the landlord\'s or agent\'s phone number. Enquiries and viewing requests are sent through the platform, which keeps a record of what was asked and when, and the landlord or agent then contacts you to agree a time. If something goes wrong with an arrangement you can reach our team, and we can see the same record you can.'
   },
   {
     id: 'faq-6',
     category: 'Tenants',
     question: 'Are properties available outside Accra?',
-    answer: 'Yes! While our primary coverage focuses on high-demand residential hubs in Greater Accra (Cantonments, East Legon, Airport Residential, Labone, Osu, Ridge), we also list properties in Kumasi, Takoradi, and Tema.'
+    answer: 'Most listings are in Greater Accra, where demand is highest: Cantonments, East Legon, Airport Residential, Labone, Osu and Ridge. The catalogue can also include properties in other regions, such as Kumasi. Search by area to see what is currently listed.'
   }
 ];
 
@@ -72,8 +72,8 @@ export const AboutView: React.FC = () => {
     <div className="min-h-screen bg-[#252A34] text-white py-12 px-4 sm:px-6 lg:px-8">
       <SEOHead
         title="About Goodlucks Homes - Rental Intermediary in Ghana"
-        description="Learn how Goodlucks Homes works in Accra, Ghana: staff-reviewed listings, coordinated physical viewings, and assisted matching."
-        keywords="About Goodlucks Homes, real estate Ghana, rental verification Accra, trusted real estate agent Ghana"
+        description="How Goodlucks Homes works in Accra, Ghana: listings from registered landlords and agents, reviewed before publishing, with viewings arranged through the platform."
+        keywords="About Goodlucks Homes, rentals Ghana, property intermediary Accra, viewing arrangements Ghana"
         jsonLd={faqJsonLd}
       />
       <div className="max-w-4xl mx-auto space-y-12 animate-fadeIn">
@@ -86,7 +86,7 @@ export const AboutView: React.FC = () => {
           </div>
           <h1 className="text-3xl sm:text-4xl font-black text-white">About Goodlucks Homes</h1>
           <p className="text-sm text-slate-300 max-w-xl mx-auto leading-relaxed">
-            Redefining residential property leasing in West Africa through intermediary management, staff-reviewed listings, and assisted tenant matching.
+            A rental platform that connects people looking for a home with the landlords and agents who list them, with every listing reviewed before it is published.
           </p>
         </div>
 
@@ -94,10 +94,10 @@ export const AboutView: React.FC = () => {
         <div className="bg-gradient-to-r from-slate-800 to-[#1A1E26] p-8 rounded-3xl border border-white/10 space-y-4 shadow-xl">
           <h2 className="text-xl font-bold text-[#08D9D6]">Our Intermediary Model</h2>
           <p className="text-sm text-slate-200 leading-relaxed">
-            Unlike standard peer-to-peer property marketplaces where unverified direct contacts often lead to disputes, Goodlucks Homes acts as the <strong>intermediary</strong> between property owners and tenants.
+            Goodlucks Homes is the <strong>intermediary</strong> between the people who list properties and the people looking for them. Landlords and agents submit the listings; we review them, publish them, and take the enquiries and viewing requests that follow.
           </p>
           <p className="text-sm text-slate-300 leading-relaxed">
-            We manage property enquiries and schedule physical viewings with our field team, and we keep a clear record of every appointment. Goodlucks Homes is not a law firm: tenants and landlords meet and complete their tenancy agreement between themselves, outside the platform.
+            We pass each enquiry and viewing request to the landlord or agent responsible for the property, and both sides keep the same record of what was asked and agreed. Goodlucks Homes is not a law firm and does not manage the properties: tenants and landlords meet and complete their tenancy agreement between themselves, outside the platform.
           </p>
         </div>
 
@@ -106,19 +106,19 @@ export const AboutView: React.FC = () => {
           <div className="bg-slate-800/80 p-6 rounded-2xl border border-white/10 space-y-2">
             <ShieldCheck className="w-8 h-8 text-[#08D9D6]" />
             <h3 className="font-bold text-base text-white">Listings reviewed</h3>
-            <p className="text-xs text-slate-300">Every listing is reviewed by our team before it goes live. That review covers the listing details and photos - it is not an ownership or identity check.</p>
+            <p className="text-xs text-slate-300">Every listing is reviewed by our team before it goes live. That review covers the listing details and photos. It is not an ownership check and not a physical inspection of the property.</p>
           </div>
 
           <div className="bg-slate-800/80 p-6 rounded-2xl border border-white/10 space-y-2">
             <Users className="w-8 h-8 text-[#08D9D6]" />
-            <h3 className="font-bold text-base text-white">Dedicated Agents</h3>
-            <p className="text-xs text-slate-300">Professional Goodlucks staff accompany every viewing and handle all physical fee collections.</p>
+            <h3 className="font-bold text-base text-white">Viewings arranged</h3>
+            <p className="text-xs text-slate-300">You request a viewing here and agree the time with the landlord or agent. Your request, the agreed time and any fee are recorded on the platform.</p>
           </div>
 
           <div className="bg-slate-800/80 p-6 rounded-2xl border border-white/10 space-y-2">
             <Award className="w-8 h-8 text-[#08D9D6]" />
-            <h3 className="font-bold text-base text-white">Ghana Tech Leader</h3>
-            <p className="text-xs text-slate-300">Operating across Cantonments, East Legon, Airport Residential, Osu, Ridge, and Kumasi.</p>
+            <h3 className="font-bold text-base text-white">Where we operate</h3>
+            <p className="text-xs text-slate-300">Our team is based in Accra and most listings are in Greater Accra - Cantonments, East Legon, Airport Residential, Osu, Ridge - with some in other regions such as Kumasi.</p>
           </div>
         </div>
 

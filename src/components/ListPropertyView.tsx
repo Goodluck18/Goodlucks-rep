@@ -165,7 +165,7 @@ export const ListPropertyView: React.FC<ListPropertyViewProps> = ({ onOpenAuth }
         bathrooms,
         propertyType,
         images,
-        description: description.trim() || `Modern ${propertyType} in ${location}. Managed via Goodlucks Homes.`,
+        description: description.trim() || `Modern ${propertyType} in ${location}. Listed through Goodlucks Homes.`,
         amenities: selectedAmenities,
         nearbyPlaces: [
           { name: 'City Center', type: 'Commercial Hub', distance: '5 mins' }
@@ -186,7 +186,7 @@ export const ListPropertyView: React.FC<ListPropertyViewProps> = ({ onOpenAuth }
       <div className="min-h-[80vh] bg-[#252A34] text-white py-12 px-4 sm:px-6 lg:px-8 flex items-center justify-center">
         <SEOHead
           title="List Property for Rent - Landlord Portal | Goodlucks Homes Ghana"
-          description="List your property with Goodlucks Homes Ghana. We coordinate tenant enquiries and supervised physical viewings in Greater Accra."
+          description="List your property with Goodlucks Homes Ghana. Landlords and agents submit listings, our team reviews them before publishing, and viewing requests are arranged through the platform."
         />
         <div className="max-w-xl w-full bg-slate-800/90 border border-white/10 rounded-3xl p-6 sm:p-10 text-center space-y-6 shadow-2xl animate-fadeIn">
           
@@ -217,7 +217,7 @@ export const ListPropertyView: React.FC<ListPropertyViewProps> = ({ onOpenAuth }
             <ul className="space-y-2 text-slate-300">
               <li className="flex items-start gap-2">
                 <CheckCircle2 className="w-4 h-4 text-[#08D9D6] shrink-0 mt-0.5" />
-                <span><strong>Verified Intermediary Model:</strong> We schedule physical viewings and vet potential tenants for you.</span>
+                <span><strong>Viewing requests only:</strong> tenants ask through Goodlucks Homes and you agree the time with them directly.</span>
               </li>
               <li className="flex items-start gap-2">
                 <CheckCircle2 className="w-4 h-4 text-[#08D9D6] shrink-0 mt-0.5" />
@@ -225,7 +225,7 @@ export const ListPropertyView: React.FC<ListPropertyViewProps> = ({ onOpenAuth }
               </li>
               <li className="flex items-start gap-2">
                 <CheckCircle2 className="w-4 h-4 text-[#08D9D6] shrink-0 mt-0.5" />
-                <span><strong>AI-Powered Matching:</strong> Connect instantly with active tenants searching in your suburb.</span>
+                <span><strong>Matched to tenant requests:</strong> your listing is suggested to tenants whose area, budget and bedrooms fit.</span>
               </li>
             </ul>
           </div>
@@ -291,7 +291,7 @@ export const ListPropertyView: React.FC<ListPropertyViewProps> = ({ onOpenAuth }
     <div className="min-h-screen bg-[#252A34] text-white py-10 px-4 sm:px-6 lg:px-8">
       <SEOHead
         title="List Property for Rent - Landlord Portal | Goodlucks Homes Ghana"
-        description="List your apartment or house with Goodlucks Homes Ghana. AI description generation, instant tenant matching, and hassle-free management."
+        description="List your apartment or house with Goodlucks Homes Ghana. Describe the property, submit it for review and receive viewing requests from tenants in Greater Accra."
       />
       <div className="max-w-4xl mx-auto space-y-8 animate-fadeIn">
         
@@ -305,7 +305,7 @@ export const ListPropertyView: React.FC<ListPropertyViewProps> = ({ onOpenAuth }
             List Your Property with Goodlucks Homes
           </h1>
           <p className="text-sm text-slate-300 max-w-xl mx-auto leading-relaxed">
-            We handle tenant enquiries and schedule supervised physical viewings. You keep control of your tenancy agreement and deal directly with your tenant.
+            Submit your listing, and viewing requests come to you through the platform. You keep control of your tenancy agreement and deal directly with your tenant.
           </p>
         </div>
 
@@ -574,7 +574,7 @@ export const ListPropertyView: React.FC<ListPropertyViewProps> = ({ onOpenAuth }
             <div className="bg-slate-900 p-5 rounded-2xl text-xs text-left max-w-md mx-auto space-y-2 border border-white/10">
               <div className="text-[#08D9D6] font-bold uppercase tracking-wider">Status: Pending Approval</div>
               <p className="text-slate-300">
-                Goodlucks Homes agents perform a document and safety check before listing your property live. You can track status in your Landlord Dashboard.
+                A member of our team reviews the listing details before it goes live. For a landlord listing the viewing fee is the standard fee set by Goodlucks Homes; on an agent listing, the agent sets it. You can track the status on your dashboard.
               </p>
             </div>
 
@@ -583,7 +583,7 @@ export const ListPropertyView: React.FC<ListPropertyViewProps> = ({ onOpenAuth }
                 onClick={() => setCurrentView('dashboard')}
                 className="px-6 py-3 rounded-xl bg-[#08D9D6] text-[#252A34] font-bold text-sm shadow-md"
               >
-                Go to Landlord Dashboard
+                Go to your dashboard
               </button>
               <button
                 onClick={() => setSubmitted(false)}

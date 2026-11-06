@@ -122,6 +122,8 @@ const calls: string[] = [];
 let signedIn: Record<string, unknown> | null = null;
 /** Notifications the stubbed `/api/notifications` returns for the current test. */
 let stubNotifications: Array<Record<string, unknown>> = [];
+/** Listings the stubbed catalogue returns for the current test. */
+let stubProperties: Array<Record<string, unknown>> = [];
 
 /**
  * The admin console reads named counters, so the stub spells them out with
@@ -287,6 +289,14 @@ globalThis.fetch = (async (input: RequestInfo | URL) => {
   if (url.includes('/notifications')) {
     return json({ notifications: stubNotifications });
   }
+  const singleProperty = /\/properties\/([A-Za-z0-9_-]+)$/.exec(url);
+  if (singleProperty) {
+    const found = stubProperties.find((item) => item.id === singleProperty[1]);
+    return found ? json({ property: found }) : json({ success: false, error: 'Property not found.' });
+  }
+  if (/\/properties(\?|$)/.test(url) && stubProperties.length > 0) {
+    return json({ success: true, properties: stubProperties, total: stubProperties.length, page: 1, perPage: 100 });
+  }
   for (const [fragment, body] of Object.entries(EMPTY)) {
     if (url.includes(fragment)) return json(body);
   }
@@ -322,10 +332,11 @@ const { default: App } = await import('../src/App.tsx');
 async function renderAt(
   path: string,
   role: 'tenant' | 'landlord' | 'agent' | 'admin' | null = null,
-  options: { notifications?: Array<Record<string, unknown>> } = {}
+  options: { notifications?: Array<Record<string, unknown>>; properties?: Array<Record<string, unknown>> } = {}
 ) {
   signedIn = role ? userFor(role) : null;
   stubNotifications = options.notifications ?? [];
+  stubProperties = options.properties ?? [];
   calls.length = 0;
   window.history.replaceState({}, '', path);
   document.body.innerHTML = '<div id="root"></div>';
@@ -972,4 +983,156 @@ test('logging out from the menu returns the visitor to the public site', async (
   assert.equal(app.container.querySelector('nav[aria-label="Quick links"]') !== null, true);
   assert.deepEqual(labels(quickLinks(app)), ['Home', 'Browse', 'Find Home', 'Login'], 'the guest bar is back');
   await app.unmount();
+});
+
+/* -------------------------------------------------------------------------- */
+/* P. Task 05 — the customer-facing copy tells the truth                      */
+/* -------------------------------------------------------------------------- */
+
+/** A landlord-submitted listing: the platform policy prices its viewing fee. */
+const LANDLORD_LISTING = {
+  id: 'prop-landlord',
+  landlordId: '',
+  title: 'Two-bedroom apartment in Osu',
+  location: 'Osu',
+  city: 'Accra',
+  rentGhs: 4500,
+  bedrooms: 2,
+  bathrooms: 2,
+  propertyType: 'Apartment',
+  status: 'active',
+  images: [],
+  description: 'A quiet apartment near the main road.',
+  amenities: ['Parking'],
+  nearbyPlaces: [],
+  availability: 'Available now',
+  isLandlordVerified: true,
+  submittedByRole: 'landlord',
+  landlordAuthorityState: 'owner',
+  viewingTerms: {
+    isApproved: true,
+    feeGhs: 100,
+    source: 'platform_policy',
+    terms: {
+      appointmentRequired: true,
+      howToArrange: 'We will call you to agree a time.',
+      conditions: '',
+      paymentInstructions: 'Paid to Goodlucks Homes after the viewing.',
+      restrictions: '',
+    },
+  },
+};
+
+/** An agent-submitted listing: the agent's own fee, paid on site. */
+const AGENT_LISTING = {
+  ...LANDLORD_LISTING,
+  id: 'prop-agent',
+  title: 'Three-bedroom townhouse in East Legon',
+  location: 'East Legon',
+  rentGhs: 6000,
+  bedrooms: 3,
+  isLandlordVerified: false,
+  submittedByRole: 'agent',
+  landlordAuthorityState: 'claimed_by_agent',
+  viewingTerms: { isApproved: true, feeGhs: 150, source: 'agent_terms' },
+};
+
+test('the homepage never claims Goodlucks inspects, owns or manages the properties', async () => {
+  const app = await renderAt('/');
+  const text = app.text();
+
+  for (const claim of [
+    /premier/i,
+    /intermediary-managed/i,
+    /managed by goodlucks/i,
+    /physically inspect/i,
+    /personally inspect/i,
+    /fully verified/i,
+    /guaranteed/i,
+    /number one/i,
+    /complete confidence/i,
+  ]) {
+    assert.doesNotMatch(text, claim, `the homepage must not claim ${claim}`);
+  }
+
+  // …and it says what the platform actually is.
+  assert.match(text, /landlords and agents/i);
+  assert.match(text, /request a viewing on any listing/i);
+  assert.match(text, /not an ownership check/i);
+  await app.unmount();
+});
+
+test('the footer and About page describe an intermediary, not a manager', async () => {
+  const home = await renderAt('/');
+  assert.match(home.text(), /we do not own or manage the properties listed here/i);
+  await home.unmount();
+
+  const about = await renderAt('/about');
+  const text = about.text();
+  assert.doesNotMatch(text, /physically inspect/i);
+  assert.doesNotMatch(text, /accompany every viewing/i);
+  assert.doesNotMatch(text, /field team/i);
+  assert.match(text, /not a physical inspection of the property/i);
+  // The viewing-fee explanation still separates the two providers (Task 03).
+  assert.match(text, /goodlucks homes sets one general landlord viewing fee/i);
+  assert.match(text, /the agent sets that property's fee/i);
+  await about.unmount();
+});
+
+test('a property card claims only what the platform knows, and shows the right fee', async () => {
+  const app = await renderAt('/', null, { properties: [LANDLORD_LISTING, AGENT_LISTING] });
+  const text = app.text();
+
+  assert.doesNotMatch(text, /managed by goodlucks/i, 'no listing is "managed" by Goodlucks');
+  assert.match(text, /reviewed by goodlucks/i, 'a reviewed listing says so');
+
+  // Landlord submission → the platform viewing fee, paid after the viewing.
+  assert.match(text, /to goodlucks after viewing/i);
+  // Agent submission → the agent's own fee, paid on site.
+  assert.match(text, /paid on site/i);
+  await app.unmount();
+});
+
+test('the viewing request explains this property\'s own fee and terms', async () => {
+  const app = await renderAt('/property/prop-landlord', null, { properties: [LANDLORD_LISTING] });
+
+  assert.match(app.text(), /arrange your viewing through goodlucks/i);
+  assert.match(app.text(), /confirm the time with the landlord or agent/i);
+
+  await app.click('Request Viewing Now');
+  const modal = app.text();
+  assert.match(modal, /viewing fee for this property/i);
+  assert.match(modal, /payable after the viewing, to goodlucks homes/i);
+  assert.match(modal, /never online/i);
+  await app.unmount();
+
+  const agentFee = await renderAt('/property/prop-agent', null, { properties: [AGENT_LISTING] });
+  await agentFee.click('Request Viewing Now');
+  assert.match(agentFee.text(), /paid directly to the agent on site/i);
+  assert.doesNotMatch(agentFee.text(), /payable after the viewing, to goodlucks homes/i);
+  await agentFee.unmount();
+});
+
+test('the verification screens show no deployment or configuration messages', async () => {
+  for (const role of ['landlord', 'agent'] as const) {
+    const app = await renderAt(`/${role}/verification`, role);
+    const text = app.text();
+
+    for (const internal of [
+      /deployment/i,
+      /key configured/i,
+      /encryption key/i,
+      /environment/i,
+      /IDENTITY_DATA_KEY/i,
+      /api key/i,
+      /not configured/i,
+    ]) {
+      assert.doesNotMatch(text, internal, `${role} verification must not expose ${internal}`);
+    }
+
+    // It says what happens to the documents instead, in plain language.
+    assert.match(text, /authorised reviewers/i);
+    assert.match(text, /never shown on your public profile/i);
+    await app.unmount();
+  }
 });
