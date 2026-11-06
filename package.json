@@ -17,7 +17,8 @@
     "test:navigation": "node --import tsx --test tests/app-navigation.test.mts",
     "test:content": "node --test tests/content.test.mjs",
     "test:blog": "node --test --test-concurrency=1 tests/blog.test.mjs",
-    "test:design": "node --test tests/design-tokens.test.mjs"
+    "test:design": "node --test tests/design-tokens.test.mjs",
+    "test:email-footer": "node --test tests/email-footer.test.mjs"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
