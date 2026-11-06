@@ -671,3 +671,71 @@ test('dashboard, profile and settings stay three different URLs for every member
     assert.notEqual(settings, profile);
   }
 });
+
+/* -------------------------------------------------------------------------- */
+/* Task 07: the Learning Centre URLs, and its console section                 */
+/* -------------------------------------------------------------------------- */
+
+test('the Learning Centre and each article have their own clean URL', () => {
+  const index = parseLocation('/blog');
+  assert.equal(index.name, 'blog');
+  assert.equal(index.isKnown, true);
+  assert.equal(index.path, '/blog');
+
+  const article = parseLocation('/blog/top-available-properties-east-legon');
+  assert.equal(article.name, 'blog-post');
+  assert.equal(article.params.slug, 'top-available-properties-east-legon');
+  assert.equal(article.path, '/blog/top-available-properties-east-legon');
+  assert.equal(article.isKnown, true);
+  assert.equal(parseLocation('/blog/top-available-properties-east-legon/').name, 'blog-post');
+
+  // Same page, one address: the trailing slash is not a second URL.
+  assert.equal(parseLocation('/blog/top-available-properties-east-legon/').path, article.path);
+});
+
+test('a filtered or paged Learning Centre keeps its filters in the URL', () => {
+  const route = parseLocation('/blog?category=tenant-guides&page=2&q=viewing');
+  assert.equal(route.name, 'blog');
+  assert.equal(route.query.category, 'tenant-guides');
+  assert.equal(route.query.page, '2');
+  assert.equal(route.query.q, 'viewing');
+});
+
+test('a malformed article URL is a not-found page, not a wildcard', () => {
+  for (const url of [
+    '/blog/Not A Slug',
+    '/blog/TWO-Segments/extra',
+    '/blog/UPPERCASE-SLUG',
+    '/blog/slug_with_underscores',
+  ]) {
+    const route = parseLocation(url);
+    assert.equal(route.name, 'not-found', `${url} must not resolve to an article`);
+    assert.equal(route.isKnown, false);
+  }
+});
+
+test('Blog Management and Email Templates are console sections with their own URLs', () => {
+  for (const [tab, section] of [
+    ['blog', 'blog'],
+    ['email-templates', 'email-templates'],
+  ] as const) {
+    assert.equal(sectionForTab('admin', tab), section);
+    assert.equal(tabPath('admin', tab), `/admin/${section}`);
+    assert.equal(tabForRoute(parseLocation(`/admin/${section}`)), tab);
+  }
+  // They are administrator-only: no other role can reach the console at all.
+  for (const role of ['guest', 'tenant', 'landlord', 'agent'] as UserRole[]) {
+    const route = parseLocation('/admin/blog');
+    assert.notEqual(accessDecision(route, role, route.path).action, 'allow');
+  }
+  assert.equal(accessDecision(parseLocation('/admin/blog'), 'admin', '/admin/blog').action, 'allow');
+});
+
+test('the public Learning Centre stays open to guests and members alike', () => {
+  for (const role of ROLES) {
+    for (const url of ['/blog', '/blog/top-available-properties-east-legon']) {
+      const route = parseLocation(url);
+      assert.equal(accessDecision(route, role, route.path).action, 'allow', `${role} may read ${url}`);
+    }
+  }
+});

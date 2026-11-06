@@ -1233,3 +1233,139 @@ export interface PriceDropAlert {
   createdAt: string;
   active: boolean;
 }
+
+/* -------------------------------------------------------------------------- */
+/* Blog & Learning Centre (Task 07)                                           */
+/* -------------------------------------------------------------------------- */
+
+export type BlogPostStatus = 'draft' | 'scheduled' | 'published' | 'unpublished';
+
+/** How an article treats a listing that is no longer available. */
+export type BlogPropertyDisplayRule = 'show_status' | 'hide_unavailable';
+
+export interface BlogCategory {
+  id: string;
+  name: string;
+  slug: string;
+  description: string;
+  sortOrder: number;
+  /** Absolute URL of the filtered Learning Centre index. */
+  url: string;
+  /** Published articles in this category (public reads). */
+  publishedCount?: number;
+  /** All articles, every status (admin reads). */
+  postCount?: number;
+}
+
+export interface BlogPostSummary {
+  id: string;
+  title: string;
+  subtitle: string;
+  slug: string;
+  /** Relative path, e.g. `/blog/how-renting-works`. */
+  url: string;
+  absoluteUrl: string;
+  featuredImage: string;
+  featuredImageAlt: string;
+  category: BlogCategory | null;
+  tags: string[];
+  author: { name: string };
+  status: BlogPostStatus;
+  isFeatured: boolean;
+  publishAt: string;
+  publishedAt: string;
+  createdAt: string;
+  updatedAt: string;
+  summary: string;
+  readingMinutes: number;
+  seoTitle: string;
+  seoDescription: string;
+}
+
+/**
+ * One live listing shown inside an article. These values come from the property
+ * record on every read — nothing here is a stored copy of a listing.
+ */
+export interface BlogPropertyCard {
+  propertyId: string;
+  title: string;
+  location: string;
+  city: string;
+  propertyType: string;
+  bedrooms: number;
+  bathrooms: number;
+  rentGhs: number;
+  image: string;
+  imageAlt: string;
+  /** "Available Now", the listing's own availability, or "No longer available". */
+  availability: string;
+  isAvailable: boolean;
+  /** Only an available listing has an openable page; otherwise null. */
+  url: string | null;
+  displayRule: BlogPropertyDisplayRule;
+  note: string;
+  sortOrder: number;
+  updatedAt: string;
+  /** Admin reads only. */
+  status?: string;
+  missing?: boolean;
+}
+
+export interface BlogBreadcrumb {
+  name: string;
+  url: string;
+}
+
+export interface BlogPost extends BlogPostSummary {
+  contentHtml: string;
+  propertyCards: BlogPropertyCard[];
+  related: BlogPostSummary[];
+  showcasePlaceholder?: string;
+  canonicalUrl?: string;
+  breadcrumbs?: BlogBreadcrumb[];
+  publicUrl?: string;
+}
+
+export interface BlogIndexResponse {
+  success: boolean;
+  categories: BlogCategory[];
+  featured: BlogPostSummary[];
+  posts: BlogPostSummary[];
+  pagination: { page: number; perPage: number; total: number; pages: number };
+}
+
+export interface BlogAdminResponse {
+  success: boolean;
+  posts: BlogPostSummary[];
+  total: number;
+  counts: Record<string, number>;
+  categories: BlogCategory[];
+}
+
+/** A link found inside an email template body. */
+export interface EmailTemplateLink {
+  url: string;
+  slug: string;
+  /** published | draft | scheduled | unpublished | missing */
+  status: string;
+  title: string;
+}
+
+export interface EmailTemplate {
+  id: string;
+  name: string;
+  targetType: string;
+  targetLabel: string;
+  bodyHtml: string;
+  status: 'active' | 'inactive';
+  links: EmailTemplateLink[];
+  brokenLinks: EmailTemplateLink[];
+  needsAttention: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface EmailTemplateTarget {
+  type: string;
+  label: string;
+}

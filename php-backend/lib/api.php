@@ -238,7 +238,40 @@ function resolve_route(string $method, string $path): ?array
         ['POST', '#^/admin/emails/run$#', 'handle_run_email_outbox'],
         ['GET',  '#^/admin/audit-logs$#', 'handle_list_audit_logs'],
 
+        // --- Blog Management (Task 07) ----------------------------------
+        // Every handler re-checks the admin role; a draft is only ever read
+        // through these endpoints.
+        ['GET',   '#^/admin/blog/posts$#', 'handle_admin_blog_posts'],
+        ['POST',  '#^/admin/blog/posts$#', 'handle_admin_blog_create_post'],
+        ['GET',   '#^/admin/blog/posts/([A-Za-z0-9\-_]+)$#', 'handle_admin_blog_post_show'],
+        ['PATCH', '#^/admin/blog/posts/([A-Za-z0-9\-_]+)$#', 'handle_admin_blog_update_post'],
+        ['DELETE','#^/admin/blog/posts/([A-Za-z0-9\-_]+)$#', 'handle_admin_blog_delete_post'],
+        ['POST',  '#^/admin/blog/posts/([A-Za-z0-9\-_]+)/status$#', 'handle_admin_blog_post_status'],
+        ['POST',  '#^/admin/blog/posts/([A-Za-z0-9\-_]+)/properties$#', 'handle_admin_blog_post_properties'],
+        ['GET',   '#^/admin/blog/properties$#', 'handle_admin_blog_property_search'],
+        // The "Insert Blog Post" picker: published articles only.
+        ['GET',   '#^/admin/blog/published-for-links$#', 'handle_admin_blog_published_for_links'],
+        ['GET',   '#^/admin/blog/categories$#', 'handle_admin_blog_categories'],
+        ['POST',  '#^/admin/blog/categories$#', 'handle_admin_blog_create_category'],
+        ['PATCH', '#^/admin/blog/categories/([A-Za-z0-9\-_]+)$#', 'handle_admin_blog_update_category'],
+        ['DELETE','#^/admin/blog/categories/([A-Za-z0-9\-_]+)$#', 'handle_admin_blog_delete_category'],
+
+        // --- Email templates (Task 07) ----------------------------------
+        // The one editable layer over the existing transactional emails.
+        ['GET',   '#^/admin/email-templates$#', 'handle_admin_email_templates'],
+        ['POST',  '#^/admin/email-templates$#', 'handle_admin_email_template_create'],
+        ['PATCH', '#^/admin/email-templates/([A-Za-z0-9\-_]+)$#', 'handle_admin_email_template_update'],
+        ['DELETE','#^/admin/email-templates/([A-Za-z0-9\-_]+)$#', 'handle_admin_email_template_delete'],
+        ['POST',  '#^/admin/email-templates/check-links$#', 'handle_admin_email_template_check_links'],
+
         ['GET',  '#^/sitemap\.xml$#', 'handle_sitemap'],
+
+        // --- Blog & Learning Centre (Task 07) ---------------------------
+        // Public reads return published articles only; the queries themselves
+        // filter on status, so no parameter can widen them.
+        ['GET',  '#^/blog$#', 'handle_blog_index'],
+        ['GET',  '#^/blog/categories$#', 'handle_blog_categories'],
+        ['GET',  '#^/blog/([a-z0-9]+(?:-[a-z0-9]+)*)$#', 'handle_blog_post'],
 
         // --- Utility ----------------------------------------------------
         ['POST', '#^/track/pageview$#', 'handle_track_pageview'],
@@ -4253,6 +4286,8 @@ function handle_sitemap(): void
         ['loc' => SITE_URL . '/list-property', 'priority' => '0.6', 'changefreq' => 'monthly'],
         ['loc' => SITE_URL . '/about', 'priority' => '0.5', 'changefreq' => 'monthly'],
         ['loc' => SITE_URL . '/contact', 'priority' => '0.5', 'changefreq' => 'monthly'],
+        // Task 07: the Learning Centre itself.
+        ['loc' => SITE_URL . '/blog', 'priority' => '0.7', 'changefreq' => 'weekly'],
     ];
 
     $entries = [];
@@ -4274,6 +4309,21 @@ function handle_sitemap(): void
             'lastmod'    => gmdate('Y-m-d', $timestamp !== false ? $timestamp : time()),
             'changefreq' => 'weekly',
             'priority'   => '0.8',
+        ];
+    }
+
+    // Task 07: published articles only. A draft, a scheduled post before its
+    // time and an unpublished article are never advertised to a crawler.
+    blog_promote_due_posts();
+    foreach (db_all("SELECT slug, COALESCE(updated_at, published_at, created_at) AS last_touch
+                       FROM blog_posts WHERE status = 'published'
+                       ORDER BY published_at DESC LIMIT 2000", []) as $post) {
+        $timestamp = strtotime((string)($post['last_touch'] ?? '')) ?: time();
+        $entries[] = [
+            'loc'        => SITE_URL . '/blog/' . rawurlencode((string)$post['slug']),
+            'lastmod'    => gmdate('Y-m-d', $timestamp),
+            'changefreq' => 'monthly',
+            'priority'   => '0.6',
         ];
     }
 

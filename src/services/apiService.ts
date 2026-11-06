@@ -55,6 +55,17 @@ import type {
   ViewingHistoryEvent,
   ViewingSchedule,
   ViewingCounts,
+  BlogAdminResponse,
+  BlogCategory,
+  BlogIndexResponse,
+  BlogPost,
+  BlogPostStatus,
+  BlogPostSummary,
+  BlogPropertyCard,
+  BlogPropertyDisplayRule,
+  EmailTemplate,
+  EmailTemplateLink,
+  EmailTemplateTarget,
 } from '../types';
 
 export class ApiError extends Error {
@@ -1051,6 +1062,152 @@ export const api = {
       method: 'POST',
       body: { tenantRequest, property },
     }),
+
+  // -------------------------------------------------------------------------
+  // Blog & Learning Centre (Task 07)
+  // -------------------------------------------------------------------------
+
+  /** The public Learning Centre index. Published articles only. */
+  blogIndex: (params: { category?: string; tag?: string; q?: string; page?: number; perPage?: number } = {}) => {
+    const search = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== '') search.set(key, String(value));
+    });
+    const query = search.toString();
+    return request<BlogIndexResponse>(`/blog${query ? `?${query}` : ''}`);
+  },
+
+  /** One published article, with its live property cards. 404 for drafts. */
+  blogPost: (slug: string) =>
+    request<{ success: boolean; post: BlogPost }>(`/blog/${encodeURIComponent(slug)}`),
+
+  blogCategories: () =>
+    request<{ success: boolean; categories: BlogCategory[] }>('/blog/categories'),
+
+  /** Everything the console needs: every status, counts, categories. */
+  adminBlogPosts: (params: { status?: string; category?: string; q?: string; page?: number; perPage?: number } = {}) => {
+    const search = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== '') search.set(key, String(value));
+    });
+    const query = search.toString();
+    return request<BlogAdminResponse>(`/admin/blog/posts${query ? `?${query}` : ''}`);
+  },
+
+  adminBlogPost: (id: string) =>
+    request<{ success: boolean; post: BlogPost }>(`/admin/blog/posts/${encodeURIComponent(id)}`),
+
+  adminBlogCreatePost: (data: {
+    title: string;
+    subtitle?: string;
+    slug?: string;
+    contentHtml?: string;
+    categoryId?: string | null;
+    tags?: string;
+    featuredImage?: string;
+    featuredImageAlt?: string;
+    seoTitle?: string;
+    seoDescription?: string;
+    isFeatured?: boolean;
+  }) =>
+    request<{ success: boolean; message: string; post: BlogPost }>('/admin/blog/posts', {
+      method: 'POST',
+      body: data,
+    }),
+
+  adminBlogUpdatePost: (id: string, data: Record<string, unknown>) =>
+    request<{ success: boolean; message: string; post: BlogPost }>(
+      `/admin/blog/posts/${encodeURIComponent(id)}`,
+      { method: 'PATCH', body: data }
+    ),
+
+  adminBlogSetStatus: (id: string, data: { status: BlogPostStatus; publishAt?: string }) =>
+    request<{ success: boolean; message: string; post: BlogPost }>(
+      `/admin/blog/posts/${encodeURIComponent(id)}/status`,
+      { method: 'POST', body: data }
+    ),
+
+  adminBlogDeletePost: (id: string) =>
+    request<{ success: boolean; message: string }>(
+      `/admin/blog/posts/${encodeURIComponent(id)}?confirm=1`,
+      { method: 'DELETE' }
+    ),
+
+  /** Replace the showcased listings (the array order is the display order). */
+  adminBlogSetProperties: (
+    id: string,
+    items: Array<{ propertyId: string; displayRule?: BlogPropertyDisplayRule; note?: string }>
+  ) =>
+    request<{ success: boolean; message: string; propertyCards: BlogPropertyCard[] }>(
+      `/admin/blog/posts/${encodeURIComponent(id)}/properties`,
+      { method: 'POST', body: { items } }
+    ),
+
+  adminBlogSearchProperties: (q: string) =>
+    request<{ success: boolean; properties: BlogPropertyCard[] }>(
+      `/admin/blog/properties?q=${encodeURIComponent(q)}`
+    ),
+
+  /** The "Insert Blog Post" picker: published articles only. */
+  adminBlogPublishedForLinks: (q = '') =>
+    request<{ success: boolean; posts: Array<{ id: string; title: string; slug: string; url: string; publishedAt: string }> }>(
+      `/admin/blog/published-for-links?q=${encodeURIComponent(q)}`
+    ),
+
+  adminBlogCategories: () =>
+    request<{ success: boolean; categories: BlogCategory[] }>('/admin/blog/categories'),
+
+  adminBlogCreateCategory: (data: { name: string; slug?: string; description?: string; sortOrder?: number }) =>
+    request<{ success: boolean; message: string; category: BlogCategory }>('/admin/blog/categories', {
+      method: 'POST',
+      body: data,
+    }),
+
+  adminBlogUpdateCategory: (id: string, data: Record<string, unknown>) =>
+    request<{ success: boolean; message: string; category: BlogCategory }>(
+      `/admin/blog/categories/${encodeURIComponent(id)}`,
+      { method: 'PATCH', body: data }
+    ),
+
+  adminBlogDeleteCategory: (id: string) =>
+    request<{ success: boolean; message: string }>(
+      `/admin/blog/categories/${encodeURIComponent(id)}?confirm=1`,
+      { method: 'DELETE' }
+    ),
+
+  // -------------------------------------------------------------------------
+  // Email templates (Task 07) — the editable layer of the emails above
+  // -------------------------------------------------------------------------
+
+  adminEmailTemplates: () =>
+    request<{ success: boolean; templates: EmailTemplate[]; targets: EmailTemplateTarget[] }>(
+      '/admin/email-templates'
+    ),
+
+  adminEmailTemplateCreate: (data: { name: string; targetType: string; bodyHtml: string; status?: string }) =>
+    request<{ success: boolean; message: string; template: EmailTemplate }>('/admin/email-templates', {
+      method: 'POST',
+      body: data,
+    }),
+
+  adminEmailTemplateUpdate: (id: string, data: Record<string, unknown>) =>
+    request<{ success: boolean; message: string; template: EmailTemplate }>(
+      `/admin/email-templates/${encodeURIComponent(id)}`,
+      { method: 'PATCH', body: data }
+    ),
+
+  adminEmailTemplateDelete: (id: string) =>
+    request<{ success: boolean; message: string }>(
+      `/admin/email-templates/${encodeURIComponent(id)}?confirm=1`,
+      { method: 'DELETE' }
+    ),
+
+  /** Warn about a dead article link while the administrator is still editing. */
+  adminEmailTemplateCheckLinks: (html: string) =>
+    request<{ success: boolean; links: EmailTemplateLink[]; broken: EmailTemplateLink[]; html: string }>(
+      '/admin/email-templates/check-links',
+      { method: 'POST', body: { html } }
+    ),
 };
 
 export default api;

@@ -1,1 +1,137 @@
 @import "tailwindcss";
+
+/* ==========================================================================
+   Task 07 — article typography for the Blog & Learning Centre
+   --------------------------------------------------------------------------
+   Article bodies are HTML the server sanitised to a small allowlist
+   (php-backend/lib/blog_content.php). These rules style exactly that allowlist,
+   so an article never depends on a Tailwind class being present in the stored
+   markup — which it cannot be, because the stored HTML carries no classes at
+   all beyond the callout/video markers.
+   ========================================================================== */
+.gl-article {
+  color: #cbd5e1;
+  font-size: 0.95rem;
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+}
+.gl-article > * + * {
+  margin-top: 1rem;
+}
+.gl-article h2 {
+  color: #ffffff;
+  font-size: 1.35rem;
+  line-height: 1.3;
+  font-weight: 800;
+  margin-top: 2rem;
+}
+.gl-article h3 {
+  color: #ffffff;
+  font-size: 1.1rem;
+  line-height: 1.35;
+  font-weight: 700;
+  margin-top: 1.5rem;
+}
+.gl-article h4 {
+  color: #e2e8f0;
+  font-size: 1rem;
+  font-weight: 700;
+  margin-top: 1.25rem;
+}
+.gl-article p {
+  margin-top: 0.9rem;
+}
+.gl-article strong,
+.gl-article b {
+  color: #ffffff;
+  font-weight: 700;
+}
+.gl-article em,
+.gl-article i {
+  font-style: italic;
+}
+.gl-article a {
+  color: #08d9d6;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.gl-article a:hover {
+  color: #7ff5f3;
+}
+.gl-article ul,
+.gl-article ol {
+  padding-left: 1.25rem;
+  margin-top: 0.9rem;
+}
+.gl-article ul {
+  list-style: disc;
+}
+.gl-article ol {
+  list-style: decimal;
+}
+.gl-article li + li {
+  margin-top: 0.35rem;
+}
+.gl-article blockquote {
+  border-left: 3px solid #08d9d6;
+  padding: 0.25rem 0 0.25rem 1rem;
+  color: #e2e8f0;
+  font-style: italic;
+}
+.gl-article img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 0.75rem;
+  margin-top: 1rem;
+}
+.gl-article figure {
+  margin-top: 1rem;
+}
+.gl-article figcaption {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  margin-top: 0.4rem;
+}
+.gl-article hr {
+  border: 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  margin: 2rem 0;
+}
+.gl-article code {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 0.25rem;
+  padding: 0.1rem 0.3rem;
+  font-size: 0.85em;
+}
+.gl-article pre {
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0.75rem;
+  padding: 1rem;
+  overflow-x: auto;
+  font-size: 0.85rem;
+}
+.gl-article aside.gl-callout,
+.gl-article figure.gl-callout {
+  background: rgba(8, 217, 214, 0.08);
+  border: 1px solid rgba(8, 217, 214, 0.28);
+  border-left-width: 3px;
+  border-radius: 0.75rem;
+  padding: 0.9rem 1rem;
+  color: #e2e8f0;
+  font-size: 0.9rem;
+}
+.gl-article aside.gl-callout-warning {
+  background: rgba(245, 158, 11, 0.08);
+  border-color: rgba(245, 158, 11, 0.3);
+}
+/* A YouTube embed: responsive at every width, and never wider than the column. */
+.gl-article iframe.gl-video-frame {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border: 0;
+  border-radius: 0.75rem;
+  background: #000;
+  margin-top: 1.25rem;
+}

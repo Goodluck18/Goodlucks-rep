@@ -3,7 +3,7 @@ import { useApp } from '../context/AppContext';
 import { Building2, Mail, Phone, Instagram, Linkedin, Twitter, Facebook, Music2, ShieldCheck } from 'lucide-react';
 
 export const Footer: React.FC = () => {
-  const { setCurrentView } = useApp();
+  const { setCurrentView, navigate } = useApp();
 
   return (
     <footer className="w-full bg-[#1A1E26] text-[#EAEAEA] border-t border-white/10 pt-10 pb-28 md:pb-10 px-4 sm:px-6 lg:px-8">
@@ -28,6 +28,18 @@ export const Footer: React.FC = () => {
         <p className="text-sm text-slate-300 max-w-xl leading-relaxed">
           Goodlucks Homes is a property discovery and rental intermediary in Ghana. We connect people looking for a home with the landlords and agents who list them, arrange viewings, and keep the enquiries and records in one place. We do not own or manage the properties listed here.
         </p>
+
+        {/* Task 07: one footer entry to the Learning Centre, so a reader can
+            reach the guides from every page without a second navigation menu. */}
+        <nav aria-label="Learning Centre" className="text-sm font-semibold">
+          <button
+            type="button"
+            onClick={() => navigate('/blog')}
+            className="text-[#08D9D6] hover:underline"
+          >
+            Renting guides and how Goodlucks Homes works
+          </button>
+        </nav>
 
         {/* Direct Contact Info */}
         <div className="flex flex-wrap justify-center items-center gap-6 text-sm font-medium text-slate-200 pt-2">

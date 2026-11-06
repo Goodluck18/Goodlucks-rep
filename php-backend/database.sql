@@ -1087,3 +1087,101 @@ CREATE TABLE IF NOT EXISTS `platform_settings` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `uniq_platform_setting_key` (`setting_key`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================
+-- Task 07: Blog & Learning Centre
+--
+-- Editorial content lives in these four tables. The property showcase is a
+-- REFERENCE table (`blog_post_properties`), never a copy of the listing: an
+-- article renders whatever the property record says at the moment it is read,
+-- so a changed price or a rented listing is never stale in an article.
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS `blog_categories` (
+  `id` VARCHAR(64) NOT NULL,
+  `name` VARCHAR(120) NOT NULL,
+  `slug` VARCHAR(120) NOT NULL,
+  `description` VARCHAR(500) NOT NULL DEFAULT '',
+  -- Ascending display order; categories with the same value sort by name.
+  `sort_order` INT NOT NULL DEFAULT 0,
+  `created_by` VARCHAR(64) DEFAULT NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` DATETIME DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uniq_blog_category_slug` (`slug`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `blog_posts` (
+  `id` VARCHAR(64) NOT NULL,
+  `title` VARCHAR(200) NOT NULL,
+  `subtitle` VARCHAR(400) NOT NULL DEFAULT '',
+  `slug` VARCHAR(160) NOT NULL,
+  `featured_image` VARCHAR(500) NOT NULL DEFAULT '',
+  `featured_image_alt` VARCHAR(300) NOT NULL DEFAULT '',
+  -- Sanitised article HTML. Only a small allowlist of tags survives
+  -- `blog_sanitize_html()`; a checkbox in the editor is never the guard.
+  `content_html` LONGTEXT DEFAULT NULL,
+  `category_id` VARCHAR(64) DEFAULT NULL,
+  -- Comma-separated display tags (free text, sanitised on write).
+  `tags` VARCHAR(500) NOT NULL DEFAULT '',
+  -- The same tags lower-cased and comma-padded (",rent,legon,"), so a tag
+  -- filter is a plain LIKE that behaves identically on MySQL and SQLite.
+  `tags_search` VARCHAR(600) NOT NULL DEFAULT '',
+  -- The administrator who wrote it: real account id + the name it showed at
+  -- save time, so the byline is never invented.
+  `author_user_id` VARCHAR(64) NOT NULL,
+  `author_name` VARCHAR(255) NOT NULL DEFAULT '',
+  -- draft | scheduled | published | unpublished
+  `status` VARCHAR(24) NOT NULL DEFAULT 'draft',
+  -- When a scheduled post goes live. A scheduled post is public only once this
+  -- moment has passed; nothing else makes it public.
+  `publish_at` DATETIME DEFAULT NULL,
+  -- When it first became public. NULL until it has been published.
+  `published_at` DATETIME DEFAULT NULL,
+  `seo_title` VARCHAR(200) NOT NULL DEFAULT '',
+  `seo_description` VARCHAR(320) NOT NULL DEFAULT '',
+  `is_featured` TINYINT(1) NOT NULL DEFAULT 0,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` DATETIME DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uniq_blog_post_slug` (`slug`),
+  KEY `idx_blog_post_status` (`status`, `publish_at`),
+  KEY `idx_blog_post_category` (`category_id`, `status`),
+  KEY `idx_blog_post_featured` (`is_featured`, `status`),
+  KEY `idx_blog_post_author` (`author_user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `blog_post_properties` (
+  `id` VARCHAR(64) NOT NULL,
+  `post_id` VARCHAR(64) NOT NULL,
+  -- The listing's id. No copy of its title, rent or photos is stored here.
+  `property_id` VARCHAR(64) NOT NULL,
+  `sort_order` INT NOT NULL DEFAULT 0,
+  -- hide_unavailable | show_status
+  `display_rule` VARCHAR(24) NOT NULL DEFAULT 'show_status',
+  -- Optional one-line editorial note shown with the card ("Refurbished in 2025").
+  `note` VARCHAR(300) NOT NULL DEFAULT '',
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uniq_blog_post_property` (`post_id`, `property_id`),
+  KEY `idx_blog_post_property_order` (`post_id`, `sort_order`),
+  KEY `idx_blog_post_property_property` (`property_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `email_templates` (
+  `id` VARCHAR(64) NOT NULL,
+  `name` VARCHAR(160) NOT NULL,
+  -- The transactional email this template adds content to (see
+  -- `email_template_targets()`): enquiry_confirmation, viewing_update, …
+  `target_type` VARCHAR(64) NOT NULL,
+  `body_html` LONGTEXT DEFAULT NULL,
+  -- active | inactive. An inactive template is stored but never sent.
+  `status` VARCHAR(16) NOT NULL DEFAULT 'active',
+  `created_by` VARCHAR(64) DEFAULT NULL,
+  `updated_by` VARCHAR(64) DEFAULT NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` DATETIME DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_email_template_type` (`target_type`, `status`),
+  KEY `idx_email_template_status` (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

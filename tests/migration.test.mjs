@@ -333,3 +333,118 @@ describe('The MySQL migration plan is complete and duplicate-free (static check)
     assert.match(remittances, /'reversal_of_receipt_id'\s*=>/, 'the reversal link is in the MySQL plan');
   });
 });
+
+/* -------------------------------------------------------------------------- */
+/* Task 07: the Blog & Learning Centre tables                                 */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The blog feature is additive: an installation that predates it must gain the
+ * four tables and their indexes when it runs the migration, with no change to
+ * any existing table. The SQLite half is executed here; the MySQL half is
+ * checked against the source because this environment has no MySQL server.
+ */
+describe('Migration adds the Task 07 blog tables to an existing database', () => {
+  const BLOG_TABLES = ['blog_categories', 'blog_posts', 'blog_post_properties', 'email_templates'];
+  const BLOG_INDEXES = {
+    blog_posts: ['idx_blog_post_status', 'idx_blog_post_category', 'idx_blog_post_featured', 'idx_blog_post_author'],
+    blog_post_properties: ['uniq_blog_post_property', 'idx_blog_post_property_order', 'idx_blog_post_property_property'],
+    email_templates: ['idx_email_template_type', 'idx_email_template_status'],
+  };
+  const legacyPath = () => path.join(workDir, 'pre-task07.sqlite');
+  const legacyFile = path.join(workDir, 'pre-task07-schema.sql');
+
+  /** The full schema with the Task 07 tables (and their indexes) taken out. */
+  function schemaWithoutBlog() {
+    let sql = schemaSql;
+    for (const table of BLOG_TABLES) {
+      const block = new RegExp(`CREATE TABLE IF NOT EXISTS\\s+\`?${table}\`?\\s*\\([\\s\\S]*?\\n\\);\\n`, 'm');
+      assert.match(sql, block, `expected a CREATE TABLE for ${table}`);
+      sql = sql.replace(block, '');
+      const indexes = new RegExp(`^CREATE (?:UNIQUE )?INDEX IF NOT EXISTS[^\\n]*ON\\s+\`?${table}\`?[^\\n]*\\n`, 'gm');
+      sql = sql.replace(indexes, '');
+    }
+    return sql;
+  }
+
+  before(() => {
+    fs.mkdirSync(workDir, { recursive: true });
+    for (const suffix of ['', '-wal', '-shm']) {
+      fs.rmSync(legacyPath() + suffix, { force: true });
+    }
+    fs.writeFileSync(legacyFile, schemaWithoutBlog(), 'utf8');
+    fs.writeFileSync(legacyPath(), '', 'utf8');
+    const built = runPhpScript(tool, [`--path=${legacyPath()}`, '--mode=exec-file', `--file=${legacyFile}`], {});
+    assert.equal(built.status, 0, built.stdout + built.stderr);
+  });
+
+  test('the pre-Task-07 database really has no blog tables', () => {
+    const tables = inspect(legacyPath(), 'tables').tables;
+    for (const table of BLOG_TABLES) {
+      assert.equal(tables.includes(table), false, `${table} should not exist yet`);
+    }
+    // The rest of the schema is untouched and still there.
+    assert.ok(tables.includes('properties'));
+    assert.ok(tables.includes('email_logs'));
+  });
+
+  test('the migration creates all four tables and their indexes', () => {
+    const dry = runPhpScript('php-backend/migrate.php', [], env(legacyPath()));
+    assert.equal(dry.status, 0, dry.stdout + dry.stderr);
+    for (const table of BLOG_TABLES) {
+      assert.match(dry.stdout, new RegExp(`CREATE TABLE ${table}`), `${table} announced`);
+    }
+
+    const applied = runPhpScript('php-backend/migrate.php', ['--apply'], env(legacyPath()));
+    assert.equal(applied.status, 0, applied.stdout + applied.stderr);
+    assert.match(applied.stdout, /Migration completed successfully/);
+
+    const tables = inspect(legacyPath(), 'tables').tables;
+    for (const table of BLOG_TABLES) {
+      assert.ok(tables.includes(table), `${table} was created`);
+    }
+    for (const [table, expected] of Object.entries(BLOG_INDEXES)) {
+      const indexes = inspect(legacyPath(), 'indexes', [`--table=${table}`]).indexes;
+      for (const index of expected) {
+        assert.ok(indexes.includes(index), `${index} was created on ${table}`);
+      }
+    }
+  });
+
+  test('nothing existing is dropped or rewritten, and a second run is a no-op', () => {
+    const tablesBefore = inspect(legacyPath(), 'tables').tables.sort();
+    const propertyColumns = inspect(legacyPath(), 'columns', ['--table=properties']).columns.sort();
+
+    const again = runPhpScript('php-backend/migrate.php', ['--apply'], env(legacyPath()));
+    assert.equal(again.status, 0, again.stdout + again.stderr);
+
+    assert.deepEqual(inspect(legacyPath(), 'tables').tables.sort(), tablesBefore);
+    assert.deepEqual(inspect(legacyPath(), 'columns', ['--table=properties']).columns.sort(), propertyColumns);
+  });
+
+  test('the blog tables reference listings by id instead of copying them', () => {
+    const columns = inspect(legacyPath(), 'columns', ['--table=blog_post_properties']).columns;
+    assert.ok(columns.includes('post_id'));
+    assert.ok(columns.includes('property_id'));
+    // No copied listing fields: a card must always read the live record.
+    for (const copied of ['title', 'rent_ghs', 'images', 'location', 'status']) {
+      assert.equal(columns.includes(copied), false, `blog_post_properties must not copy ${copied}`);
+    }
+  });
+
+  test('the MySQL plan lists the same tables (checked statically)', () => {
+    const migrateSource = fs.readFileSync(path.join(projectRoot, 'php-backend', 'migrate.php'), 'utf8');
+    const start = migrateSource.indexOf('$requiredTables');
+    const tablesBlock = migrateSource.slice(start, migrateSource.indexOf('];', start));
+    const mysqlSource = fs.readFileSync(path.join(projectRoot, 'php-backend', 'database.sql'), 'utf8');
+
+    for (const table of BLOG_TABLES) {
+      assert.match(tablesBlock, new RegExp(`'${table}'`), `${table} must be listed in $requiredTables`);
+      assert.match(
+        mysqlSource,
+        new RegExp('CREATE TABLE IF NOT EXISTS `' + table + '`'),
+        `${table} needs a MySQL definition in database.sql`
+      );
+    }
+  });
+});

@@ -253,7 +253,9 @@ $requiredTables = ['auth_sessions', 'enquiries', 'search_alerts', 'saved_propert
     // Task 03: property viewing fee / terms change requests.
     'property_viewing_fee_changes',
     // Task 03 update: administrator-controlled settings (landlord viewing fee).
-    'platform_settings'];
+    'platform_settings',
+    // Task 07: Blog & Learning Centre, plus the extended email templates.
+    'blog_categories', 'blog_posts', 'blog_post_properties', 'email_templates'];
 
 function existing_tables(PDO $pdo): array
 {
