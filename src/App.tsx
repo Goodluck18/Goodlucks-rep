@@ -189,8 +189,13 @@ const AppContent: React.FC = () => {
       {/* Header Navbar */}
       <Navbar onOpenAuth={handleOpenAuth} />
 
-      {/* Main Content Area */}
-      <main className="flex-grow pb-12 md:pb-0">
+      {/* Main Content Area — reserves room for the fixed mobile bottom bar so
+          the last row of content is never hidden behind it (Task 04). */}
+      <main
+        className={`flex-grow ${
+          hideChrome ? 'pb-12' : 'pb-[calc(76px+env(safe-area-inset-bottom))] md:pb-0'
+        }`}
+      >
         <Suspense fallback={<ViewFallback />}>
           {isRedirecting ? <ViewFallback /> : renderRoute()}
         </Suspense>

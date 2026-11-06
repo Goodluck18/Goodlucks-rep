@@ -270,6 +270,11 @@ globalThis.fetch = (async (input: RequestInfo | URL) => {
   const json = (body: unknown) =>
     new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } });
 
+  if (url.includes('/auth/logout')) {
+    // Signing out really does end the session: the next bootstrap must see a guest.
+    signedIn = null;
+    return json({ success: true });
+  }
   if (url.includes('/auth/me')) {
     return json({ success: true, user: signedIn, savedPropertyIds: [] });
   }
@@ -668,13 +673,24 @@ test('the dashboard shell names the signed-in account and marks the active secti
   assert.match(text, /Test tenant/i, 'the account name is on screen');
   assert.match(text, /Tenant account/i, 'the account type is on screen');
 
-  const active = [...app.container.querySelectorAll('[aria-current="page"]')];
-  assert.equal(active.length, 1, 'exactly one section is marked active');
+  // Task 04: the account sections live in the shell's sidebar; the mobile quick
+  // links are a separate navigation with its own active tab, so each is checked
+  // within its own navigation rather than across the whole page.
+  const active = [
+    ...app.container.querySelectorAll('[aria-label="Tenant account sections"] [aria-current="page"]'),
+  ];
+  assert.equal(active.length, 1, 'exactly one section is marked active in the sidebar');
   assert.match(active[0].textContent ?? '', /viewings/i);
+
+  const activeTab = [...app.container.querySelectorAll('nav[aria-label="Quick links"] [aria-current="page"]')];
+  assert.equal(activeTab.length, 1, 'exactly one quick link is marked active');
+  assert.match(activeTab[0].getAttribute('aria-label') ?? '', /viewings/i);
   await app.unmount();
 
   const elsewhere = await renderAt('/tenant/settings', 'tenant');
-  const activeThere = [...elsewhere.container.querySelectorAll('[aria-current="page"]')];
+  const activeThere = [
+    ...elsewhere.container.querySelectorAll('[aria-label="Tenant account sections"] [aria-current="page"]'),
+  ];
   assert.equal(activeThere.length, 1);
   assert.match(activeThere[0].textContent ?? '', /account settings/i);
   await elsewhere.unmount();
@@ -748,5 +764,212 @@ test('an overview card navigates to the section behind it', async () => {
 test('a section URL is refused to another role, which lands in its own area', async () => {
   const app = await renderAt('/tenant/settings', 'landlord');
   assert.equal(app.path(), '/landlord/dashboard');
+  await app.unmount();
+});
+
+/* -------------------------------------------------------------------------- */
+/* O. Task 04 — one navigation per surface                                    */
+/* -------------------------------------------------------------------------- */
+
+/** The tabs in the fixed mobile bar. */
+function quickLinks(app: Awaited<ReturnType<typeof renderAt>>): HTMLElement[] {
+  return [...app.container.querySelectorAll('nav[aria-label="Quick links"] button')] as HTMLElement[];
+}
+
+/** The rows inside the open hamburger. */
+function menuRows(app: Awaited<ReturnType<typeof renderAt>>): HTMLElement[] {
+  return [...app.container.querySelectorAll('#site-menu button')] as HTMLElement[];
+}
+
+const labels = (elements: HTMLElement[]) => elements.map((el) => (el.textContent ?? '').trim());
+
+/**
+ * Click a row inside the open hamburger.
+ *
+ * Some labels also exist elsewhere (the desktop row, the dashboard sidebar), so
+ * the click is dispatched on the menu row itself rather than on "the first
+ * control with this text".
+ */
+async function clickMenuRow(app: Awaited<ReturnType<typeof renderAt>>, label: string) {
+  const row = menuRows(app).find((el) => (el.textContent ?? '').trim() === label);
+  assert.ok(row, `no menu row “${label}”`);
+  await act(async () => {
+    row!.dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true }) as unknown as Event);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+}
+
+test('the guest quick bar and hamburger do not repeat one another', async () => {
+  const app = await renderAt('/');
+  assert.deepEqual(labels(quickLinks(app)), ['Home', 'Browse', 'Find Home', 'Login']);
+
+  await app.clickContaining('Open menu');
+  const rows = labels(menuRows(app));
+  assert.deepEqual(rows, ['List Property', 'Receipts', 'About', 'Contact', 'Create an account']);
+  for (const repeated of ['Home', 'Browse', 'Find Home']) {
+    assert.ok(!rows.includes(repeated), `“${repeated}” is already in the quick bar`);
+  }
+  assert.ok(!rows.some((row) => /logout|dashboard|settings/i.test(row)), 'a guest sees no member rows');
+  await app.unmount();
+});
+
+test('a guest keeps one sign-in entry point and no sign-in row in the menu', async () => {
+  const app = await renderAt('/');
+  // Signing in is a single tap in the quick bar; the menu only offers a new account.
+  const rows: string[] = [];
+  await app.clickContaining('Open menu');
+  rows.push(...labels(menuRows(app)));
+  assert.ok(!rows.includes('Login'), 'the menu does not repeat the quick bar sign-in');
+  assert.equal(rows.filter((row) => /log ?in|sign in/i.test(row)).length, 0);
+  await app.unmount();
+});
+
+test('the hamburger closes itself once an item is chosen', async () => {
+  const app = await renderAt('/');
+  await app.clickContaining('Open menu');
+  assert.ok(app.container.querySelector('#site-menu'), 'the menu is open');
+
+  await clickMenuRow(app, 'List Property');
+  assert.equal(app.path(), '/list-property');
+  assert.equal(app.container.querySelector('#site-menu'), null, 'the menu closed on selection');
+  await app.unmount();
+});
+
+test('a tenant quick bar is five tabs and the menu holds everything else', async () => {
+  const app = await renderAt('/tenant/dashboard', 'tenant');
+  assert.deepEqual(labels(quickLinks(app)), ['Browse', 'Dashboard', 'Saved', 'Viewings', 'Profile']);
+
+  // The desktop row stays short: the account area is one link, not nine.
+  const desktop = [...app.container.querySelectorAll('nav[aria-label="Main"] button')].map((el) =>
+    (el.textContent ?? '').trim()
+  );
+  assert.deepEqual(desktop, ['Home', 'Browse Properties', 'Dashboard']);
+
+  await app.clickContaining('Open menu');
+  const rows = labels(menuRows(app));
+  assert.deepEqual(rows.slice(0, 4), ['Rental requests', 'Matched properties', 'Search alerts', 'Account settings']);
+  assert.match(rows[rows.length - 1], /^Logout/, 'the menu ends with the way out');
+  for (const tab of ['Browse', 'Dashboard', 'Saved', 'Viewings', 'Profile']) {
+    assert.ok(!rows.includes(tab), `“${tab}” is already in the quick bar`);
+  }
+  for (const foreign of ['Receipts', 'Verification', 'Finance', 'Account status']) {
+    assert.ok(!rows.includes(foreign), `a tenant must not see “${foreign}”`);
+  }
+  await app.unmount();
+});
+
+test('the unread count sits on its own bell, never on the Profile tab', async () => {
+  const app = await renderAt('/tenant/dashboard', 'tenant', { notifications: [UNREAD_NOTIFICATION] });
+
+  const bells = [...app.container.querySelectorAll('button[aria-label^="Notifications"]')] as HTMLElement[];
+  assert.ok(bells.length >= 1, 'the header has a notifications bell');
+  assert.equal(bells[0].getAttribute('aria-label'), 'Notifications, 1 unread');
+
+  const profile = quickLinks(app).find((el) => (el.textContent ?? '').trim() === 'Profile');
+  assert.ok(profile, 'the profile tab is in the quick bar');
+  assert.doesNotMatch(profile.innerHTML, /FF2E63|unread/i, 'no notification dot on the profile tab');
+
+  // The bell is the entry point, and it goes to the notifications page.
+  await app.clickContaining('Notifications, 1 unread');
+  assert.equal(app.path(), '/tenant/notifications');
+  await app.unmount();
+});
+
+test('a landlord keeps the submission action and finds receipts in the menu', async () => {
+  const app = await renderAt('/landlord/dashboard', 'landlord');
+  assert.deepEqual(labels(quickLinks(app)), ['Dashboard', 'Properties', 'List', 'Viewings', 'Profile']);
+
+  // The desktop bar promotes the same action instead of hiding it in a menu.
+  const cta = [...app.container.querySelectorAll('button')].filter(
+    (el) => (el.textContent ?? '').trim() === 'List property'
+  );
+  assert.ok(cta.length >= 1, 'the top bar offers “List property”');
+
+  await app.click('List');
+  assert.equal(app.path(), '/list-property');
+  await app.unmount();
+
+  const again = await renderAt('/landlord/properties', 'landlord');
+  await again.clickContaining('Open menu');
+  const rows = labels(menuRows(again));
+  assert.deepEqual(rows.slice(0, 3), ['Receipts', 'Verification', 'Account settings']);
+  for (const tab of ['Dashboard', 'Properties', 'List', 'Viewings', 'Profile']) {
+    assert.ok(!rows.includes(tab), `“${tab}” is already in the quick bar`);
+  }
+  assert.ok(!rows.includes('Rental requests'), 'a landlord sees no tenant rows');
+  await again.unmount();
+});
+
+test('an agent quick bar covers listings, viewings and finance; the menu covers the rest', async () => {
+  const app = await renderAt('/agent/dashboard', 'agent');
+  assert.deepEqual(labels(quickLinks(app)), ['Dashboard', 'Listings', 'Viewings', 'Finance', 'Profile']);
+
+  await app.click('Listings');
+  assert.equal(app.path(), '/agent/properties');
+  await app.unmount();
+
+  const again = await renderAt('/agent/finance', 'agent');
+  await again.clickContaining('Open menu');
+  const rows = labels(menuRows(again));
+  assert.deepEqual(rows.slice(0, 3), ['Verification', 'Account status', 'Account settings']);
+  assert.ok(!rows.includes('Rental requests'), 'an agent sees no tenant rows');
+
+  await clickMenuRow(again, 'Account status');
+  assert.equal(again.path(), '/agent/status');
+  assert.equal(again.container.querySelector('#site-menu'), null, 'the menu closed on selection');
+  await again.unmount();
+});
+
+test('dashboard, profile and settings are three destinations for every member role', async () => {
+  for (const role of ['tenant', 'landlord', 'agent'] as const) {
+    const settings = await renderAt(`/${role}/dashboard`, role);
+    await settings.clickContaining('Open menu');
+    await clickMenuRow(settings, 'Account settings');
+    assert.equal(settings.path(), `/${role}/settings`, `${role} settings`);
+    await settings.unmount();
+
+    const profile = await renderAt(`/${role}/dashboard`, role);
+    await profile.click('Profile');
+    assert.equal(profile.path(), `/${role}/profile`, `${role} profile`);
+    assert.match(profile.text(), /save (?:\w+ )?profile/i, `${role} profile is the profile form`);
+    assert.doesNotMatch(profile.text(), /current password/i, `${role} profile is not the password page`);
+    await profile.unmount();
+
+    const dashboard = await renderAt(`/${role}/profile`, role);
+    await dashboard.click('Dashboard');
+    assert.equal(dashboard.path(), `/${role}/dashboard`, `${role} dashboard`);
+    await dashboard.unmount();
+  }
+});
+
+test('the quick bar marks the page you are on and only that page', async () => {
+  for (const [path, role, expected] of [
+    ['/tenant/saved-properties', 'tenant', 'Saved properties'],
+    ['/landlord/viewings', 'landlord', 'Viewings'],
+    ['/agent/finance', 'agent', 'Finance'],
+  ] as Array<[string, 'tenant' | 'landlord' | 'agent', string]>) {
+    const app = await renderAt(path, role);
+    const active = [...app.container.querySelectorAll('nav[aria-label="Quick links"] [aria-current="page"]')];
+    assert.equal(active.length, 1, `${path} marks one quick link`);
+    assert.equal(active[0].getAttribute('aria-label'), expected);
+    await app.unmount();
+  }
+});
+
+test('the dashboard no longer opens a second, competing menu', async () => {
+  const app = await renderAt('/tenant/dashboard', 'tenant');
+  assert.equal(app.container.querySelectorAll('[aria-label="Open account menu"]').length, 0);
+  const menuButtons = [...app.container.querySelectorAll('[aria-label="Open menu"]')];
+  assert.equal(menuButtons.length, 1, 'there is exactly one menu button');
+  await app.unmount();
+});
+
+test('logging out from the menu returns the visitor to the public site', async () => {
+  const app = await renderAt('/tenant/dashboard', 'tenant');
+  await app.clickContaining('Open menu');
+  await clickMenuRow(app, 'Logout (Test tenant)');
+  assert.equal(app.path(), '/');
+  assert.equal(app.container.querySelector('nav[aria-label="Quick links"]') !== null, true);
+  assert.deepEqual(labels(quickLinks(app)), ['Home', 'Browse', 'Find Home', 'Login'], 'the guest bar is back');
   await app.unmount();
 });

@@ -1,121 +1,73 @@
 import React from 'react';
 import { useApp } from '../context/AppContext';
-import { Home, Search, PlusCircle, LayoutDashboard, User as UserIcon, Bell, Compass } from 'lucide-react';
+import { activeItemId, isNavAction, navForRole, type BottomTab } from '../navigation/navModel';
 
 interface MobileBottomNavProps {
   onOpenAuth: () => void;
 }
 
+/**
+ * The mobile bottom bar: at most five quick tabs, one per role.
+ *
+ * Task 04 changes:
+ *   • the links come from `navForRole(role).bottom` (src/navigation/navModel.ts)
+ *     instead of being written out here, so the bar and the navbar can no longer
+ *     drift apart;
+ *   • the unread-notifications dot is **gone**. It used to sit on the Profile
+ *     icon, which made the button look like it opened notifications while it
+ *     opened the profile. Notifications now have their own entry point — the
+ *     labelled bell in the header, which carries the count;
+ *   • every tab is a 44px-high touch target with one icon size, and the tab that
+ *     matches the current URL is marked `aria-current="page"` for assistive tech.
+ *
+ * Guests get Home / Browse / Find Home / Login; members get the four sections
+ * they use most plus Profile. Anything else is one tap away in the hamburger.
+ */
 export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({ onOpenAuth }) => {
-  const { currentRole, currentView, navigate, notifications } = useApp();
+  const { currentRole, route, navigate } = useApp();
+  const nav = navForRole(currentRole);
+  const tabs = nav.bottom;
 
-  const unreadCount = notifications.filter(n => !n.read).length;
+  if (tabs.length === 0) return null;
 
-  // Each tab is a real URL, so the bottom bar behaves like the rest of the site.
-  const dashboardPath = currentRole === 'admin' ? '/admin' : `/${currentRole}/dashboard`;
-  const profilePath = currentRole === 'admin' ? '/admin' : `/${currentRole}/profile`;
+  const activeId = activeItemId(
+    tabs.filter((tab) => !isNavAction(tab)) as Array<{ id: string; path: string; activeFor?: string[] }>,
+    route.path
+  );
+
+  const renderTab = (tab: BottomTab) => {
+    const Icon = tab.icon;
+    const isActive = !isNavAction(tab) && tab.id === activeId;
+    const isEmphasis = !isNavAction(tab) && tab.emphasis;
+    const onClick = isNavAction(tab) ? onOpenAuth : () => navigate(tab.path);
+
+    return (
+      <button
+        key={tab.id}
+        type="button"
+        onClick={onClick}
+        aria-current={isActive ? 'page' : undefined}
+        aria-label={tab.description ?? tab.label}
+        title={tab.description ?? tab.label}
+        className={`flex-1 flex flex-col items-center justify-center gap-0.5 py-2 min-h-[56px] rounded-lg transition-colors ${
+          isActive
+            ? 'text-[#08D9D6]'
+            : isEmphasis
+              ? 'text-[#08D9D6]/90'
+              : 'text-slate-400 hover:text-white'
+        }`}
+      >
+        <Icon className={`w-[22px] h-[22px] ${isActive || isEmphasis ? 'text-[#08D9D6]' : ''}`} />
+        <span className={`text-[10px] leading-none ${isActive ? 'font-bold' : 'font-medium'}`}>{tab.label}</span>
+      </button>
+    );
+  };
 
   return (
-    <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#252A34]/95 backdrop-blur-lg border-t border-white/10 px-2 py-1.5 shadow-2xl">
-      <div className="flex items-center justify-around text-slate-400">
-        
-        {/* Home */}
-        <button
-          onClick={() => navigate('/')}
-          className={`flex flex-col items-center py-1 px-3 rounded-xl transition-all ${
-            currentView === 'home' ? 'text-[#08D9D6] font-bold scale-105' : 'hover:text-white'
-          }`}
-        >
-          <Home className="w-5 h-5" />
-          <span className="text-[10px] mt-0.5">Home</span>
-        </button>
-
-        {/* Browse */}
-        <button
-          onClick={() => navigate('/properties')}
-          className={`flex flex-col items-center py-1 px-3 rounded-xl transition-all ${
-            currentView === 'browse' ? 'text-[#08D9D6] font-bold scale-105' : 'hover:text-white'
-          }`}
-        >
-          <Search className="w-5 h-5" />
-          <span className="text-[10px] mt-0.5">Browse</span>
-        </button>
-
-        {/* Role Specific Action */}
-        {currentRole === 'guest' && (
-          <button
-            onClick={() => navigate('/find-a-home')}
-            className={`flex flex-col items-center py-1 px-3 rounded-xl transition-all ${
-              currentView === 'find-home' ? 'text-[#08D9D6] font-bold scale-105' : 'hover:text-white'
-            }`}
-          >
-            <Compass className="w-5 h-5" />
-            <span className="text-[10px] mt-0.5">Find Home</span>
-          </button>
-        )}
-
-        {currentRole === 'tenant' && (
-          <button
-            onClick={() => navigate('/find-a-home')}
-            className={`flex flex-col items-center py-1 px-3 rounded-xl transition-all ${
-              currentView === 'find-home' ? 'text-[#08D9D6] font-bold scale-105' : 'hover:text-white'
-            }`}
-          >
-            <Compass className="w-5 h-5" />
-            <span className="text-[10px] mt-0.5">Find Home</span>
-          </button>
-        )}
-
-        {currentRole === 'landlord' && (
-          <button
-            onClick={() => navigate('/list-property')}
-            className={`flex flex-col items-center py-1 px-3 rounded-xl transition-all ${
-              currentView === 'list-property' ? 'text-[#08D9D6] font-bold scale-105' : 'hover:text-white'
-            }`}
-          >
-            <PlusCircle className="w-5 h-5 text-[#08D9D6]" />
-            <span className="text-[10px] mt-0.5 text-[#08D9D6] font-semibold">List</span>
-          </button>
-        )}
-
-        {/* Dashboard / Profile */}
-        {currentRole === 'guest' ? (
-          <button
-            onClick={onOpenAuth}
-            className="flex flex-col items-center py-1 px-3 rounded-xl text-[#08D9D6] hover:text-white"
-          >
-            <UserIcon className="w-5 h-5" />
-            <span className="text-[10px] mt-0.5">Login</span>
-          </button>
-        ) : (
-          <button
-            onClick={() => navigate(dashboardPath)}
-            className={`flex flex-col items-center py-1 px-3 rounded-xl transition-all ${
-              currentView === 'dashboard' ? 'text-[#08D9D6] font-bold scale-105' : 'hover:text-white'
-            }`}
-          >
-            <LayoutDashboard className="w-5 h-5" />
-            <span className="text-[10px] mt-0.5">Dashboard</span>
-          </button>
-        )}
-
-        {/* Profile / Notifications */}
-        {currentRole !== 'guest' && (
-          <button
-            onClick={() => navigate(profilePath)}
-            className={`relative flex flex-col items-center py-1 px-3 rounded-xl transition-all ${
-              currentView === 'profile' ? 'text-[#08D9D6] font-bold scale-105' : 'hover:text-white'
-            }`}
-          >
-            <UserIcon className="w-5 h-5" />
-            <span className="text-[10px] mt-0.5">Profile</span>
-            {unreadCount > 0 && (
-              <span className="absolute top-0.5 right-2 w-2 h-2 rounded-full bg-[#FF2E63] animate-pulse" />
-            )}
-          </button>
-        )}
-
-      </div>
+    <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#252A34]/95 backdrop-blur-lg border-t border-white/10 shadow-2xl pb-[env(safe-area-inset-bottom)]">
+      <nav aria-label="Quick links" className="flex items-stretch justify-around px-1">
+        {tabs.map(renderTab)}
+      </nav>
     </div>
   );
 };

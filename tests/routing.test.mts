@@ -559,3 +559,115 @@ test('a guest who signs in as the wrong role is sent to their own workspace', ()
     to: '/tenant/dashboard',
   });
 });
+
+/* -------------------------------------------------------------------------- */
+/* N. Navigation model (Task 04)                                              */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The chrome reads its links from src/navigation/navModel.ts. These checks keep
+ * the model honest: a URL must still be a real route, the member must be allowed
+ * to open it, and no destination may be listed twice.
+ */
+test('every navigation link is a real, allowed URL', async () => {
+  const { navForRole } = await import('../src/navigation/navModel.ts');
+
+  for (const role of ROLES) {
+    const nav = navForRole(role);
+    const items = [...nav.desktop, ...nav.menu, ...(nav.cta ? [nav.cta] : [])];
+    for (const item of items) {
+      const route = parseLocation(item.path);
+      assert.equal(route.isKnown, true, `${role}: ${item.label} → ${item.path} is a real page`);
+      assert.equal(
+        accessDecision(route, role, route.path).action,
+        'allow',
+        `${role} may open ${item.path}`
+      );
+    }
+    for (const tab of nav.bottom) {
+      if ('kind' in tab) continue;
+      const route = parseLocation(tab.path);
+      assert.equal(route.isKnown, true, `${role}: ${tab.label} → ${tab.path} is a real page`);
+      assert.equal(
+        accessDecision(route, role, route.path).action,
+        'allow',
+        `${role} may open ${tab.path}`
+      );
+    }
+  }
+});
+
+test('the bottom bar lists at most five destinations and never repeats the menu', async () => {
+  const { navForRole, isMemberRole } = await import('../src/navigation/navModel.ts');
+
+  for (const role of ROLES) {
+    const nav = navForRole(role);
+    assert.ok(nav.bottom.length <= 5, `${role}: ${nav.bottom.length} quick links`);
+
+    // The quick bar and the hamburger are on screen together, so a destination
+    // may only appear in one of them.
+    const bottomPaths = nav.bottom.filter((tab) => !('kind' in tab)).map((tab) => (tab as { path: string }).path);
+    for (const item of nav.menu) {
+      assert.ok(!bottomPaths.includes(item.path), `${role}: ${item.path} is in both the quick bar and the menu`);
+    }
+
+    // Within a single surface no link is repeated either.
+    assert.equal(new Set(nav.menu.map((item) => item.path)).size, nav.menu.length, `${role}: menu repeats a link`);
+    assert.equal(
+      new Set(nav.desktop.map((item) => item.path)).size,
+      nav.desktop.length,
+      `${role}: the top bar repeats a link`
+    );
+    assert.equal(new Set(bottomPaths).size, bottomPaths.length, `${role}: the quick bar repeats a link`);
+
+    // A member's top bar and menu are shown in the same header area, so they do
+    // not overlap. (A visitor's menu only renders below `md`, where the desktop
+    // row is hidden, so the public pages may appear in both.)
+    if (isMemberRole(role)) {
+      for (const item of nav.menu) {
+        assert.ok(
+          !nav.desktop.some((link) => link.path === item.path),
+          `${role}: ${item.path} is in both the top bar and the menu`
+        );
+      }
+      assert.ok(nav.desktop.length <= 4, `${role}: the top bar carries ${nav.desktop.length} links`);
+    }
+  }
+});
+
+test('an account area never links to another role’s pages', async () => {
+  const { navForRole } = await import('../src/navigation/navModel.ts');
+
+  for (const role of ['tenant', 'landlord', 'agent'] as const) {
+    const nav = navForRole(role);
+    const paths = [
+      ...nav.desktop.map((item) => item.path),
+      ...nav.menu.map((item) => item.path),
+      ...nav.bottom.filter((tab) => !('kind' in tab)).map((tab) => (tab as { path: string }).path),
+    ];
+    for (const other of ['tenant', 'landlord', 'agent', 'admin']) {
+      if (other === role) continue;
+      assert.ok(
+        !paths.some((path) => path === `/${other}` || path.startsWith(`/${other}/`)),
+        `${role} must not link into /${other}`
+      );
+    }
+  }
+});
+
+test('dashboard, profile and settings stay three different URLs for every member', async () => {
+  const { navForRole } = await import('../src/navigation/navModel.ts');
+
+  for (const role of ['tenant', 'landlord', 'agent'] as const) {
+    const nav = navForRole(role);
+    const { dashboard, profile, notifications, settings } = nav.account;
+    assert.equal(dashboard, `/${role}/dashboard`);
+    assert.equal(profile, `/${role}/profile`);
+    assert.equal(settings, `/${role}/settings`);
+    assert.equal(notifications, `/${role}/notifications`);
+    assert.equal(new Set([dashboard, profile, settings, notifications]).size, 4, `${role} pages are distinct`);
+    // The avatar opens Profile; the menu owns Settings. Neither is the dashboard.
+    assert.notEqual(profile, dashboard);
+    assert.notEqual(settings, profile);
+  }
+});
