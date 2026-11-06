@@ -27,7 +27,7 @@ jobs:
         run: npm run lint
 
       - name: Routing tests (URL ↔ page mapping, role guards, legacy links)
-        run: npm run test:routing && npm run test:navigation
+        run: npm run test:routing && npm run test:navigation && npm run test:content
 
       - name: API tests (PHP via @php-wasm/cli, throwaway SQLite)
         run: npm run test:api

@@ -253,7 +253,7 @@ export const PropertyDetailView: React.FC = () => {
               </span>
               {property.featured && (
                 <span className="px-3 py-1 rounded-full text-xs font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center gap-1">
-                  <Sparkles className="w-3 h-3" /> Featured Luxury
+                  <Sparkles className="w-3 h-3" /> Featured listing
                 </span>
               )}
             </div>
@@ -440,7 +440,7 @@ export const PropertyDetailView: React.FC = () => {
 
               <div className="space-y-2">
                 <h3 className="text-xl font-extrabold text-white">
-                  Rent Safely & Directly Through Goodlucks
+                  Arrange Your Viewing Through Goodlucks
                 </h3>
                 <p className="text-xs text-slate-300 leading-relaxed">
                   Goodlucks Homes facilitates property enquiries and viewing coordination between tenants, landlords and authorised agents. Any tenancy agreement is arranged directly between the tenant and landlord, outside the platform.
@@ -528,9 +528,12 @@ export const PropertyDetailView: React.FC = () => {
                     )}
                   </div>
                 )}
-                <div className="flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#08D9D6]" />
-                  <span>Zero Direct Landlord Solicitations</span>
+                <div className="flex items-start gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#08D9D6] mt-1.5" />
+                  <span>
+                    Confirm the time with the landlord or agent before you travel, meet them at the property, view it
+                    before you commit, and pay any viewing fee as the terms above state — never online.
+                  </span>
                 </div>
                 <div className="flex items-center gap-2">
                   <span

@@ -1738,10 +1738,10 @@ function handle_create_property(): void
             (string)$user['name'],
             'Property submission received: ' . $data['title'],
             email_html_template(
-                'Property submitted for verification',
+                'Property submitted for review',
                 '<p style="color:#CBD5E1;font-size:14px;">Hello ' . e($user['name']) . ',</p>'
                 . '<p style="color:#CBD5E1;font-size:14px;">We have received your listing <strong>' . e($data['title']) . '</strong> in '
-                . e($data['location']) . '. Our team will physically verify the property before it goes live.</p>'
+                . e($data['location']) . '. Our team will review the listing before it goes live. That review covers the listing details, not a visit to the property.</p>'
                 . ($isAgentSubmission
                     ? '<p style="color:#94A3B8;font-size:13px;">It is recorded as submitted by you on behalf of '
                         . e((string)$landlordAccount['name']) . '. This is your declaration: Goodlucks has not yet checked it.</p>'
@@ -2006,7 +2006,7 @@ function handle_property_status(array $params): void
                 email_html_template(
                     'Your property is now live',
                     '<p style="color:#CBD5E1;font-size:14px;">Hello ' . e($landlord['name']) . ',</p>'
-                    . '<p style="color:#CBD5E1;font-size:14px;">Your listing <strong>' . e($row['title']) . '</strong> has been verified and is now live on Goodlucks Homes.</p>'
+                    . '<p style="color:#CBD5E1;font-size:14px;">Your listing <strong>' . e($row['title']) . '</strong> has been approved and is now live on Goodlucks Homes.</p>'
                 ),
                 'property_approval',
                 'Property approved: ' . $row['title']
@@ -2578,7 +2578,7 @@ function handle_create_tenant_request(): void
         email_html_template(
             'Rental matching request received',
             '<p style="color:#CBD5E1;font-size:14px;">Hello ' . e($input['tenantName']) . ',</p>'
-            . '<p style="color:#CBD5E1;font-size:14px;">Your rental request has been received. Our matching desk is now searching verified listings for you.</p>'
+            . '<p style="color:#CBD5E1;font-size:14px;">Your rental request has been received. We are now scoring the live listings against your request and will show the matches on your dashboard.</p>'
             . '<ul style="color:#94A3B8;font-size:13px;">'
             . '<li>Locations: ' . e(implode(', ', $locations)) . '</li>'
             . '<li>Budget: GH₵ ' . number_format((float)$budgetMin, 2) . ' - GH₵ ' . number_format((float)$budgetMax, 2) . ' per month</li>'
@@ -2590,7 +2590,7 @@ function handle_create_tenant_request(): void
     );
 
     if ($user) {
-        create_notification((string)$user['id'], 'Rental request submitted', 'Our team is matching verified properties to your request.', 'info');
+        create_notification((string)$user['id'], 'Rental request submitted', 'We are matching live listings against your request.', 'info');
     }
 
     remember_submission($fingerprint, 'tenant_request', $requestId);
@@ -2656,7 +2656,7 @@ function handle_update_tenant_request(array $params): void
                 email_html_template(
                     'Your matches are ready',
                     '<p style="color:#CBD5E1;font-size:14px;">Hello ' . e($request['tenantName']) . ',</p>'
-                    . '<p style="color:#CBD5E1;font-size:14px;">Good news! We have verified properties that match your request. Sign in to your tenant dashboard to review them and book a physical viewing.</p>'
+                    . '<p style="color:#CBD5E1;font-size:14px;">New listings match your request. Sign in to your tenant dashboard to review the matches, see why each one was suggested, and ask for a viewing.</p>'
                 ),
                 'match_found',
                 'Property matches available'
@@ -3474,7 +3474,7 @@ function handle_create_search_alert(): void
         'Search alert active - Goodlucks Homes',
         email_html_template(
             'Your search alert is active',
-            '<p style="color:#CBD5E1;font-size:14px;">We will notify you when a verified listing matching your criteria goes live.</p>'
+            '<p style="color:#CBD5E1;font-size:14px;">We will notify you when a listing matching your criteria goes live.</p>'
             . '<ul style="color:#94A3B8;font-size:13px;">'
             . '<li>Location: ' . e($alert['location'] ?? 'All') . '</li>'
             . '<li>Type: ' . e($alert['propertyType'] ?? 'All') . '</li>'
@@ -4333,8 +4333,8 @@ function handle_ai_describe(): void
     }
 
     $fallback = sprintf(
-        'Stunning %d-bedroom %s located in prime %s. The residence features high quality finishes, %s, and reliable services managed end-to-end by Goodlucks Homes. '
-        . 'Every viewing is arranged with a Goodlucks agent, so you can inspect the property with confidence before committing. Monthly rent is GH₵ %s.',
+        'A %d-bedroom %s in %s, with %s. The listing was submitted through Goodlucks Homes, which reviews it before publishing and passes viewing requests to the landlord or agent. '
+        . 'View the property before you commit. Monthly rent is GH₵ %s.',
         $bedrooms,
         $type,
         $location,
@@ -4347,10 +4347,11 @@ function handle_ai_describe(): void
         json_response(['success' => true, 'description' => $fallback, 'ai' => false]);
     }
 
-    $prompt = "Write a luxury, compelling, high-converting property description (80-120 words) for a rental listing in Ghana:\n"
+    $prompt = "Write a clear, factual property description (80-120 words) for a rental listing in Ghana:\n"
         . "Title: {$title}\nLocation: {$location}\nType: {$type}\nBedrooms: {$bedrooms}\nMonthly Rent: GH₵ {$rent}\n"
         . 'Key Amenities: ' . implode(', ', $amenities) . "\n"
-        . 'Focus on luxury living, security, modern amenities, and peace of mind through the Goodlucks Homes intermediary service. Do not mention landlord contact details.';
+        . 'Describe only what the submitted details support: the space, the amenities and the location. '
+        . 'Do not claim the property was inspected, verified, guaranteed, managed or owned by Goodlucks Homes, and do not mention landlord contact details.';
 
     $text = gl_gemini_generate_text($apiKey, $prompt);
     if ($text === null) {

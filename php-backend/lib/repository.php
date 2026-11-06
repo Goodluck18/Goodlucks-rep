@@ -16,7 +16,8 @@ function shape_property(array $row): array
 {
     $landlordName = trim((string)($row['landlord_name'] ?? ''));
     if ($landlordName === '') {
-        $landlordName = 'Goodlucks Partner Landlord';
+        // Task 05: never show a made-up owner name — say the name is missing.
+        $landlordName = 'Landlord (name not recorded)';
     }
 
     // Increment F: a landlord account id is private account information. It is

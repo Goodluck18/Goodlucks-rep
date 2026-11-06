@@ -48,7 +48,7 @@ export const FindAHomeView: React.FC<FindAHomeViewProps> = ({ onOpenAuth }) => {
             </div>
             <div className="flex items-center gap-2 text-slate-300">
               <span className="w-2 h-2 rounded-full bg-[#08D9D6]" />
-              <span>Direct access to Goodlucks senior verification intermediaries</span>
+              <span>Message our Accra team if an arrangement needs sorting out</span>
             </div>
           </div>
 
@@ -97,7 +97,7 @@ export const FindAHomeView: React.FC<FindAHomeViewProps> = ({ onOpenAuth }) => {
             <div className="font-bold text-slate-200">Account Role Permissions:</div>
             <div className="flex items-center gap-2 text-slate-300">
               <span className="w-2 h-2 rounded-full bg-emerald-400" />
-              <span><strong>Tenant:</strong> Access property matching requests and AI matches</span>
+              <span><strong>Tenant:</strong> Submit matching requests and see the listings scored against them</span>
             </div>
             <div className="flex items-center gap-2 text-slate-300">
               <span className="w-2 h-2 rounded-full bg-amber-400" />
@@ -202,13 +202,13 @@ export const FindAHomeView: React.FC<FindAHomeViewProps> = ({ onOpenAuth }) => {
         <div className="text-center space-y-3">
           <div className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[#08D9D6]/10 text-[#08D9D6] text-xs font-bold border border-[#08D9D6]/20">
             <Sparkles className="w-4 h-4" />
-            AI-Powered Goodlucks Matching
+            Assisted property matching
           </div>
           <h1 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
             Find Your Ideal Rental Home
           </h1>
           <p className="text-sm text-slate-300 max-w-xl mx-auto leading-relaxed">
-            Tell us your exact budget and location requirements. Goodlucks Homes acts as your personal property agent to find, verify, and match you with premium homes in Ghana.
+            Tell us your preferred areas, budget and number of bedrooms. We score the live listings against your request and show you the closest matches, with the reason each one was suggested.
           </p>
         </div>
 
@@ -439,7 +439,7 @@ export const FindAHomeView: React.FC<FindAHomeViewProps> = ({ onOpenAuth }) => {
                 Request Submitted Successfully!
               </h2>
               <p className="text-sm text-slate-300 max-w-md mx-auto leading-relaxed">
-                Goodlucks Homes AI Matching Engine is comparing your request against the active listings in Ghana.
+                Your request is saved. We compare it against the live listings and show the closest matches on your dashboard, with the reason each one was suggested.
               </p>
             </div>
 
