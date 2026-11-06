@@ -9,6 +9,8 @@ import { AdminFinancePanel } from './AdminFinancePanel';
 import { AdminViewingsPanel } from './AdminViewingsPanel';
 import { AdminViewingTermsQueue } from './AdminViewingTermsQueue';
 import { AdminLandlordFeePolicy } from './AdminLandlordFeePolicy';
+import { AdminBlogPanel } from './AdminBlogPanel';
+import { AdminEmailTemplates } from './AdminEmailTemplates';
 import { 
   ShieldCheck, 
   TrendingUp, 
@@ -18,6 +20,7 @@ import {
   XCircle, 
   Calendar, 
   Mail, 
+  BookOpen,
   Sparkles, 
   Search, 
   DollarSign, 
@@ -61,7 +64,8 @@ export const AdminDashboard: React.FC = () => {
     setEnquiryStatus,
     updateProperty,
     showSuccessToast,
-    showErrorToast
+    showErrorToast,
+    showInfoToast
   } = useApp();
 
   // Prevent search engine indexing on the admin dashboard
@@ -105,7 +109,11 @@ export const AdminDashboard: React.FC = () => {
     | 'email-logs'
     | 'agents'
     | 'fee-policies'
-    | 'finance';
+    | 'finance'
+    // Task 07: Blog Management and the email-template editor live in the same
+    // console, as two more sections of it.
+    | 'blog'
+    | 'email-templates';
   const setActiveAdminTab = setSectionTab;
 
   // Real data export: CSV of the listings currently loaded from the API.
@@ -467,6 +475,24 @@ export const AdminDashboard: React.FC = () => {
             }`}
           >
             <Mail className="w-4 h-4" /> Transactional Emails ({emailLogs.length})
+          </button>
+
+          <button
+            onClick={() => setActiveAdminTab('blog')}
+            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-2 ${
+              activeAdminTab === 'blog' ? 'bg-[#08D9D6] text-[#252A34]' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+            }`}
+          >
+            <BookOpen className="w-4 h-4" /> Blog Management
+          </button>
+
+          <button
+            onClick={() => setActiveAdminTab('email-templates')}
+            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-2 ${
+              activeAdminTab === 'email-templates' ? 'bg-[#08D9D6] text-[#252A34]' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+            }`}
+          >
+            <Mail className="w-4 h-4" /> Email Templates
           </button>
 
           <button
@@ -1040,6 +1066,22 @@ export const AdminDashboard: React.FC = () => {
               </button>
             </div>
           </div>
+        )}
+
+        {/* TAB: Blog Management (Task 07) */}
+        {activeAdminTab === 'blog' && (
+          <AdminBlogPanel />
+        )}
+
+        {/* TAB: Email templates (Task 07) */}
+        {activeAdminTab === 'email-templates' && (
+          <AdminEmailTemplates
+            notify={(kind, title, message) => {
+              if (kind === 'success') showSuccessToast(title, message);
+              else if (kind === 'error') showErrorToast(title, message);
+              else showInfoToast(title, message);
+            }}
+          />
         )}
 
         {/* TAB 5: Email Transactional Logs */}

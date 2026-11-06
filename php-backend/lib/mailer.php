@@ -142,9 +142,48 @@ function log_email(string $recipientEmail, string $recipientName, string $subjec
  */
 function send_email(string $to, string $recipientName, string $subject, string $html, string $type = 'notification', string $preview = ''): bool
 {
+    // Task 07: an administrator may attach editorial content (a guide, a blog
+    // link) to a transactional email. It is APPENDED inside the message body;
+    // the email's own facts and wording above are never replaced, and with no
+    // template stored this is a no-op.
+    $html = email_with_template_content($html, $type);
+
     // Queueing always succeeds for a valid address: the actual network call
     // happens after the response is sent, and retries are cron's job.
     return queue_email($to, $recipientName, $subject, $html, $type, $preview) !== null;
+}
+
+/**
+ * Add any administrator-written template content for `$type` to an email body.
+ *
+ * Inserted as the last block inside the message card (before the closing body),
+ * styled as a quiet aside so it reads as additional information rather than as
+ * part of the transactional record.
+ */
+function email_with_template_content(string $html, string $type): string
+{
+    if (!function_exists('email_template_extra_html')) {
+        return $html;
+    }
+    try {
+        $extra = email_template_extra_html($type);
+    } catch (Throwable $e) {
+        // A template problem must never stop a transactional email: log it and
+        // send the message exactly as it was built.
+        gl_log('error', 'Email template could not be applied: ' . $e->getMessage(), ['type' => $type]);
+
+        return $html;
+    }
+    if ($extra === '') {
+        return $html;
+    }
+
+    $position = strripos($html, '</body>');
+    if ($position === false) {
+        return $html . $extra;
+    }
+
+    return substr($html, 0, $position) . $extra . substr($html, $position);
 }
 
 /**

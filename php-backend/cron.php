@@ -66,7 +66,29 @@ try {
 }
 
 // ---------------------------------------------------------------------------
-// 2. Email outbox delivery & retries
+// 2. Scheduled articles (Task 07)
+//
+// A scheduled article also becomes public on the first page view after its
+// time, so the Learning Centre never waits for this job. Running it here keeps
+// the published state (and therefore the sitemap) correct even on a quiet site.
+// ---------------------------------------------------------------------------
+try {
+    if ($dryRun) {
+        $due = (int)db_value(
+            "SELECT COUNT(*) FROM blog_posts WHERE status = 'scheduled' AND publish_at <= :now",
+            [':now' => db_now()]
+        );
+        echo "Blog: {$due} scheduled article(s) due to publish\n";
+    } else {
+        $promoted = blog_promote_due_posts();
+        echo "Blog: {$promoted} scheduled article(s) published\n";
+    }
+} catch (Throwable $e) {
+    fwrite(STDERR, 'Blog scheduling step failed: ' . $e->getMessage() . "\n");
+}
+
+// ---------------------------------------------------------------------------
+// 3. Email outbox delivery & retries
 // ---------------------------------------------------------------------------
 try {
     if ($dryRun) {
@@ -84,7 +106,7 @@ try {
 }
 
 // ---------------------------------------------------------------------------
-// 3. Retention pruning
+// 4. Retention pruning
 // ---------------------------------------------------------------------------
 $retention = [
     'page_views'  => ['column' => 'created_at', 'days' => (int)cfg('RETENTION_PAGE_VIEW_DAYS', 365)],

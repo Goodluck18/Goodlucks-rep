@@ -26,6 +26,8 @@ const AdminLoginView = lazy(() => import('./components/AdminLoginView').then((m)
 const AboutView = lazy(() => import('./components/AboutView').then((m) => ({ default: m.AboutView })));
 const ContactView = lazy(() => import('./components/ContactView').then((m) => ({ default: m.ContactView })));
 const ReceiptsView = lazy(() => import('./components/ReceiptsView').then((m) => ({ default: m.ReceiptsView })));
+const BlogView = lazy(() => import('./components/BlogView').then((m) => ({ default: m.BlogView })));
+const BlogPostView = lazy(() => import('./components/BlogPostView').then((m) => ({ default: m.BlogPostView })));
 
 /** Lightweight placeholder shown while a lazy view chunk downloads. */
 const ViewFallback: React.FC = () => (
@@ -107,6 +109,10 @@ const AppContent: React.FC = () => {
         return <AboutView />;
       case 'contact':
         return <ContactView />;
+      case 'blog':
+        return <BlogView />;
+      case 'blog-post':
+        return <BlogPostView />;
       case 'receipts':
         return <ReceiptsView />;
       case 'login':

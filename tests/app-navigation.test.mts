@@ -124,6 +124,13 @@ let signedIn: Record<string, unknown> | null = null;
 let stubNotifications: Array<Record<string, unknown>> = [];
 /** Listings the stubbed catalogue returns for the current test. */
 let stubProperties: Array<Record<string, unknown>> = [];
+/** The Learning Centre content the stubbed API serves for the current test. */
+let stubBlog: {
+  posts: Array<Record<string, unknown>>;
+  featured: Array<Record<string, unknown>>;
+  categories: Array<Record<string, unknown>>;
+  post: Record<string, unknown> | null;
+} = { posts: [], featured: [], categories: [], post: null };
 
 /**
  * The admin console reads named counters, so the stub spells them out with
@@ -297,6 +304,62 @@ globalThis.fetch = (async (input: RequestInfo | URL) => {
   if (/\/properties(\?|$)/.test(url) && stubProperties.length > 0) {
     return json({ success: true, properties: stubProperties, total: stubProperties.length, page: 1, perPage: 100 });
   }
+  // ---------------------------------------------------------------------
+  // Task 07: the Learning Centre and its console.
+  // ---------------------------------------------------------------------
+  if (url.includes('/admin/blog/published-for-links')) {
+    return json({ success: true, posts: stubBlog.posts.map((post) => ({
+      id: post.id, title: post.title, slug: post.slug, url: post.url, publishedAt: post.publishedAt,
+    })) });
+  }
+  if (url.includes('/admin/blog/properties')) {
+    return json({ success: true, properties: stubProperties });
+  }
+  if (url.includes('/admin/blog/posts')) {
+    return json({
+      success: true,
+      posts: stubBlog.posts,
+      counts: { total: stubBlog.posts.length, published: stubBlog.posts.length, draft: 0, scheduled: 0, unpublished: 0 },
+      categories: stubBlog.categories,
+    });
+  }
+  if (url.includes('/admin/blog/categories')) {
+    return json({ success: true, categories: stubBlog.categories });
+  }
+  if (url.includes('/admin/email-templates')) {
+    return json({
+      success: true,
+      templates: [],
+      targets: [{ type: 'enquiry_confirmation', label: 'Enquiry confirmation' }],
+    });
+  }
+  if (/\/blog\/categories(\?|$)/.test(url)) {
+    return json({ success: true, categories: stubBlog.categories });
+  }
+  if (/\/blog(\?|$)/.test(url)) {
+    return json({
+      success: true,
+      posts: stubBlog.posts,
+      featured: stubBlog.featured,
+      categories: stubBlog.categories,
+      pagination: { page: 1, perPage: 9, total: stubBlog.posts.length, pages: 1 },
+    });
+  }
+  const blogPost = /\/blog\/([a-z0-9-]+)(\?|$)/.exec(url);
+  if (blogPost) {
+    const slug = blogPost[1];
+    const found =
+      stubBlog.post && stubBlog.post.slug === slug
+        ? stubBlog.post
+        : [...stubBlog.posts, ...stubBlog.featured].find((item) => item.slug === slug) ?? null;
+    if (!found) {
+      return new Response(JSON.stringify({ success: false, error: 'Article not found.' }), {
+        status: 404,
+        headers: { 'content-type': 'application/json' },
+      });
+    }
+    return json({ success: true, post: found });
+  }
   for (const [fragment, body] of Object.entries(EMPTY)) {
     if (url.includes(fragment)) return json(body);
   }
@@ -332,11 +395,21 @@ const { default: App } = await import('../src/App.tsx');
 async function renderAt(
   path: string,
   role: 'tenant' | 'landlord' | 'agent' | 'admin' | null = null,
-  options: { notifications?: Array<Record<string, unknown>>; properties?: Array<Record<string, unknown>> } = {}
+  options: {
+    notifications?: Array<Record<string, unknown>>;
+    properties?: Array<Record<string, unknown>>;
+    blog?: Partial<typeof stubBlog>;
+  } = {}
 ) {
   signedIn = role ? userFor(role) : null;
   stubNotifications = options.notifications ?? [];
   stubProperties = options.properties ?? [];
+  stubBlog = {
+    posts: options.blog?.posts ?? [],
+    featured: options.blog?.featured ?? [],
+    categories: options.blog?.categories ?? [],
+    post: options.blog?.post ?? null,
+  };
   calls.length = 0;
   window.history.replaceState({}, '', path);
   document.body.innerHTML = '<div id="root"></div>';
@@ -816,7 +889,10 @@ test('the guest quick bar and hamburger do not repeat one another', async () => 
 
   await app.clickContaining('Open menu');
   const rows = labels(menuRows(app));
-  assert.deepEqual(rows, ['List Property', 'Receipts', 'About', 'Contact', 'Create an account']);
+  // Task 07 added one public page to the guest menu: the Learning Centre. It is
+  // a menu row, not a quick-bar tab, so the two surfaces still do not repeat
+  // one another.
+  assert.deepEqual(rows, ['List Property', 'Receipts', 'Learning Centre', 'About', 'Contact', 'Create an account']);
   for (const repeated of ['Home', 'Browse', 'Find Home']) {
     assert.ok(!rows.includes(repeated), `“${repeated}” is already in the quick bar`);
   }
@@ -1135,4 +1211,191 @@ test('the verification screens show no deployment or configuration messages', as
     assert.match(text, /never shown on your public profile/i);
     await app.unmount();
   }
+});
+
+/* -------------------------------------------------------------------------- */
+/* Task 07: the Blog & Learning Centre in the real app                        */
+/* -------------------------------------------------------------------------- */
+
+/** A published article exactly as `/api/blog/<slug>` serves it. */
+function blogArticle(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 'post-east-legon',
+    title: 'Top available properties in East Legon',
+    subtitle: 'A short, honest tour of what is actually on the market this month.',
+    slug: 'top-available-properties-east-legon',
+    url: '/blog/top-available-properties-east-legon',
+    absoluteUrl: 'https://rent.goodlucks.co/blog/top-available-properties-east-legon',
+    canonicalUrl: 'https://rent.goodlucks.co/blog/top-available-properties-east-legon',
+    featuredImage: '/api/uploads/gl-20260101-abc123.png',
+    featuredImageAlt: 'A courtyard in East Legon',
+    category: { id: 'cat-tenant', name: 'Tenant Guides', slug: 'tenant-guides', description: '' },
+    tags: ['East Legon', 'Renting'],
+    author: { name: 'Goodlucks Homes Team' },
+    status: 'published',
+    isFeatured: true,
+    publishAt: '2026-02-01T09:00:00+00:00',
+    publishedAt: '2026-02-01T09:00:00+00:00',
+    createdAt: '2026-01-20T09:00:00+00:00',
+    updatedAt: '2026-02-01T09:00:00+00:00',
+    summary: 'What is actually available in East Legon, and what to check before paying.',
+    readingMinutes: 4,
+    seoTitle: 'East Legon rentals: what is available',
+    seoDescription: 'A guide to the homes available to rent in East Legon this month.',
+    contentHtml:
+      '<h2>What to check before you pay</h2><p>Ask to see the home, and never pay before you have seen it.</p><div class="gl-showcase"></div><p>Prices change; this page always shows the live rent.</p>',
+    propertyCards: [
+      {
+        propertyId: 'prop-1',
+        title: 'Two bedroom apartment in East Legon',
+        location: 'East Legon, Accra',
+        city: 'Accra',
+        propertyType: 'Apartment',
+        bedrooms: 2,
+        bathrooms: 2,
+        rentGhs: 4500,
+        image: '/api/uploads/gl-20260101-aaa111.png',
+        imageAlt: 'Two bedroom apartment in East Legon',
+        availability: 'Available now',
+        isAvailable: true,
+        url: '/property/prop-1',
+        displayRule: 'show_status',
+        note: 'Walk to the shops',
+        sortOrder: 0,
+        updatedAt: '2026-02-01T09:00:00+00:00',
+      },
+      {
+        propertyId: 'prop-2',
+        title: 'Three bedroom house in East Legon',
+        location: 'East Legon, Accra',
+        city: 'Accra',
+        propertyType: 'House',
+        bedrooms: 3,
+        bathrooms: 3,
+        rentGhs: 7800,
+        image: '',
+        imageAlt: '',
+        availability: 'No longer available',
+        isAvailable: false,
+        url: null,
+        displayRule: 'show_status',
+        note: '',
+        sortOrder: 1,
+        updatedAt: '2026-02-01T09:00:00+00:00',
+      },
+    ],
+    related: [],
+    showcasePlaceholder: '<div class="gl-showcase"></div>',
+    ...overrides,
+  };
+}
+
+/** The teaser the index list serves. */
+function blogSummary(overrides: Record<string, unknown> = {}) {
+  const full = blogArticle();
+  const { contentHtml: _content, propertyCards: _cards, related: _related, ...summary } = full;
+  return { ...summary, ...overrides };
+}
+
+test('a guest can read the Learning Centre from the public website', async () => {
+  const app = await renderAt('/blog', null, {
+    blog: {
+      posts: [blogSummary()],
+      featured: [blogSummary({ id: 'post-featured', title: 'How a viewing works, step by step', slug: 'how-a-viewing-works' })],
+      categories: [{ id: 'cat-tenant', name: 'Tenant Guides', slug: 'tenant-guides', publishedCount: 1 }],
+    },
+  });
+
+  assert.equal(app.path(), '/blog');
+  assert.match(app.text(), /Renting in Ghana, explained/);
+  assert.match(app.text(), /Tenant Guides/);
+  assert.match(app.text(), /Top available properties in East Legon/);
+  assert.match(app.text(), /How a viewing works, step by step/);
+  await app.unmount();
+});
+
+test('opening an article shows its content, author, dates and live listing cards', async () => {
+  const app = await renderAt('/blog/top-available-properties-east-legon', null, {
+    blog: { posts: [blogSummary()], post: blogArticle() },
+  });
+
+  const text = app.text();
+  assert.match(text, /Top available properties in East Legon/);
+  assert.match(text, /Goodlucks Homes Team/, 'the article names its author');
+  assert.match(text, /Published/);
+  assert.match(text, /What to check before you pay/, 'the stored article content is rendered');
+  assert.match(text, /Prices change; this page always shows the live rent/, 'content after the cards is rendered too');
+
+  // Live property cards: current rent, and an unavailable home that says so.
+  assert.match(text, /GH₵ 4,500/);
+  assert.match(text, /No longer available/);
+  assert.equal(app.container.querySelectorAll('a[href="/property/prop-1"]').length > 0, true);
+  assert.equal(app.container.querySelectorAll('a[href="/property/prop-2"]').length, 0, 'an unavailable listing is not linked');
+
+  // SEO: canonical URL, social tags and structured data, all for this article.
+  const canonical = app.container.ownerDocument.querySelector('link[rel="canonical"]');
+  assert.equal(canonical?.getAttribute('href'), 'https://rent.goodlucks.co/blog/top-available-properties-east-legon');
+  const jsonLd = [...app.container.ownerDocument.querySelectorAll('script[type="application/ld+json"]')]
+    .map((node) => node.textContent ?? '')
+    .join('\n');
+  assert.match(jsonLd, /"@type":"Article"/);
+  assert.match(jsonLd, /"@type":"BreadcrumbList"/);
+  assert.match(jsonLd, /Top available properties in East Legon/);
+
+  await app.unmount();
+});
+
+test('clicking a listing card opens the real property page', async () => {
+  const app = await renderAt('/blog/top-available-properties-east-legon', null, {
+    blog: { posts: [blogSummary()], post: blogArticle() },
+  });
+
+  const card = app.container.querySelector('a[href="/property/prop-1"]') as HTMLElement | null;
+  assert.ok(card, 'the card links to the listing');
+  await act(async () => {
+    card.dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true }) as unknown as Event);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+  assert.equal(app.path(), '/property/prop-1');
+  await app.unmount();
+});
+
+test('an article that is not published is not available at its URL', async () => {
+  const app = await renderAt('/blog/draft-that-should-not-be-public', null, {
+    blog: { posts: [blogSummary()], post: null },
+  });
+  assert.match(app.text(), /This article is not available/);
+  assert.equal(app.path(), '/blog/draft-that-should-not-be-public', 'the visitor stays at the URL they asked for');
+  assert.equal(calls.some((url) => url.includes('/api/blog/draft-that-should-not-be-public')), true);
+  await app.unmount();
+});
+
+test('the footer offers the Learning Centre to every visitor', async () => {
+  const app = await renderAt('/', null, { blog: { posts: [blogSummary()], categories: [] } });
+  await app.clickContaining('Learning Centre');
+  assert.equal(app.path(), '/blog');
+  await app.unmount();
+});
+
+test('a member reaches the Learning Centre by URL without a duplicate menu', async () => {
+  const app = await renderAt('/blog', 'tenant', { blog: { posts: [blogSummary()] } });
+  assert.equal(app.path(), '/blog');
+  assert.match(app.text(), /Renting in Ghana, explained/);
+  await app.unmount();
+});
+
+test('the admin console has Blog Management and Email Templates sections', async () => {
+  const app = await renderAt('/admin', 'admin', { blog: { posts: [blogSummary()], categories: [] } });
+  assert.match(app.text(), /Blog Management/);
+  assert.match(app.text(), /Email Templates/);
+
+  await app.clickContaining('Blog Management');
+  assert.match(app.text(), /Top available properties in East Legon/);
+  assert.equal(calls.some((url) => url.includes('/api/admin/blog/posts')), true);
+
+  await app.clickContaining('Email Templates');
+  assert.equal(calls.some((url) => url.includes('/api/admin/email-templates')), true);
+  assert.match(app.text(), /Enquiry confirmation|No templates|template/i);
+
+  await app.unmount();
 });

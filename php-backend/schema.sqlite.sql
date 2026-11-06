@@ -859,3 +859,77 @@ CREATE TABLE IF NOT EXISTS platform_settings (
   updated_at TEXT,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+-- ============================================================
+-- Task 07: Blog & Learning Centre (mirrors database.sql)
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS blog_categories (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  slug TEXT NOT NULL UNIQUE,
+  description TEXT NOT NULL DEFAULT '',
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  created_by TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS blog_posts (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  subtitle TEXT NOT NULL DEFAULT '',
+  slug TEXT NOT NULL UNIQUE,
+  featured_image TEXT NOT NULL DEFAULT '',
+  featured_image_alt TEXT NOT NULL DEFAULT '',
+  content_html TEXT,
+  category_id TEXT,
+  tags TEXT NOT NULL DEFAULT '',
+  -- lower-cased, comma-padded tags for portable tag filtering
+  tags_search TEXT NOT NULL DEFAULT '',
+  author_user_id TEXT NOT NULL,
+  author_name TEXT NOT NULL DEFAULT '',
+  -- draft | scheduled | published | unpublished
+  status TEXT NOT NULL DEFAULT 'draft',
+  publish_at TEXT,
+  published_at TEXT,
+  seo_title TEXT NOT NULL DEFAULT '',
+  seo_description TEXT NOT NULL DEFAULT '',
+  is_featured INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_blog_post_status ON blog_posts (status, publish_at);
+CREATE INDEX IF NOT EXISTS idx_blog_post_category ON blog_posts (category_id, status);
+CREATE INDEX IF NOT EXISTS idx_blog_post_featured ON blog_posts (is_featured, status);
+CREATE INDEX IF NOT EXISTS idx_blog_post_author ON blog_posts (author_user_id);
+
+CREATE TABLE IF NOT EXISTS blog_post_properties (
+  id TEXT PRIMARY KEY,
+  post_id TEXT NOT NULL,
+  property_id TEXT NOT NULL,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  display_rule TEXT NOT NULL DEFAULT 'show_status',
+  note TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uniq_blog_post_property ON blog_post_properties (post_id, property_id);
+CREATE INDEX IF NOT EXISTS idx_blog_post_property_order ON blog_post_properties (post_id, sort_order);
+CREATE INDEX IF NOT EXISTS idx_blog_post_property_property ON blog_post_properties (property_id);
+
+CREATE TABLE IF NOT EXISTS email_templates (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  target_type TEXT NOT NULL,
+  body_html TEXT,
+  status TEXT NOT NULL DEFAULT 'active',
+  created_by TEXT,
+  updated_by TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_email_template_type ON email_templates (target_type, status);
+CREATE INDEX IF NOT EXISTS idx_email_template_status ON email_templates (status);

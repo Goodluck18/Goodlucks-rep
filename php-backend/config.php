@@ -263,4 +263,10 @@ require_once GL_ROOT . '/lib/viewings.php';
 require_once GL_ROOT . '/lib/finance.php';
 require_once GL_ROOT . '/lib/finance_api.php';
 require_once GL_ROOT . '/lib/alerts.php';
+// Task 07: Blog & Learning Centre, and the editable layer of the emails.
+// Both are required before api.php so its route table can name the handlers.
+require_once GL_ROOT . '/lib/blog_content.php';
+require_once GL_ROOT . '/lib/blog.php';
+require_once GL_ROOT . '/lib/email_templates.php';
+require_once GL_ROOT . '/lib/blog_api.php';
 require_once GL_ROOT . '/lib/api.php';

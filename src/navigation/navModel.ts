@@ -33,6 +33,7 @@
 
 import {
   BellRing,
+  BookOpen,
   Building2,
   CalendarCheck,
   ClipboardList,
@@ -64,6 +65,9 @@ const PUBLIC = {
   receipts: '/receipts',
   about: '/about',
   contact: '/contact',
+  // Task 07: the Blog & Learning Centre is a public page, so it belongs in the
+  // same public list as the others — not in a second menu of its own.
+  blog: '/blog',
 } as const;
 
 /** The account areas that use the member dashboard shell. */
@@ -161,6 +165,7 @@ const GUEST_NAV: RoleNav = {
     { id: 'list-property', label: 'List Property', path: PUBLIC.listProperty, icon: PlusCircle },
     { id: 'receipts', label: 'Receipts', path: PUBLIC.receipts, icon: ReceiptText },
     { id: 'about', label: 'About', path: PUBLIC.about, icon: Info },
+    { id: 'blog', label: 'Learning Centre', path: PUBLIC.blog, icon: BookOpen },
     { id: 'contact', label: 'Contact', path: PUBLIC.contact, icon: Mail },
   ],
   bottom: [
@@ -172,6 +177,7 @@ const GUEST_NAV: RoleNav = {
   menu: [
     { id: 'list-property', label: 'List Property', path: PUBLIC.listProperty, icon: PlusCircle },
     { id: 'receipts', label: 'Receipts', path: PUBLIC.receipts, icon: ReceiptText },
+    { id: 'blog', label: 'Learning Centre', path: PUBLIC.blog, icon: BookOpen },
     { id: 'about', label: 'About', path: PUBLIC.about, icon: Info },
     { id: 'contact', label: 'Contact', path: PUBLIC.contact, icon: Mail },
   ],

@@ -37,6 +37,8 @@ export type RouteName =
   | 'property-detail'
   | 'about'
   | 'contact'
+  | 'blog'
+  | 'blog-post'
   | 'receipts'
   | 'list-property'
   | 'login'
@@ -171,6 +173,8 @@ export const ROLE_SECTIONS: Record<'tenant' | 'landlord' | 'agent' | 'admin', Se
       agents: 'agents',
       'fee-policies': 'fee-policies',
       finance: 'finance',
+      blog: 'blog',
+      'email-templates': 'email-templates',
     },
     canonical: {
       analytics: 'analytics',
@@ -183,6 +187,8 @@ export const ROLE_SECTIONS: Record<'tenant' | 'landlord' | 'agent' | 'admin', Se
       agents: 'agents',
       'fee-policies': 'fee-policies',
       finance: 'finance',
+      blog: 'blog',
+      'email-templates': 'email-templates',
     },
     fallback: 'analytics',
   },
@@ -195,6 +201,9 @@ const PUBLIC_PATHS: Record<string, RouteName> = {
   '/find-a-home': 'find-home',
   '/about': 'about',
   '/contact': 'contact',
+  // Task 07: the Blog & Learning Centre. Articles live one segment below it, so
+  // the index is a real page and never a prefix of an article URL.
+  '/blog': 'blog',
   '/receipts': 'receipts',
   '/list-property': 'list-property',
   '/login': 'login',
@@ -206,6 +215,15 @@ const PUBLIC_PATHS: Record<string, RouteName> = {
 const ROLE_ROOTS = new Set(['tenant', 'landlord', 'agent', 'admin']);
 
 const PROPERTY_ID = /^[A-Za-z0-9_-]{1,64}$/;
+
+/**
+ * An article slug: lowercase words joined by single hyphens.
+ *
+ * The server generates slugs in exactly this shape (`blog_slugify()`), so a URL
+ * that does not match cannot point at a real article — and a slug that is not a
+ * slug is answered as not-found instead of being sent to the API.
+ */
+const BLOG_SLUG = /^[a-z0-9]+(?:-[a-z0-9]+){0,15}$/;
 
 /** Normalise a URL or path into `{ pathname, search, hash }`. */
 export function splitUrl(rawUrl: string): { pathname: string; search: string; hash: string } {
@@ -324,6 +342,23 @@ export function parseLocation(rawUrl: string): RouteState {
         name: 'property-detail',
         path: `/property/${id}`,
         params: { id },
+        query,
+        isKnown: true,
+      };
+    }
+    return { name: 'not-found', path: pathname, params: {}, query, isKnown: false };
+  }
+
+  // /blog — the Learning Centre index, and /blog/<slug> — one article.
+  if (segments[0] === 'blog') {
+    if (segments.length === 1) {
+      return { name: 'blog', path: '/blog', params: {}, query, isKnown: true };
+    }
+    if (segments.length === 2 && BLOG_SLUG.test(segments[1])) {
+      return {
+        name: 'blog-post',
+        path: `/blog/${segments[1]}`,
+        params: { slug: segments[1] },
         query,
         isKnown: true,
       };
@@ -490,6 +525,10 @@ export function viewForRoute(route: RouteState): string {
       return 'about';
     case 'contact':
       return 'contact';
+    case 'blog':
+      return 'blog';
+    case 'blog-post':
+      return 'blog-post';
     case 'receipts':
       return 'receipts';
     case 'list-property':
@@ -547,6 +586,10 @@ export function pathForView(view: string, role: UserRole, current: RouteState): 
       return '/about';
     case 'contact':
       return '/contact';
+    case 'blog':
+      return '/blog';
+    case 'blog-post':
+      return current.name === 'blog-post' ? current.path : '/blog';
     case 'list-property':
       return '/list-property';
     case 'admin-login':
