@@ -35,10 +35,10 @@ const money = (value: number | null | undefined): string =>
     : `GH₵ ${Number(value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 const statusStyles: Record<RemittanceSubmission['status'], string> = {
-  submitted: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
-  confirmed: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30',
-  rejected: 'bg-[#FF2E63]/15 text-[#FF8FA8] border-[#FF2E63]/30',
-  disputed: 'bg-orange-500/15 text-orange-300 border-orange-500/30',
+  submitted: 'bg-amber-500/15 text-amber-700 border-amber-500/30',
+  confirmed: 'bg-emerald-500/15 text-emerald-700 border-emerald-500/30',
+  rejected: 'bg-accent/15 text-ink border-accent/30',
+  disputed: 'bg-orange-500/15 text-orange-700 border-orange-500/30',
 };
 
 const statusLabels: Record<RemittanceSubmission['status'], string> = {
@@ -132,7 +132,7 @@ export const AgentFinancePanel: React.FC<{ operational?: boolean }> = ({ operati
 
   if (loading && !finance) {
     return (
-      <div className="bg-[#252A34]/70 border border-white/10 rounded-3xl p-6 flex items-center gap-2 text-xs text-slate-400">
+      <div className="bg-surface border border-line rounded-2xl p-6 flex items-center gap-2 text-xs text-ink/70">
         <Loader2 className="w-4 h-4 animate-spin" /> Loading your money records…
       </div>
     );
@@ -144,66 +144,66 @@ export const AgentFinancePanel: React.FC<{ operational?: boolean }> = ({ operati
   return (
     <div className="space-y-5">
       {/* Summary */}
-      <div className="bg-[#252A34]/70 border border-white/10 rounded-3xl p-6 space-y-4">
+      <div className="bg-surface border border-line rounded-2xl p-6 space-y-4">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <Wallet className="w-4 h-4 text-[#08D9D6]" />
+            <Wallet className="w-4 h-4 text-ink" />
             <h2 className="text-sm font-bold">Your money position</h2>
           </div>
-          <span className="text-[11px] text-slate-500">All amounts in GHS</span>
+          <span className="text-[11px] text-ink/70">All amounts in GHS</span>
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="rounded-2xl border border-white/10 bg-slate-900/40 p-4">
-            <p className="text-[11px] text-slate-400">Collected from tenants</p>
-            <p className="text-lg font-bold text-white">{money(totals?.collectedGhs)}</p>
-            <p className="text-[10px] text-slate-500 leading-snug mt-1">
+          <div className="rounded-2xl border border-line bg-surface p-4">
+            <p className="text-[11px] text-ink/70">Collected from tenants</p>
+            <p className="text-lg font-bold text-ink">{money(totals?.collectedGhs)}</p>
+            <p className="text-[10px] text-ink/70 leading-snug mt-1">
               What you reported collecting. Not Goodlucks revenue.
             </p>
           </div>
-          <div className="rounded-2xl border border-white/10 bg-slate-900/40 p-4">
-            <p className="text-[11px] text-slate-400">Payable to Goodlucks</p>
-            <p className="text-lg font-bold text-[#08D9D6]">{money(totals?.payableToGoodlucksGhs)}</p>
-            <p className="text-[10px] text-slate-500 leading-snug mt-1">
+          <div className="rounded-2xl border border-line bg-surface p-4">
+            <p className="text-[11px] text-ink/70">Payable to Goodlucks</p>
+            <p className="text-lg font-bold text-ink">{money(totals?.payableToGoodlucksGhs)}</p>
+            <p className="text-[10px] text-ink/70 leading-snug mt-1">
               Only where a share has been explicitly agreed or an approved policy applies.
             </p>
           </div>
           <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-4">
-            <p className="text-[11px] text-emerald-200/80">Confirmed received</p>
-            <p className="text-lg font-bold text-emerald-300">{money(totals?.confirmedReceivedGhs)}</p>
-            <p className="text-[10px] text-emerald-200/60 leading-snug mt-1">
+            <p className="text-[11px] text-emerald-800/80">Confirmed received</p>
+            <p className="text-lg font-bold text-emerald-700">{money(totals?.confirmedReceivedGhs)}</p>
+            <p className="text-[10px] text-emerald-800/60 leading-snug mt-1">
               Money Goodlucks finance has actually confirmed receiving from you.
             </p>
           </div>
           <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4">
-            <p className="text-[11px] text-amber-200/80">Outstanding</p>
-            <p className="text-lg font-bold text-amber-300">{money(totals?.outstandingGhs)}</p>
-            <p className="text-[10px] text-amber-200/60 leading-snug mt-1">
+            <p className="text-[11px] text-amber-800/80">Outstanding</p>
+            <p className="text-lg font-bold text-amber-700">{money(totals?.outstandingGhs)}</p>
+            <p className="text-[10px] text-amber-800/60 leading-snug mt-1">
               Still owed on agreed shares after confirmed receipts.
             </p>
           </div>
         </div>
 
         <div className="grid gap-3 sm:grid-cols-3 text-[11px]">
-          <div className="rounded-xl border border-white/10 bg-slate-900/40 px-3 py-2 flex items-center gap-2">
-            <Clock3 className="w-3.5 h-3.5 text-amber-300" />
-            <span className="text-slate-400">Awaiting confirmation</span>
-            <span className="ml-auto font-bold text-amber-300">{money(totals?.awaitingConfirmationGhs)}</span>
+          <div className="rounded-xl border border-line bg-surface px-3 py-2 flex items-center gap-2">
+            <Clock3 className="w-3.5 h-3.5 text-amber-700" />
+            <span className="text-ink/70">Awaiting confirmation</span>
+            <span className="ml-auto font-bold text-amber-700">{money(totals?.awaitingConfirmationGhs)}</span>
           </div>
-          <div className="rounded-xl border border-white/10 bg-slate-900/40 px-3 py-2 flex items-center gap-2">
-            <XCircle className="w-3.5 h-3.5 text-[#FF8FA8]" />
-            <span className="text-slate-400">Rejected claims</span>
-            <span className="ml-auto font-bold text-[#FF8FA8]">{totals?.rejectedRemittances ?? 0}</span>
+          <div className="rounded-xl border border-line bg-surface px-3 py-2 flex items-center gap-2">
+            <XCircle className="w-3.5 h-3.5 text-ink" />
+            <span className="text-ink/70">Rejected claims</span>
+            <span className="ml-auto font-bold text-ink">{totals?.rejectedRemittances ?? 0}</span>
           </div>
-          <div className="rounded-xl border border-white/10 bg-slate-900/40 px-3 py-2 flex items-center gap-2">
-            <AlertTriangle className="w-3.5 h-3.5 text-orange-300" />
-            <span className="text-slate-400">Disputed claims</span>
-            <span className="ml-auto font-bold text-orange-300">{totals?.disputedRemittances ?? 0}</span>
+          <div className="rounded-xl border border-line bg-surface px-3 py-2 flex items-center gap-2">
+            <AlertTriangle className="w-3.5 h-3.5 text-orange-700" />
+            <span className="text-ink/70">Disputed claims</span>
+            <span className="ml-auto font-bold text-orange-700">{totals?.disputedRemittances ?? 0}</span>
           </div>
         </div>
 
-        <p className="text-[11px] text-slate-500 leading-snug flex items-start gap-1.5">
-          <Info className="w-3.5 h-3.5 mt-0.5 shrink-0 text-slate-400" />
+        <p className="text-[11px] text-ink/70 leading-snug flex items-start gap-1.5">
+          <Info className="w-3.5 h-3.5 mt-0.5 shrink-0 text-ink/70" />
           Submitting a remittance is a claim. Nothing you submit becomes revenue until a Goodlucks
           administrator confirms the money arrived. You cannot confirm your own remittance and you
           cannot see another agent's figures.
@@ -213,22 +213,22 @@ export const AgentFinancePanel: React.FC<{ operational?: boolean }> = ({ operati
       {/* Submit a remittance */}
       <form
         onSubmit={submit}
-        className="bg-[#252A34]/70 border border-white/10 rounded-3xl p-6 space-y-4"
+        className="bg-surface border border-line rounded-2xl p-6 space-y-4"
       >
         <div className="flex items-center gap-2">
-          <Send className="w-4 h-4 text-[#08D9D6]" />
+          <Send className="w-4 h-4 text-ink" />
           <h2 className="text-sm font-bold">Report a remittance</h2>
         </div>
 
         {!canSubmit && (
-          <p className="text-[11px] text-amber-300 bg-amber-500/10 border border-amber-500/30 rounded-xl px-3 py-2">
+          <p className="text-[11px] text-amber-700 bg-amber-500/10 border border-amber-500/30 rounded-xl px-3 py-2">
             Your agent account is not active, so new remittances cannot be submitted. Your existing
             records stay visible.
           </p>
         )}
 
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          <label className="text-[11px] text-slate-400 space-y-1">
+          <label className="text-[11px] text-ink/70 space-y-1">
             Amount sent (GHS)
             <input
               type="number"
@@ -237,19 +237,19 @@ export const AgentFinancePanel: React.FC<{ operational?: boolean }> = ({ operati
               value={amount}
               onChange={(event) => setAmount(event.target.value)}
               disabled={!canSubmit}
-              className="w-full rounded-xl bg-slate-900/60 border border-white/10 px-3 py-2 text-sm text-white disabled:opacity-50"
+              className="w-full rounded-xl bg-page border border-line px-3 py-2 text-sm text-ink disabled:opacity-50"
               placeholder="0.00"
             />
-            {fieldErrors.amountGhs && <span className="block text-[10px] text-[#FF8FA8]">{fieldErrors.amountGhs}</span>}
+            {fieldErrors.amountGhs && <span className="block text-[10px] text-ink">{fieldErrors.amountGhs}</span>}
           </label>
 
-          <label className="text-[11px] text-slate-400 space-y-1">
+          <label className="text-[11px] text-ink/70 space-y-1">
             How it was sent
             <select
               value={method}
               onChange={(event) => setMethod(event.target.value)}
               disabled={!canSubmit}
-              className="w-full rounded-xl bg-slate-900/60 border border-white/10 px-3 py-2 text-sm text-white disabled:opacity-50"
+              className="w-full rounded-xl bg-page border border-line px-3 py-2 text-sm text-ink disabled:opacity-50"
             >
               {METHODS.map((option) => (
                 <option key={option.value} value={option.value}>
@@ -259,7 +259,7 @@ export const AgentFinancePanel: React.FC<{ operational?: boolean }> = ({ operati
             </select>
           </label>
 
-          <label className="text-[11px] text-slate-400 space-y-1">
+          <label className="text-[11px] text-ink/70 space-y-1">
             Date sent
             <input
               type="date"
@@ -267,57 +267,57 @@ export const AgentFinancePanel: React.FC<{ operational?: boolean }> = ({ operati
               max={new Date().toISOString().slice(0, 10)}
               onChange={(event) => setPaidAt(event.target.value)}
               disabled={!canSubmit}
-              className="w-full rounded-xl bg-slate-900/60 border border-white/10 px-3 py-2 text-sm text-white disabled:opacity-50"
+              className="w-full rounded-xl bg-page border border-line px-3 py-2 text-sm text-ink disabled:opacity-50"
             />
-            {fieldErrors.paidAt && <span className="block text-[10px] text-[#FF8FA8]">{fieldErrors.paidAt}</span>}
+            {fieldErrors.paidAt && <span className="block text-[10px] text-ink">{fieldErrors.paidAt}</span>}
           </label>
 
-          <label className="text-[11px] text-slate-400 space-y-1">
+          <label className="text-[11px] text-ink/70 space-y-1">
             Transfer / cheque reference
             <input
               type="text"
               value={paymentReference}
               onChange={(event) => setPaymentReference(event.target.value)}
               disabled={!canSubmit}
-              className="w-full rounded-xl bg-slate-900/60 border border-white/10 px-3 py-2 text-sm text-white disabled:opacity-50"
+              className="w-full rounded-xl bg-page border border-line px-3 py-2 text-sm text-ink disabled:opacity-50"
               placeholder="e.g. MoMo transaction id"
             />
             {fieldErrors.paymentReference && (
-              <span className="block text-[10px] text-[#FF8FA8]">{fieldErrors.paymentReference}</span>
+              <span className="block text-[10px] text-ink">{fieldErrors.paymentReference}</span>
             )}
           </label>
 
-          <label className="text-[11px] text-slate-400 space-y-1">
+          <label className="text-[11px] text-ink/70 space-y-1">
             Evidence reference (optional)
             <input
               type="text"
               value={evidenceReference}
               onChange={(event) => setEvidenceReference(event.target.value)}
               disabled={!canSubmit}
-              className="w-full rounded-xl bg-slate-900/60 border border-white/10 px-3 py-2 text-sm text-white disabled:opacity-50"
+              className="w-full rounded-xl bg-page border border-line px-3 py-2 text-sm text-ink disabled:opacity-50"
               placeholder="Receipt or slip reference held by you"
             />
           </label>
 
-          <label className="text-[11px] text-slate-400 space-y-1">
+          <label className="text-[11px] text-ink/70 space-y-1">
             Note (optional)
             <input
               type="text"
               value={note}
               onChange={(event) => setNote(event.target.value)}
               disabled={!canSubmit}
-              className="w-full rounded-xl bg-slate-900/60 border border-white/10 px-3 py-2 text-sm text-white disabled:opacity-50"
+              className="w-full rounded-xl bg-page border border-line px-3 py-2 text-sm text-ink disabled:opacity-50"
               placeholder="Which viewings this covers"
             />
           </label>
         </div>
 
-        {formError && <p className="text-[11px] text-[#FF8FA8]">{formError}</p>}
+        {formError && <p className="text-[11px] text-ink">{formError}</p>}
 
         <button
           type="submit"
           disabled={!canSubmit || saving}
-          className="inline-flex items-center gap-2 rounded-xl bg-[#08D9D6] px-4 py-2 text-xs font-bold text-[#252A34] disabled:opacity-50"
+          className="gl-btn gl-btn-primary px-4 py-2 text-xs"
         >
           {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
           Submit remittance claim
@@ -325,18 +325,18 @@ export const AgentFinancePanel: React.FC<{ operational?: boolean }> = ({ operati
       </form>
 
       {/* Obligations */}
-      <div className="bg-[#252A34]/70 border border-white/10 rounded-3xl p-6 space-y-4">
+      <div className="bg-surface border border-line rounded-2xl p-6 space-y-4">
         <div className="flex items-center gap-2">
-          <Banknote className="w-4 h-4 text-[#08D9D6]" />
+          <Banknote className="w-4 h-4 text-ink" />
           <h2 className="text-sm font-bold">Viewing-fee obligations</h2>
         </div>
 
         {obligations.length === 0 ? (
-          <p className="text-xs text-slate-400">No viewing fees have been recorded for you yet.</p>
+          <p className="text-xs text-ink/70">No viewing fees have been recorded for you yet.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-[11px]">
-              <thead className="text-slate-500 text-left">
+              <thead className="text-ink/70 text-left">
                 <tr>
                   <th className="py-2 pr-3">Reference</th>
                   <th className="py-2 pr-3">Property</th>
@@ -346,64 +346,64 @@ export const AgentFinancePanel: React.FC<{ operational?: boolean }> = ({ operati
                   <th className="py-2 pr-3">Outstanding</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-white/5">
+              <tbody className="divide-y divide-line">
                 {obligations.map((record) => (
                   <tr key={record.id}>
-                    <td className="py-2 pr-3 font-mono text-slate-300">{record.reference}</td>
-                    <td className="py-2 pr-3 text-slate-300">{record.propertyTitle || '—'}</td>
+                    <td className="py-2 pr-3 font-mono text-ink/70">{record.reference}</td>
+                    <td className="py-2 pr-3 text-ink/70">{record.propertyTitle || '—'}</td>
                     <td className="py-2 pr-3">{money(record.feeTotalGhs)}</td>
                     <td className="py-2 pr-3">{money(record.goodlucksShareGhs)}</td>
-                    <td className="py-2 pr-3 text-emerald-300">{money(record.remittedGhs)}</td>
-                    <td className="py-2 pr-3 text-amber-300">{money(record.outstandingGhs)}</td>
+                    <td className="py-2 pr-3 text-emerald-700">{money(record.remittedGhs)}</td>
+                    <td className="py-2 pr-3 text-amber-700">{money(record.outstandingGhs)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
         )}
-        <p className="text-[11px] text-slate-500">
+        <p className="text-[11px] text-ink/70">
           "Owed to Goodlucks" appears only where a share was agreed explicitly or an approved policy
           applied. A dash means no arrangement exists yet — it is not zero.
         </p>
       </div>
 
       {/* History */}
-      <div className="bg-[#252A34]/70 border border-white/10 rounded-3xl p-6 space-y-4">
+      <div className="bg-surface border border-line rounded-2xl p-6 space-y-4">
         <div className="flex items-center gap-2">
-          <Receipt className="w-4 h-4 text-[#08D9D6]" />
+          <Receipt className="w-4 h-4 text-ink" />
           <h2 className="text-sm font-bold">Remittance history</h2>
         </div>
 
         {(finance?.remittances.length ?? 0) === 0 ? (
-          <p className="text-xs text-slate-400">You have not submitted a remittance yet.</p>
+          <p className="text-xs text-ink/70">You have not submitted a remittance yet.</p>
         ) : (
-          <ul className="divide-y divide-white/5">
+          <ul className="divide-y divide-line">
             {finance?.remittances.map((remittance) => (
               <li key={remittance.id} className="py-3 space-y-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-mono text-[11px] text-slate-300">{remittance.reference}</span>
+                  <span className="font-mono text-[11px] text-ink/70">{remittance.reference}</span>
                   <span
                     className={`px-2 py-0.5 rounded-md border text-[10px] ${statusStyles[remittance.status]}`}
                   >
                     {statusLabels[remittance.status]}
                   </span>
-                  <span className="text-xs font-bold text-white ml-auto">{money(remittance.amountGhs)}</span>
+                  <span className="text-xs font-bold text-ink ml-auto">{money(remittance.amountGhs)}</span>
                 </div>
-                <p className="text-[11px] text-slate-400">
+                <p className="text-[11px] text-ink/70">
                   Sent {remittance.paidAt} · {remittance.method.replace('_', ' ')}
                   {remittance.paymentReference ? ` · ${remittance.paymentReference}` : ''}
                 </p>
                 {remittance.status === 'confirmed' && (
-                  <p className="text-[11px] text-emerald-300 flex items-center gap-1">
+                  <p className="text-[11px] text-emerald-700 flex items-center gap-1">
                     <CheckCircle2 className="w-3 h-3" /> Confirmed {money(remittance.confirmedGhs)} received
                     {remittance.unallocatedGhs ? ` · ${money(remittance.unallocatedGhs)} not yet allocated` : ''}
                   </p>
                 )}
                 {remittance.decisionReason && remittance.status !== 'confirmed' && (
-                  <p className="text-[11px] text-[#FF8FA8]">Reason: {remittance.decisionReason}</p>
+                  <p className="text-[11px] text-ink">Reason: {remittance.decisionReason}</p>
                 )}
                 {remittance.allocations.length > 0 && (
-                  <ul className="text-[10px] text-slate-500 space-y-0.5 pl-3 list-disc">
+                  <ul className="text-[10px] text-ink/70 space-y-0.5 pl-3 list-disc">
                     {remittance.allocations.map((allocation) => (
                       <li key={allocation.id}>
                         {allocation.reference} · {money(allocation.amountGhs)}
@@ -418,35 +418,35 @@ export const AgentFinancePanel: React.FC<{ operational?: boolean }> = ({ operati
       </div>
 
       {/* Commissions */}
-      <div className="bg-[#252A34]/70 border border-white/10 rounded-3xl p-6 space-y-4">
+      <div className="bg-surface border border-line rounded-2xl p-6 space-y-4">
         <div className="flex items-center gap-2">
-          <Wallet className="w-4 h-4 text-[#08D9D6]" />
+          <Wallet className="w-4 h-4 text-ink" />
           <h2 className="text-sm font-bold">Rental commissions</h2>
         </div>
         {(finance?.commissions.length ?? 0) === 0 ? (
-          <p className="text-xs text-slate-400">
+          <p className="text-xs text-ink/70">
             No rental commission has been recorded for you. Commissions are never created
             automatically — a Goodlucks administrator records each agreement individually.
           </p>
         ) : (
-          <ul className="divide-y divide-white/5">
+          <ul className="divide-y divide-line">
             {finance?.commissions.map((commission) => (
               <li key={commission.id} className="py-3 space-y-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-mono text-[11px] text-slate-300">{commission.reference}</span>
-                  <span className="px-2 py-0.5 rounded-md bg-slate-800 border border-white/10 text-[10px] text-slate-300">
+                  <span className="font-mono text-[11px] text-ink/70">{commission.reference}</span>
+                  <span className="px-2 py-0.5 rounded-md bg-surface border border-line text-[10px] text-ink/70">
                     {commission.statusLabel}
                   </span>
-                  <span className="text-xs font-bold text-white ml-auto">{money(commission.amountGhs)}</span>
+                  <span className="text-xs font-bold text-ink ml-auto">{money(commission.amountGhs)}</span>
                 </div>
-                <p className="text-[11px] text-slate-400">
+                <p className="text-[11px] text-ink/70">
                   {commission.propertyTitle || 'Property'} · received {money(commission.receivedGhs)} ·
                   outstanding {money(commission.outstandingGhs)}
                 </p>
                 {commission.agentSharePercent !== null && commission.agentSharePercent !== undefined && (
-                  <p className="text-[11px] text-slate-300">
+                  <p className="text-[11px] text-ink/70">
                     Your share:{' '}
-                    <span className="font-bold text-[#08D9D6]">
+                    <span className="font-bold text-ink">
                       {commission.agentSharePercent}% · {money(commission.agentShareGhs ?? null)}
                     </span>{' '}
                     of the agreed commission (Goodlucks {commission.goodlucksSharePercent}%). Recorded when this

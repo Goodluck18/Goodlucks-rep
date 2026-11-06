@@ -87,7 +87,7 @@ export const NotificationsView: React.FC<{ role: DashboardRole }> = ({ role }) =
             type="button"
             onClick={() => void handleMarkAll()}
             disabled={unread === 0 || markingAll}
-            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold bg-white/5 border border-white/10 text-slate-200 hover:text-white hover:bg-white/10 disabled:opacity-40 disabled:cursor-not-allowed transition-colors min-h-[40px]"
+            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold bg-page border border-line text-ink hover:text-ink hover:bg-page disabled:opacity-40 disabled:cursor-not-allowed transition-colors min-h-[40px]"
           >
             <CheckCheck className="w-4 h-4" />
             {markingAll ? 'Marking…' : 'Mark all as read'}
@@ -104,7 +104,7 @@ export const NotificationsView: React.FC<{ role: DashboardRole }> = ({ role }) =
             <button
               type="button"
               onClick={() => navigate(`/${role}/dashboard`)}
-              className="text-xs font-bold text-[#08D9D6] hover:underline"
+              className="text-xs font-bold text-ink hover:underline"
             >
               Back to overview
             </button>
@@ -122,36 +122,36 @@ export const NotificationsView: React.FC<{ role: DashboardRole }> = ({ role }) =
                 data-testid="notification-item"
                 data-read={item.read ? 'true' : 'false'}
                 className={`rounded-2xl border p-4 transition-colors ${
-                  item.read ? 'bg-slate-900/40 border-white/10' : 'bg-[#252A34] border-[#08D9D6]/30'
+                  item.read ? 'bg-page border-line' : 'bg-surface border-interactive'
                 }`}
               >
                 <div className="flex items-start gap-3">
                   <div
                     className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
-                      item.read ? 'bg-white/5 text-slate-400' : 'bg-[#08D9D6]/15 text-[#08D9D6]'
+                      item.read ? 'bg-surface text-ink/70 border border-line' : 'bg-interactive text-ink'
                     }`}
                   >
                     <Icon className="w-4 h-4" />
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-start justify-between gap-3">
-                      <p className={`text-sm leading-snug ${item.read ? 'font-semibold text-slate-300' : 'font-bold text-white'}`}>
+                      <p className={`text-sm leading-snug ${item.read ? 'font-semibold text-ink/70' : 'font-bold text-ink'}`}>
                         {!item.read && (
-                          <span className="inline-block w-1.5 h-1.5 rounded-full bg-[#FF2E63] mr-2 align-middle" aria-hidden="true" />
+                          <span className="inline-block w-1.5 h-1.5 rounded-full bg-accent mr-2 align-middle" aria-hidden="true" />
                         )}
                         {item.title}
                       </p>
-                      <span className="text-[10px] text-slate-500 whitespace-nowrap shrink-0">{formatWhen(item.createdAt)}</span>
+                      <span className="text-[10px] text-ink/70 whitespace-nowrap shrink-0">{formatWhen(item.createdAt)}</span>
                     </div>
                     {item.message && (
-                      <p className="text-xs text-slate-400 mt-1 leading-relaxed break-words">{item.message}</p>
+                      <p className="text-xs text-ink/70 mt-1 leading-relaxed break-words">{item.message}</p>
                     )}
                     <div className="flex items-center gap-3 mt-2 flex-wrap">
                       {showViewingsLink && (
                         <button
                           type="button"
                           onClick={() => navigate(`/${role}/viewings`)}
-                          className="text-[11px] font-bold text-[#08D9D6] hover:underline"
+                          className="text-[11px] font-bold text-ink hover:underline"
                         >
                           Open viewing
                         </button>
@@ -161,12 +161,12 @@ export const NotificationsView: React.FC<{ role: DashboardRole }> = ({ role }) =
                           type="button"
                           onClick={() => void handleMarkRead(item.id)}
                           disabled={isPending}
-                          className="text-[11px] font-bold text-slate-300 hover:text-white disabled:opacity-50"
+                          className="text-[11px] font-bold text-ink/70 hover:text-ink disabled:opacity-50"
                         >
                           {isPending ? 'Marking…' : 'Mark as read'}
                         </button>
                       )}
-                      {item.read && <span className="text-[11px] text-slate-500">Read</span>}
+                      {item.read && <span className="text-[11px] text-ink/70">Read</span>}
                     </div>
                   </div>
                 </div>

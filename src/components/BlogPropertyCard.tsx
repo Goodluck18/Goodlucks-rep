@@ -26,7 +26,7 @@ export const BlogPropertyCard: React.FC<Props> = ({ card, dense = false }) => {
   const available = card.isAvailable && Boolean(card.url);
 
   const media = (
-    <div className={`relative ${dense ? 'aspect-[16/10]' : 'aspect-[4/3] sm:aspect-[16/10]'} overflow-hidden bg-slate-800`}>
+    <div className={`relative ${dense ? 'aspect-[16/10]' : 'aspect-[4/3] sm:aspect-[16/10]'} overflow-hidden bg-surface`}>
       {card.image ? (
         <img
           src={card.image}
@@ -36,20 +36,19 @@ export const BlogPropertyCard: React.FC<Props> = ({ card, dense = false }) => {
           className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
         />
       ) : (
-        <div className="w-full h-full flex items-center justify-center text-slate-500">
+        <div className="w-full h-full flex items-center justify-center bg-page text-ink/70">
           <Building2 className="w-8 h-8" />
         </div>
       )}
-      <div className="absolute inset-0 bg-gradient-to-t from-[#252A34] via-transparent to-black/20 opacity-80" />
       <div className="absolute top-2 left-2 right-2 flex justify-between items-start gap-1">
-        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-[#08D9D6] text-[#252A34]">
+        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-interactive text-ink">
           {card.propertyType}
         </span>
         <span
           className={`px-2 py-0.5 rounded-full text-[10px] font-bold border backdrop-blur-md ${
             available
-              ? 'bg-emerald-500/20 text-emerald-200 border-emerald-400/30'
-              : 'bg-slate-900/80 text-slate-300 border-white/20'
+              ? 'bg-emerald-500/20 text-emerald-800 border-emerald-400/30'
+              : 'bg-surface text-ink/70 border-line'
           }`}
         >
           {available ? card.availability : 'No longer available'}
@@ -60,14 +59,14 @@ export const BlogPropertyCard: React.FC<Props> = ({ card, dense = false }) => {
 
   const body = (
     <div className={`${dense ? 'p-3' : 'p-4'} space-y-1.5`}>
-      <h3 className={`${dense ? 'text-sm' : 'text-base'} font-bold text-white leading-snug line-clamp-2`}>
+      <h3 className={`${dense ? 'text-sm' : 'text-base'} font-bold text-ink leading-snug line-clamp-2`}>
         {card.title}
       </h3>
-      <p className="text-[11px] text-slate-400 flex items-center gap-1">
+      <p className="text-[11px] text-ink/70 flex items-center gap-1">
         <MapPin className="w-3 h-3 shrink-0" />
         {card.location}
       </p>
-      <div className="flex items-center gap-3 text-[11px] text-slate-400">
+      <div className="flex items-center gap-3 text-[11px] text-ink/70">
         <span className="flex items-center gap-1">
           <Bed className="w-3 h-3" /> {card.bedrooms}
         </span>
@@ -77,26 +76,26 @@ export const BlogPropertyCard: React.FC<Props> = ({ card, dense = false }) => {
       </div>
       {available ? (
         <div className="pt-1 flex items-end justify-between gap-2">
-          <span className="text-sm font-extrabold text-[#08D9D6]">
+          <span className="text-sm font-extrabold text-accent">
             GH₵ {card.rentGhs.toLocaleString()}
-            <span className="text-[10px] font-medium text-slate-400"> /month</span>
+            <span className="text-[10px] font-medium text-ink/70"> /month</span>
           </span>
-          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-[#08D9D6]">
+          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-ink">
             View listing <ArrowRight className="w-3 h-3" />
           </span>
         </div>
       ) : (
-        <p className="pt-1 text-[11px] text-slate-400 leading-snug">
+        <p className="pt-1 text-[11px] text-ink/70 leading-snug">
           This home is no longer listed as available. The rest of the article stays as it was written.
         </p>
       )}
-      {card.note ? <p className="text-[11px] text-slate-300 italic">{card.note}</p> : null}
+      {card.note ? <p className="text-[11px] text-ink/70 italic">{card.note}</p> : null}
     </div>
   );
 
   if (!available) {
     return (
-      <article className="group bg-[#252A34]/70 rounded-2xl border border-white/10 overflow-hidden flex flex-col h-full opacity-90">
+      <article className="gl-card overflow-hidden flex flex-col h-full opacity-90">
         {media}
         {body}
       </article>
@@ -110,7 +109,7 @@ export const BlogPropertyCard: React.FC<Props> = ({ card, dense = false }) => {
         event.preventDefault();
         if (card.url) navigate(card.url);
       }}
-      className="group bg-[#252A34]/90 rounded-2xl border border-white/10 overflow-hidden flex flex-col h-full hover:border-[#08D9D6]/50 hover:shadow-xl hover:shadow-[#08D9D6]/10 transition-all"
+      className="group gl-card gl-card-interactive overflow-hidden flex flex-col h-full"
     >
       {media}
       {body}

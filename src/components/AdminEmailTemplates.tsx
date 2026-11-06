@@ -194,16 +194,16 @@ export const AdminEmailTemplates: React.FC<Props> = ({ notify }) => {
   if (editing) {
     return (
       <div className="space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-800/80 border border-white/10 rounded-2xl p-4">
-          <h2 className="text-sm font-bold text-white flex items-center gap-2">
-            <Mail className="w-4 h-4 text-[#08D9D6]" />
+        <div className="flex flex-wrap items-center justify-between gap-2 bg-surface border border-line rounded-2xl p-4">
+          <h2 className="text-sm font-bold text-ink flex items-center gap-2">
+            <Mail className="w-4 h-4 text-ink" />
             {editing === 'new' ? 'New email template' : `Editing: ${editing.name}`}
           </h2>
           <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={() => void checkLinks()}
-              className="px-3 py-2 rounded-xl bg-white/10 text-xs font-bold"
+              className="px-3 py-2 rounded-xl bg-page text-xs font-bold"
             >
               Check article links
             </button>
@@ -211,18 +211,18 @@ export const AdminEmailTemplates: React.FC<Props> = ({ notify }) => {
               type="button"
               onClick={() => void save()}
               disabled={saving}
-              className="px-3 py-2 rounded-xl bg-[#08D9D6] text-[#252A34] text-xs font-bold flex items-center gap-1.5 disabled:opacity-50"
+              className="px-3 py-2 rounded-xl bg-interactive text-ink text-xs font-bold flex items-center gap-1.5 disabled:opacity-50"
             >
               {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />} Save
             </button>
-            <button type="button" onClick={() => setEditing(null)} className="p-2 rounded-xl bg-white/5" aria-label="Close">
+            <button type="button" onClick={() => setEditing(null)} className="p-2 rounded-xl bg-page" aria-label="Close">
               <X className="w-4 h-4" />
             </button>
           </div>
         </div>
 
         {brokenLinks.length > 0 ? (
-          <div role="alert" className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-200 text-xs flex items-start gap-2">
+          <div role="alert" className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-800 text-xs flex items-start gap-2">
             <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
             <div>
               <p className="font-bold">A linked article is not published</p>
@@ -233,7 +233,7 @@ export const AdminEmailTemplates: React.FC<Props> = ({ notify }) => {
                   </li>
                 ))}
               </ul>
-              <p className="mt-1 text-[11px] text-amber-200/80">
+              <p className="mt-1 text-[11px] text-amber-800/80">
                 The server will refuse to save this template until the article is published or the link is removed, so a
                 customer never receives a dead or draft-only link. The email itself is unaffected until then.
               </p>
@@ -242,24 +242,24 @@ export const AdminEmailTemplates: React.FC<Props> = ({ notify }) => {
         ) : null}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <div className="lg:col-span-2 bg-slate-800/80 border border-white/10 rounded-2xl p-4 space-y-3">
+          <div className="lg:col-span-2 bg-surface border border-line rounded-2xl p-4 space-y-3">
             <label className="block space-y-1">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Template name</span>
+              <span className="text-[11px] font-bold uppercase tracking-wider text-ink/70">Template name</span>
               <input
                 value={name}
                 onChange={(event) => setName(event.target.value)}
                 placeholder="Renting guide in viewing emails"
-                className="w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-2 text-sm text-white"
+                className="w-full bg-page border border-line rounded-xl px-3 py-2 text-sm text-ink"
               />
-              {fieldErrors.name ? <span className="text-[10px] text-[#FF8FA8]">{fieldErrors.name}</span> : null}
+              {fieldErrors.name ? <span className="text-[10px] text-ink">{fieldErrors.name}</span> : null}
             </label>
 
             <label className="block space-y-1">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Added to this email</span>
+              <span className="text-[11px] font-bold uppercase tracking-wider text-ink/70">Added to this email</span>
               <select
                 value={targetType}
                 onChange={(event) => setTargetType(event.target.value)}
-                className="w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-2 text-sm text-white"
+                className="w-full bg-page border border-line rounded-xl px-3 py-2 text-sm text-ink"
               >
                 {targets.map((target) => (
                   <option key={target.type} value={target.type}>
@@ -268,41 +268,41 @@ export const AdminEmailTemplates: React.FC<Props> = ({ notify }) => {
                 ))}
               </select>
               {fieldErrors.targetType ? (
-                <span className="text-[10px] text-[#FF8FA8]">{fieldErrors.targetType}</span>
+                <span className="text-[10px] text-ink">{fieldErrors.targetType}</span>
               ) : null}
             </label>
 
             <div className="space-y-2">
               <div className="flex items-center justify-between gap-2">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Content</span>
+                <span className="text-[11px] font-bold uppercase tracking-wider text-ink/70">Content</span>
                 <button
                   type="button"
                   onClick={openPicker}
-                  className="px-2.5 py-1.5 rounded-lg bg-[#08D9D6]/15 border border-[#08D9D6]/30 text-[#08D9D6] text-[11px] font-bold flex items-center gap-1"
+                  className="px-2.5 py-1.5 rounded-lg bg-interactive/15 border border-interactive/30 text-ink text-[11px] font-bold flex items-center gap-1"
                 >
                   <FileText className="w-3 h-3" /> Insert Blog Post
                 </button>
               </div>
 
               <div className="flex flex-wrap items-center gap-1">
-                <button type="button" onClick={() => wrapSelection('<strong>', '</strong>')} className="p-1.5 rounded bg-white/5" title="Bold">
+                <button type="button" onClick={() => wrapSelection('<strong>', '</strong>')} className="p-1.5 rounded bg-page" title="Bold">
                   <Bold className="w-3.5 h-3.5" />
                 </button>
-                <button type="button" onClick={() => wrapSelection('<em>', '</em>')} className="p-1.5 rounded bg-white/5" title="Italic">
+                <button type="button" onClick={() => wrapSelection('<em>', '</em>')} className="p-1.5 rounded bg-page" title="Italic">
                   <Italic className="w-3.5 h-3.5" />
                 </button>
-                <button type="button" onClick={() => wrapSelection('<ul><li>', '</li></ul>')} className="p-1.5 rounded bg-white/5" title="List">
+                <button type="button" onClick={() => wrapSelection('<ul><li>', '</li></ul>')} className="p-1.5 rounded bg-page" title="List">
                   <List className="w-3.5 h-3.5" />
                 </button>
                 <button
                   type="button"
                   onClick={() => wrapSelection('<a href="/blog">', '</a>')}
-                  className="p-1.5 rounded bg-white/5"
+                  className="p-1.5 rounded bg-page"
                   title="Link to the Learning Centre"
                 >
                   <Link2 className="w-3.5 h-3.5" />
                 </button>
-                <span className="text-[10px] text-slate-500 ml-1">HTML is cleaned on save (no scripts, no embeds).</span>
+                <span className="text-[10px] text-ink/70 ml-1">HTML is cleaned on save (no scripts, no embeds).</span>
               </div>
 
               <textarea
@@ -310,44 +310,44 @@ export const AdminEmailTemplates: React.FC<Props> = ({ notify }) => {
                 defaultValue={editing === 'new' ? '' : editing.bodyHtml}
                 rows={10}
                 placeholder={'<p>Read our <a href="https://rent.goodlucks.co/blog/…">guide to renting in Ghana</a>.</p>'}
-                className="w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-2 text-xs font-mono text-white"
+                className="w-full bg-page border border-line rounded-xl px-3 py-2 text-xs font-mono text-ink"
               />
               {fieldErrors.bodyHtml ? (
-                <span className="text-[10px] text-[#FF8FA8]">{fieldErrors.bodyHtml}</span>
+                <span className="text-[10px] text-ink">{fieldErrors.bodyHtml}</span>
               ) : null}
             </div>
           </div>
 
           <div className="space-y-4">
-            <div className="bg-slate-800/80 border border-white/10 rounded-2xl p-4 space-y-2">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Status</h3>
-              <label className="flex items-center gap-2 text-xs text-slate-300">
+            <div className="bg-surface border border-line rounded-2xl p-4 space-y-2">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-ink/70">Status</h3>
+              <label className="flex items-center gap-2 text-xs text-ink/70">
                 <input
                   type="radio"
                   checked={status === 'active'}
                   onChange={() => setStatus('active')}
-                  className="accent-[#08D9D6]"
+                  className="accent-interactive"
                 />
                 Active — added to that email
               </label>
-              <label className="flex items-center gap-2 text-xs text-slate-300">
+              <label className="flex items-center gap-2 text-xs text-ink/70">
                 <input
                   type="radio"
                   checked={status === 'inactive'}
                   onChange={() => setStatus('inactive')}
-                  className="accent-[#08D9D6]"
+                  className="accent-interactive"
                 />
                 Inactive — saved, never sent
               </label>
             </div>
 
-            <div className="bg-slate-800/80 border border-white/10 rounded-2xl p-4 space-y-2">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">How this works</h3>
-              <p className="text-[11px] text-slate-300 leading-relaxed">
+            <div className="bg-surface border border-line rounded-2xl p-4 space-y-2">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-ink/70">How this works</h3>
+              <p className="text-[11px] text-ink/70 leading-relaxed">
                 Your content is added after the email&apos;s own message. The system always keeps the facts it must
                 send — the recipient&apos;s name, references, dates and amounts. Nothing else about that email changes.
               </p>
-              <p className="text-[11px] text-slate-400 leading-relaxed">
+              <p className="text-[11px] text-ink/70 leading-relaxed">
                 If a linked article is later unpublished, the block is skipped and the email goes out without it, so a
                 reader never lands on a dead page.
               </p>
@@ -356,16 +356,16 @@ export const AdminEmailTemplates: React.FC<Props> = ({ notify }) => {
         </div>
 
         {pickerOpen ? (
-          <div className="bg-slate-800/95 border border-[#08D9D6]/30 rounded-2xl p-4 space-y-3">
+          <div className="bg-surface/95 border border-interactive/30 rounded-2xl p-4 space-y-3">
             <div className="flex items-center justify-between gap-2">
-              <h3 className="text-sm font-bold text-white">Insert a published article</h3>
-              <button type="button" onClick={() => setPickerOpen(false)} className="p-1.5 rounded bg-white/5" aria-label="Close picker">
+              <h3 className="text-sm font-bold text-ink">Insert a published article</h3>
+              <button type="button" onClick={() => setPickerOpen(false)} className="p-1.5 rounded bg-page" aria-label="Close picker">
                 <X className="w-3.5 h-3.5" />
               </button>
             </div>
             <div className="flex flex-wrap gap-2">
-              <div className="flex-1 min-w-[180px] flex items-center gap-2 bg-slate-900 border border-white/10 rounded-xl px-3 py-2">
-                <Search className="w-4 h-4 text-[#08D9D6]" />
+              <div className="flex-1 min-w-[180px] flex items-center gap-2 bg-surface border border-line rounded-xl px-3 py-2">
+                <Search className="w-4 h-4 text-ink" />
                 <input
                   value={pickerQuery}
                   onChange={(event) => setPickerQuery(event.target.value)}
@@ -376,13 +376,13 @@ export const AdminEmailTemplates: React.FC<Props> = ({ notify }) => {
                     }
                   }}
                   placeholder="Search published articles"
-                  className="flex-1 bg-transparent text-xs text-white outline-none"
+                  className="flex-1 bg-transparent text-xs text-ink outline-none"
                 />
               </div>
               <button
                 type="button"
                 onClick={() => void loadPickerPosts(pickerQuery)}
-                className="px-3 py-2 rounded-xl bg-white/10 text-xs font-bold"
+                className="px-3 py-2 rounded-xl bg-page text-xs font-bold"
               >
                 Search
               </button>
@@ -391,29 +391,29 @@ export const AdminEmailTemplates: React.FC<Props> = ({ notify }) => {
               value={linkText}
               onChange={(event) => setLinkText(event.target.value)}
               placeholder="Link text (optional — defaults to the article title)"
-              className="w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-2 text-xs text-white"
+              className="w-full bg-page border border-line rounded-xl px-3 py-2 text-xs text-ink"
             />
             {pickerLoading ? (
-              <div className="flex items-center gap-2 text-xs text-slate-400">
+              <div className="flex items-center gap-2 text-xs text-ink/70">
                 <Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading published articles…
               </div>
             ) : pickerPosts.length === 0 ? (
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-ink/70">
                 No published articles match. Only published articles can be inserted — publish one in Blog Management
                 first.
               </p>
             ) : (
-              <ul className="max-h-64 overflow-y-auto divide-y divide-white/5 border border-white/10 rounded-xl">
+              <ul className="max-h-64 overflow-y-auto divide-y divide-line border border-line rounded-xl">
                 {pickerPosts.map((post) => (
                   <li key={post.id} className="flex items-center gap-2 p-2">
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs font-bold text-white truncate">{post.title}</p>
-                      <p className="text-[10px] text-slate-500 truncate">{post.url}</p>
+                      <p className="text-xs font-bold text-ink truncate">{post.title}</p>
+                      <p className="text-[10px] text-ink/70 truncate">{post.url}</p>
                     </div>
                     <button
                       type="button"
                       onClick={() => insertPost(post)}
-                      className="px-2 py-1 rounded-lg bg-[#08D9D6] text-[#252A34] text-[10px] font-bold flex items-center gap-1"
+                      className="px-2 py-1 rounded-lg bg-interactive text-ink text-[10px] font-bold flex items-center gap-1"
                     >
                       <Plus className="w-3 h-3" /> Insert
                     </button>
@@ -431,10 +431,10 @@ export const AdminEmailTemplates: React.FC<Props> = ({ notify }) => {
     <div className="space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-xl font-bold text-white flex items-center gap-2">
-            <Mail className="w-5 h-5 text-[#08D9D6]" /> Email templates
+          <h2 className="text-xl font-bold text-ink flex items-center gap-2">
+            <Mail className="w-5 h-5 text-ink" /> Email templates
           </h2>
-          <p className="text-xs text-slate-400 max-w-2xl">
+          <p className="text-xs text-ink/70 max-w-2xl">
             Add the extra paragraph or article link you want in a transactional email. The email keeps its own facts;
             your content is appended. Templates that link to an unpublished article are flagged and skipped when the
             email is sent.
@@ -443,28 +443,28 @@ export const AdminEmailTemplates: React.FC<Props> = ({ notify }) => {
         <button
           type="button"
           onClick={() => openEditor('new')}
-          className="px-3 py-2 rounded-xl bg-[#08D9D6] text-[#252A34] text-xs font-bold flex items-center gap-1.5"
+          className="px-3 py-2 rounded-xl bg-interactive text-ink text-xs font-bold flex items-center gap-1.5"
         >
           <Plus className="w-3.5 h-3.5" /> New template
         </button>
       </div>
 
       {error ? (
-        <div role="alert" className="p-3 rounded-xl bg-[#FF2E63]/15 border border-[#FF2E63]/30 text-[#FF8FA8] text-xs flex items-start gap-2">
+        <div role="alert" className="p-3 rounded-xl bg-accent/15 border border-accent/30 text-ink text-xs flex items-start gap-2">
           <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
           <span className="flex-1">{error}</span>
         </div>
       ) : null}
 
       {loading ? (
-        <div className="flex items-center gap-2 text-xs text-slate-400 py-8 justify-center">
+        <div className="flex items-center gap-2 text-xs text-ink/70 py-8 justify-center">
           <Loader2 className="w-4 h-4 animate-spin" /> Loading templates…
         </div>
       ) : templates.length === 0 ? (
-        <div className="rounded-2xl border border-white/10 bg-slate-800/60 p-8 text-center space-y-2">
-          <Mail className="w-6 h-6 text-[#08D9D6] mx-auto" />
-          <p className="text-sm font-bold text-white">No templates yet</p>
-          <p className="text-xs text-slate-400">
+        <div className="rounded-2xl border border-line bg-surface p-8 text-center space-y-2">
+          <Mail className="w-6 h-6 text-ink mx-auto" />
+          <p className="text-sm font-bold text-ink">No templates yet</p>
+          <p className="text-xs text-ink/70">
             Every email currently sends exactly what the system writes. Add a template to include a guide or an article
             link in one of them.
           </p>
@@ -472,23 +472,23 @@ export const AdminEmailTemplates: React.FC<Props> = ({ notify }) => {
       ) : (
         <ul className="space-y-2">
           {templates.map((template) => (
-            <li key={template.id} className="bg-slate-800/70 border border-white/10 rounded-2xl p-3 space-y-2">
+            <li key={template.id} className="bg-surface/70 border border-line rounded-2xl p-3 space-y-2">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="text-sm font-bold text-white">{template.name}</span>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold border border-white/10 bg-white/5 text-slate-300">
+                <span className="text-sm font-bold text-ink">{template.name}</span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold border border-line bg-page text-ink/70">
                   {template.targetLabel}
                 </span>
                 <span
                   className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
                     template.status === 'active'
-                      ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
-                      : 'bg-slate-500/15 text-slate-300 border-slate-500/30'
+                      ? 'bg-emerald-500/15 text-emerald-700 border-emerald-500/30'
+                      : 'bg-line/15 text-ink/70 border-line/30'
                   }`}
                 >
                   {template.status}
                 </span>
                 {template.needsAttention ? (
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30 flex items-center gap-1">
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 text-amber-700 border border-amber-500/30 flex items-center gap-1">
                     <AlertTriangle className="w-3 h-3" /> article not published
                   </span>
                 ) : null}
@@ -496,14 +496,14 @@ export const AdminEmailTemplates: React.FC<Props> = ({ notify }) => {
                   <button
                     type="button"
                     onClick={() => openEditor(template)}
-                    className="px-2 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-[10px] font-bold"
+                    className="px-2 py-1 rounded-lg bg-page hover:bg-page text-[10px] font-bold"
                   >
                     Edit
                   </button>
                   <button
                     type="button"
                     onClick={() => void remove(template)}
-                    className="p-1.5 rounded-lg bg-[#FF2E63]/15 text-[#FF8FA8]"
+                    className="p-1.5 rounded-lg bg-accent/15 text-ink"
                     aria-label={`Delete ${template.name}`}
                   >
                     <Trash2 className="w-3 h-3" />
@@ -511,25 +511,25 @@ export const AdminEmailTemplates: React.FC<Props> = ({ notify }) => {
                 </div>
               </div>
 
-              <p className="text-[11px] text-slate-400 line-clamp-2">{template.bodyHtml.replace(/<[^>]+>/g, ' ')}</p>
+              <p className="text-[11px] text-ink/70 line-clamp-2">{template.bodyHtml.replace(/<[^>]+>/g, ' ')}</p>
 
               {template.links.length > 0 ? (
                 <ul className="space-y-1">
                   {template.links.map((link) => (
                     <li key={link.url} className="flex items-center gap-1.5 text-[10px]">
                       {link.status === 'published' ? (
-                        <Check className="w-3 h-3 text-emerald-400" />
+                        <Check className="w-3 h-3 text-emerald-700" />
                       ) : (
-                        <AlertTriangle className="w-3 h-3 text-amber-400" />
+                        <AlertTriangle className="w-3 h-3 text-amber-700" />
                       )}
-                      <span className={link.status === 'published' ? 'text-slate-300' : 'text-amber-300'}>
+                      <span className={link.status === 'published' ? 'text-ink/70' : 'text-amber-700'}>
                         /blog/{link.slug} — {link.status}
                       </span>
                       <a
                         href={link.url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-slate-500 hover:text-[#08D9D6]"
+                        className="text-ink/70 hover:text-ink"
                       >
                         <ExternalLink className="w-3 h-3" />
                       </a>

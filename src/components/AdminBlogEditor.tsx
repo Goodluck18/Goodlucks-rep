@@ -339,7 +339,7 @@ export const AdminBlogEditor: React.FC<Props> = ({ postId, categories, onSaved, 
 
   if (loading) {
     return (
-      <div className="flex items-center gap-2 text-sm text-slate-400 py-10 justify-center">
+      <div className="flex items-center gap-2 text-sm text-ink/70 py-10 justify-center">
         <Loader2 className="w-4 h-4 animate-spin" /> Opening the article…
       </div>
     );
@@ -349,32 +349,32 @@ export const AdminBlogEditor: React.FC<Props> = ({ postId, categories, onSaved, 
     <span
       className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider border ${
         post.status === 'published'
-          ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
+          ? 'bg-emerald-500/15 text-emerald-700 border-emerald-500/30'
           : post.status === 'scheduled'
-            ? 'bg-amber-500/15 text-amber-300 border-amber-500/30'
+            ? 'bg-amber-500/15 text-amber-700 border-amber-500/30'
             : post.status === 'unpublished'
-              ? 'bg-slate-500/15 text-slate-300 border-slate-500/30'
-              : 'bg-white/5 text-slate-300 border-white/10'
+              ? 'bg-line/15 text-ink/70 border-line/30'
+              : 'bg-page text-ink/70 border-line'
       }`}
     >
       {post.status}
     </span>
   ) : (
-    <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider border bg-white/5 text-slate-300 border-white/10">
+    <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider border bg-page text-ink/70 border-line">
       new draft
     </span>
   );
 
   const toolButton =
-    'p-2 rounded-lg bg-white/5 border border-white/10 text-slate-200 hover:bg-white/10 transition-colors';
+    'p-2 rounded-lg bg-page border border-line text-ink hover:bg-page transition-colors';
 
   return (
     <div className="space-y-5">
       {/* Header / actions */}
-      <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-800/80 border border-white/10 rounded-2xl p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-surface border border-line rounded-2xl p-4">
         <div className="flex items-center gap-2">
           {statusBadge}
-          <span className="text-xs text-slate-400">
+          <span className="text-xs text-ink/70">
             {post ? `Updated ${new Date(post.updatedAt || post.createdAt).toLocaleString()}` : 'Nothing is public until you publish.'}
           </span>
         </div>
@@ -388,7 +388,7 @@ export const AdminBlogEditor: React.FC<Props> = ({ postId, categories, onSaved, 
             type="button"
             disabled={saving}
             onClick={() => void saveWithCards()}
-            className="px-3 py-2 rounded-lg bg-white/10 text-xs font-bold hover:bg-white/20 disabled:opacity-50"
+            className="px-3 py-2 rounded-lg bg-page text-xs font-bold hover:bg-line disabled:opacity-50"
           >
             <span className="flex items-center gap-1">
               {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />} Save
@@ -398,7 +398,7 @@ export const AdminBlogEditor: React.FC<Props> = ({ postId, categories, onSaved, 
             type="button"
             disabled={!post}
             onClick={() => void changeStatus('published')}
-            className="px-3 py-2 rounded-lg bg-[#08D9D6] text-[#252A34] text-xs font-bold disabled:opacity-50"
+            className="px-3 py-2 rounded-lg bg-interactive text-ink text-xs font-bold disabled:opacity-50"
           >
             <span className="flex items-center gap-1">
               <Send className="w-3.5 h-3.5" /> Publish
@@ -408,7 +408,7 @@ export const AdminBlogEditor: React.FC<Props> = ({ postId, categories, onSaved, 
             type="button"
             disabled={!post}
             onClick={() => void changeStatus('unpublished')}
-            className="px-3 py-2 rounded-lg bg-white/10 text-xs font-bold disabled:opacity-50"
+            className="px-3 py-2 rounded-lg bg-page text-xs font-bold disabled:opacity-50"
           >
             Unpublish
           </button>
@@ -416,7 +416,7 @@ export const AdminBlogEditor: React.FC<Props> = ({ postId, categories, onSaved, 
             type="button"
             disabled={!post}
             onClick={() => void deletePost()}
-            className="px-3 py-2 rounded-lg bg-[#FF2E63]/15 text-[#FF8FA8] border border-[#FF2E63]/30 text-xs font-bold disabled:opacity-50"
+            className="px-3 py-2 rounded-lg bg-accent/15 text-ink border border-accent/30 text-xs font-bold disabled:opacity-50"
           >
             <span className="flex items-center gap-1">
               <Trash2 className="w-3.5 h-3.5" /> Delete
@@ -429,7 +429,7 @@ export const AdminBlogEditor: React.FC<Props> = ({ postId, categories, onSaved, 
       </div>
 
       {fieldErrors.title || fieldErrors.contentHtml ? (
-        <div role="alert" className="p-3 rounded-xl bg-[#FF2E63]/15 border border-[#FF2E63]/30 text-[#FF8FA8] text-xs flex items-start gap-2">
+        <div role="alert" className="p-3 rounded-xl bg-accent/15 border border-accent/30 text-ink text-xs flex items-start gap-2">
           <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
           <span>{fieldErrors.title || fieldErrors.contentHtml}</span>
         </div>
@@ -438,48 +438,48 @@ export const AdminBlogEditor: React.FC<Props> = ({ postId, categories, onSaved, 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Main column */}
         <div className="lg:col-span-2 space-y-4">
-          <div className="bg-slate-800/80 border border-white/10 rounded-2xl p-4 space-y-3">
+          <div className="bg-surface border border-line rounded-2xl p-4 space-y-3">
             <label className="block space-y-1">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Title</span>
+              <span className="text-[11px] font-bold uppercase tracking-wider text-ink/70">Title</span>
               <input
                 value={title}
                 onChange={(event) => setTitle(event.target.value)}
                 placeholder="Top available properties in East Legon"
-                className="w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-2 text-sm text-white"
+                className="w-full bg-page border border-line rounded-xl px-3 py-2 text-sm text-ink"
               />
             </label>
             <label className="block space-y-1">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-ink/70">
                 Subtitle or short introduction
               </span>
               <textarea
                 value={subtitle}
                 onChange={(event) => setSubtitle(event.target.value)}
                 rows={2}
-                className="w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-2 text-sm text-white"
+                className="w-full bg-page border border-line rounded-xl px-3 py-2 text-sm text-ink"
               />
             </label>
             <label className="block space-y-1">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-ink/70">
                 Slug (the article URL)
               </span>
-              <div className="flex items-center gap-1 text-xs text-slate-500">
+              <div className="flex items-center gap-1 text-xs text-ink/70">
                 <span>/blog/</span>
                 <input
                   value={slug}
                   onChange={(event) => setSlug(event.target.value)}
                   placeholder="top-available-properties-east-legon"
-                  className="flex-1 bg-slate-900 border border-white/10 rounded-xl px-3 py-2 text-sm text-white"
+                  className="flex-1 bg-page border border-line rounded-xl px-3 py-2 text-sm text-ink"
                 />
               </div>
-              <span className="text-[10px] text-slate-500">
+              <span className="text-[10px] text-ink/70">
                 Lowercase letters, numbers and hyphens. Leave empty to build it from the title.
               </span>
             </label>
           </div>
 
           {/* Editor toolbar */}
-          <div className="bg-slate-800/80 border border-white/10 rounded-2xl p-4 space-y-3">
+          <div className="bg-surface border border-line rounded-2xl p-4 space-y-3">
             <div className="flex flex-wrap items-center gap-1.5">
               <button type="button" className={toolButton} title="Heading" onClick={() => exec('formatBlock', 'H2')}>
                 <Heading2 className="w-4 h-4" />
@@ -533,24 +533,24 @@ export const AdminBlogEditor: React.FC<Props> = ({ postId, categories, onSaved, 
               aria-label="Article content"
               onInput={() => setContent(editorRef.current?.innerHTML ?? '')}
               onBlur={() => setContent(editorRef.current?.innerHTML ?? '')}
-              className="gl-article min-h-[320px] bg-slate-900 border border-white/10 rounded-xl p-4 outline-none focus:border-[#08D9D6]"
+              className="gl-article min-h-[320px] bg-surface border border-line rounded-xl p-4 outline-none focus:border-interactive"
             />
-            <p className="text-[10px] text-slate-500 leading-snug">
+            <p className="text-[10px] text-ink/70 leading-snug">
               Saved content is cleaned automatically: scripts, unsafe links and any embed that is not a YouTube video are
               removed. Images upload through the same uploader the listings use.
             </p>
           </div>
 
           {/* Showcase manager */}
-          <div className="bg-slate-800/80 border border-white/10 rounded-2xl p-4 space-y-3">
+          <div className="bg-surface border border-line rounded-2xl p-4 space-y-3">
             <div className="flex items-center justify-between gap-2">
-              <h3 className="text-sm font-bold text-white">Property showcase ({cards.length})</h3>
-              <span className="text-[10px] text-slate-400">Cards read the live listing every time the article is opened.</span>
+              <h3 className="text-sm font-bold text-ink">Property showcase ({cards.length})</h3>
+              <span className="text-[10px] text-ink/70">Cards read the live listing every time the article is opened.</span>
             </div>
 
             <div className="flex flex-wrap gap-2">
-              <div className="flex-1 min-w-[180px] flex items-center gap-2 bg-slate-900 border border-white/10 rounded-xl px-3 py-2">
-                <Search className="w-4 h-4 text-[#08D9D6]" />
+              <div className="flex-1 min-w-[180px] flex items-center gap-2 bg-surface border border-line rounded-xl px-3 py-2">
+                <Search className="w-4 h-4 text-ink" />
                 <input
                   value={propertyQuery}
                   onChange={(event) => setPropertyQuery(event.target.value)}
@@ -561,32 +561,32 @@ export const AdminBlogEditor: React.FC<Props> = ({ postId, categories, onSaved, 
                     }
                   }}
                   placeholder="Search listings by title, area or city"
-                  className="flex-1 bg-transparent text-xs text-white outline-none"
+                  className="flex-1 bg-transparent text-xs text-ink outline-none"
                 />
               </div>
               <button
                 type="button"
                 onClick={() => void searchProperties()}
-                className="px-3 py-2 rounded-xl bg-white/10 text-xs font-bold"
+                className="px-3 py-2 rounded-xl bg-page text-xs font-bold"
               >
                 {searchingProperties ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Search'}
               </button>
             </div>
 
             {propertyResults.length > 0 ? (
-              <ul className="max-h-56 overflow-y-auto divide-y divide-white/5 border border-white/10 rounded-xl">
+              <ul className="max-h-56 overflow-y-auto divide-y divide-line border border-line rounded-xl">
                 {propertyResults.slice(0, 20).map((result) => (
                   <li key={result.propertyId} className="flex items-center gap-2 p-2">
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs font-semibold text-white truncate">{result.title}</p>
-                      <p className="text-[10px] text-slate-400">
+                      <p className="text-xs font-semibold text-ink truncate">{result.title}</p>
+                      <p className="text-[10px] text-ink/70">
                         {result.location} · GH₵ {result.rentGhs.toLocaleString()} · {result.status ?? (result.isAvailable ? 'active' : 'not available')}
                       </p>
                     </div>
                     <button
                       type="button"
                       onClick={() => addProperty(result)}
-                      className="px-2 py-1 rounded-lg bg-[#08D9D6] text-[#252A34] text-[10px] font-bold flex items-center gap-1"
+                      className="px-2 py-1 rounded-lg bg-interactive text-ink text-[10px] font-bold flex items-center gap-1"
                     >
                       <Plus className="w-3 h-3" /> Add
                     </button>
@@ -596,19 +596,19 @@ export const AdminBlogEditor: React.FC<Props> = ({ postId, categories, onSaved, 
             ) : null}
 
             {cards.length === 0 ? (
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-ink/70">
                 No listings attached. An article can be pure editorial, or use the “Property cards” button above to place
                 the showcase inside the text.
               </p>
             ) : (
               <ul className="space-y-2">
                 {cards.map((card, index) => (
-                  <li key={card.propertyId} className="bg-slate-900 border border-white/10 rounded-xl p-2.5 space-y-2">
+                  <li key={card.propertyId} className="bg-surface border border-line rounded-xl p-2.5 space-y-2">
                     <div className="flex items-start gap-2">
-                      <span className="text-[10px] font-bold text-slate-500 mt-1">{index + 1}</span>
+                      <span className="text-[10px] font-bold text-ink/70 mt-1">{index + 1}</span>
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs font-bold text-white truncate">{card.title}</p>
-                        <p className="text-[10px] text-slate-400">
+                        <p className="text-xs font-bold text-ink truncate">{card.title}</p>
+                        <p className="text-[10px] text-ink/70">
                           {card.location}
                           {card.isAvailable ? ` · GH₵ ${card.rentGhs.toLocaleString()}` : ' · no longer available'}
                         </p>
@@ -618,7 +618,7 @@ export const AdminBlogEditor: React.FC<Props> = ({ postId, categories, onSaved, 
                           type="button"
                           onClick={() => moveCard(index, -1)}
                           disabled={index === 0}
-                          className="p-1 rounded bg-white/5 disabled:opacity-30"
+                          className="p-1 rounded bg-page disabled:opacity-30"
                           aria-label={`Move ${card.title} up`}
                         >
                           <ArrowUp className="w-3 h-3" />
@@ -627,7 +627,7 @@ export const AdminBlogEditor: React.FC<Props> = ({ postId, categories, onSaved, 
                           type="button"
                           onClick={() => moveCard(index, 1)}
                           disabled={index === cards.length - 1}
-                          className="p-1 rounded bg-white/5 disabled:opacity-30"
+                          className="p-1 rounded bg-page disabled:opacity-30"
                           aria-label={`Move ${card.title} down`}
                         >
                           <ArrowDown className="w-3 h-3" />
@@ -635,7 +635,7 @@ export const AdminBlogEditor: React.FC<Props> = ({ postId, categories, onSaved, 
                         <button
                           type="button"
                           onClick={() => setCards(cards.filter((item) => item.propertyId !== card.propertyId))}
-                          className="p-1 rounded bg-[#FF2E63]/15 text-[#FF8FA8]"
+                          className="p-1 rounded bg-accent/15 text-ink"
                           aria-label={`Remove ${card.title}`}
                         >
                           <X className="w-3 h-3" />
@@ -654,7 +654,7 @@ export const AdminBlogEditor: React.FC<Props> = ({ postId, categories, onSaved, 
                             )
                           )
                         }
-                        className="bg-slate-800 border border-white/10 rounded-lg px-2 py-1 text-[10px] text-white"
+                        className="bg-page border border-line rounded-lg px-2 py-1 text-[10px] text-ink"
                       >
                         <option value="show_status">Show it with a status when unavailable</option>
                         <option value="hide_unavailable">Hide it once it is unavailable</option>
@@ -669,7 +669,7 @@ export const AdminBlogEditor: React.FC<Props> = ({ postId, categories, onSaved, 
                           )
                         }
                         placeholder="Optional note (“Close to schools”)"
-                        className="flex-1 min-w-[140px] bg-slate-800 border border-white/10 rounded-lg px-2 py-1 text-[10px] text-white"
+                        className="flex-1 min-w-[140px] bg-page border border-line rounded-lg px-2 py-1 text-[10px] text-ink"
                       />
                     </div>
                   </li>
@@ -679,12 +679,12 @@ export const AdminBlogEditor: React.FC<Props> = ({ postId, categories, onSaved, 
           </div>
 
           {previewing ? (
-            <div className="bg-[#1F242D] border border-[#08D9D6]/30 rounded-2xl p-4 space-y-3">
-              <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-[#08D9D6]">
+            <div className="bg-page border border-interactive/30 rounded-2xl p-4 space-y-3">
+              <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-ink">
                 <Eye className="w-3.5 h-3.5" /> Preview — exactly what a visitor will see
               </div>
-              <h2 className="text-xl font-black text-white">{title || 'Untitled article'}</h2>
-              {subtitle ? <p className="text-sm text-slate-300">{subtitle}</p> : null}
+              <h2 className="text-xl font-black text-ink">{title || 'Untitled article'}</h2>
+              {subtitle ? <p className="text-sm text-ink/70">{subtitle}</p> : null}
               {featuredImage ? (
                 <img src={featuredImage} alt={featuredImageAlt || title} className="w-full rounded-xl" />
               ) : null}
@@ -700,37 +700,37 @@ export const AdminBlogEditor: React.FC<Props> = ({ postId, categories, onSaved, 
 
         {/* Side column */}
         <div className="space-y-4">
-          <div className="bg-slate-800/80 border border-white/10 rounded-2xl p-4 space-y-3">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Publishing</h3>
+          <div className="bg-surface border border-line rounded-2xl p-4 space-y-3">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-ink/70">Publishing</h3>
             <label className="block space-y-1">
-              <span className="text-[10px] text-slate-400">Schedule for (optional, UTC)</span>
+              <span className="text-[10px] text-ink/70">Schedule for (optional, UTC)</span>
               <input
                 type="datetime-local"
                 value={scheduleAt}
                 onChange={(event) => setScheduleAt(event.target.value)}
-                className="w-full bg-slate-900 border border-white/10 rounded-xl px-2 py-1.5 text-xs text-white"
+                className="w-full bg-page border border-line rounded-xl px-2 py-1.5 text-xs text-ink"
               />
             </label>
             <button
               type="button"
               disabled={!post || !scheduleAt}
               onClick={() => void changeStatus('scheduled', scheduleAt ? new Date(scheduleAt).toISOString() : undefined)}
-              className="w-full px-3 py-2 rounded-xl bg-white/10 text-xs font-bold disabled:opacity-50"
+              className="w-full px-3 py-2 rounded-xl bg-page text-xs font-bold disabled:opacity-50"
             >
               Schedule publication
             </button>
-            <p className="text-[10px] text-slate-500 leading-snug">
+            <p className="text-[10px] text-ink/70 leading-snug">
               A scheduled article stays private until its time arrives. Drafts and unpublished articles are never
               reachable at their URL, in the sitemap or from an email template.
             </p>
           </div>
 
-          <div className="bg-slate-800/80 border border-white/10 rounded-2xl p-4 space-y-3">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Category and tags</h3>
+          <div className="bg-surface border border-line rounded-2xl p-4 space-y-3">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-ink/70">Category and tags</h3>
             <select
               value={categoryId}
               onChange={(event) => setCategoryId(event.target.value)}
-              className="w-full bg-slate-900 border border-white/10 rounded-xl px-2 py-2 text-xs text-white"
+              className="w-full bg-page border border-line rounded-xl px-2 py-2 text-xs text-ink"
             >
               <option value="">No category</option>
               {categories.map((category) => (
@@ -740,40 +740,40 @@ export const AdminBlogEditor: React.FC<Props> = ({ postId, categories, onSaved, 
               ))}
             </select>
             <label className="block space-y-1">
-              <span className="text-[10px] text-slate-400">Tags (comma separated)</span>
+              <span className="text-[10px] text-ink/70">Tags (comma separated)</span>
               <input
                 value={tags}
                 onChange={(event) => setTags(event.target.value)}
                 placeholder="East Legon, 2 bedrooms"
-                className="w-full bg-slate-900 border border-white/10 rounded-xl px-2 py-2 text-xs text-white"
+                className="w-full bg-page border border-line rounded-xl px-2 py-2 text-xs text-ink"
               />
             </label>
             {tagList.length > 0 ? (
               <div className="flex flex-wrap gap-1">
                 {tagList.map((tag) => (
-                  <span key={tag} className="px-2 py-0.5 rounded-full bg-white/5 text-[10px] text-slate-300">
+                  <span key={tag} className="px-2 py-0.5 rounded-full bg-page text-[10px] text-ink/70">
                     {tag}
                   </span>
                 ))}
               </div>
             ) : null}
-            <label className="flex items-center gap-2 text-xs text-slate-300">
+            <label className="flex items-center gap-2 text-xs text-ink/70">
               <input
                 type="checkbox"
                 checked={isFeatured}
                 onChange={(event) => setIsFeatured(event.target.checked)}
-                className="accent-[#08D9D6]"
+                className="accent-interactive"
               />
               Feature this article on the Learning Centre home
             </label>
           </div>
 
-          <div className="bg-slate-800/80 border border-white/10 rounded-2xl p-4 space-y-3">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Featured image</h3>
+          <div className="bg-surface border border-line rounded-2xl p-4 space-y-3">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-ink/70">Featured image</h3>
             {featuredImage ? (
-              <img src={featuredImage} alt={featuredImageAlt || title} className="w-full rounded-xl border border-white/10" />
+              <img src={featuredImage} alt={featuredImageAlt || title} className="w-full rounded-xl border border-line" />
             ) : (
-              <div className="w-full aspect-[16/10] rounded-xl border border-dashed border-white/15 flex items-center justify-center text-slate-500">
+              <div className="w-full aspect-[16/10] rounded-xl border border-dashed border-line flex items-center justify-center text-ink/70">
                 <ImageIcon className="w-6 h-6" />
               </div>
             )}
@@ -782,53 +782,53 @@ export const AdminBlogEditor: React.FC<Props> = ({ postId, categories, onSaved, 
               accept="image/jpeg,image/png,image/webp,image/gif"
               onChange={uploadFeaturedImage}
               disabled={uploading}
-              className="block w-full text-[10px] text-slate-400 file:mr-2 file:px-2 file:py-1 file:rounded-lg file:border-0 file:bg-white/10 file:text-white file:text-[10px] file:font-bold"
+              className="block w-full text-[10px] text-ink/70 file:mr-2 file:px-2 file:py-1 file:rounded-lg file:border-0 file:bg-page file:text-ink file:text-[10px] file:font-bold"
             />
             <label className="block space-y-1">
-              <span className="text-[10px] text-slate-400">Image description (alt text)</span>
+              <span className="text-[10px] text-ink/70">Image description (alt text)</span>
               <input
                 value={featuredImageAlt}
                 onChange={(event) => setFeaturedImageAlt(event.target.value)}
                 placeholder="Front of a 3-bedroom apartment in Cantonments"
-                className="w-full bg-slate-900 border border-white/10 rounded-xl px-2 py-2 text-xs text-white"
+                className="w-full bg-page border border-line rounded-xl px-2 py-2 text-xs text-ink"
               />
             </label>
-            <p className="text-[10px] text-slate-500 leading-snug">
+            <p className="text-[10px] text-ink/70 leading-snug">
               Alt text describes the picture for someone using a screen reader, and is what search engines read.
             </p>
           </div>
 
-          <div className="bg-slate-800/80 border border-white/10 rounded-2xl p-4 space-y-3">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Search appearance</h3>
+          <div className="bg-surface border border-line rounded-2xl p-4 space-y-3">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-ink/70">Search appearance</h3>
             <label className="block space-y-1">
-              <span className="text-[10px] text-slate-400">SEO title</span>
+              <span className="text-[10px] text-ink/70">SEO title</span>
               <input
                 value={seoTitle}
                 onChange={(event) => setSeoTitle(event.target.value)}
                 placeholder={title || 'Defaults to the article title'}
-                className="w-full bg-slate-900 border border-white/10 rounded-xl px-2 py-2 text-xs text-white"
+                className="w-full bg-page border border-line rounded-xl px-2 py-2 text-xs text-ink"
               />
             </label>
             <label className="block space-y-1">
-              <span className="text-[10px] text-slate-400">Meta description ({seoDescription.length}/320)</span>
+              <span className="text-[10px] text-ink/70">Meta description ({seoDescription.length}/320)</span>
               <textarea
                 value={seoDescription}
                 onChange={(event) => setSeoDescription(event.target.value.slice(0, 320))}
                 rows={3}
                 placeholder={subtitle || 'Defaults to the introduction'}
-                className="w-full bg-slate-900 border border-white/10 rounded-xl px-2 py-2 text-xs text-white"
+                className="w-full bg-page border border-line rounded-xl px-2 py-2 text-xs text-ink"
               />
             </label>
-            <p className="text-[10px] text-slate-500 leading-snug">
+            <p className="text-[10px] text-ink/70 leading-snug">
               This is what a search result may show. Nothing here guarantees a ranking; the article still has to be
               useful to the person searching.
             </p>
           </div>
 
           {post ? (
-            <div className="bg-slate-800/80 border border-white/10 rounded-2xl p-4 space-y-1 text-[10px] text-slate-400">
+            <div className="bg-surface border border-line rounded-2xl p-4 space-y-1 text-[10px] text-ink/70">
               <div className="flex items-center gap-1">
-                <Check className="w-3 h-3 text-[#08D9D6]" /> Author: {post.author?.name}
+                <Check className="w-3 h-3 text-ink" /> Author: {post.author?.name}
               </div>
               <div>Created {new Date(post.createdAt).toLocaleString()}</div>
               <div>Updated {new Date(post.updatedAt || post.createdAt).toLocaleString()}</div>

@@ -100,7 +100,7 @@ export const BlogPostView: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="min-h-[60vh] bg-[#1F242D] flex items-center justify-center gap-2 text-sm text-slate-400">
+      <div className="min-h-[60vh] bg-page flex items-center justify-center gap-2 text-sm text-ink/70">
         <Loader2 className="w-4 h-4 animate-spin" /> Loading article…
       </div>
     );
@@ -108,17 +108,17 @@ export const BlogPostView: React.FC = () => {
 
   if (notFound) {
     return (
-      <div className="min-h-[70vh] bg-[#1F242D] text-white flex items-center justify-center px-4 py-16">
-        <div className="max-w-md w-full bg-slate-800/90 border border-white/10 rounded-3xl p-8 text-center space-y-3">
+      <div className="min-h-[70vh] bg-page text-ink flex items-center justify-center px-4 py-16">
+        <div className="gl-card max-w-md w-full p-8 text-center space-y-3">
           <h1 className="text-xl font-black">This article is not available</h1>
-          <p className="text-xs text-slate-300 leading-relaxed">
+          <p className="text-xs text-ink/70 leading-relaxed">
             It may have been unpublished by the team, or the link may be incomplete. Everything we have published is
             in the Learning Centre.
           </p>
           <button
             type="button"
             onClick={() => navigate('/blog')}
-            className="mt-2 px-4 py-2 rounded-xl bg-[#08D9D6] text-[#252A34] text-xs font-bold"
+            className="gl-btn gl-btn-primary mt-2 text-xs"
           >
             Open the Learning Centre
           </button>
@@ -129,14 +129,14 @@ export const BlogPostView: React.FC = () => {
 
   if (error || !post) {
     return (
-      <div className="min-h-[60vh] bg-[#1F242D] text-white flex items-center justify-center px-4">
+      <div className="min-h-[60vh] bg-page text-ink flex items-center justify-center px-4">
         <div role="alert" className="max-w-md text-center space-y-3">
-          <AlertCircle className="w-6 h-6 text-[#FF8FA8] mx-auto" />
-          <p className="text-sm text-slate-300">{error || 'The article could not be loaded.'}</p>
+          <AlertCircle className="w-6 h-6 text-accent mx-auto" />
+          <p className="text-sm text-ink/70">{error || 'The article could not be loaded.'}</p>
           <button
             type="button"
             onClick={() => navigate('/blog')}
-            className="px-4 py-2 rounded-xl bg-white/10 text-xs font-bold"
+            className="gl-btn gl-btn-secondary text-xs"
           >
             Back to the Learning Centre
           </button>
@@ -152,7 +152,7 @@ export const BlogPostView: React.FC = () => {
     : '';
 
   return (
-    <div className="min-h-screen bg-[#1F242D] text-white">
+    <div className="min-h-screen bg-page text-ink">
       <SEOHead
         title={post.seoTitle || `${post.title} | Goodlucks Homes`}
         description={post.seoDescription || post.summary || post.subtitle}
@@ -162,14 +162,15 @@ export const BlogPostView: React.FC = () => {
         jsonLd={jsonLd}
       />
 
-      <article className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <article className="gl-card p-5 sm:p-8 lg:p-10 space-y-6">
         {/* Breadcrumbs */}
-        <nav aria-label="Breadcrumb" className="text-[11px] text-slate-400 flex flex-wrap items-center gap-1">
-          <button type="button" onClick={() => navigate('/')} className="hover:text-[#08D9D6]">
+        <nav aria-label="Breadcrumb" className="text-[11px] text-ink/70 flex flex-wrap items-center gap-1">
+          <button type="button" onClick={() => navigate('/')} className="hover:text-ink">
             Home
           </button>
           <span aria-hidden="true">/</span>
-          <button type="button" onClick={() => navigate('/blog')} className="hover:text-[#08D9D6]">
+          <button type="button" onClick={() => navigate('/blog')} className="hover:text-ink">
             Learning Centre
           </button>
           {post.category ? (
@@ -178,7 +179,7 @@ export const BlogPostView: React.FC = () => {
               <button
                 type="button"
                 onClick={() => navigate(`/blog?category=${encodeURIComponent(post.category!.slug)}`)}
-                className="hover:text-[#08D9D6]"
+                className="hover:text-ink"
               >
                 {post.category.name}
               </button>
@@ -194,7 +195,7 @@ export const BlogPostView: React.FC = () => {
                 key={tag}
                 type="button"
                 onClick={() => navigate(`/blog?tag=${encodeURIComponent(tag)}`)}
-                className="text-[10px] font-bold uppercase tracking-wider text-slate-400 hover:text-[#08D9D6]"
+                className="text-[10px] font-bold uppercase tracking-wider text-ink/70 hover:text-ink"
               >
                 #{tag}
               </button>
@@ -202,9 +203,9 @@ export const BlogPostView: React.FC = () => {
           </div>
 
           <h1 className="text-2xl sm:text-4xl font-black tracking-tight leading-tight">{post.title}</h1>
-          {post.subtitle ? <p className="text-sm sm:text-base text-slate-300 leading-relaxed">{post.subtitle}</p> : null}
+          {post.subtitle ? <p className="text-sm sm:text-base text-ink/70 leading-relaxed">{post.subtitle}</p> : null}
 
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-slate-400 pt-1">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-ink/70 pt-1">
             {post.author?.name ? (
               <span className="flex items-center gap-1">
                 <UserRound className="w-3.5 h-3.5" /> {post.author.name}
@@ -227,7 +228,7 @@ export const BlogPostView: React.FC = () => {
         </header>
 
         {post.featuredImage ? (
-          <figure className="rounded-2xl overflow-hidden border border-white/10 bg-slate-800">
+          <figure className="rounded-2xl overflow-hidden border border-line bg-surface">
             <img
               src={post.featuredImage}
               alt={post.featuredImageAlt || post.title}
@@ -245,32 +246,32 @@ export const BlogPostView: React.FC = () => {
           showcaseHeading="Listings in this article"
         />
 
-        <div className="pt-2 border-t border-white/10">
+        <div className="pt-2 border-t border-line">
           <BlogShareButtons url={canonical} title={post.title} />
         </div>
 
         {/* Internal links: the practical next steps. */}
-        <aside className="rounded-2xl border border-white/10 bg-[#252A34]/70 p-5 space-y-3">
-          <h2 className="text-sm font-bold text-white">Keep going</h2>
+        <aside className="rounded-2xl border border-line bg-surface p-5 space-y-3">
+          <h2 className="text-sm font-bold text-ink">Keep going</h2>
           <div className="flex flex-wrap gap-2 text-xs font-bold">
             <button
               type="button"
               onClick={() => navigate('/properties')}
-              className="px-3 py-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10"
+              className="px-3 py-2 rounded-xl bg-page border border-line hover:bg-page"
             >
               Browse current listings
             </button>
             <button
               type="button"
               onClick={() => navigate('/find-a-home')}
-              className="px-3 py-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10"
+              className="px-3 py-2 rounded-xl bg-page border border-line hover:bg-page"
             >
               Ask us to find a home
             </button>
             <button
               type="button"
               onClick={() => navigate('/contact')}
-              className="px-3 py-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10"
+              className="px-3 py-2 rounded-xl bg-page border border-line hover:bg-page"
             >
               Contact the team
             </button>
@@ -279,7 +280,7 @@ export const BlogPostView: React.FC = () => {
 
         {post.related.length > 0 ? (
           <section className="space-y-3 pt-2">
-            <h2 className="text-lg font-black text-white">Related articles</h2>
+            <h2 className="text-lg font-black text-ink">Related articles</h2>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               {post.related.map((related) => (
                 <BlogPostCard key={related.id} post={related} variant="compact" />
@@ -291,11 +292,12 @@ export const BlogPostView: React.FC = () => {
         <button
           type="button"
           onClick={() => navigate('/blog')}
-          className="inline-flex items-center gap-1 text-xs font-bold text-[#08D9D6] hover:underline"
+          className="gl-link inline-flex items-center gap-1 text-xs font-bold"
         >
           <ArrowLeft className="w-3.5 h-3.5" /> All articles
         </button>
       </article>
+      </div>
     </div>
   );
 };

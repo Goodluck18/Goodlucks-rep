@@ -18,17 +18,17 @@ import { useApp } from '../context/AppContext';
 const statusTone = (status: string): string => {
   switch (status) {
     case 'approved':
-      return 'bg-emerald-500/15 border-emerald-500/30 text-emerald-300';
+      return 'bg-emerald-500/15 border-emerald-500/30 text-emerald-700';
     case 'expired':
     case 'rejected':
-      return 'bg-[#FF2E63]/15 border-[#FF2E63]/30 text-[#FF8FA8]';
+      return 'bg-accent/15 border-accent/30 text-ink';
     case 'under_review':
-      return 'bg-sky-500/10 border-sky-500/30 text-sky-300';
+      return 'bg-sky-500/10 border-sky-500/30 text-sky-700';
     case 'pending_review':
     case 'resubmission_required':
-      return 'bg-amber-500/10 border-amber-500/30 text-amber-300';
+      return 'bg-amber-500/10 border-amber-500/30 text-amber-700';
     default:
-      return 'bg-slate-800 border-white/10 text-slate-300';
+      return 'bg-surface border-line text-ink/70';
   }
 };
 
@@ -151,16 +151,16 @@ export const AdminVerificationQueue: React.FC = () => {
 
   if (!capabilities?.verificationReviewer) {
     return (
-      <div className="bg-[#252A34]/70 border border-white/10 rounded-3xl p-6 space-y-3">
-        <h2 className="text-sm font-bold text-white flex items-center gap-2">
-          <Lock className="w-4 h-4 text-amber-300" /> Verification review
+      <div className="bg-surface border border-line rounded-2xl p-6 space-y-3">
+        <h2 className="text-sm font-bold text-ink flex items-center gap-2">
+          <Lock className="w-4 h-4 text-amber-700" /> Verification review
         </h2>
-        <p className="text-xs text-slate-400 leading-relaxed max-w-2xl">
+        <p className="text-xs text-ink/70 leading-relaxed max-w-2xl">
           Reading identity documents is not an administrator default. This account does not have the
           verification-reviewer capability, so the queue, the masked identity data and the documents stay closed.
-          A server administrator grants it with <code className="text-[#08D9D6]">php php-backend/grant_reviewer.php</code>.
+          A server administrator grants it with <code className="text-ink">php php-backend/grant_reviewer.php</code>.
         </p>
-        <p className="text-[11px] text-slate-500">
+        <p className="text-[11px] text-ink/70">
           Capabilities are checked on every request, not just hidden in this screen.
         </p>
       </div>
@@ -169,13 +169,13 @@ export const AdminVerificationQueue: React.FC = () => {
 
   return (
     <div className="space-y-4">
-      <div className="bg-[#252A34]/70 border border-white/10 rounded-3xl p-5 space-y-3">
+      <div className="bg-surface border border-line rounded-2xl p-5 space-y-3">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <h2 className="text-sm font-bold text-white flex items-center gap-2">
-              <ShieldCheck className="w-4 h-4 text-[#08D9D6]" /> Verification review queue
+            <h2 className="text-sm font-bold text-ink flex items-center gap-2">
+              <ShieldCheck className="w-4 h-4 text-ink" /> Verification review queue
             </h2>
-            <p className="text-[11px] text-slate-400 mt-1">
+            <p className="text-[11px] text-ink/70 mt-1">
               {queue.length} subject{queue.length === 1 ? '' : 's'} · identity and professional authorisation are
               decided separately
             </p>
@@ -188,14 +188,14 @@ export const AdminVerificationQueue: React.FC = () => {
               await refreshSession();
               await load();
             }}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 text-slate-300 text-[11px] font-bold hover:bg-slate-700"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-surface text-ink/70 text-[11px] font-bold hover:bg-line"
           >
             <RefreshCw className="w-3.5 h-3.5" /> Refresh
           </button>
         </div>
 
-        <p className="text-[11px] text-slate-500 leading-snug flex items-start gap-1.5">
-          <ShieldAlert className="w-3.5 h-3.5 mt-0.5 shrink-0 text-amber-300" />
+        <p className="text-[11px] text-ink/70 leading-snug flex items-start gap-1.5">
+          <ShieldAlert className="w-3.5 h-3.5 mt-0.5 shrink-0 text-amber-700" />
           {capabilities?.identityDocumentAccess
             ? 'You hold identity-document access: opening a file is logged in the audit trail.'
             : 'You can review and decide, but not open the uploaded files or see the full document number.'}{' '}
@@ -204,32 +204,32 @@ export const AdminVerificationQueue: React.FC = () => {
       </div>
 
       {error && (
-        <div role="alert" className="p-3 rounded-xl bg-[#FF2E63]/15 border border-[#FF2E63]/30 text-[#FF8FA8] text-xs flex items-start gap-2">
+        <div role="alert" className="p-3 rounded-xl bg-accent/15 border border-accent/30 text-ink text-xs flex items-start gap-2">
           <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
           <span className="flex-1">{error}</span>
         </div>
       )}
 
       {isLoading ? (
-        <p className="text-xs text-slate-400">Loading verification queue…</p>
+        <p className="text-xs text-ink/70">Loading verification queue…</p>
       ) : queue.length === 0 ? (
-        <div className="bg-[#252A34]/70 border border-white/10 rounded-3xl p-5">
-          <p className="text-xs text-slate-400">No agent or landlord has submitted verification yet.</p>
+        <div className="bg-surface border border-line rounded-2xl p-5">
+          <p className="text-xs text-ink/70">No agent or landlord has submitted verification yet.</p>
         </div>
       ) : (
         <ul className="space-y-3">
           {queue.map((item) => (
-            <li key={item.userId} className="bg-[#252A34]/70 border border-white/10 rounded-3xl p-5 space-y-3">
+            <li key={item.userId} className="bg-surface border border-line rounded-2xl p-5 space-y-3">
               <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
                 <div className="space-y-1">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <h3 className="text-sm font-bold text-white">{item.name}</h3>
-                    <span className="px-2 py-0.5 rounded-md text-[10px] font-bold uppercase bg-slate-800 border border-white/10 text-slate-300">
+                    <h3 className="text-sm font-bold text-ink">{item.name}</h3>
+                    <span className="px-2 py-0.5 rounded-md text-[10px] font-bold uppercase bg-surface border border-line text-ink/70">
                       {item.role}
                     </span>
-                    {item.agencyName && <span className="text-[11px] text-slate-400">· {item.agencyName}</span>}
+                    {item.agencyName && <span className="text-[11px] text-ink/70">· {item.agencyName}</span>}
                   </div>
-                  <p className="text-[11px] text-slate-400">
+                  <p className="text-[11px] text-ink/70">
                     {item.email}
                     {item.phone ? ` · ${item.phone}` : ''}
                   </p>
@@ -240,7 +240,7 @@ export const AdminVerificationQueue: React.FC = () => {
                     <span className={`px-2 py-0.5 rounded-md border text-[10px] font-bold ${statusTone(item.professional.status)}`}>
                       Authorisation: {label(item.professional.status)}
                     </span>
-                    <span className="text-[10px] text-slate-500">
+                    <span className="text-[10px] text-ink/70">
                       {item.identity.documentCount} identity file(s) · {item.professional.documentCount} licence file(s)
                     </span>
                   </div>
@@ -249,7 +249,7 @@ export const AdminVerificationQueue: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => void open(item.userId)}
-                  className="px-3 py-1.5 rounded-xl bg-[#08D9D6] text-[#252A34] text-[11px] font-extrabold shrink-0"
+                  className="px-3 py-1.5 rounded-xl bg-interactive text-ink text-[11px] font-extrabold shrink-0"
                 >
                   Review
                 </button>
@@ -261,15 +261,15 @@ export const AdminVerificationQueue: React.FC = () => {
 
       {/* ------------------------------- Drawer ------------------------------- */}
       {selected && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm p-2 sm:p-6 overflow-y-auto">
-          <div className="max-w-3xl mx-auto bg-[#252A34] border border-white/10 rounded-3xl p-5 sm:p-6 space-y-5 my-6">
+        <div className="fixed inset-0 z-50 bg-ink/60 backdrop-blur-sm p-2 sm:p-6 overflow-y-auto">
+          <div className="max-w-3xl mx-auto bg-surface border border-line rounded-2xl p-5 sm:p-6 space-y-5 my-6">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h2 className="text-lg font-black text-white">
+                <h2 className="text-lg font-black text-ink">
                   {detail?.subject.name ?? 'Loading verification…'}
                 </h2>
                 {detail && (
-                  <p className="text-[11px] text-slate-400">
+                  <p className="text-[11px] text-ink/70">
                     {detail.subject.email} · {detail.subject.role}
                     {detail.subject.phone ? ` · ${detail.subject.phone}` : ''}
                   </p>
@@ -281,7 +281,7 @@ export const AdminVerificationQueue: React.FC = () => {
                   setSelected(null);
                   setDetail(null);
                 }}
-                className="p-1.5 rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700"
+                className="p-1.5 rounded-lg bg-surface text-ink/70 hover:bg-line"
                 aria-label="Close"
               >
                 <X className="w-4 h-4" />
@@ -289,7 +289,7 @@ export const AdminVerificationQueue: React.FC = () => {
             </div>
 
             {detailLoading && (
-              <p className="text-xs text-slate-400 flex items-center gap-2">
+              <p className="text-xs text-ink/70 flex items-center gap-2">
                 <Loader2 className="w-4 h-4 animate-spin" /> Loading…
               </p>
             )}
@@ -297,43 +297,43 @@ export const AdminVerificationQueue: React.FC = () => {
             {detail && (
               <>
                 {!detail.capabilities.identityDocumentAccess && (
-                  <p className="text-[11px] text-amber-300 bg-amber-500/10 border border-amber-500/30 rounded-xl p-3">
+                  <p className="text-[11px] text-amber-700 bg-amber-500/10 border border-amber-500/30 rounded-xl p-3">
                     <Lock className="w-3.5 h-3.5 inline mr-1" />
                     Document access is not granted to this account, so no files or full numbers are shown.
                   </p>
                 )}
 
                 {/* Identity */}
-                <section className="space-y-3 border border-white/10 rounded-2xl p-4">
+                <section className="space-y-3 border border-line rounded-2xl p-4">
                   <div className="flex items-center justify-between gap-2">
-                    <h3 className="text-xs font-bold text-white flex items-center gap-2">
-                      <BadgeCheck className="w-4 h-4 text-[#08D9D6]" /> Identity
+                    <h3 className="text-xs font-bold text-ink flex items-center gap-2">
+                      <BadgeCheck className="w-4 h-4 text-ink" /> Identity
                     </h3>
                     <span className={`px-2 py-0.5 rounded-md border text-[10px] font-bold ${statusTone(detail.identity.status)}`}>
                       {label(detail.identity.status)}
                     </span>
                   </div>
 
-                  <dl className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] text-slate-400">
+                  <dl className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] text-ink/70">
                     <div>
-                      <dt className="font-semibold text-slate-300">Legal name on document</dt>
+                      <dt className="font-semibold text-ink/70">Legal name on document</dt>
                       <dd>{detail.identity.legalName || '—'}</dd>
                     </div>
                     <div>
-                      <dt className="font-semibold text-slate-300">Document number</dt>
+                      <dt className="font-semibold text-ink/70">Document number</dt>
                       <dd>
                         {detail.identity.documentNumber ?? detail.identity.documentNumberMasked ?? '—'}
                         {detail.identity.documentNumber && (
-                          <span className="text-[10px] text-amber-300 ml-2">full value · your access is logged</span>
+                          <span className="text-[10px] text-amber-700 ml-2">full value · your access is logged</span>
                         )}
                       </dd>
                     </div>
                     <div>
-                      <dt className="font-semibold text-slate-300">Document type</dt>
+                      <dt className="font-semibold text-ink/70">Document type</dt>
                       <dd>{detail.identity.documentTypeLabel}</dd>
                     </div>
                     <div>
-                      <dt className="font-semibold text-slate-300">Submitted</dt>
+                      <dt className="font-semibold text-ink/70">Submitted</dt>
                       <dd>{detail.identity.submittedAt ? new Date(detail.identity.submittedAt).toLocaleString() : '—'}</dd>
                     </div>
                   </dl>
@@ -341,20 +341,20 @@ export const AdminVerificationQueue: React.FC = () => {
                   {detail.identity.documents.length > 0 ? (
                     <ul className="space-y-1.5">
                       {detail.identity.documents.map((doc) => (
-                        <li key={doc.id} className="flex flex-wrap items-center justify-between gap-2 text-[11px] bg-slate-900/50 border border-white/10 rounded-lg px-3 py-2">
-                          <span className="flex items-center gap-2 text-slate-300">
-                            <FileText className="w-3.5 h-3.5 text-slate-400" /> {doc.kindLabel}
+                        <li key={doc.id} className="flex flex-wrap items-center justify-between gap-2 text-[11px] bg-surface border border-line rounded-lg px-3 py-2">
+                          <span className="flex items-center gap-2 text-ink/70">
+                            <FileText className="w-3.5 h-3.5 text-ink/70" /> {doc.kindLabel}
                             <span className={`px-1.5 py-0.5 rounded border ${statusTone(doc.reviewStatus === 'accepted' ? 'approved' : doc.reviewStatus === 'rejected' ? 'rejected' : 'pending_review')}`}>
                               {doc.reviewStatus === 'accepted' ? 'accepted' : doc.reviewStatus === 'rejected' ? 'rejected' : 'not reviewed'}
                             </span>
                           </span>
                           <span className="flex items-center gap-2">
                             {doc.downloadUrl ? (
-                              <a href={doc.downloadUrl} target="_blank" rel="noopener noreferrer" className="text-[#08D9D6] font-bold">
+                              <a href={doc.downloadUrl} target="_blank" rel="noopener noreferrer" className="text-ink font-bold">
                                 Open document
                               </a>
                             ) : (
-                              <span className="text-slate-500">Access restricted</span>
+                              <span className="text-ink/70">Access restricted</span>
                             )}
                             {doc.downloadUrl && (
                               <>
@@ -362,7 +362,7 @@ export const AdminVerificationQueue: React.FC = () => {
                                   type="button"
                                   disabled={busy}
                                   onClick={() => void reviewDocument(doc.id, 'accept')}
-                                  className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-200 font-bold disabled:opacity-50"
+                                  className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-800 font-bold disabled:opacity-50"
                                 >
                                   Accept
                                 </button>
@@ -370,19 +370,19 @@ export const AdminVerificationQueue: React.FC = () => {
                                   type="button"
                                   disabled={busy}
                                   onClick={() => void reviewDocument(doc.id, 'reject')}
-                                  className="px-2 py-0.5 rounded bg-[#FF2E63]/20 text-[#FF8FA8] font-bold disabled:opacity-50"
+                                  className="px-2 py-0.5 rounded bg-accent/20 text-ink font-bold disabled:opacity-50"
                                 >
                                   Reject
                                 </button>
                               </>
                             )}
                           </span>
-                          {doc.reviewNote && <span className="w-full text-[10px] text-slate-500">{doc.reviewNote}</span>}
+                          {doc.reviewNote && <span className="w-full text-[10px] text-ink/70">{doc.reviewNote}</span>}
                         </li>
                       ))}
                     </ul>
                   ) : (
-                    <p className="text-[11px] text-slate-500">No identity documents on file.</p>
+                    <p className="text-[11px] text-ink/70">No identity documents on file.</p>
                   )}
 
                   <div className="flex flex-wrap gap-2">
@@ -390,7 +390,7 @@ export const AdminVerificationQueue: React.FC = () => {
                       type="button"
                       disabled={busy}
                       onClick={() => void decide('identity', 'start_review')}
-                      className="px-3 py-1.5 rounded-xl bg-slate-800 text-slate-200 text-[11px] font-bold disabled:opacity-50"
+                      className="px-3 py-1.5 rounded-xl bg-surface text-ink text-[11px] font-bold disabled:opacity-50"
                     >
                       Mark under review
                     </button>
@@ -398,7 +398,7 @@ export const AdminVerificationQueue: React.FC = () => {
                       type="button"
                       disabled={busy}
                       onClick={() => void decide('identity', 'approve')}
-                      className="px-3 py-1.5 rounded-xl bg-[#08D9D6] text-[#252A34] text-[11px] font-extrabold disabled:opacity-50"
+                      className="px-3 py-1.5 rounded-xl bg-interactive text-ink text-[11px] font-extrabold disabled:opacity-50"
                     >
                       Approve identity
                     </button>
@@ -406,7 +406,7 @@ export const AdminVerificationQueue: React.FC = () => {
                       type="button"
                       disabled={busy}
                       onClick={() => void decide('identity', 'request_resubmission')}
-                      className="px-3 py-1.5 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-300 text-[11px] font-bold disabled:opacity-50"
+                      className="px-3 py-1.5 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-700 text-[11px] font-bold disabled:opacity-50"
                     >
                       Request resubmission
                     </button>
@@ -414,7 +414,7 @@ export const AdminVerificationQueue: React.FC = () => {
                       type="button"
                       disabled={busy}
                       onClick={() => void decide('identity', 'reject')}
-                      className="px-3 py-1.5 rounded-xl bg-[#FF2E63]/15 border border-[#FF2E63]/30 text-[#FF8FA8] text-[11px] font-bold disabled:opacity-50"
+                      className="px-3 py-1.5 rounded-xl bg-accent/15 border border-accent/30 text-ink text-[11px] font-bold disabled:opacity-50"
                     >
                       Reject identity
                     </button>
@@ -423,56 +423,56 @@ export const AdminVerificationQueue: React.FC = () => {
 
                 {/* Professional authorisation */}
                 {detail.subject.role === 'agent' && (
-                  <section className="space-y-3 border border-white/10 rounded-2xl p-4">
+                  <section className="space-y-3 border border-line rounded-2xl p-4">
                     <div className="flex items-center justify-between gap-2">
-                      <h3 className="text-xs font-bold text-white flex items-center gap-2">
-                        <FileText className="w-4 h-4 text-[#08D9D6]" /> Professional authorisation
+                      <h3 className="text-xs font-bold text-ink flex items-center gap-2">
+                        <FileText className="w-4 h-4 text-ink" /> Professional authorisation
                       </h3>
                       <span className={`px-2 py-0.5 rounded-md border text-[10px] font-bold ${statusTone(detail.professional.status)}`}>
                         {label(detail.professional.status)}
                       </span>
                     </div>
 
-                    <dl className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] text-slate-400">
+                    <dl className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] text-ink/70">
                       <div>
-                        <dt className="font-semibold text-slate-300">Licence number</dt>
+                        <dt className="font-semibold text-ink/70">Licence number</dt>
                         <dd>{detail.professional.licenceNumber ?? detail.professional.licenceNumberMasked ?? '—'}</dd>
                       </div>
                       <div>
-                        <dt className="font-semibold text-slate-300">Issuing authority</dt>
+                        <dt className="font-semibold text-ink/70">Issuing authority</dt>
                         <dd>{detail.professional.issuingAuthority || '—'}</dd>
                       </div>
                       <div>
-                        <dt className="font-semibold text-slate-300">Category</dt>
+                        <dt className="font-semibold text-ink/70">Category</dt>
                         <dd>{detail.professional.licenceCategory || '—'}</dd>
                       </div>
                       <div>
-                        <dt className="font-semibold text-slate-300">Expiry</dt>
+                        <dt className="font-semibold text-ink/70">Expiry</dt>
                         <dd>{detail.professional.expiryDate || 'Not stated'}</dd>
                       </div>
                     </dl>
 
-                    <p className="text-[10px] text-slate-500">
+                    <p className="text-[10px] text-ink/70">
                       Registry check: {detail.professional.registryChecked ? 'recorded' : 'none — no external registry integration exists'}.
                     </p>
 
                     {detail.professional.documents.length > 0 && (
                       <ul className="space-y-1.5">
                         {detail.professional.documents.map((doc) => (
-                          <li key={doc.id} className="flex flex-wrap items-center justify-between gap-2 text-[11px] bg-slate-900/50 border border-white/10 rounded-lg px-3 py-2">
-                            <span className="flex items-center gap-2 text-slate-300">
-                              <FileText className="w-3.5 h-3.5 text-slate-400" /> {doc.kindLabel}
+                          <li key={doc.id} className="flex flex-wrap items-center justify-between gap-2 text-[11px] bg-surface border border-line rounded-lg px-3 py-2">
+                            <span className="flex items-center gap-2 text-ink/70">
+                              <FileText className="w-3.5 h-3.5 text-ink/70" /> {doc.kindLabel}
                               <span className={`px-1.5 py-0.5 rounded border ${statusTone(doc.reviewStatus === 'accepted' ? 'approved' : doc.reviewStatus === 'rejected' ? 'rejected' : 'pending_review')}`}>
                                 {doc.reviewStatus === 'accepted' ? 'accepted' : doc.reviewStatus === 'rejected' ? 'rejected' : 'not reviewed'}
                               </span>
                             </span>
                             <span className="flex items-center gap-2">
                               {doc.downloadUrl ? (
-                                <a href={doc.downloadUrl} target="_blank" rel="noopener noreferrer" className="text-[#08D9D6] font-bold">
+                                <a href={doc.downloadUrl} target="_blank" rel="noopener noreferrer" className="text-ink font-bold">
                                   Open document
                                 </a>
                               ) : (
-                                <span className="text-slate-500">Access restricted</span>
+                                <span className="text-ink/70">Access restricted</span>
                               )}
                               {doc.downloadUrl && (
                                 <>
@@ -480,7 +480,7 @@ export const AdminVerificationQueue: React.FC = () => {
                                     type="button"
                                     disabled={busy}
                                     onClick={() => void reviewDocument(doc.id, 'accept')}
-                                    className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-200 font-bold disabled:opacity-50"
+                                    className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-800 font-bold disabled:opacity-50"
                                   >
                                     Accept
                                   </button>
@@ -488,14 +488,14 @@ export const AdminVerificationQueue: React.FC = () => {
                                     type="button"
                                     disabled={busy}
                                     onClick={() => void reviewDocument(doc.id, 'reject')}
-                                    className="px-2 py-0.5 rounded bg-[#FF2E63]/20 text-[#FF8FA8] font-bold disabled:opacity-50"
+                                    className="px-2 py-0.5 rounded bg-accent/20 text-ink font-bold disabled:opacity-50"
                                   >
                                     Reject
                                   </button>
                                 </>
                               )}
                             </span>
-                            {doc.reviewNote && <span className="w-full text-[10px] text-slate-500">{doc.reviewNote}</span>}
+                            {doc.reviewNote && <span className="w-full text-[10px] text-ink/70">{doc.reviewNote}</span>}
                           </li>
                         ))}
                       </ul>
@@ -506,7 +506,7 @@ export const AdminVerificationQueue: React.FC = () => {
                         type="button"
                         disabled={busy}
                         onClick={() => void decide('professional', 'start_review')}
-                        className="px-3 py-1.5 rounded-xl bg-slate-800 text-slate-200 text-[11px] font-bold disabled:opacity-50"
+                        className="px-3 py-1.5 rounded-xl bg-surface text-ink text-[11px] font-bold disabled:opacity-50"
                       >
                         Mark under review
                       </button>
@@ -514,7 +514,7 @@ export const AdminVerificationQueue: React.FC = () => {
                         type="button"
                         disabled={busy}
                         onClick={() => void decide('professional', 'approve')}
-                        className="px-3 py-1.5 rounded-xl bg-[#08D9D6] text-[#252A34] text-[11px] font-extrabold disabled:opacity-50"
+                        className="px-3 py-1.5 rounded-xl bg-interactive text-ink text-[11px] font-extrabold disabled:opacity-50"
                       >
                         Approve authorisation
                       </button>
@@ -522,7 +522,7 @@ export const AdminVerificationQueue: React.FC = () => {
                         type="button"
                         disabled={busy}
                         onClick={() => void decide('professional', 'request_resubmission')}
-                        className="px-3 py-1.5 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-300 text-[11px] font-bold disabled:opacity-50"
+                        className="px-3 py-1.5 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-700 text-[11px] font-bold disabled:opacity-50"
                       >
                         Request resubmission
                       </button>
@@ -530,7 +530,7 @@ export const AdminVerificationQueue: React.FC = () => {
                         type="button"
                         disabled={busy}
                         onClick={() => void decide('professional', 'reject')}
-                        className="px-3 py-1.5 rounded-xl bg-[#FF2E63]/15 border border-[#FF2E63]/30 text-[#FF8FA8] text-[11px] font-bold disabled:opacity-50"
+                        className="px-3 py-1.5 rounded-xl bg-accent/15 border border-accent/30 text-ink text-[11px] font-bold disabled:opacity-50"
                       >
                         Reject
                       </button>
@@ -538,7 +538,7 @@ export const AdminVerificationQueue: React.FC = () => {
                         type="button"
                         disabled={busy}
                         onClick={() => void decide('professional', 'mark_expired')}
-                        className="px-3 py-1.5 rounded-xl bg-slate-800 text-amber-300 text-[11px] font-bold disabled:opacity-50"
+                        className="px-3 py-1.5 rounded-xl bg-surface text-amber-700 text-[11px] font-bold disabled:opacity-50"
                       >
                         Mark expired
                       </button>
@@ -547,7 +547,7 @@ export const AdminVerificationQueue: React.FC = () => {
                 )}
 
                 <div className="space-y-2">
-                  <label className="block text-[11px] font-semibold text-slate-300">
+                  <label className="block text-[11px] font-semibold text-ink/70">
                     Reviewer note (required for reject, resubmission and expiry)
                   </label>
                   <textarea
@@ -555,27 +555,27 @@ export const AdminVerificationQueue: React.FC = () => {
                     onChange={(event) => setNote(event.target.value)}
                     rows={2}
                     placeholder="What did you check, and what does the agent need to do?"
-                    className="w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-[#08D9D6]"
+                    className="w-full bg-page border border-line rounded-xl px-3 py-2 text-xs text-ink placeholder-ink/50 focus:outline-none focus:border-interactive"
                   />
-                  <p className="text-[10px] text-slate-500">
+                  <p className="text-[10px] text-ink/70">
                     Notes are visible to the agent and kept in an append-only history — earlier decisions cannot be edited away.
                   </p>
                 </div>
 
                 <section className="space-y-2">
-                  <h3 className="text-xs font-bold text-white flex items-center gap-2">
-                    <History className="w-4 h-4 text-slate-400" /> Decision history
+                  <h3 className="text-xs font-bold text-ink flex items-center gap-2">
+                    <History className="w-4 h-4 text-ink/70" /> Decision history
                   </h3>
                   {detail.history.length === 0 ? (
-                    <p className="text-[11px] text-slate-500">No decisions recorded yet.</p>
+                    <p className="text-[11px] text-ink/70">No decisions recorded yet.</p>
                   ) : (
                     <ul className="space-y-1.5">
                       {detail.history.map((entry) => (
-                        <li key={entry.id} className="text-[11px] bg-slate-900/50 border border-white/10 rounded-lg px-3 py-2 text-slate-400">
-                          <span className="font-bold text-slate-200">{entry.scope}</span> · {label(entry.fromStatus)} →{' '}
-                          <span className="font-bold text-slate-200">{label(entry.toStatus)}</span>
-                          <span className="text-slate-500"> · {entry.reviewerName || 'reviewer'} · {new Date(entry.decidedAt).toLocaleString()}</span>
-                          {entry.note && <p className="mt-1 text-slate-300">{entry.note}</p>}
+                        <li key={entry.id} className="text-[11px] bg-surface border border-line rounded-lg px-3 py-2 text-ink/70">
+                          <span className="font-bold text-ink">{entry.scope}</span> · {label(entry.fromStatus)} →{' '}
+                          <span className="font-bold text-ink">{label(entry.toStatus)}</span>
+                          <span className="text-ink/70"> · {entry.reviewerName || 'reviewer'} · {new Date(entry.decidedAt).toLocaleString()}</span>
+                          {entry.note && <p className="mt-1 text-ink/70">{entry.note}</p>}
                         </li>
                       ))}
                     </ul>

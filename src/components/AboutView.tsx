@@ -69,7 +69,7 @@ export const AboutView: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#252A34] text-white py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-page text-ink py-12 px-4 sm:px-6 lg:px-8">
       <SEOHead
         title="About Goodlucks Homes - Rental Intermediary in Ghana"
         description="How Goodlucks Homes works in Accra, Ghana: listings from registered landlords and agents, reviewed before publishing, with viewings arranged through the platform."
@@ -80,59 +80,59 @@ export const AboutView: React.FC = () => {
         
         {/* Header */}
         <div className="text-center space-y-3">
-          <div className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[#08D9D6]/10 text-[#08D9D6] text-xs font-bold border border-[#08D9D6]/20">
+          <div className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-interactive/10 text-ink text-xs font-bold border border-interactive/20">
             <Building2 className="w-4 h-4" />
             Under Goodlucks Platforms
           </div>
-          <h1 className="text-3xl sm:text-4xl font-black text-white">About Goodlucks Homes</h1>
-          <p className="text-sm text-slate-300 max-w-xl mx-auto leading-relaxed">
+          <h1 className="text-3xl sm:text-4xl font-black text-ink">About Goodlucks Homes</h1>
+          <p className="text-sm text-ink/70 max-w-xl mx-auto leading-relaxed">
             A rental platform that connects people looking for a home with the landlords and agents who list them, with every listing reviewed before it is published.
           </p>
         </div>
 
         {/* Mission Statement Box */}
-        <div className="bg-gradient-to-r from-slate-800 to-[#1A1E26] p-8 rounded-3xl border border-white/10 space-y-4 shadow-xl">
-          <h2 className="text-xl font-bold text-[#08D9D6]">Our Intermediary Model</h2>
-          <p className="text-sm text-slate-200 leading-relaxed">
+        <div className="gl-card p-8 space-y-4">
+          <h2 className="text-xl font-bold text-ink">Our Intermediary Model</h2>
+          <p className="text-sm text-ink leading-relaxed">
             Goodlucks Homes is the <strong>intermediary</strong> between the people who list properties and the people looking for them. Landlords and agents submit the listings; we review them, publish them, and take the enquiries and viewing requests that follow.
           </p>
-          <p className="text-sm text-slate-300 leading-relaxed">
+          <p className="text-sm text-ink/70 leading-relaxed">
             We pass each enquiry and viewing request to the landlord or agent responsible for the property, and both sides keep the same record of what was asked and agreed. Goodlucks Homes is not a law firm and does not manage the properties: tenants and landlords meet and complete their tenancy agreement between themselves, outside the platform.
           </p>
         </div>
 
         {/* Core Pillars */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-          <div className="bg-slate-800/80 p-6 rounded-2xl border border-white/10 space-y-2">
-            <ShieldCheck className="w-8 h-8 text-[#08D9D6]" />
-            <h3 className="font-bold text-base text-white">Listings reviewed</h3>
-            <p className="text-xs text-slate-300">Every listing is reviewed by our team before it goes live. That review covers the listing details and photos. It is not an ownership check and not a physical inspection of the property.</p>
+          <div className="bg-surface p-6 rounded-2xl border border-line space-y-2">
+            <ShieldCheck className="w-8 h-8 text-ink" />
+            <h3 className="font-bold text-base text-ink">Listings reviewed</h3>
+            <p className="text-xs text-ink/70">Every listing is reviewed by our team before it goes live. That review covers the listing details and photos. It is not an ownership check and not a physical inspection of the property.</p>
           </div>
 
-          <div className="bg-slate-800/80 p-6 rounded-2xl border border-white/10 space-y-2">
-            <Users className="w-8 h-8 text-[#08D9D6]" />
-            <h3 className="font-bold text-base text-white">Viewings arranged</h3>
-            <p className="text-xs text-slate-300">You request a viewing here and agree the time with the landlord or agent. Your request, the agreed time and any fee are recorded on the platform.</p>
+          <div className="bg-surface p-6 rounded-2xl border border-line space-y-2">
+            <Users className="w-8 h-8 text-ink" />
+            <h3 className="font-bold text-base text-ink">Viewings arranged</h3>
+            <p className="text-xs text-ink/70">You request a viewing here and agree the time with the landlord or agent. Your request, the agreed time and any fee are recorded on the platform.</p>
           </div>
 
-          <div className="bg-slate-800/80 p-6 rounded-2xl border border-white/10 space-y-2">
-            <Award className="w-8 h-8 text-[#08D9D6]" />
-            <h3 className="font-bold text-base text-white">Where we operate</h3>
-            <p className="text-xs text-slate-300">Our team is based in Accra and most listings are in Greater Accra - Cantonments, East Legon, Airport Residential, Osu, Ridge - with some in other regions such as Kumasi.</p>
+          <div className="bg-surface p-6 rounded-2xl border border-line space-y-2">
+            <Award className="w-8 h-8 text-ink" />
+            <h3 className="font-bold text-base text-ink">Where we operate</h3>
+            <p className="text-xs text-ink/70">Our team is based in Accra and most listings are in Greater Accra - Cantonments, East Legon, Airport Residential, Osu, Ridge - with some in other regions such as Kumasi.</p>
           </div>
         </div>
 
         {/* FAQ Accordion Section */}
         <div className="space-y-6 pt-4">
           <div className="text-center space-y-2">
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/5 text-[#08D9D6] text-xs font-bold border border-white/10">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-page text-ink text-xs font-bold border border-line">
               <HelpCircle className="w-3.5 h-3.5" />
               <span>Frequently Asked Questions</span>
             </div>
-            <h2 className="text-2xl sm:text-3xl font-black text-white">
+            <h2 className="text-2xl sm:text-3xl font-black text-ink">
               Intermediary Services FAQ
             </h2>
-            <p className="text-xs sm:text-sm text-slate-300 max-w-lg mx-auto">
+            <p className="text-xs sm:text-sm text-ink/70 max-w-lg mx-auto">
               Everything you need to know about renting, listing, and property viewings with Goodlucks Homes in Ghana.
             </p>
           </div>
@@ -145,30 +145,30 @@ export const AboutView: React.FC = () => {
                   key={faq.id}
                   className={`rounded-2xl transition-all duration-200 border ${
                     isOpen
-                      ? 'bg-slate-800/90 border-[#08D9D6]/40 shadow-lg'
-                      : 'bg-slate-800/50 border-white/10 hover:border-white/20'
+                      ? 'bg-surface border-interactive/40 shadow-lg'
+                      : 'bg-surface/50 border-line hover:border-line'
                   }`}
                 >
                   <button
                     onClick={() => toggleFaq(faq.id)}
-                    className="w-full px-6 py-4 flex items-center justify-between text-left focus:outline-none focus:ring-2 focus:ring-[#08D9D6]/50 rounded-2xl"
+                    className="w-full px-6 py-4 flex items-center justify-between text-left focus:outline-none focus:ring-2 focus:ring-interactive/50 rounded-2xl"
                     aria-expanded={isOpen}
                   >
                     <div className="flex items-center gap-3 pr-4">
-                      <span className="px-2.5 py-0.5 rounded-md text-[10px] font-extrabold bg-[#08D9D6]/10 text-[#08D9D6] border border-[#08D9D6]/20 uppercase shrink-0">
+                      <span className="px-2.5 py-0.5 rounded-md text-[10px] font-extrabold bg-interactive/10 text-ink border border-interactive/20 uppercase shrink-0">
                         {faq.category}
                       </span>
-                      <span className="text-sm sm:text-base font-bold text-white leading-snug">
+                      <span className="text-sm sm:text-base font-bold text-ink leading-snug">
                         {faq.question}
                       </span>
                     </div>
-                    <div className={`p-1.5 rounded-xl transition-colors shrink-0 ${isOpen ? 'bg-[#08D9D6] text-[#252A34]' : 'bg-white/10 text-slate-300'}`}>
+                    <div className={`p-1.5 rounded-xl transition-colors shrink-0 ${isOpen ? 'bg-interactive text-ink' : 'bg-page text-ink/70'}`}>
                       {isOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                     </div>
                   </button>
 
                   {isOpen && (
-                    <div className="px-6 pb-5 pt-1 text-xs sm:text-sm text-slate-300 leading-relaxed border-t border-white/5 mt-1 animate-fadeIn">
+                    <div className="px-6 pb-5 pt-1 text-xs sm:text-sm text-ink/70 leading-relaxed border-t border-line mt-1 animate-fadeIn">
                       <p className="pt-2">{faq.answer}</p>
                     </div>
                   )}
@@ -178,19 +178,19 @@ export const AboutView: React.FC = () => {
           </div>
 
           {/* Need More Assistance Banner */}
-          <div className="bg-slate-900/90 p-6 rounded-2xl border border-white/10 flex flex-col sm:flex-row items-center justify-between gap-4 text-center sm:text-left">
+          <div className="bg-surface p-6 rounded-2xl border border-line flex flex-col sm:flex-row items-center justify-between gap-4 text-center sm:text-left">
             <div className="space-y-1">
-              <h4 className="text-sm font-bold text-white flex items-center gap-1.5 justify-center sm:justify-start">
-                <Sparkles className="w-4 h-4 text-[#08D9D6]" />
+              <h4 className="text-sm font-bold text-ink flex items-center gap-1.5 justify-center sm:justify-start">
+                <Sparkles className="w-4 h-4 text-ink" />
                 Still have questions?
               </h4>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-ink/70">
                 Our Accra desk is available Monday through Saturday to assist with tailored property matches and enquiries.
               </p>
             </div>
             <a
               href="tel:+233237690080"
-              className="px-5 py-2.5 rounded-xl bg-[#08D9D6] text-[#252A34] font-extrabold text-xs hover:bg-[#08D9D6]/90 transition-all shrink-0"
+              className="gl-btn gl-btn-primary px-5 py-2.5 text-xs shrink-0"
             >
               Contact Support
             </a>

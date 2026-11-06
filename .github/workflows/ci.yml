@@ -35,6 +35,9 @@ jobs:
       - name: Blog & Learning Centre tests (task 07)
         run: npm run test:blog
 
+      - name: Design-system tests (task 08 palette, contrast, page shells)
+        run: npm run test:design
+
       - name: Production build
         run: npm run build
 
@@ -47,7 +50,7 @@ jobs:
               if (!fs.existsSync(f)) { console.error('missing ' + f); process.exit(1); }
             }
             const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
-            for (const script of ['dev', 'api:dev', 'test:api', 'test:routing', 'test:navigation', 'test:blog', 'build']) {
+            for (const script of ['dev', 'api:dev', 'test:api', 'test:routing', 'test:navigation', 'test:blog', 'test:design', 'build']) {
               if (!pkg.scripts[script]) { console.error('missing npm script ' + script); process.exit(1); }
             }
             console.log('build artefacts and npm scripts present');

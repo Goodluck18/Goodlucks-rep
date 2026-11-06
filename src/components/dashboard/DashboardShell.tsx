@@ -77,7 +77,7 @@ export const Avatar: React.FC<{ name?: string | null; src?: string | null; size?
         loading="lazy"
         decoding="async"
         onError={() => setFailed(true)}
-        className={`${dimension} rounded-2xl object-cover border border-white/15 bg-slate-800 shrink-0`}
+        className={`${dimension} rounded-2xl object-cover border border-line bg-surface shrink-0`}
       />
     );
   }
@@ -85,7 +85,7 @@ export const Avatar: React.FC<{ name?: string | null; src?: string | null; size?
   return (
     <div
       aria-hidden={initials ? undefined : true}
-      className={`${dimension} rounded-2xl border border-white/15 bg-slate-800 text-[#08D9D6] font-black flex items-center justify-center shrink-0`}
+      className={`${dimension} rounded-2xl border border-line bg-page text-ink font-black flex items-center justify-center shrink-0`}
     >
       {initials || <UserRound className="w-1/2 h-1/2" />}
     </div>
@@ -98,10 +98,10 @@ export const SectionHeader: React.FC<{
   description?: string;
   actions?: React.ReactNode;
 }> = ({ title, description, actions }) => (
-  <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 border-b border-white/10 pb-4">
+  <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 border-b border-line pb-4">
     <div className="min-w-0">
-      <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight">{title}</h1>
-      {description && <p className="text-xs sm:text-sm text-slate-400 mt-1 max-w-2xl leading-relaxed">{description}</p>}
+      <h1 className="text-xl sm:text-2xl font-black text-ink tracking-tight">{title}</h1>
+      {description && <p className="text-xs sm:text-sm text-ink/70 mt-1 max-w-2xl leading-relaxed">{description}</p>}
     </div>
     {actions && <div className="flex items-center gap-2 shrink-0 flex-wrap">{actions}</div>}
   </div>
@@ -118,26 +118,26 @@ export const SummaryCard: React.FC<{
 }> = ({ label, value, hint, icon: Icon, onClick, tone = 'default' }) => {
   const toneClass =
     tone === 'positive'
-      ? 'text-emerald-400'
+      ? 'text-emerald-700'
       : tone === 'warning'
-        ? 'text-amber-300'
+        ? 'text-amber-700'
         : tone === 'rose'
-          ? 'text-[#FF8FA8]'
-          : 'text-[#08D9D6]';
+          ? 'text-accent'
+          : 'text-ink';
 
   return (
     <button
       type="button"
       onClick={onClick}
-      className="group text-left bg-[#252A34]/70 border border-white/10 rounded-2xl p-4 sm:p-5 hover:border-[#08D9D6]/40 hover:bg-[#252A34] transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-[#08D9D6]/60"
+      className="group text-left bg-surface border border-line rounded-2xl p-4 sm:p-5 hover:border-interactive transition-colors"
     >
       <div className="flex items-center justify-between mb-2 gap-2">
-        <span className="text-[11px] sm:text-xs font-bold text-slate-400 uppercase tracking-wide">{label}</span>
+        <span className="text-[11px] sm:text-xs font-bold text-ink/70 uppercase tracking-wide">{label}</span>
         <Icon className={`w-4 h-4 ${toneClass}`} />
       </div>
       <div className={`text-xl sm:text-2xl font-black ${toneClass} truncate`}>{value}</div>
       {hint && (
-        <div className="text-[11px] text-slate-400 mt-1 flex items-center gap-1">
+        <div className="text-[11px] text-ink/70 mt-1 flex items-center gap-1">
           <span className="truncate">{hint}</span>
           <ChevronRight className="w-3 h-3 shrink-0 opacity-60 group-hover:opacity-100" />
         </div>
@@ -153,18 +153,18 @@ export const EmptyState: React.FC<{
   description?: string;
   action?: React.ReactNode;
 }> = ({ icon: Icon, title, description, action }) => (
-  <div className="text-center py-12 px-4 bg-slate-900/50 rounded-2xl border border-white/10 space-y-3">
-    <Icon className="w-10 h-10 text-slate-500 mx-auto" />
-    <div className="text-base font-bold text-white">{title}</div>
-    {description && <p className="text-xs text-slate-400 max-w-sm mx-auto leading-relaxed">{description}</p>}
+  <div className="text-center py-12 px-4 bg-surface rounded-2xl border border-line space-y-3">
+    <Icon className="w-10 h-10 text-ink/70 mx-auto" />
+    <div className="text-base font-bold text-ink">{title}</div>
+    {description && <p className="text-xs text-ink/70 max-w-sm mx-auto leading-relaxed">{description}</p>}
     {action}
   </div>
 );
 
 /** Loading placeholder used while a dashboard section fetches its data. */
 export const SectionLoading: React.FC<{ label?: string }> = ({ label = 'Loading…' }) => (
-  <div className="flex items-center gap-3 text-xs text-slate-400 py-8 justify-center">
-    <span className="w-4 h-4 border-2 border-[#08D9D6]/30 border-t-[#08D9D6] rounded-full animate-spin" />
+  <div className="flex items-center gap-3 text-xs text-ink/70 py-8 justify-center">
+    <span className="w-4 h-4 border-2 border-interactive/30 border-t-interactive rounded-full animate-spin" />
     {label}
   </div>
 );
@@ -198,8 +198,8 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({ role, active, it
             aria-current={isActive ? 'page' : undefined}
             className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-left text-xs font-bold transition-colors min-h-[44px] ${
               isActive
-                ? 'bg-[#08D9D6] text-[#252A34] shadow-md shadow-[#08D9D6]/20'
-                : 'text-slate-300 hover:text-white hover:bg-white/10'
+                ? 'bg-interactive text-ink shadow-md shadow-ink/10'
+                : 'text-ink/70 hover:text-ink hover:bg-page'
             }`}
           >
             <Icon className="w-4 h-4 shrink-0" />
@@ -207,7 +207,7 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({ role, active, it
             {typeof item.badge === 'number' && item.badge > 0 && (
               <span
                 className={`px-1.5 py-0.5 rounded-full text-[10px] font-black ${
-                  isActive ? 'bg-[#252A34]/20 text-[#252A34]' : 'bg-[#FF2E63] text-white'
+                  isActive ? 'bg-ink text-white' : 'bg-accent text-white'
                 }`}
               >
                 {item.badge > 99 ? '99+' : item.badge}
@@ -223,29 +223,29 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({ role, active, it
     <div className="flex items-center gap-3 min-w-0">
       <Avatar name={currentUser?.name} src={currentUser?.avatar} />
       <div className="min-w-0">
-        <p className="text-sm font-bold text-white truncate">{currentUser?.name || 'Your account'}</p>
-        <p className="text-[11px] text-[#08D9D6] font-semibold capitalize">{ROLE_LABEL[role]}</p>
-        <p className="text-[11px] text-slate-500 truncate">{currentUser?.email}</p>
+        <p className="text-sm font-bold text-ink truncate">{currentUser?.name || 'Your account'}</p>
+        <p className="text-[11px] text-ink/70 font-semibold capitalize">{ROLE_LABEL[role]}</p>
+        <p className="text-[11px] text-ink/70 truncate">{currentUser?.email}</p>
       </div>
     </div>
   );
 
   return (
-    <div className="min-h-screen bg-[#1F242D] text-white">
+    <div className="min-h-screen bg-page text-ink">
       {/* Mobile top bar */}
-      <div className="lg:hidden sticky top-16 z-30 bg-[#252A34]/95 backdrop-blur-md border-b border-white/10">
+      <div className="lg:hidden sticky top-16 z-30 bg-surface/95 backdrop-blur-md border-b border-line">
         <div className="px-4 py-2.5 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2.5 min-w-0">
             <Avatar name={currentUser?.name} src={currentUser?.avatar} size="sm" />
             <div className="min-w-0">
-              <p className="text-[11px] text-slate-400 leading-tight">Signed in as</p>
-              <p className="text-xs font-bold text-white truncate">{currentUser?.name || 'Your account'}</p>
+              <p className="text-[11px] text-ink/70 leading-tight">Signed in as</p>
+              <p className="text-xs font-bold text-ink truncate">{currentUser?.name || 'Your account'}</p>
             </div>
           </div>
         </div>
         {/* The section you are on stays visible on small screens */}
         <div className="px-4 pb-2 -mt-0.5">
-          <p className="text-[11px] text-[#08D9D6] font-bold uppercase tracking-wider">{activeItem?.label}</p>
+          <p className="text-[11px] text-interactive-text font-bold uppercase tracking-wider">{activeItem?.label}</p>
         </div>
       </div>
 
@@ -253,12 +253,12 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({ role, active, it
         {/* Desktop sidebar */}
         <aside className="hidden lg:block w-60 xl:w-64 shrink-0">
           <div className="sticky top-24 space-y-4">
-            <div className="bg-[#252A34]/70 border border-white/10 rounded-2xl p-4">{accountCard}</div>
-            <div className="bg-[#252A34]/70 border border-white/10 rounded-2xl p-2">{navList}</div>
+            <div className="gl-panel p-4">{accountCard}</div>
+            <div className="gl-panel p-2">{navList}</div>
             <button
               type="button"
               onClick={() => void logout()}
-              className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-xs font-bold text-slate-400 hover:text-[#FF8FA8] hover:bg-white/5 transition-colors"
+              className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-xs font-bold text-ink/70 hover:text-ink hover:bg-page transition-colors"
             >
               <LogOut className="w-4 h-4" />
               Sign out

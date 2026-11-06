@@ -74,45 +74,43 @@ export const HomeView: React.FC = () => {
       <section className="relative pt-12 pb-16 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
         
         {/* Glow backdrop */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] sm:w-[600px] h-[300px] sm:h-[400px] bg-gradient-to-tr from-[#08D9D6]/20 to-[#FF2E63]/10 rounded-full blur-[100px] pointer-events-none" />
-
         <div className="relative text-center max-w-3xl mx-auto space-y-6">
           
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/5 border border-white/10 backdrop-blur-md text-xs font-semibold text-slate-200">
-            <span className="w-2 h-2 rounded-full bg-[#08D9D6] animate-pulse" />
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-surface border border-line text-xs font-semibold text-ink/80">
+            <span className="w-2 h-2 rounded-full bg-interactive" />
             Property discovery and viewing arrangements · Accra
           </div>
 
-          <h1 className="text-4xl sm:text-5xl md:text-6xl font-black text-white tracking-tight leading-[1.1]">
-            Find Your <span className="bg-gradient-to-r from-[#08D9D6] via-teal-200 to-white bg-clip-text text-transparent">Perfect Home</span>
+          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-ink tracking-tight leading-tight">
+            Find Your <span className="text-accent">Perfect Home</span>
           </h1>
 
-          <p className="text-sm sm:text-base text-slate-300 max-w-xl mx-auto leading-relaxed">
+          <p className="text-sm sm:text-base text-ink/70 max-w-xl mx-auto leading-relaxed">
             Goodlucks Homes connects people looking for a home with the landlords and agents who list them. Browse the catalogue, request a viewing, and agree a time with the landlord or agent. Your tenancy agreement is completed directly with them.
           </p>
 
           {/* Search Control Bar */}
-          <div className="bg-[#252A34]/90 border border-white/10 p-2 sm:p-3 rounded-2xl sm:rounded-3xl shadow-2xl backdrop-blur-xl space-y-2 sm:space-y-0 sm:flex sm:items-center sm:gap-2 text-left">
+          <div className="bg-surface border border-line p-2 sm:p-3 rounded-2xl sm:rounded-2xl shadow-lg backdrop-blur-xl space-y-2 sm:space-y-0 sm:flex sm:items-center sm:gap-2 text-left">
             
             {/* Search Input */}
-            <div className="flex-1 flex items-center gap-2 bg-slate-900/90 rounded-xl sm:rounded-2xl px-3.5 py-3 border border-white/5 focus-within:border-[#08D9D6]">
-              <Search className="w-5 h-5 text-[#08D9D6] shrink-0" />
+            <div className="flex-1 flex items-center gap-2 bg-surface rounded-xl sm:rounded-2xl px-3.5 py-3 border border-line focus-within:border-interactive">
+              <Search className="w-5 h-5 text-ink shrink-0" />
               <input 
                 type="text" 
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search Cantonments, East Legon, Airport..."
-                className="w-full bg-transparent text-sm text-white placeholder-slate-400 focus:outline-none font-medium"
+                className="w-full bg-transparent text-sm text-ink placeholder-ink/50 focus:outline-none font-medium"
               />
             </div>
 
             {/* Location Selector */}
-            <div className="flex items-center gap-2 bg-slate-900/90 rounded-xl sm:rounded-2xl px-3.5 py-3 border border-white/5">
-              <MapPin className="w-4 h-4 text-[#08D9D6] shrink-0" />
+            <div className="flex items-center gap-2 bg-surface rounded-xl sm:rounded-2xl px-3.5 py-3 border border-line">
+              <MapPin className="w-4 h-4 text-ink shrink-0" />
               <select
                 value={selectedLocation}
                 onChange={(e) => setSelectedLocation(e.target.value)}
-                className="bg-transparent text-xs sm:text-sm font-semibold text-white focus:outline-none cursor-pointer"
+                className="bg-transparent text-xs sm:text-sm font-semibold text-ink focus:outline-none cursor-pointer"
               >
                 <option value="All">All Ghana Locations</option>
                 <option value="Cantonments">Cantonments</option>
@@ -128,7 +126,7 @@ export const HomeView: React.FC = () => {
             {/* Search Submit CTA */}
             <button
               onClick={() => setCurrentView('browse')}
-              className="w-full sm:w-auto px-6 py-3.5 rounded-xl sm:rounded-2xl bg-[#08D9D6] text-[#252A34] font-extrabold text-sm hover:bg-[#08D9D6]/90 transition-all shadow-lg shadow-[#08D9D6]/20 flex items-center justify-center gap-2 shrink-0 active:scale-95"
+              className="gl-btn gl-btn-primary w-full sm:w-auto shrink-0"
             >
               <span>Explore</span>
               <ArrowRight className="w-4 h-4" />
@@ -139,21 +137,21 @@ export const HomeView: React.FC = () => {
           <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
             <button
               onClick={() => setCurrentView('browse')}
-              className="px-5 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-bold text-white transition-all border border-white/10 flex items-center gap-1.5 cursor-pointer"
+              className="gl-btn gl-btn-secondary px-5 text-xs"
             >
-              <Building2 className="w-4 h-4 text-[#08D9D6]" /> Browse Properties
+              <Building2 className="w-4 h-4 text-ink" /> Browse Properties
             </button>
             <button
               onClick={() => setIsNotifiedModalOpen(true)}
-              className="px-5 py-2.5 rounded-xl bg-[#08D9D6] text-[#252A34] text-xs font-black transition-all shadow-md shadow-[#08D9D6]/20 hover:bg-[#08D9D6]/90 flex items-center gap-1.5 cursor-pointer active:scale-95"
+              className="gl-btn gl-btn-secondary px-5 text-xs"
             >
-              <BellRing className="w-4 h-4 animate-pulse" /> Get Search Alerts
+              <BellRing className="w-4 h-4" /> Get Search Alerts
             </button>
             <button
               onClick={() => setCurrentView('find-home')}
-              className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#08D9D6]/20 to-[#FF2E63]/20 hover:from-[#08D9D6]/30 hover:to-[#FF2E63]/30 text-xs font-bold text-white transition-all border border-[#08D9D6]/30 flex items-center gap-1.5 cursor-pointer"
+              className="gl-btn gl-btn-secondary px-5 text-xs"
             >
-              <Compass className="w-4 h-4 text-[#08D9D6]" /> Find a Home (matched for you)
+              <Compass className="w-4 h-4 text-ink" /> Find a Home (matched for you)
             </button>
           </div>
 
@@ -164,19 +162,19 @@ export const HomeView: React.FC = () => {
       {/* 2. FEATURED PROPERTIES (2-CARDS PER ROW ON MOBILE) */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
         
-        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-2 border-b border-white/10 pb-4">
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-2 border-b border-line pb-4">
           <div>
-            <div className="text-xs font-extrabold text-[#08D9D6] uppercase tracking-wider">
+            <div className="text-xs font-extrabold text-ink uppercase tracking-wider">
               Submitted by registered landlords and agents
             </div>
-            <h2 className="text-2xl sm:text-3xl font-black text-white">
+            <h2 className="text-2xl sm:text-3xl font-black text-ink">
               Featured properties
             </h2>
           </div>
 
           <button
             onClick={() => setCurrentView('browse')}
-            className="text-xs font-bold text-[#08D9D6] hover:underline flex items-center gap-1"
+            className="gl-link text-xs font-bold flex items-center gap-1"
           >
             <span>View All ({activeProperties.length})</span>
             <ArrowRight className="w-3.5 h-3.5" />
@@ -198,14 +196,14 @@ export const HomeView: React.FC = () => {
 
 
       {/* 3. HOW IT WORKS (SIMPLE 3 STEPS) */}
-      <section className="bg-[#1A1E26] py-14 px-4 sm:px-6 lg:px-8 border-y border-white/10">
+      <section className="bg-surface py-14 px-4 sm:px-6 lg:px-8 border-y border-line">
         <div className="max-w-5xl mx-auto space-y-10 text-center">
           
           <div className="space-y-2">
-            <span className="text-xs font-extrabold uppercase text-[#08D9D6] tracking-widest">
+            <span className="text-xs font-extrabold uppercase text-ink tracking-widest">
               Simple 3-Step Process
             </span>
-            <h2 className="text-2xl sm:text-3xl font-black text-white">
+            <h2 className="text-2xl sm:text-3xl font-black text-ink">
               How Goodlucks Homes Works
             </h2>
           </div>
@@ -213,37 +211,37 @@ export const HomeView: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             
             {/* Step 1 */}
-            <div className="bg-[#252A34] p-6 rounded-3xl border border-white/10 text-center space-y-3 relative group hover:border-[#08D9D6]/50 transition-colors">
-              <div className="w-12 h-12 rounded-2xl bg-[#08D9D6]/10 text-[#08D9D6] border border-[#08D9D6]/20 flex items-center justify-center mx-auto text-xl font-bold">
+            <div className="gl-card gl-card-interactive p-6 text-center space-y-3 relative group">
+              <div className="w-12 h-12 rounded-2xl bg-interactive/10 text-ink border border-interactive/20 flex items-center justify-center mx-auto text-xl font-bold">
                 <Search className="w-6 h-6" />
               </div>
-              <div className="text-xs font-bold text-[#08D9D6] uppercase tracking-wider">Step 1</div>
-              <h3 className="text-lg font-bold text-white">Search</h3>
-              <p className="text-xs text-slate-300 leading-relaxed">
+              <div className="text-xs font-bold text-ink uppercase tracking-wider">Step 1</div>
+              <h3 className="text-lg font-bold text-ink">Search</h3>
+              <p className="text-xs text-ink/70 leading-relaxed">
                 Browse the live listings, or tell us your preferred area, budget and number of bedrooms and we will suggest homes that fit.
               </p>
             </div>
 
             {/* Step 2 */}
-            <div className="bg-[#252A34] p-6 rounded-3xl border border-white/10 text-center space-y-3 relative group hover:border-[#08D9D6]/50 transition-colors">
-              <div className="w-12 h-12 rounded-2xl bg-[#08D9D6]/10 text-[#08D9D6] border border-[#08D9D6]/20 flex items-center justify-center mx-auto text-xl font-bold">
+            <div className="gl-card gl-card-interactive p-6 text-center space-y-3 relative group">
+              <div className="w-12 h-12 rounded-2xl bg-interactive/10 text-ink border border-interactive/20 flex items-center justify-center mx-auto text-xl font-bold">
                 <Calendar className="w-6 h-6" />
               </div>
-              <div className="text-xs font-bold text-[#08D9D6] uppercase tracking-wider">Step 2</div>
-              <h3 className="text-lg font-bold text-white">Schedule Viewing</h3>
-              <p className="text-xs text-slate-300 leading-relaxed">
+              <div className="text-xs font-bold text-ink uppercase tracking-wider">Step 2</div>
+              <h3 className="text-lg font-bold text-ink">Schedule Viewing</h3>
+              <p className="text-xs text-ink/70 leading-relaxed">
                 Request a viewing on any listing. The request goes to the landlord or agent responsible for it, and they contact you to agree a time. Nothing is confirmed until you have both agreed.
               </p>
             </div>
 
             {/* Step 3 */}
-            <div className="bg-[#252A34] p-6 rounded-3xl border border-white/10 text-center space-y-3 relative group hover:border-[#08D9D6]/50 transition-colors">
-              <div className="w-12 h-12 rounded-2xl bg-[#08D9D6]/10 text-[#08D9D6] border border-[#08D9D6]/20 flex items-center justify-center mx-auto text-xl font-bold">
+            <div className="gl-card gl-card-interactive p-6 text-center space-y-3 relative group">
+              <div className="w-12 h-12 rounded-2xl bg-interactive/10 text-ink border border-interactive/20 flex items-center justify-center mx-auto text-xl font-bold">
                 <Key className="w-6 h-6" />
               </div>
-              <div className="text-xs font-bold text-[#08D9D6] uppercase tracking-wider">Step 3</div>
-              <h3 className="text-lg font-bold text-white">Move In</h3>
-              <p className="text-xs text-slate-300 leading-relaxed">
+              <div className="text-xs font-bold text-ink uppercase tracking-wider">Step 3</div>
+              <h3 className="text-lg font-bold text-ink">Move In</h3>
+              <p className="text-xs text-ink/70 leading-relaxed">
                 After the viewing, any viewing fee is paid as the listing states — never online. Your tenancy agreement is completed directly with the landlord or agent, outside the platform.
               </p>
             </div>
@@ -257,44 +255,44 @@ export const HomeView: React.FC = () => {
       {/* 4. WHY GOODLUCKS HOMES (SHORT POINTS ONLY) */}
       <section className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
         <div className="text-center space-y-2">
-          <span className="text-xs font-extrabold uppercase text-[#08D9D6] tracking-widest">
+          <span className="text-xs font-extrabold uppercase text-ink tracking-widest">
             The Intermediary Advantage
           </span>
-          <h2 className="text-2xl sm:text-3xl font-black text-white">
+          <h2 className="text-2xl sm:text-3xl font-black text-ink">
             Why Choose Goodlucks Homes
           </h2>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           
-          <div className="bg-[#252A34] p-5 rounded-2xl border border-white/10 space-y-2">
-            <div className="flex items-center gap-2 text-[#08D9D6] font-bold text-sm">
+          <div className="gl-card p-5 space-y-2">
+            <div className="flex items-center gap-2 text-ink font-bold text-sm">
               <CheckCircle2 className="w-5 h-5 shrink-0" />
               <span>Staff-reviewed listings</span>
             </div>
-            <p className="text-xs text-slate-300 leading-relaxed">
+            <p className="text-xs text-ink/70 leading-relaxed">
               Every listing is checked by Goodlucks staff before it goes live. That check covers the
               listing details and photos only: it is not an ownership check, an inspection of the property
               or a guarantee of its condition.
             </p>
           </div>
 
-          <div className="bg-[#252A34] p-5 rounded-2xl border border-white/10 space-y-2">
-            <div className="flex items-center gap-2 text-[#08D9D6] font-bold text-sm">
+          <div className="gl-card p-5 space-y-2">
+            <div className="flex items-center gap-2 text-ink font-bold text-sm">
               <ShieldCheck className="w-5 h-5 shrink-0" />
               <span>One place to sort it out</span>
             </div>
-            <p className="text-xs text-slate-300 leading-relaxed">
+            <p className="text-xs text-ink/70 leading-relaxed">
               Enquiries, viewing requests and their records stay with Goodlucks Homes, so you are not passed around between unknown contacts.
             </p>
           </div>
 
-          <div className="bg-[#252A34] p-5 rounded-2xl border border-white/10 space-y-2">
-            <div className="flex items-center gap-2 text-[#08D9D6] font-bold text-sm">
+          <div className="gl-card p-5 space-y-2">
+            <div className="flex items-center gap-2 text-ink font-bold text-sm">
               <Sparkles className="w-5 h-5 shrink-0" />
               <span>Viewing guidance</span>
             </div>
-            <p className="text-xs text-slate-300 leading-relaxed">
+            <p className="text-xs text-ink/70 leading-relaxed">
               Agree the time before you travel, meet the landlord or agent at the property, and view it before you commit to anything. A viewing fee, where one applies, is paid after the viewing — never online.
             </p>
           </div>
@@ -305,27 +303,25 @@ export const HomeView: React.FC = () => {
 
       {/* 5. CALL TO ACTION */}
       <section className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="bg-gradient-to-r from-[#252A34] via-[#1A1E26] to-[#252A34] border border-[#08D9D6]/30 p-8 sm:p-12 rounded-3xl text-center space-y-6 relative overflow-hidden shadow-2xl">
-          <div className="absolute -right-10 -bottom-10 w-48 h-48 bg-[#08D9D6]/10 rounded-full blur-3xl" />
-
-          <h2 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
+        <div className="gl-card border-interactive/60 p-8 sm:p-12 text-center space-y-6 relative overflow-hidden">
+          <h2 className="text-3xl sm:text-4xl font-extrabold text-ink tracking-tight">
             Looking for a home? Let us help you.
           </h2>
 
-          <p className="text-sm text-slate-300 max-w-lg mx-auto leading-relaxed">
+          <p className="text-sm text-ink/70 max-w-lg mx-auto leading-relaxed">
             Send us your requirements, or call our team in Accra and we will help you find a home that fits.
           </p>
 
           <div className="flex flex-wrap items-center justify-center gap-4 pt-2">
             <button
               onClick={() => setCurrentView('find-home')}
-              className="px-8 py-3.5 rounded-2xl bg-[#08D9D6] text-[#252A34] font-extrabold text-sm hover:bg-[#08D9D6]/90 transition-all shadow-xl shadow-[#08D9D6]/20 active:scale-95"
+              className="gl-btn gl-btn-primary px-8"
             >
               Submit Rental Request
             </button>
             <button
               onClick={() => setCurrentView('browse')}
-              className="px-8 py-3.5 rounded-2xl bg-white/10 text-white font-bold text-sm hover:bg-white/20 transition-all"
+              className="gl-btn gl-btn-secondary px-8"
             >
               Browse Properties
             </button>

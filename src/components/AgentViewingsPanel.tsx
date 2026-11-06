@@ -32,18 +32,18 @@ const money = (value: number | null): string =>
   value === null ? '—' : `GH₵ ${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 const statusTone: Record<ViewingStatus, string> = {
-  enquiry_received: 'bg-slate-500/20 text-slate-200 border-white/10',
-  viewing_requested: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
-  awaiting_agent: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
-  proposed: 'bg-sky-500/15 text-sky-300 border-sky-500/30',
-  confirmed: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30',
-  reschedule_requested: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
-  rescheduled: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30',
-  cancelled: 'bg-slate-600/20 text-slate-300 border-white/10',
-  completed: 'bg-emerald-500/10 text-emerald-200 border-emerald-500/20',
-  tenant_no_show: 'bg-[#FF2E63]/15 text-[#FF8FA8] border-[#FF2E63]/30',
-  agent_no_show: 'bg-[#FF2E63]/15 text-[#FF8FA8] border-[#FF2E63]/30',
-  could_not_proceed: 'bg-[#FF2E63]/10 text-[#FF8FA8] border-[#FF2E63]/20',
+  enquiry_received: 'bg-line/20 text-ink border-line',
+  viewing_requested: 'bg-amber-500/15 text-amber-700 border-amber-500/30',
+  awaiting_agent: 'bg-amber-500/15 text-amber-700 border-amber-500/30',
+  proposed: 'bg-sky-500/15 text-sky-700 border-sky-500/30',
+  confirmed: 'bg-emerald-500/15 text-emerald-700 border-emerald-500/30',
+  reschedule_requested: 'bg-amber-500/15 text-amber-700 border-amber-500/30',
+  rescheduled: 'bg-emerald-500/15 text-emerald-700 border-emerald-500/30',
+  cancelled: 'bg-line/20 text-ink/70 border-line',
+  completed: 'bg-emerald-500/10 text-emerald-800 border-emerald-500/20',
+  tenant_no_show: 'bg-accent/15 text-ink border-accent/30',
+  agent_no_show: 'bg-accent/15 text-ink border-accent/30',
+  could_not_proceed: 'bg-accent/10 text-ink border-accent/20',
 };
 
 const daysFromNow = (days: number): string =>
@@ -139,36 +139,36 @@ const ViewingCard: React.FC<{ viewing: ViewingSchedule }> = ({ viewing }) => {
   })();
 
   return (
-    <div className="bg-[#252A34]/70 border border-white/10 rounded-2xl p-4 space-y-3">
+    <div className="bg-surface border border-line rounded-2xl p-4 space-y-3">
       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
         <div className="space-y-1">
           <div className="flex items-center gap-2 flex-wrap">
-            <h3 className="text-sm font-bold text-white">{viewing.propertyTitle}</h3>
+            <h3 className="text-sm font-bold text-ink">{viewing.propertyTitle}</h3>
             <span className={`px-2 py-0.5 rounded-full border text-[10px] font-bold ${statusTone[viewing.status]}`}>
               {viewing.statusLabel}
             </span>
             {viewing.overdue && (
-              <span className="px-2 py-0.5 rounded-full border text-[10px] font-bold bg-[#FF2E63]/15 text-[#FF8FA8] border-[#FF2E63]/30">
+              <span className="px-2 py-0.5 rounded-full border text-[10px] font-bold bg-accent/15 text-ink border-accent/30">
                 Overdue
               </span>
             )}
           </div>
-          <p className="text-[11px] text-slate-400 flex items-center gap-1">
+          <p className="text-[11px] text-ink/70 flex items-center gap-1">
             <MapPin className="w-3 h-3" /> {viewing.propertyLocation}
           </p>
-          <p className="text-[11px] text-slate-300">
+          <p className="text-[11px] text-ink/70">
             {viewing.tenantName} · {viewing.tenantPhone}
             {viewing.tenantEmail ? ` · ${viewing.tenantEmail}` : ''}
           </p>
-          <p className="text-[11px] text-slate-400 flex items-center gap-1">
+          <p className="text-[11px] text-ink/70 flex items-center gap-1">
             <Calendar className="w-3 h-3" />
             {viewing.isConfirmed ? 'Agreed slot' : 'Requested slot'}:{' '}
-            <span className="text-white font-semibold">
+            <span className="text-ink font-semibold">
               {viewing.date || '—'} {viewing.time ? `at ${viewing.time}` : ''}
             </span>
           </p>
           {!viewing.isConfirmed && (
-            <p className="text-[10px] text-amber-300/90">
+            <p className="text-[10px] text-amber-700/90">
               Not confirmed. Nothing is booked until an agreed time is recorded.
             </p>
           )}
@@ -176,16 +176,16 @@ const ViewingCard: React.FC<{ viewing: ViewingSchedule }> = ({ viewing }) => {
 
         <button
           onClick={() => void open()}
-          className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-[11px] font-bold shrink-0"
+          className="px-3 py-1.5 rounded-lg bg-page hover:bg-line text-ink text-[11px] font-bold shrink-0"
         >
           {expanded ? 'Close' : 'Open'}
         </button>
       </div>
 
       {expanded && (
-        <div className="space-y-3 border-t border-white/10 pt-3">
+        <div className="space-y-3 border-t border-line pt-3">
           {isLoading && (
-            <p className="text-[11px] text-slate-400 flex items-center gap-2">
+            <p className="text-[11px] text-ink/70 flex items-center gap-2">
               <Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading the record…
             </p>
           )}
@@ -193,14 +193,14 @@ const ViewingCard: React.FC<{ viewing: ViewingSchedule }> = ({ viewing }) => {
           {detail && (
             <>
               {detail.viewing.cancelReason && (
-                <p className="text-[11px] text-[#FF8FA8]">Cancellation: {detail.viewing.cancelReason}</p>
+                <p className="text-[11px] text-ink">Cancellation: {detail.viewing.cancelReason}</p>
               )}
               {detail.viewing.agentNotes && (
-                <p className="text-[11px] text-slate-400">Your note: {detail.viewing.agentNotes}</p>
+                <p className="text-[11px] text-ink/70">Your note: {detail.viewing.agentNotes}</p>
               )}
 
-              <div className="bg-slate-900/60 border border-white/10 rounded-xl p-3 text-[10px] text-slate-300">
-                <p className="flex items-center gap-1.5 text-slate-200 font-bold">
+              <div className="bg-surface border border-line rounded-xl p-3 text-[10px] text-ink/70">
+                <p className="flex items-center gap-1.5 text-ink font-bold">
                   <Info className="w-3 h-3" /> Money
                 </p>
                 <p className="mt-1">{detail.financial.note}</p>
@@ -211,7 +211,7 @@ const ViewingCard: React.FC<{ viewing: ViewingSchedule }> = ({ viewing }) => {
                     {money(detail.financial.goodlucksShareGhs)}
                   </p>
                 )}
-                <p className="mt-1 text-slate-500">
+                <p className="mt-1 text-ink/70">
                   Marking a viewing complete never records a payment. The office records what you collected, if anything.
                 </p>
               </div>
@@ -225,13 +225,13 @@ const ViewingCard: React.FC<{ viewing: ViewingSchedule }> = ({ viewing }) => {
                         value={date}
                         min={new Date().toISOString().slice(0, 10)}
                         onChange={(event) => setDate(event.target.value)}
-                        className="bg-slate-900 border border-white/10 rounded-lg px-2 py-1.5 text-[11px] text-white"
+                        className="bg-page border border-line rounded-lg px-2 py-1.5 text-[11px] text-ink"
                       />
                       <input
                         type="time"
                         value={time}
                         onChange={(event) => setTime(event.target.value)}
-                        className="bg-slate-900 border border-white/10 rounded-lg px-2 py-1.5 text-[11px] text-white"
+                        className="bg-page border border-line rounded-lg px-2 py-1.5 text-[11px] text-ink"
                       />
                     </div>
                   )}
@@ -240,7 +240,7 @@ const ViewingCard: React.FC<{ viewing: ViewingSchedule }> = ({ viewing }) => {
                     value={note}
                     onChange={(event) => setNote(event.target.value)}
                     placeholder="Note or reason (required to cancel or to say a viewing could not proceed)"
-                    className="w-full bg-slate-900 border border-white/10 rounded-lg px-2 py-1.5 text-[11px] text-white"
+                    className="w-full bg-page border border-line rounded-lg px-2 py-1.5 text-[11px] text-ink"
                   />
 
                   <div className="flex flex-wrap gap-1.5">
@@ -256,10 +256,10 @@ const ViewingCard: React.FC<{ viewing: ViewingSchedule }> = ({ viewing }) => {
                         onClick={() => void run(action)}
                         className={`px-2.5 py-1 rounded-md text-[11px] font-bold disabled:opacity-40 ${
                           action === 'cancel' || action === 'could-not-proceed' || action === 'no-show'
-                            ? 'bg-[#FF2E63]/15 text-[#FF8FA8] hover:bg-[#FF2E63]/25'
+                            ? 'bg-accent/15 text-ink hover:bg-accent/25'
                             : action === 'complete' || action === 'confirm'
-                              ? 'bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25'
-                              : 'bg-[#08D9D6]/15 text-[#08D9D6] hover:bg-[#08D9D6]/25'
+                              ? 'bg-emerald-500/15 text-emerald-700 hover:bg-emerald-500/25'
+                              : 'bg-interactive/15 text-ink hover:bg-interactive/25'
                         }`}
                       >
                         {busy === action ? 'Working…' : ACTION_LABELS[action]}
@@ -267,13 +267,13 @@ const ViewingCard: React.FC<{ viewing: ViewingSchedule }> = ({ viewing }) => {
                     ))}
                   </div>
                   {(allowed.includes('complete') || allowed.includes('no-show')) && !slotPassed && (
-                    <p className="text-[10px] text-slate-500 flex items-center gap-1">
+                    <p className="text-[10px] text-ink/70 flex items-center gap-1">
                       <Clock3 className="w-3 h-3" /> Completion and no-shows unlock after the appointment time.
                     </p>
                   )}
                 </div>
               ) : (
-                <p className="text-[11px] text-slate-400">
+                <p className="text-[11px] text-ink/70">
                   {detail.viewing.isTerminal
                     ? 'This viewing is closed. An administrator can correct it with a written reason.'
                     : 'No actions are available to you on this record.'}
@@ -282,11 +282,11 @@ const ViewingCard: React.FC<{ viewing: ViewingSchedule }> = ({ viewing }) => {
 
               {detail.history.length > 0 && (
                 <div>
-                  <p className="text-[10px] font-bold text-slate-300 mb-1">History</p>
+                  <p className="text-[10px] font-bold text-ink/70 mb-1">History</p>
                   <ul className="space-y-1 max-h-48 overflow-y-auto">
                     {detail.history.map((event) => (
-                      <li key={event.id} className="text-[10px] text-slate-400 bg-slate-900/50 rounded px-2 py-1">
-                        <span className="text-slate-200 font-semibold">{event.action.replace('viewing.', '')}</span>{' '}
+                      <li key={event.id} className="text-[10px] text-ink/70 bg-surface rounded px-2 py-1">
+                        <span className="text-ink font-semibold">{event.action.replace('viewing.', '')}</span>{' '}
                         {event.fromStatus && event.toStatus ? `${event.fromStatus} → ${event.toStatus}` : ''} ·{' '}
                         {event.actorRole || 'system'} · {new Date(event.at).toLocaleString()}
                         {event.note ? ` · ${event.note}` : ''}
@@ -315,11 +315,11 @@ export const AgentViewingsPanel: React.FC<{ operational: boolean }> = ({ operati
 
   if (!operational) {
     return (
-      <div className="bg-[#252A34]/70 border border-white/10 rounded-3xl p-6 space-y-2">
+      <div className="bg-surface border border-line rounded-2xl p-6 space-y-2">
         <h2 className="text-sm font-bold flex items-center gap-2">
-          <XCircle className="w-4 h-4 text-amber-300" /> Viewing enquiries
+          <XCircle className="w-4 h-4 text-amber-700" /> Viewing enquiries
         </h2>
-        <p className="text-xs text-slate-400">
+        <p className="text-xs text-ink/70">
           Viewing tools are closed while your account is not active. Your past viewings are kept — an administrator can
           still see them — but you cannot open or change them from here.
         </p>
@@ -331,10 +331,10 @@ export const AgentViewingsPanel: React.FC<{ operational: boolean }> = ({ operati
   const closed = viewingSchedules.filter((v) => v.isTerminal);
 
   return (
-    <div className="bg-[#252A34]/70 border border-white/10 rounded-3xl p-6 space-y-4">
+    <div className="bg-surface border border-line rounded-2xl p-6 space-y-4">
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <UserCheck className="w-4 h-4 text-[#08D9D6]" />
+          <UserCheck className="w-4 h-4 text-ink" />
           <h2 className="text-sm font-bold">Viewing enquiries</h2>
         </div>
         <button
@@ -343,19 +343,19 @@ export const AgentViewingsPanel: React.FC<{ operational: boolean }> = ({ operati
             await refreshViewings();
             setIsRefreshing(false);
           }}
-          className="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-[11px] font-bold flex items-center gap-1.5"
+          className="px-2.5 py-1 rounded-lg bg-page hover:bg-line text-[11px] font-bold flex items-center gap-1.5"
         >
           <RefreshCw className={`w-3 h-3 ${isRefreshing ? 'animate-spin' : ''}`} /> Refresh
         </button>
       </div>
 
-      <p className="text-[11px] text-slate-400">
+      <p className="text-[11px] text-ink/70">
         Requests for the listings you submitted, plus any an administrator assigned to you. A request is not a booking:
         propose a time, then record it as agreed once the tenant accepts. {open.length} open · {closed.length} closed.
       </p>
 
       {viewingSchedules.length === 0 ? (
-        <p className="text-xs text-slate-400 bg-slate-900/40 border border-white/10 rounded-2xl p-4">
+        <p className="text-xs text-ink/70 bg-surface border border-line rounded-2xl p-4">
           No viewing enquiries yet. When a tenant asks to see one of your listings it appears here.
         </p>
       ) : (
@@ -366,16 +366,16 @@ export const AgentViewingsPanel: React.FC<{ operational: boolean }> = ({ operati
         </div>
       )}
 
-      <p className="text-[10px] text-slate-500 flex items-start gap-1.5">
+      <p className="text-[10px] text-ink/70 flex items-start gap-1.5">
         <ShieldCheck className="w-3.5 h-3.5 mt-0.5 shrink-0" />
         Agents only see the viewings assigned to them. A suspended account keeps its history but loses these tools.
       </p>
-      <p className="text-[10px] text-slate-500 flex items-start gap-1.5">
+      <p className="text-[10px] text-ink/70 flex items-start gap-1.5">
         <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
         A viewing fee, if one applies, is collected by you on site and recorded by the office afterwards. Recording a
         collection here is not possible, and it is never Goodlucks revenue on its own.
       </p>
-      <p className="text-[10px] text-slate-500 flex items-start gap-1.5">
+      <p className="text-[10px] text-ink/70 flex items-start gap-1.5">
         <CheckCircle2 className="w-3.5 h-3.5 mt-0.5 shrink-0" />
         Confirmed here means a time has been agreed, not that anyone has paid.
       </p>

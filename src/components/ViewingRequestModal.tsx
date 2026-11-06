@@ -73,19 +73,19 @@ export const ViewingRequestModal: React.FC<ViewingRequestModalProps> = ({ proper
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/80 backdrop-blur-md animate-fadeIn p-2 sm:p-4 flex items-start sm:items-center justify-center">
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-ink/60 backdrop-blur-md animate-fadeIn p-2 sm:p-4 flex items-start sm:items-center justify-center">
       <div 
         ref={dialogRef}
         {...dialogProps}
         aria-labelledby="viewing-modal-title"
-        className="relative w-full max-w-lg bg-[#252A34] border border-white/10 rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-2xl text-white max-h-[88dvh] flex flex-col overflow-hidden my-auto focus:outline-none"
+        className="relative w-full max-w-lg bg-surface border border-line rounded-2xl sm:rounded-2xl p-4 sm:p-6 shadow-lg text-ink max-h-[88dvh] flex flex-col overflow-hidden my-auto focus:outline-none"
         onClick={(e) => e.stopPropagation()}
       >
         
         {/* Close Button */}
         <button 
           onClick={onClose}
-          className="absolute top-4 right-4 p-2 rounded-full bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-colors z-10"
+          className="absolute top-4 right-4 p-2 rounded-full bg-page hover:bg-page text-ink/70 hover:text-ink transition-colors z-10"
           aria-label="Close modal"
         >
           <X className="w-5 h-5" />
@@ -95,28 +95,28 @@ export const ViewingRequestModal: React.FC<ViewingRequestModalProps> = ({ proper
         <div className="overflow-y-auto flex-1 pr-1 space-y-4 pt-1 pb-1">
           {isLandlord ? (
           <div className="text-center py-4 space-y-5">
-            <div className="w-16 h-16 rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center mx-auto">
+            <div className="w-16 h-16 rounded-2xl bg-amber-500/20 text-amber-700 border border-amber-500/30 flex items-center justify-center mx-auto">
               <ShieldAlert className="w-8 h-8" />
             </div>
             <div className="space-y-2">
-              <span className="px-3 py-1 rounded-full text-[10px] font-extrabold bg-amber-500/10 text-amber-300 border border-amber-500/20 uppercase tracking-wider">
+              <span className="px-3 py-1 rounded-full text-[10px] font-extrabold bg-amber-500/10 text-amber-700 border border-amber-500/20 uppercase tracking-wider">
                 Landlord Account Detected
               </span>
-              <h3 className="text-xl font-bold text-white">Viewing Requests Restricted</h3>
-              <p className="text-xs text-slate-300 max-w-sm mx-auto leading-relaxed">
+              <h3 className="text-xl font-bold text-ink">Viewing Requests Restricted</h3>
+              <p className="text-xs text-ink/70 max-w-sm mx-auto leading-relaxed">
                 You are currently logged in as a <strong>Landlord</strong>. Landlords manage property listings, while scheduling viewings and matching properties are reserved for prospective <strong>Tenants</strong>.
               </p>
             </div>
             <div className="flex flex-col sm:flex-row gap-2 pt-2 justify-center">
               <button
                 onClick={() => { onClose(); setCurrentView('dashboard'); }}
-                className="px-5 py-2.5 rounded-xl bg-[#08D9D6] text-[#252A34] font-bold text-xs"
+                className="gl-btn gl-btn-primary px-5 py-2.5 text-xs"
               >
                 Go to Landlord Dashboard
               </button>
               <button
                 onClick={onClose}
-                className="px-5 py-2.5 rounded-xl bg-slate-800 text-slate-300 font-semibold text-xs hover:bg-slate-700"
+                className="px-5 py-2.5 rounded-xl bg-surface text-ink/70 font-semibold text-xs hover:bg-line"
               >
                 Close Window
               </button>
@@ -125,31 +125,31 @@ export const ViewingRequestModal: React.FC<ViewingRequestModalProps> = ({ proper
         ) : !submitted ? (
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#08D9D6]/10 text-[#08D9D6] text-xs font-semibold mb-2">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-interactive/10 text-ink text-xs font-semibold mb-2">
                 <ShieldCheck className="w-4 h-4" />
                 Goodlucks Intermediary Service
               </div>
-              <h2 id="viewing-modal-title" className="text-xl sm:text-2xl font-bold text-white">
+              <h2 id="viewing-modal-title" className="text-xl sm:text-2xl font-bold text-ink">
                 Request Property Viewing
               </h2>
-              <p className="text-xs sm:text-sm text-slate-300 mt-1">
-                Viewing for <span className="font-semibold text-white">{property.title}</span> in {property.location}
+              <p className="text-xs sm:text-sm text-ink/70 mt-1">
+                Viewing for <span className="font-semibold text-ink">{property.title}</span> in {property.location}
               </p>
             </div>
 
             {/* Task 03: this property's own fee and viewing terms, exactly as
                 approved for it. Nothing is assumed and nothing is defaulted. */}
-            <div className="bg-[#08D9D6]/10 border border-[#08D9D6]/30 rounded-2xl p-3.5 flex items-start gap-3">
-              <AlertCircle className="w-5 h-5 text-[#08D9D6] shrink-0 mt-0.5" />
-              <div className="text-xs text-slate-200 leading-relaxed space-y-1.5">
+            <div className="bg-interactive/10 border border-interactive/30 rounded-2xl p-3.5 flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-ink shrink-0 mt-0.5" />
+              <div className="text-xs text-ink leading-relaxed space-y-1.5">
                 <div>
-                  <span className="font-bold text-[#08D9D6]">Viewing fee for this property:</span>{' '}
+                  <span className="font-bold text-ink">Viewing fee for this property:</span>{' '}
                   {property.viewingTerms?.isApproved && property.viewingTerms.feeGhs ? (
-                    <span className="font-semibold text-white">GH₵ {property.viewingTerms.feeGhs.toLocaleString()}</span>
+                    <span className="font-semibold text-ink">GH₵ {property.viewingTerms.feeGhs.toLocaleString()}</span>
                   ) : property.viewingTerms?.source === 'platform_policy' ? (
-                    <span className="font-semibold text-white">not set yet — Goodlucks Homes sets it before viewings</span>
+                    <span className="font-semibold text-ink">not set yet — Goodlucks Homes sets it before viewings</span>
                   ) : (
-                    <span className="font-semibold text-white">none approved — the agent will tell you before you travel</span>
+                    <span className="font-semibold text-ink">none approved — the agent will tell you before you travel</span>
                   )}
                   .{' '}
                   {property.viewingTerms?.source === 'platform_policy' ? (
@@ -166,26 +166,26 @@ export const ViewingRequestModal: React.FC<ViewingRequestModalProps> = ({ proper
                   )}
                 </div>
                 {property.viewingTerms?.isApproved && property.viewingTerms.terms && (
-                  <div className="text-[11px] text-slate-300 space-y-1 border-t border-white/10 pt-1.5">
+                  <div className="text-[11px] text-ink/70 space-y-1 border-t border-line pt-1.5">
                     <div>
-                      <span className="font-semibold text-white">
+                      <span className="font-semibold text-ink">
                         {property.viewingTerms.terms.appointmentRequired ? 'Appointment required:' : 'No appointment needed:'}
                       </span>{' '}
                       {property.viewingTerms.terms.howToArrange}
                     </div>
                     {property.viewingTerms.terms.conditions && (
                       <div>
-                        <span className="font-semibold text-white">Conditions:</span>{' '}
+                        <span className="font-semibold text-ink">Conditions:</span>{' '}
                         {property.viewingTerms.terms.conditions}
                       </div>
                     )}
                     <div>
-                      <span className="font-semibold text-white">Paying the fee:</span>{' '}
+                      <span className="font-semibold text-ink">Paying the fee:</span>{' '}
                       {property.viewingTerms.terms.paymentInstructions}
                     </div>
                     {property.viewingTerms.terms.restrictions && (
                       <div>
-                        <span className="font-semibold text-white">Restrictions:</span>{' '}
+                        <span className="font-semibold text-ink">Restrictions:</span>{' '}
                         {property.viewingTerms.terms.restrictions}
                       </div>
                     )}
@@ -196,53 +196,53 @@ export const ViewingRequestModal: React.FC<ViewingRequestModalProps> = ({ proper
 
             <div className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                <label className="block text-xs font-semibold text-ink/70 mb-1.5">
                   Full Name
                 </label>
                 <div className="relative">
-                  <User className="w-4 h-4 absolute left-3.5 top-3 text-slate-400" />
+                  <User className="w-4 h-4 absolute left-3.5 top-3 text-ink/70" />
                   <input
                     type="text"
                     required
                     value={tenantName}
                     onChange={(e) => setTenantName(e.target.value)}
                     placeholder="Enter your full name"
-                    className="w-full bg-slate-800/80 border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-[#08D9D6]"
+                    className="w-full bg-page border border-line rounded-xl pl-10 pr-4 py-2.5 text-sm text-ink placeholder-ink/50 focus:outline-none focus:border-interactive"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                  <label className="block text-xs font-semibold text-ink/70 mb-1.5">
                     Phone Number
                   </label>
                   <div className="relative">
-                    <Phone className="w-4 h-4 absolute left-3.5 top-3 text-slate-400" />
+                    <Phone className="w-4 h-4 absolute left-3.5 top-3 text-ink/70" />
                     <input
                       type="tel"
                       required
                       value={tenantPhone}
                       onChange={(e) => setTenantPhone(e.target.value)}
                       placeholder="+233 24 000 0000"
-                      className="w-full bg-slate-800/80 border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-[#08D9D6]"
+                      className="w-full bg-page border border-line rounded-xl pl-10 pr-4 py-2.5 text-sm text-ink placeholder-ink/50 focus:outline-none focus:border-interactive"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                  <label className="block text-xs font-semibold text-ink/70 mb-1.5">
                     Email Address
                   </label>
                   <div className="relative">
-                    <Mail className="w-4 h-4 absolute left-3.5 top-3 text-slate-400" />
+                    <Mail className="w-4 h-4 absolute left-3.5 top-3 text-ink/70" />
                     <input
                       type="email"
                       required
                       value={tenantEmail}
                       onChange={(e) => setTenantEmail(e.target.value)}
                       placeholder="your@email.com"
-                      className="w-full bg-slate-800/80 border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-[#08D9D6]"
+                      className="w-full bg-page border border-line rounded-xl pl-10 pr-4 py-2.5 text-sm text-ink placeholder-ink/50 focus:outline-none focus:border-interactive"
                     />
                   </div>
                 </div>
@@ -250,32 +250,32 @@ export const ViewingRequestModal: React.FC<ViewingRequestModalProps> = ({ proper
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                  <label className="block text-xs font-semibold text-ink/70 mb-1.5">
                     Preferred Date
                   </label>
                   <div className="relative">
-                    <Calendar className="w-4 h-4 absolute left-3.5 top-3 text-slate-400" />
+                    <Calendar className="w-4 h-4 absolute left-3.5 top-3 text-ink/70" />
                     <input
                       type="date"
                       required
                       min={new Date().toISOString().slice(0, 10)}
                       value={date}
                       onChange={(e) => setDate(e.target.value)}
-                      className="w-full bg-slate-800/80 border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-sm text-white focus:outline-none focus:border-[#08D9D6]"
+                      className="w-full bg-page border border-line rounded-xl pl-10 pr-4 py-2.5 text-sm text-ink focus:outline-none focus:border-interactive"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                  <label className="block text-xs font-semibold text-ink/70 mb-1.5">
                     Preferred Time Slot
                   </label>
                   <div className="relative">
-                    <Clock className="w-4 h-4 absolute left-3.5 top-3 text-slate-400" />
+                    <Clock className="w-4 h-4 absolute left-3.5 top-3 text-ink/70" />
                     <select
                       value={time}
                       onChange={(e) => setTime(e.target.value)}
-                      className="w-full bg-slate-800/80 border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-sm text-white focus:outline-none focus:border-[#08D9D6]"
+                      className="w-full bg-page border border-line rounded-xl pl-10 pr-4 py-2.5 text-sm text-ink focus:outline-none focus:border-interactive"
                     >
                       <option value="09:00 AM">09:00 AM</option>
                       <option value="11:00 AM">11:00 AM</option>
@@ -287,7 +287,7 @@ export const ViewingRequestModal: React.FC<ViewingRequestModalProps> = ({ proper
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                <label className="block text-xs font-semibold text-ink/70 mb-1.5">
                   Special Notes or Questions
                 </label>
                 <textarea
@@ -295,13 +295,13 @@ export const ViewingRequestModal: React.FC<ViewingRequestModalProps> = ({ proper
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                   placeholder="e.g. Need to move in within 2 weeks"
-                  className="w-full bg-slate-800/80 border border-white/10 rounded-xl p-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-[#08D9D6]"
+                  className="w-full bg-page border border-line rounded-xl p-3 text-sm text-ink placeholder-ink/50 focus:outline-none focus:border-interactive"
                 />
               </div>
             </div>
 
             {error && (
-              <div role="alert" className="p-3 rounded-xl bg-[#FF2E63]/15 border border-[#FF2E63]/30 text-[#FF8FA8] text-xs flex items-start gap-2">
+              <div role="alert" className="p-3 rounded-xl bg-accent/15 border border-accent/30 text-ink text-xs flex items-start gap-2">
                 <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
                 <span>{error}</span>
               </div>
@@ -310,11 +310,11 @@ export const ViewingRequestModal: React.FC<ViewingRequestModalProps> = ({ proper
             <button
               type="submit"
               disabled={isSubmitting}
-              className="w-full py-3 rounded-2xl bg-[#08D9D6] text-[#252A34] font-bold hover:bg-[#08D9D6]/90 transition-all shadow-lg shadow-[#08D9D6]/20 text-center flex items-center justify-center gap-2 disabled:opacity-60"
+              className="gl-btn gl-btn-primary w-full"
             >
               {isSubmitting ? (
                 <>
-                  <span className="w-4 h-4 border-2 border-[#252A34]/30 border-t-[#252A34] rounded-full animate-spin" />
+                  <span className="w-4 h-4 border-2 border-ink/30 border-t-ink rounded-full animate-spin" />
                   Sending request...
                 </>
               ) : (
@@ -324,26 +324,26 @@ export const ViewingRequestModal: React.FC<ViewingRequestModalProps> = ({ proper
           </form>
         ) : (
           <div className="text-center py-6 space-y-4">
-            <div className="w-16 h-16 rounded-full bg-[#08D9D6]/15 text-[#08D9D6] border border-[#08D9D6]/30 flex items-center justify-center mx-auto">
+            <div className="w-16 h-16 rounded-full bg-interactive/15 text-ink border border-interactive/30 flex items-center justify-center mx-auto">
               <CheckCircle2 className="w-8 h-8" />
             </div>
-            <h3 className="text-2xl font-bold text-white">Request sent</h3>
-            <p className="text-sm text-slate-300 max-w-sm mx-auto leading-relaxed">
-              Your request to view <span className="text-white font-semibold">{property.title}</span> is with{' '}
-              <span className="text-[#08D9D6] font-semibold">{submitted.agent}</span>.
+            <h3 className="text-2xl font-bold text-ink">Request sent</h3>
+            <p className="text-sm text-ink/70 max-w-sm mx-auto leading-relaxed">
+              Your request to view <span className="text-ink font-semibold">{property.title}</span> is with{' '}
+              <span className="text-ink font-semibold">{submitted.agent}</span>.
             </p>
-            <div className="bg-amber-500/10 border border-amber-500/30 p-4 rounded-2xl text-xs text-amber-100 text-left space-y-1">
+            <div className="bg-amber-500/10 border border-amber-500/30 p-4 rounded-2xl text-xs text-amber-800 text-left space-y-1">
               <div className="font-bold">This is not a confirmed appointment yet.</div>
               <div>
                 You asked for {submitted.date} at {submitted.time}. The agent will contact you to agree a time;
                 the request becomes confirmed when a slot is accepted.
               </div>
             </div>
-            <div className="bg-white/5 p-4 rounded-2xl text-xs text-slate-300 text-left space-y-1">
-              <div>• Reference: <span className="font-mono font-semibold text-white">{submitted.reference}</span></div>
+            <div className="bg-page p-4 rounded-2xl text-xs text-ink/70 text-left space-y-1">
+              <div>• Reference: <span className="font-mono font-semibold text-ink">{submitted.reference}</span></div>
               <div>
                 • Viewing fee:{' '}
-                <span className="font-semibold text-white">
+                <span className="font-semibold text-ink">
                   {property.viewingTerms?.source === 'platform_policy'
                     ? `${
                         property.viewingTerms.feeGhs
@@ -353,11 +353,11 @@ export const ViewingRequestModal: React.FC<ViewingRequestModalProps> = ({ proper
                     : 'paid on site to the agent after the viewing, if one applies'}
                 </span>
               </div>
-              <div>• Payment status: <span className="font-semibold text-white">nothing has been paid or recorded</span></div>
+              <div>• Payment status: <span className="font-semibold text-ink">nothing has been paid or recorded</span></div>
             </div>
             <button
               onClick={onClose}
-              className="px-6 py-2.5 rounded-xl bg-[#08D9D6] text-[#252A34] font-bold text-sm"
+              className="gl-btn gl-btn-primary px-6 py-2.5 text-sm"
             >
               Done
             </button>

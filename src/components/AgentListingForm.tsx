@@ -113,11 +113,11 @@ export const AgentListingForm: React.FC<{ canSubmit: boolean }> = ({ canSubmit }
 
   if (!canSubmit) {
     return (
-      <div className="bg-[#252A34]/70 border border-white/10 rounded-3xl p-6 space-y-2">
+      <div className="bg-surface border border-line rounded-2xl p-6 space-y-2">
         <h2 className="text-sm font-bold flex items-center gap-2">
-          <Building2 className="w-4 h-4 text-amber-300" /> Submit a listing
+          <Building2 className="w-4 h-4 text-amber-700" /> Submit a listing
         </h2>
-        <p className="text-xs text-slate-400">
+        <p className="text-xs text-ink/70">
           Listing submissions open once an administrator approves your agent account. Pending and suspended accounts
           cannot submit.
         </p>
@@ -126,14 +126,14 @@ export const AgentListingForm: React.FC<{ canSubmit: boolean }> = ({ canSubmit }
   }
 
   return (
-    <div className="bg-[#252A34]/70 border border-white/10 rounded-3xl p-6 space-y-4">
+    <div className="bg-surface border border-line rounded-2xl p-6 space-y-4">
       <div className="flex items-center justify-between gap-2">
         <h2 className="text-sm font-bold flex items-center gap-2">
-          <PlusCircle className="w-4 h-4 text-[#08D9D6]" /> Submit a listing for a landlord
+          <PlusCircle className="w-4 h-4 text-ink" /> Submit a listing for a landlord
         </h2>
       </div>
 
-      <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-3 text-[11px] text-amber-100 flex items-start gap-2">
+      <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-3 text-[11px] text-amber-800 flex items-start gap-2">
         <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
         <span>
           You are declaring that this landlord has asked you to list the property. Goodlucks records that declaration
@@ -144,41 +144,41 @@ export const AgentListingForm: React.FC<{ canSubmit: boolean }> = ({ canSubmit }
 
       <form onSubmit={submit} className="space-y-3">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <label className="block text-[11px] font-semibold text-slate-300">
+          <label className="block text-[11px] font-semibold text-ink/70">
             Listing title
             <input
               required
               value={form.title}
               onChange={(event) => set('title', event.target.value)}
-              className="mt-1 w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-2 text-xs text-white"
+              className="mt-1 w-full bg-page border border-line rounded-xl px-3 py-2 text-xs text-ink"
               placeholder="e.g. 2-bedroom apartment in Osu"
             />
-            {fields.title && <span className="text-[10px] text-[#FF8FA8]">{fields.title}</span>}
+            {fields.title && <span className="text-[10px] text-ink">{fields.title}</span>}
           </label>
 
-          <label className="block text-[11px] font-semibold text-slate-300">
+          <label className="block text-[11px] font-semibold text-ink/70">
             Area / neighbourhood
             <input
               required
               value={form.location}
               onChange={(event) => set('location', event.target.value)}
-              className="mt-1 w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-2 text-xs text-white"
+              className="mt-1 w-full bg-page border border-line rounded-xl px-3 py-2 text-xs text-ink"
               placeholder="e.g. Osu, Accra"
             />
-            {fields.location && <span className="text-[10px] text-[#FF8FA8]">{fields.location}</span>}
+            {fields.location && <span className="text-[10px] text-ink">{fields.location}</span>}
           </label>
 
-          <label className="block text-[11px] font-semibold text-slate-300">
+          <label className="block text-[11px] font-semibold text-ink/70">
             City
             <input
               required
               value={form.city}
               onChange={(event) => set('city', event.target.value)}
-              className="mt-1 w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-2 text-xs text-white"
+              className="mt-1 w-full bg-page border border-line rounded-xl px-3 py-2 text-xs text-ink"
             />
           </label>
 
-          <label className="block text-[11px] font-semibold text-slate-300">
+          <label className="block text-[11px] font-semibold text-ink/70">
             Annual rent (GH₵)
             <input
               required
@@ -187,39 +187,39 @@ export const AgentListingForm: React.FC<{ canSubmit: boolean }> = ({ canSubmit }
               step="0.01"
               value={form.rentGhs}
               onChange={(event) => set('rentGhs', event.target.value)}
-              className="mt-1 w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-2 text-xs text-white"
+              className="mt-1 w-full bg-page border border-line rounded-xl px-3 py-2 text-xs text-ink"
             />
-            {fields.rentGhs && <span className="text-[10px] text-[#FF8FA8]">{fields.rentGhs}</span>}
+            {fields.rentGhs && <span className="text-[10px] text-ink">{fields.rentGhs}</span>}
           </label>
 
-          <label className="block text-[11px] font-semibold text-slate-300">
+          <label className="block text-[11px] font-semibold text-ink/70">
             Bedrooms
             <input
               type="number"
               min="0"
               value={form.bedrooms}
               onChange={(event) => set('bedrooms', event.target.value)}
-              className="mt-1 w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-2 text-xs text-white"
+              className="mt-1 w-full bg-page border border-line rounded-xl px-3 py-2 text-xs text-ink"
             />
           </label>
 
-          <label className="block text-[11px] font-semibold text-slate-300">
+          <label className="block text-[11px] font-semibold text-ink/70">
             Bathrooms
             <input
               type="number"
               min="0"
               value={form.bathrooms}
               onChange={(event) => set('bathrooms', event.target.value)}
-              className="mt-1 w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-2 text-xs text-white"
+              className="mt-1 w-full bg-page border border-line rounded-xl px-3 py-2 text-xs text-ink"
             />
           </label>
 
-          <label className="block text-[11px] font-semibold text-slate-300">
+          <label className="block text-[11px] font-semibold text-ink/70">
             Property type
             <select
               value={form.propertyType}
               onChange={(event) => set('propertyType', event.target.value)}
-              className="mt-1 w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-2 text-xs text-white"
+              className="mt-1 w-full bg-page border border-line rounded-xl px-3 py-2 text-xs text-ink"
             >
               {PROPERTY_TYPES.map((type) => (
                 <option key={type} value={type}>
@@ -229,86 +229,86 @@ export const AgentListingForm: React.FC<{ canSubmit: boolean }> = ({ canSubmit }
             </select>
           </label>
 
-          <label className="block text-[11px] font-semibold text-slate-300">
+          <label className="block text-[11px] font-semibold text-ink/70">
             Image links (one per line)
             <input
               value={form.images}
               onChange={(event) => set('images', event.target.value)}
-              className="mt-1 w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-2 text-xs text-white"
+              className="mt-1 w-full bg-page border border-line rounded-xl px-3 py-2 text-xs text-ink"
               placeholder="https://…"
             />
-            {fields.images && <span className="text-[10px] text-[#FF8FA8]">{fields.images}</span>}
+            {fields.images && <span className="text-[10px] text-ink">{fields.images}</span>}
           </label>
         </div>
 
-        <label className="block text-[11px] font-semibold text-slate-300">
+        <label className="block text-[11px] font-semibold text-ink/70">
           Description
           <textarea
             required
             rows={3}
             value={form.description}
             onChange={(event) => set('description', event.target.value)}
-            className="mt-1 w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-2 text-xs text-white"
+            className="mt-1 w-full bg-page border border-line rounded-xl px-3 py-2 text-xs text-ink"
             placeholder="What the property offers, its condition, and anything a viewer should know."
           />
-          {fields.description && <span className="text-[10px] text-[#FF8FA8]">{fields.description}</span>}
+          {fields.description && <span className="text-[10px] text-ink">{fields.description}</span>}
         </label>
 
-        <div className="border-t border-white/10 pt-3 space-y-3">
-          <p className="text-xs font-bold text-white flex items-center gap-2">
-            <Info className="w-3.5 h-3.5 text-[#08D9D6]" /> Viewing fee &amp; viewing terms for this property
+        <div className="border-t border-line pt-3 space-y-3">
+          <p className="text-xs font-bold text-ink flex items-center gap-2">
+            <Info className="w-3.5 h-3.5 text-ink" /> Viewing fee &amp; viewing terms for this property
           </p>
           <ViewingTermsFields form={viewingTerms} onChange={setViewingTerms} errors={fields} idPrefix="listing" />
         </div>
 
-        <div className="border-t border-white/10 pt-3 space-y-3">
-          <p className="text-xs font-bold text-white flex items-center gap-2">
-            <Info className="w-3.5 h-3.5 text-[#08D9D6]" /> The landlord you are acting for
+        <div className="border-t border-line pt-3 space-y-3">
+          <p className="text-xs font-bold text-ink flex items-center gap-2">
+            <Info className="w-3.5 h-3.5 text-ink" /> The landlord you are acting for
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <label className="block text-[11px] font-semibold text-slate-300">
+            <label className="block text-[11px] font-semibold text-ink/70">
               Landlord name
               <input
                 required
                 value={form.landlordName}
                 onChange={(event) => set('landlordName', event.target.value)}
-                className="mt-1 w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-2 text-xs text-white"
+                className="mt-1 w-full bg-page border border-line rounded-xl px-3 py-2 text-xs text-ink"
               />
             </label>
-            <label className="block text-[11px] font-semibold text-slate-300">
+            <label className="block text-[11px] font-semibold text-ink/70">
               Landlord email
               <input
                 type="email"
                 value={form.landlordEmail}
                 onChange={(event) => set('landlordEmail', event.target.value)}
-                className="mt-1 w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-2 text-xs text-white"
+                className="mt-1 w-full bg-page border border-line rounded-xl px-3 py-2 text-xs text-ink"
               />
             </label>
-            <label className="block text-[11px] font-semibold text-slate-300">
+            <label className="block text-[11px] font-semibold text-ink/70">
               Landlord phone
               <input
                 value={form.landlordPhone}
                 onChange={(event) => set('landlordPhone', event.target.value)}
-                className="mt-1 w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-2 text-xs text-white"
+                className="mt-1 w-full bg-page border border-line rounded-xl px-3 py-2 text-xs text-ink"
               />
             </label>
           </div>
-          {fields.landlordId && <p className="text-[10px] text-[#FF8FA8]">{fields.landlordId}</p>}
-          <p className="text-[10px] text-slate-500">
+          {fields.landlordId && <p className="text-[10px] text-ink">{fields.landlordId}</p>}
+          <p className="text-[10px] text-ink/70">
             Give us the landlord&apos;s own contact details. Staff will use them to confirm the relationship; the form
             will not tell you whether the landlord already has a Goodlucks account.
           </p>
         </div>
 
         {error && (
-          <div role="alert" className="p-3 rounded-xl bg-[#FF2E63]/15 border border-[#FF2E63]/30 text-[#FF8FA8] text-[11px] flex items-start gap-2">
+          <div role="alert" className="p-3 rounded-xl bg-accent/15 border border-accent/30 text-ink text-[11px] flex items-start gap-2">
             <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
             <span>{error}</span>
           </div>
         )}
 
         {submittedTitle && (
-          <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-[11px] text-emerald-200">
+          <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-[11px] text-emerald-800">
             “{submittedTitle}” was submitted for review. It is not live yet.
           </div>
         )}
@@ -316,7 +316,7 @@ export const AgentListingForm: React.FC<{ canSubmit: boolean }> = ({ canSubmit }
         <button
           type="submit"
           disabled={saving}
-          className="px-5 py-2.5 rounded-xl bg-[#08D9D6] text-[#252A34] font-extrabold text-xs disabled:opacity-60 flex items-center gap-2"
+          className="gl-btn gl-btn-primary px-5 py-2.5 text-xs flex"
         >
           {saving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
           {saving ? 'Submitting…' : 'Submit listing for review'}

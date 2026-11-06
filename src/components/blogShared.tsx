@@ -66,11 +66,11 @@ export const BlogShareButtons: React.FC<ShareProps> = ({ url, title, onCopied })
   };
 
   const itemClass =
-    'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-[11px] font-semibold text-slate-200 hover:bg-white/10 transition-colors';
+    'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-page border border-line text-[11px] font-semibold text-ink hover:bg-page transition-colors';
 
   return (
     <div className="flex flex-wrap items-center gap-2" aria-label="Share this article">
-      <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Share</span>
+      <span className="text-[11px] font-bold uppercase tracking-wider text-ink/70">Share</span>
       <a
         className={itemClass}
         href={`https://wa.me/?text=${encodedTitle}%20${encodedUrl}`}
@@ -112,12 +112,12 @@ export const BlogCategoryChip: React.FC<{ name: string; slug?: string; onSelect?
   onSelect,
 }) => {
   const className =
-    'inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-[#08D9D6]/10 text-[#08D9D6] border border-[#08D9D6]/25';
+    'inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-interactive/10 text-ink border border-interactive/25';
   if (!slug || !onSelect) {
     return <span className={className}>{name}</span>;
   }
   return (
-    <button type="button" onClick={() => onSelect(slug)} className={`${className} hover:bg-[#08D9D6]/20`}>
+    <button type="button" onClick={() => onSelect(slug)} className={`${className} hover:bg-interactive/20`}>
       {name}
     </button>
   );

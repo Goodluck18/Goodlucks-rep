@@ -37,10 +37,10 @@ const money = (value: number | null): string =>
   value === null ? '—' : `GH₵ ${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 const stateStyles: Record<ViewingFeeRecord['collectionState'], string> = {
-  reported: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
-  confirmed_by_staff: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30',
-  disputed: 'bg-[#FF2E63]/15 text-[#FF8FA8] border-[#FF2E63]/30',
-  void: 'bg-slate-500/20 text-slate-300 border-white/10',
+  reported: 'bg-amber-500/15 text-amber-700 border-amber-500/30',
+  confirmed_by_staff: 'bg-emerald-500/15 text-emerald-700 border-emerald-500/30',
+  disputed: 'bg-accent/15 text-ink border-accent/30',
+  void: 'bg-line/20 text-ink/70 border-line',
 };
 
 const stateLabels: Record<ViewingFeeRecord['collectionState'], string> = {
@@ -195,7 +195,7 @@ export const AdminFeeLedger: React.FC = () => {
 
   if (isLoading) {
     return (
-      <div className="bg-slate-800/60 p-6 rounded-2xl border border-white/10 flex items-center gap-3 text-xs text-slate-300">
+      <div className="bg-surface p-6 rounded-2xl border border-line flex items-center gap-3 text-xs text-ink/70">
         <Loader2 className="w-4 h-4 animate-spin" /> Loading the viewing-fee ledger…
       </div>
     );
@@ -203,7 +203,7 @@ export const AdminFeeLedger: React.FC = () => {
 
   if (error) {
     return (
-      <div className="bg-slate-800/60 p-6 rounded-2xl border border-[#FF2E63]/30 text-xs text-[#FF8FA8] flex items-center gap-2">
+      <div className="bg-surface p-6 rounded-2xl border border-accent/30 text-xs text-ink flex items-center gap-2">
         <AlertTriangle className="w-4 h-4" /> {error}
       </div>
     );
@@ -213,17 +213,17 @@ export const AdminFeeLedger: React.FC = () => {
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
         <div>
-          <h3 className="text-sm font-bold text-white flex items-center gap-2">
-            <Banknote className="w-4 h-4 text-[#08D9D6]" /> Agent viewing-fee ledger
+          <h3 className="text-sm font-bold text-ink flex items-center gap-2">
+            <Banknote className="w-4 h-4 text-ink" /> Agent viewing-fee ledger
           </h3>
-          <p className="text-[11px] text-slate-400 max-w-2xl">
+          <p className="text-[11px] text-ink/70 max-w-2xl">
             Money collected on site by agents, the share agreed for Goodlucks, and what Goodlucks has actually
             received are separate figures. A fee only becomes Goodlucks revenue when a remittance is recorded here.
           </p>
         </div>
         <button
           onClick={() => void load()}
-          className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-[11px] font-bold shrink-0"
+          className="px-3 py-1.5 rounded-lg bg-page hover:bg-line text-ink text-[11px] font-bold shrink-0"
         >
           Refresh
         </button>
@@ -231,14 +231,14 @@ export const AdminFeeLedger: React.FC = () => {
 
       {/* Policy state — explicit, never silently applied */}
       <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4 flex items-start gap-3">
-        <ShieldQuestion className="w-5 h-5 text-amber-300 shrink-0 mt-0.5" />
-        <div className="text-[11px] text-amber-100 space-y-1">
+        <ShieldQuestion className="w-5 h-5 text-amber-700 shrink-0 mt-0.5" />
+        <div className="text-[11px] text-amber-800 space-y-1">
           <p className="font-bold">
             Fee-sharing policy: {policy?.status === 'approved' ? 'approved' : 'provisional — not applied'}
           </p>
-          <p className="text-amber-200/90">{policy?.note}</p>
+          <p className="text-amber-800/90">{policy?.note}</p>
           {policy && (
-            <p className="text-amber-200/70">
+            <p className="text-amber-800/70">
               Proposals on record:{' '}
               {policy.proposed
                 .map((tier) => `${tier.label} ${tier.agentSharePercent}/${tier.goodlucksSharePercent}`)
@@ -252,29 +252,29 @@ export const AdminFeeLedger: React.FC = () => {
       {/* Four separate figures */}
       {summary && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <div className="bg-slate-800/60 p-4 rounded-2xl border border-white/10">
-            <div className="text-[11px] text-slate-400 font-medium">Collected by agents</div>
-            <div className="text-lg font-extrabold text-[#08D9D6]">{money(summary.viewingFeesCollectedGhs)}</div>
-            <div className="text-[10px] text-slate-400">Not Goodlucks revenue</div>
+          <div className="bg-surface p-4 rounded-2xl border border-line">
+            <div className="text-[11px] text-ink/70 font-medium">Collected by agents</div>
+            <div className="text-lg font-extrabold text-ink">{money(summary.viewingFeesCollectedGhs)}</div>
+            <div className="text-[10px] text-ink/70">Not Goodlucks revenue</div>
           </div>
-          <div className="bg-slate-800/60 p-4 rounded-2xl border border-white/10">
-            <div className="text-[11px] text-slate-400 font-medium">Owed to Goodlucks</div>
-            <div className="text-lg font-extrabold text-white">{money(summary.goodlucksShareDueGhs)}</div>
-            <div className="text-[10px] text-slate-400">
+          <div className="bg-surface p-4 rounded-2xl border border-line">
+            <div className="text-[11px] text-ink/70 font-medium">Owed to Goodlucks</div>
+            <div className="text-lg font-extrabold text-ink">{money(summary.goodlucksShareDueGhs)}</div>
+            <div className="text-[10px] text-ink/70">
               {summary.recordsWithoutAgreedShare > 0
                 ? `${summary.recordsWithoutAgreedShare} fee(s) with no agreed share`
                 : 'Agreed shares only'}
             </div>
           </div>
-          <div className="bg-slate-800/60 p-4 rounded-2xl border border-emerald-500/30">
-            <div className="text-[11px] text-slate-400 font-medium">Received by Goodlucks</div>
-            <div className="text-lg font-extrabold text-emerald-400">{money(summary.goodlucksShareReceivedGhs)}</div>
-            <div className="text-[10px] text-emerald-400/80">Confirmed remittances only</div>
+          <div className="bg-surface p-4 rounded-2xl border border-emerald-500/30">
+            <div className="text-[11px] text-ink/70 font-medium">Received by Goodlucks</div>
+            <div className="text-lg font-extrabold text-emerald-700">{money(summary.goodlucksShareReceivedGhs)}</div>
+            <div className="text-[10px] text-emerald-700/80">Confirmed remittances only</div>
           </div>
-          <div className="bg-slate-800/60 p-4 rounded-2xl border border-white/10">
-            <div className="text-[11px] text-slate-400 font-medium">Outstanding</div>
-            <div className="text-lg font-extrabold text-amber-300">{money(summary.outstandingReceivablesGhs)}</div>
-            <div className="text-[10px] text-slate-400">
+          <div className="bg-surface p-4 rounded-2xl border border-line">
+            <div className="text-[11px] text-ink/70 font-medium">Outstanding</div>
+            <div className="text-lg font-extrabold text-amber-700">{money(summary.outstandingReceivablesGhs)}</div>
+            <div className="text-[10px] text-ink/70">
               Agents retain {money(summary.agentShareRetainedGhs)}
             </div>
           </div>
@@ -282,13 +282,13 @@ export const AdminFeeLedger: React.FC = () => {
       )}
 
       {records.length === 0 ? (
-        <div className="bg-slate-800/60 p-6 rounded-2xl border border-white/10 text-xs text-slate-400">
+        <div className="bg-surface p-6 rounded-2xl border border-line text-xs text-ink/70">
           No viewing fees have been reported yet. Marking a viewing as paid creates a ledger entry here.
         </div>
       ) : (
-        <div className="bg-slate-800/60 rounded-2xl border border-white/10 overflow-x-auto">
+        <div className="bg-surface rounded-2xl border border-line overflow-x-auto">
           <table className="w-full text-[11px] text-left">
-            <thead className="bg-slate-900/60 text-slate-400 uppercase tracking-wider text-[10px]">
+            <thead className="bg-page text-ink/70 uppercase tracking-wider text-[10px]">
               <tr>
                 <th className="p-3">Fee record</th>
                 <th className="p-3">Agent</th>
@@ -300,17 +300,17 @@ export const AdminFeeLedger: React.FC = () => {
                 <th className="p-3">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-white/5">
+            <tbody className="divide-y divide-line">
               {records.map((record) => (
                 <React.Fragment key={record.id}>
-                  <tr className="text-slate-200 align-top">
+                  <tr className="text-ink align-top">
                     <td className="p-3">
-                      <div className="font-mono font-bold text-[#08D9D6]">{record.reference}</div>
-                      <div className="text-[10px] text-slate-400">{record.propertyTitle || '—'}</div>
+                      <div className="font-mono font-bold text-ink">{record.reference}</div>
+                      <div className="text-[10px] text-ink/70">{record.propertyTitle || '—'}</div>
                     </td>
                     <td className="p-3">
                       {record.feeSource === 'landlord_platform_fee' ? (
-                        <span className="px-1.5 py-0.5 rounded bg-[#08D9D6]/15 text-[#08D9D6] text-[10px] font-bold">
+                        <span className="px-1.5 py-0.5 rounded bg-interactive/15 text-ink text-[10px] font-bold">
                           Goodlucks — landlord listing
                         </span>
                       ) : (
@@ -321,21 +321,21 @@ export const AdminFeeLedger: React.FC = () => {
                     <td className="p-3 text-right">
                       {money(record.goodlucksShareGhs)}
                       {record.shareBasis === 'not_set' && (
-                        <div className="text-[10px] text-amber-300">not priced</div>
+                        <div className="text-[10px] text-amber-700">not priced</div>
                       )}
                       {record.snapshotKind === 'platform_policy' && (
-                        <div className="text-[10px] text-emerald-300">100% Goodlucks — landlord fee</div>
+                        <div className="text-[10px] text-emerald-700">100% Goodlucks — landlord fee</div>
                       )}
                       {record.snapshotKind === 'policy' && (
-                        <div className="text-[10px] text-emerald-300 flex items-center justify-end gap-1">
+                        <div className="text-[10px] text-emerald-700 flex items-center justify-end gap-1">
                           <ShieldCheck className="w-3 h-3" /> policy
                         </div>
                       )}
                       {record.snapshotKind === 'manual_agreement' && (
-                        <div className="text-[10px] text-slate-400">agreed by staff</div>
+                        <div className="text-[10px] text-ink/70">agreed by staff</div>
                       )}
                     </td>
-                    <td className="p-3 text-right text-emerald-300">{money(record.remittedGhs)}</td>
+                    <td className="p-3 text-right text-emerald-700">{money(record.remittedGhs)}</td>
                     <td className="p-3 text-right">{money(record.outstandingGhs)}</td>
                     <td className="p-3">
                       <span className={`px-2 py-0.5 rounded-full border text-[10px] font-bold ${stateStyles[record.collectionState]}`}>
@@ -351,7 +351,7 @@ export const AdminFeeLedger: React.FC = () => {
                                 setAction({ id: record.id, kind: 'share' });
                                 setAmount(record.goodlucksShareGhs !== null ? String(record.goodlucksShareGhs) : '');
                               }}
-                              className="px-2 py-1 rounded-md bg-white/10 hover:bg-white/20 text-white"
+                              className="px-2 py-1 rounded-md bg-page hover:bg-line text-ink"
                             >
                               Agree share
                             </button>
@@ -361,7 +361,7 @@ export const AdminFeeLedger: React.FC = () => {
                                 setAmount(record.outstandingGhs !== null && record.outstandingGhs > 0 ? String(record.outstandingGhs) : '');
                               }}
                               disabled={record.shareBasis === 'not_set'}
-                              className="px-2 py-1 rounded-md bg-[#08D9D6]/15 text-[#08D9D6] hover:bg-[#08D9D6]/25 disabled:opacity-40 disabled:cursor-not-allowed"
+                              className="px-2 py-1 rounded-md bg-interactive/15 text-ink hover:bg-interactive/25 disabled:opacity-40 disabled:cursor-not-allowed"
                               title={record.shareBasis === 'not_set' ? 'Agree the Goodlucks share first' : 'Record money received by Goodlucks'}
                             >
                               Remittance
@@ -369,7 +369,7 @@ export const AdminFeeLedger: React.FC = () => {
                             {record.collectionState === 'reported' && (
                               <button
                                 onClick={() => void changeState(record, 'confirmed_by_staff')}
-                                className="px-2 py-1 rounded-md bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25"
+                                className="px-2 py-1 rounded-md bg-emerald-500/15 text-emerald-700 hover:bg-emerald-500/25"
                               >
                                 Confirm
                               </button>
@@ -377,7 +377,7 @@ export const AdminFeeLedger: React.FC = () => {
                             {record.collectionState !== 'disputed' && (
                               <button
                                 onClick={() => void changeState(record, 'disputed')}
-                                className="px-2 py-1 rounded-md bg-[#FF2E63]/15 text-[#FF8FA8] hover:bg-[#FF2E63]/25"
+                                className="px-2 py-1 rounded-md bg-accent/15 text-ink hover:bg-accent/25"
                               >
                                 Dispute
                               </button>
@@ -385,7 +385,7 @@ export const AdminFeeLedger: React.FC = () => {
                             {canLinkAgent && !record.agentUserId && (
                               <button
                                 onClick={() => void openAgentPicker(record)}
-                                className="px-2 py-1 rounded-md bg-white/10 hover:bg-white/20 text-white flex items-center gap-1"
+                                className="px-2 py-1 rounded-md bg-page hover:bg-line text-ink flex items-center gap-1"
                                 title="A tier comes from an agent account, so link the fee to one before a policy can price it"
                               >
                                 <Link2 className="w-3 h-3" /> Link agent
@@ -395,7 +395,7 @@ export const AdminFeeLedger: React.FC = () => {
                               <button
                                 onClick={() => void applyPolicy(record)}
                                 disabled={policyBusyId === record.id}
-                                className="px-2 py-1 rounded-md bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25 disabled:opacity-50"
+                                className="px-2 py-1 rounded-md bg-emerald-500/15 text-emerald-700 hover:bg-emerald-500/25 disabled:opacity-50"
                               >
                                 Apply policy
                               </button>
@@ -408,16 +408,16 @@ export const AdminFeeLedger: React.FC = () => {
 
                   {agentPickerFor === record.id && (
                     <tr>
-                      <td colSpan={8} className="p-3 bg-slate-900/40">
+                      <td colSpan={8} className="p-3 bg-surface">
                         <div className="flex flex-wrap items-end gap-2">
                           <div className="flex-1 min-w-[220px]">
-                            <label className="block text-[10px] text-slate-400 mb-1">
+                            <label className="block text-[10px] text-ink/70 mb-1">
                               Agent account (the tier is read from its verification records)
                             </label>
                             <select
                               defaultValue=""
                               onChange={(event) => void linkAgent(record, event.target.value)}
-                              className="w-full px-2 py-1.5 rounded-lg bg-slate-800 border border-white/10 text-white text-xs"
+                              className="w-full px-2 py-1.5 rounded-lg bg-page border border-line text-ink text-xs"
                             >
                               <option value="">Choose an agent…</option>
                               {agents.map((agent) => (
@@ -429,7 +429,7 @@ export const AdminFeeLedger: React.FC = () => {
                           </div>
                           <button
                             onClick={() => setAgentPickerFor(null)}
-                            className="px-3 py-1.5 rounded-lg bg-white/10 text-white text-xs font-semibold"
+                            className="px-3 py-1.5 rounded-lg bg-page text-ink text-xs font-semibold"
                           >
                             Cancel
                           </button>
@@ -442,8 +442,8 @@ export const AdminFeeLedger: React.FC = () => {
                     <tr>
                       <td colSpan={8} className="px-3 pb-3 pt-0">
                         {record.policySnapshot ? (
-                          <div className="text-[10px] text-slate-300 bg-emerald-500/5 border border-emerald-500/20 rounded-lg px-3 py-2 space-y-1">
-                            <p className="flex items-center gap-1.5 text-emerald-300 font-bold">
+                          <div className="text-[10px] text-ink/70 bg-emerald-500/5 border border-emerald-500/20 rounded-lg px-3 py-2 space-y-1">
+                            <p className="flex items-center gap-1.5 text-emerald-700 font-bold">
                               <ShieldCheck className="w-3 h-3" /> Frozen policy terms — {record.policySnapshot.policyName}{' '}
                               v{record.policySnapshot.policyVersion} · {record.policySnapshot.agentTier} tier · agent{' '}
                               {record.policySnapshot.agentSharePercent}% / Goodlucks{' '}
@@ -457,18 +457,18 @@ export const AdminFeeLedger: React.FC = () => {
                                 ? new Date(record.policySnapshot.snapshotAt).toLocaleString()
                                 : '—'}
                             </p>
-                            <p className={record.policySnapshot.integrityOk ? 'text-emerald-400/80' : 'text-[#FF8FA8]'}>
+                            <p className={record.policySnapshot.integrityOk ? 'text-emerald-700/80' : 'text-ink'}>
                               {record.policySnapshot.integrityOk
                                 ? 'Integrity check passed: the stored terms still match their hash.'
                                 : 'Integrity check FAILED — the stored terms no longer match their hash. Investigate before relying on this figure.'}
                             </p>
-                            <p className="text-slate-500">
+                            <p className="text-ink/70">
                               These are entitlements, not receipts. Later tier changes, policy edits or withdrawal of the
                               policy do not re-price this record.
                             </p>
                           </div>
                         ) : (
-                          <p className="text-[10px] text-amber-300/90 flex items-start gap-1.5">
+                          <p className="text-[10px] text-amber-700/90 flex items-start gap-1.5">
                             <Info className="w-3 h-3 mt-0.5 shrink-0" />
                             {record.policyApplicability?.reason}
                           </p>
@@ -479,10 +479,10 @@ export const AdminFeeLedger: React.FC = () => {
 
                   {action?.id === record.id && (
                     <tr>
-                      <td colSpan={8} className="p-3 bg-slate-900/40">
+                      <td colSpan={8} className="p-3 bg-surface">
                         <div className="flex flex-wrap items-end gap-2">
                           <div>
-                            <label className="block text-[10px] text-slate-400 mb-1">
+                            <label className="block text-[10px] text-ink/70 mb-1">
                               {action.kind === 'share' ? 'Goodlucks share (GH₵)' : 'Amount received (GH₵)'}
                             </label>
                             <input
@@ -491,58 +491,58 @@ export const AdminFeeLedger: React.FC = () => {
                               step="0.01"
                               value={amount}
                               onChange={(e) => setAmount(e.target.value)}
-                              className="w-32 px-2 py-1.5 rounded-lg bg-slate-800 border border-white/10 text-white text-xs"
+                              className="w-32 px-2 py-1.5 rounded-lg bg-page border border-line text-ink text-xs"
                             />
                           </div>
 
                           {action.kind === 'remittance' && (
                             <>
                               <div>
-                                <label className="block text-[10px] text-slate-400 mb-1">Method</label>
+                                <label className="block text-[10px] text-ink/70 mb-1">Method</label>
                                 <input
                                   value={method}
                                   onChange={(e) => setMethod(e.target.value)}
-                                  className="w-36 px-2 py-1.5 rounded-lg bg-slate-800 border border-white/10 text-white text-xs"
+                                  className="w-36 px-2 py-1.5 rounded-lg bg-page border border-line text-ink text-xs"
                                 />
                               </div>
                               <div>
-                                <label className="block text-[10px] text-slate-400 mb-1">Reference</label>
+                                <label className="block text-[10px] text-ink/70 mb-1">Reference</label>
                                 <input
                                   value={reference}
                                   onChange={(e) => setReference(e.target.value)}
-                                  className="w-40 px-2 py-1.5 rounded-lg bg-slate-800 border border-white/10 text-white text-xs"
+                                  className="w-40 px-2 py-1.5 rounded-lg bg-page border border-line text-ink text-xs"
                                 />
                               </div>
                             </>
                           )}
 
                           <div className="flex-1 min-w-[180px]">
-                            <label className="block text-[10px] text-slate-400 mb-1">Note</label>
+                            <label className="block text-[10px] text-ink/70 mb-1">Note</label>
                             <input
                               value={note}
                               onChange={(e) => setNote(e.target.value)}
                               placeholder={action.kind === 'share' ? 'e.g. agreed with the agent on site' : 'e.g. mobile money transfer'}
-                              className="w-full px-2 py-1.5 rounded-lg bg-slate-800 border border-white/10 text-white text-xs"
+                              className="w-full px-2 py-1.5 rounded-lg bg-page border border-line text-ink text-xs"
                             />
                           </div>
 
                           <button
                             onClick={() => void submit(record)}
                             disabled={isSaving}
-                            className="px-3 py-1.5 rounded-lg bg-[#08D9D6] text-[#252A34] font-extrabold text-xs disabled:opacity-50"
+                            className="gl-btn gl-btn-primary px-3 py-1.5 text-xs"
                           >
                             {isSaving ? 'Saving…' : action.kind === 'share' ? 'Save share' : 'Record remittance'}
                           </button>
                           <button
                             onClick={resetForm}
-                            className="px-3 py-1.5 rounded-lg bg-white/10 text-white text-xs font-semibold"
+                            className="px-3 py-1.5 rounded-lg bg-page text-ink text-xs font-semibold"
                           >
                             Cancel
                           </button>
                         </div>
 
                         {action.kind === 'remittance' && (
-                          <p className="text-[10px] text-slate-400 mt-2 flex items-center gap-1">
+                          <p className="text-[10px] text-ink/70 mt-2 flex items-center gap-1">
                             <Info className="w-3 h-3" />
                             Only record money Goodlucks has actually received. Outstanding for this fee:{' '}
                             {money(record.outstandingGhs)}.
@@ -555,16 +555,16 @@ export const AdminFeeLedger: React.FC = () => {
                   {record.remittances.length > 0 && (
                     <tr>
                       <td colSpan={8} className="px-3 pb-3 pt-0">
-                        <div className="text-[10px] text-slate-400 flex flex-wrap items-center gap-3">
-                          <span className="flex items-center gap-1 text-emerald-300">
+                        <div className="text-[10px] text-ink/70 flex flex-wrap items-center gap-3">
+                          <span className="flex items-center gap-1 text-emerald-700">
                             <CheckCircle2 className="w-3 h-3" /> Received by Goodlucks:
                           </span>
                           {record.remittances.map((remittance) => (
                             <span
                               key={remittance.id}
-                              className={`flex items-center gap-1 ${remittance.entryType === 'reversal' ? 'text-amber-300' : 'text-slate-300'}`}
+                              className={`flex items-center gap-1 ${remittance.entryType === 'reversal' ? 'text-amber-700' : 'text-ink/70'}`}
                             >
-                              <Wallet className="w-3 h-3 text-slate-400" />
+                              <Wallet className="w-3 h-3 text-ink/70" />
                               {remittance.entryType === 'reversal' ? 'Reversal ' : ''}
                               {money(remittance.amountGhs)} · {remittance.method || 'unknown'} · {remittance.receivedAt}
                               {remittance.reference ? ` · ${remittance.reference}` : ''}
@@ -586,7 +586,7 @@ export const AdminFeeLedger: React.FC = () => {
         </div>
       )}
 
-      <p className="text-[10px] text-slate-500 flex items-start gap-1.5">
+      <p className="text-[10px] text-ink/70 flex items-start gap-1.5">
         <Receipt className="w-3.5 h-3.5 shrink-0 mt-0.5" />
         Rental commissions and viewing fees are separate accounting categories. Nothing on this screen is a
         Goodlucks receipt: rent paid to a landlord is recorded as a payment between tenant and landlord.

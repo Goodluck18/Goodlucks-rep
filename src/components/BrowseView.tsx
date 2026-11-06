@@ -157,7 +157,7 @@ export const BrowseView: React.FC = () => {
   const isFiltered = selectedType !== 'All' || selectedLocation !== 'All' || selectedBedrooms !== 'All' || searchQuery !== '' || maxRent < 25000;
 
   return (
-    <div className="min-h-screen bg-[#1F242D] text-white py-8 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-page text-ink py-8 px-4 sm:px-6 lg:px-8">
       <SEOHead
         title="Browse Properties & Rentals in Accra, Ghana | Goodlucks Homes"
         description="Explore 1, 2, 3, and 4-bedroom apartments, townhouses and homes for rent in East Legon, Cantonments, Osu, Airport and Labone. Listings come from registered landlords and agents and are reviewed before they appear."
@@ -167,16 +167,16 @@ export const BrowseView: React.FC = () => {
       <div className="max-w-7xl mx-auto space-y-6 animate-fadeIn">
         
         {/* Page Header */}
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-3 border-b border-white/10 pb-4">
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-3 border-b border-line pb-4">
           <div>
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#08D9D6]/10 text-[#08D9D6] text-xs font-bold border border-[#08D9D6]/20 mb-1">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-interactive/10 text-ink text-xs font-bold border border-interactive/20 mb-1">
               <Building2 className="w-3.5 h-3.5" />
               Ghana Real Estate Catalogue
             </div>
-            <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+            <h1 className="text-2xl sm:text-3xl font-black text-ink tracking-tight">
               Browse Rentals in Ghana
             </h1>
-            <p className="text-xs sm:text-sm text-slate-300 mt-0.5">
+            <p className="text-xs sm:text-sm text-ink/70 mt-0.5">
               Listings submitted by registered landlords and agents
             </p>
           </div>
@@ -184,21 +184,21 @@ export const BrowseView: React.FC = () => {
           <div className="flex items-center gap-2 self-start md:self-auto flex-wrap">
             <button
               onClick={() => setIsNotifiedModalOpen(true)}
-              className="text-xs font-black text-[#252A34] bg-[#08D9D6] hover:bg-[#08D9D6]/90 px-3.5 py-1.5 rounded-full transition-all shadow-md shadow-[#08D9D6]/20 flex items-center gap-1.5 active:scale-95 cursor-pointer"
+              className="text-xs font-black text-ink bg-interactive hover:bg-interactive/90 px-3.5 py-1.5 rounded-full transition-all shadow-md shadow-ink/10 flex items-center gap-1.5 active:scale-95 cursor-pointer"
               title="Subscribe to email alerts for new listings matching these search filters"
             >
-              <BellRing className="w-3.5 h-3.5 animate-pulse" />
+              <BellRing className="w-3.5 h-3.5" />
               <span>Get Notified</span>
             </button>
-            <span className="text-xs font-bold text-[#08D9D6] bg-[#08D9D6]/10 px-3.5 py-1.5 rounded-full border border-[#08D9D6]/30">
+            <span className="text-xs font-bold text-ink bg-interactive/10 px-3.5 py-1.5 rounded-full border border-interactive/30">
               Showing {filteredProperties.length} Properties
             </span>
             {isFiltered && (
               <button
                 onClick={resetFilters}
-                className="text-xs font-semibold text-slate-300 hover:text-white bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-full transition-colors flex items-center gap-1"
+                className="text-xs font-semibold text-ink/70 hover:text-ink bg-page hover:bg-line px-3 py-1.5 rounded-full transition-colors flex items-center gap-1"
               >
-                <RotateCcw className="w-3 h-3 text-[#08D9D6]" /> Reset
+                <RotateCcw className="w-3 h-3 text-ink" /> Reset
               </button>
             )}
           </div>
@@ -209,10 +209,10 @@ export const BrowseView: React.FC = () => {
           {/* Left Navigation Arrow */}
           <button
             onClick={scrollLeft}
-            className="hidden sm:flex absolute left-0 top-1/2 -translate-y-1/2 z-20 w-8 h-8 rounded-full bg-slate-900/90 border border-white/20 text-white items-center justify-center shadow-xl opacity-80 hover:opacity-100 hover:scale-110 transition-all -ml-3"
+            className="hidden sm:flex absolute left-0 top-1/2 -translate-y-1/2 z-20 w-8 h-8 rounded-full bg-surface border border-line text-ink items-center justify-center shadow-lg opacity-80 hover:opacity-100 hover:scale-110 transition-all -ml-3"
             aria-label="Scroll left categories"
           >
-            <ChevronLeft className="w-4 h-4 text-[#08D9D6]" />
+            <ChevronLeft className="w-4 h-4 text-ink" />
           </button>
 
           {/* Scrollable Container */}
@@ -232,17 +232,17 @@ export const BrowseView: React.FC = () => {
                   onClick={() => setSelectedType(cat.id)}
                   className={`px-4 py-2.5 rounded-2xl text-xs font-extrabold transition-all duration-200 shrink-0 flex items-center gap-2.5 border shadow-lg cursor-pointer active:scale-95 ${
                     isSelected
-                      ? 'bg-[#08D9D6] text-[#252A34] border-[#08D9D6] shadow-[#08D9D6]/25 shadow-md scale-102'
-                      : 'bg-[#252A34]/80 backdrop-blur-md text-slate-200 border-white/10 hover:border-white/25 hover:bg-slate-800 hover:text-white'
+                      ? 'bg-interactive text-ink border-interactive shadow-ink/10 shadow-md scale-102'
+                      : 'bg-surface backdrop-blur-md text-ink border-line hover:border-line hover:bg-surface hover:text-ink'
                   }`}
                 >
-                  <Icon className={`w-4 h-4 ${isSelected ? 'text-[#252A34]' : 'text-[#08D9D6]'}`} />
+                  <Icon className={`w-4 h-4 ${isSelected ? 'text-ink' : 'text-ink'}`} />
                   <span className="whitespace-nowrap">{cat.label}</span>
                   <span
                     className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
                       isSelected
-                        ? 'bg-[#252A34]/20 text-[#252A34]'
-                        : 'bg-white/10 text-slate-300'
+                        ? 'bg-surface/20 text-ink'
+                        : 'bg-page text-ink/70'
                     }`}
                   >
                     {count}
@@ -255,27 +255,27 @@ export const BrowseView: React.FC = () => {
           {/* Right Navigation Arrow */}
           <button
             onClick={scrollRight}
-            className="hidden sm:flex absolute right-0 top-1/2 -translate-y-1/2 z-20 w-8 h-8 rounded-full bg-slate-900/90 border border-white/20 text-white items-center justify-center shadow-xl opacity-80 hover:opacity-100 hover:scale-110 transition-all -mr-3"
+            className="hidden sm:flex absolute right-0 top-1/2 -translate-y-1/2 z-20 w-8 h-8 rounded-full bg-surface border border-line text-ink items-center justify-center shadow-lg opacity-80 hover:opacity-100 hover:scale-110 transition-all -mr-3"
             aria-label="Scroll right categories"
           >
-            <ChevronRight className="w-4 h-4 text-[#08D9D6]" />
+            <ChevronRight className="w-4 h-4 text-ink" />
           </button>
         </div>
 
         {/* Filter Toolbar */}
-        <div className="bg-[#252A34]/80 backdrop-blur-xl border border-white/10 p-4 rounded-2xl shadow-xl space-y-3">
+        <div className="bg-surface backdrop-blur-xl border border-line p-4 rounded-2xl shadow-lg space-y-3">
           
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
             
             {/* Search */}
             <div className="relative">
-              <Search className="w-4 h-4 absolute left-3 top-3 text-[#08D9D6]" />
+              <Search className="w-4 h-4 absolute left-3 top-3 text-ink" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search Cantonments, East Legon..."
-                className="w-full bg-slate-950 border border-white/10 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-[#08D9D6]"
+                className="w-full bg-page border border-line rounded-xl pl-9 pr-3 py-2 text-xs text-ink placeholder-ink/50 focus:outline-none focus:border-interactive"
               />
             </div>
 
@@ -284,7 +284,7 @@ export const BrowseView: React.FC = () => {
               <select
                 value={selectedLocation}
                 onChange={(e) => setSelectedLocation(e.target.value)}
-                className="w-full bg-slate-950 border border-white/10 rounded-xl p-2 text-xs text-white focus:outline-none focus:border-[#08D9D6] cursor-pointer"
+                className="w-full bg-page border border-line rounded-xl p-2 text-xs text-ink focus:outline-none focus:border-interactive cursor-pointer"
               >
                 <option value="All">All Suburbs</option>
                 <option value="Cantonments">Cantonments</option>
@@ -302,7 +302,7 @@ export const BrowseView: React.FC = () => {
               <select
                 value={selectedType}
                 onChange={(e) => setSelectedType(e.target.value)}
-                className="w-full bg-slate-950 border border-white/10 rounded-xl p-2 text-xs text-white focus:outline-none focus:border-[#08D9D6] cursor-pointer"
+                className="w-full bg-page border border-line rounded-xl p-2 text-xs text-ink focus:outline-none focus:border-interactive cursor-pointer"
               >
                 <option value="All">All Property Types</option>
                 <option value="Apartment">Apartment</option>
@@ -320,7 +320,7 @@ export const BrowseView: React.FC = () => {
               <select
                 value={selectedBedrooms}
                 onChange={(e) => setSelectedBedrooms(e.target.value === 'All' ? 'All' : Number(e.target.value))}
-                className="w-full bg-slate-950 border border-white/10 rounded-xl p-2 text-xs text-white focus:outline-none focus:border-[#08D9D6] cursor-pointer"
+                className="w-full bg-page border border-line rounded-xl p-2 text-xs text-ink focus:outline-none focus:border-interactive cursor-pointer"
               >
                 <option value="All">Any Bedrooms</option>
                 <option value="1">1 Bedroom</option>
@@ -333,12 +333,12 @@ export const BrowseView: React.FC = () => {
           </div>
 
           {/* ================= PRICE RANGE SLIDER FILTER ================= */}
-          <div className="pt-3 border-t border-white/10 space-y-2.5">
+          <div className="pt-3 border-t border-line space-y-2.5">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <div className="flex items-center gap-2 flex-wrap">
-                <SlidersHorizontal className="w-4 h-4 text-[#08D9D6]" />
-                <span className="text-xs font-bold text-white">Monthly Rent Budget</span>
-                <span className="text-xs text-[#08D9D6] font-extrabold bg-[#08D9D6]/10 px-2.5 py-0.5 rounded-full border border-[#08D9D6]/20">
+                <SlidersHorizontal className="w-4 h-4 text-ink" />
+                <span className="text-xs font-bold text-ink">Monthly Rent Budget</span>
+                <span className="text-xs text-ink font-extrabold bg-interactive/10 px-2.5 py-0.5 rounded-full border border-interactive/20">
                   Up to GH₵ {maxRent.toLocaleString()}/mo
                 </span>
               </div>
@@ -357,8 +357,8 @@ export const BrowseView: React.FC = () => {
                     onClick={() => setMaxRent(preset.val)}
                     className={`px-2.5 py-1 rounded-xl text-[11px] font-bold transition-all whitespace-nowrap border ${
                       maxRent === preset.val
-                        ? 'bg-[#08D9D6] text-[#252A34] border-[#08D9D6] shadow-md shadow-[#08D9D6]/20'
-                        : 'bg-slate-950/80 text-slate-300 border-white/10 hover:border-white/25 hover:text-white'
+                        ? 'bg-interactive text-ink border-interactive shadow-md shadow-ink/10'
+                        : 'bg-surface text-ink/70 border-line hover:border-line hover:text-ink'
                     }`}
                   >
                     {preset.label}
@@ -369,7 +369,7 @@ export const BrowseView: React.FC = () => {
 
             {/* Interactive Slider Track */}
             <div className="relative flex items-center gap-3 pt-1">
-              <span className="text-[11px] font-bold text-slate-400 shrink-0">GH₵ 1,000</span>
+              <span className="text-[11px] font-bold text-ink/70 shrink-0">GH₵ 1,000</span>
               <div className="relative w-full flex items-center">
                 <input
                   type="range"
@@ -378,39 +378,38 @@ export const BrowseView: React.FC = () => {
                   step={500}
                   value={maxRent}
                   onChange={(e) => setMaxRent(Number(e.target.value))}
-                  className="w-full h-2.5 bg-slate-950 rounded-lg appearance-none cursor-pointer accent-[#08D9D6] focus:outline-none border border-white/10"
+                  className="w-full h-2.5 bg-page rounded-lg appearance-none cursor-pointer accent-interactive focus:outline-none border border-line"
                 />
               </div>
-              <span className="text-[11px] font-bold text-slate-400 shrink-0">GH₵ 25,000+</span>
+              <span className="text-[11px] font-bold text-ink/70 shrink-0">GH₵ 25,000+</span>
             </div>
           </div>
 
         </div>
 
         {/* ================= GET NOTIFIED CALLOUT BANNER ================= */}
-        <div className="bg-gradient-to-r from-[#252A34] via-slate-900 to-[#1F242D] border border-[#08D9D6]/30 p-3.5 sm:p-4 rounded-2xl shadow-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-[#08D9D6]/10 rounded-full blur-2xl pointer-events-none" />
+        <div className="gl-panel border-interactive/60 p-3.5 sm:p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 relative overflow-hidden">
           <div className="flex items-start sm:items-center gap-3 relative z-10">
-            <div className="p-2.5 rounded-xl bg-[#08D9D6]/15 border border-[#08D9D6]/30 text-[#08D9D6] shrink-0">
-              <Bell className="w-5 h-5 text-[#08D9D6]" />
+            <div className="p-2.5 rounded-xl bg-interactive/15 border border-interactive/30 text-ink shrink-0">
+              <Bell className="w-5 h-5 text-ink" />
             </div>
             <div>
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-xs font-black text-white">Never Miss a Listing in Greater Accra</span>
+                <span className="text-xs font-black text-ink">Never Miss a Listing in Greater Accra</span>
                 {searchAlerts.length > 0 && (
-                  <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/30 flex items-center gap-1">
+                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/30 flex items-center gap-1">
                     <Check className="w-3 h-3" /> {searchAlerts.length} Active Alert{searchAlerts.length > 1 ? 's' : ''}
                   </span>
                 )}
               </div>
-              <p className="text-[11px] sm:text-xs text-slate-300 mt-0.5">
-                Get instant email or WhatsApp alerts when a matching <strong className="text-[#08D9D6]">{selectedType === 'All' ? 'Property' : selectedType}</strong> in <strong className="text-white">{selectedLocation === 'All' ? 'Accra' : selectedLocation}</strong> (under GH₵ {maxRent.toLocaleString()}/mo) goes live.
+              <p className="text-[11px] sm:text-xs text-ink/70 mt-0.5">
+                Get instant email or WhatsApp alerts when a matching <strong className="text-ink">{selectedType === 'All' ? 'Property' : selectedType}</strong> in <strong className="text-ink">{selectedLocation === 'All' ? 'Accra' : selectedLocation}</strong> (under GH₵ {maxRent.toLocaleString()}/mo) goes live.
               </p>
             </div>
           </div>
           <button
             onClick={() => setIsNotifiedModalOpen(true)}
-            className="w-full sm:w-auto px-4 py-2 rounded-xl font-extrabold text-xs text-[#252A34] bg-[#08D9D6] hover:bg-[#08D9D6]/90 transition-all shadow-md shadow-[#08D9D6]/20 flex items-center justify-center gap-1.5 shrink-0 active:scale-95 cursor-pointer relative z-10"
+            className="w-full sm:w-auto px-4 py-2 rounded-xl font-extrabold text-xs text-ink bg-interactive hover:bg-interactive/90 transition-all shadow-md shadow-ink/10 flex items-center justify-center gap-1.5 shrink-0 active:scale-95 cursor-pointer relative z-10"
           >
             <BellRing className="w-3.5 h-3.5" />
             <span>Get Email Alerts</span>
@@ -429,27 +428,27 @@ export const BrowseView: React.FC = () => {
             ))}
           </div>
         ) : (
-          <div className="text-center py-16 bg-[#252A34]/50 backdrop-blur-xl rounded-3xl border border-white/10 space-y-4 px-4">
-            <Building2 className="w-12 h-12 text-slate-500 mx-auto" />
+          <div className="text-center py-16 bg-surface/50 backdrop-blur-xl rounded-2xl border border-line space-y-4 px-4">
+            <Building2 className="w-12 h-12 text-ink/70 mx-auto" />
             <div className="space-y-1">
-              <div className="text-lg font-bold text-white">No Properties Matched Your Search</div>
-              <p className="text-xs text-slate-400 max-w-md mx-auto">
+              <div className="text-lg font-bold text-ink">No Properties Matched Your Search</div>
+              <p className="text-xs text-ink/70 max-w-md mx-auto">
                 No active listings match your criteria right now. Subscribe to instant alerts and we'll notify you as soon as a matching home is listed.
               </p>
             </div>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-2 pt-2">
               <button
                 onClick={() => setIsNotifiedModalOpen(true)}
-                className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-[#08D9D6] text-[#252A34] text-xs font-black shadow-lg hover:bg-[#08D9D6]/90 transition-all flex items-center justify-center gap-2 active:scale-95 cursor-pointer"
+                className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-interactive text-ink text-xs font-black shadow-lg hover:bg-interactive/90 transition-all flex items-center justify-center gap-2 active:scale-95 cursor-pointer"
               >
                 <Bell className="w-4 h-4" />
                 <span>Get Notified When Listed</span>
               </button>
               <button
                 onClick={resetFilters}
-                className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-semibold transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-page hover:bg-line text-ink text-xs font-semibold transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
               >
-                <RotateCcw className="w-3.5 h-3.5 text-[#08D9D6]" /> Reset All Filters
+                <RotateCcw className="w-3.5 h-3.5 text-ink" /> Reset All Filters
               </button>
             </div>
           </div>

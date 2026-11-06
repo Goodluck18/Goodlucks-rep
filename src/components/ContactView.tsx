@@ -29,7 +29,7 @@ export const ContactView: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#252A34] text-white py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-page text-ink py-12 px-4 sm:px-6 lg:px-8">
       <SEOHead
         title="Contact Goodlucks Homes - Accra Rental Support & Inquiries"
         description="Contact Goodlucks Homes in Ridge, Accra for help with viewings, listings or rental enquiries."
@@ -38,8 +38,8 @@ export const ContactView: React.FC = () => {
         
         {/* Header */}
         <div className="text-center space-y-3">
-          <h1 className="text-3xl sm:text-4xl font-black text-white">Contact Goodlucks Homes</h1>
-          <p className="text-sm text-slate-300 max-w-md mx-auto leading-relaxed">
+          <h1 className="text-3xl sm:text-4xl font-black text-ink">Contact Goodlucks Homes</h1>
+          <p className="text-sm text-ink/70 max-w-md mx-auto leading-relaxed">
             Our property team in Accra is available 6 days a week to assist with viewings, listings, and rental enquiries.
           </p>
         </div>
@@ -47,56 +47,56 @@ export const ContactView: React.FC = () => {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           
           {/* Direct Contact Info */}
-          <div className="bg-slate-800/80 p-8 rounded-3xl border border-white/10 space-y-6">
-            <h2 className="text-xl font-bold text-[#08D9D6] flex items-center gap-2">
+          <div className="bg-surface p-8 rounded-2xl border border-line space-y-6">
+            <h2 className="text-xl font-bold text-ink flex items-center gap-2">
               <Building2 className="w-5 h-5" />
               Goodlucks Platforms Headquarters
             </h2>
 
-            <div className="space-y-4 text-sm text-slate-200">
+            <div className="space-y-4 text-sm text-ink">
               <div className="flex items-start gap-3">
-                <MapPin className="w-5 h-5 text-[#08D9D6] shrink-0 mt-0.5" />
+                <MapPin className="w-5 h-5 text-ink shrink-0 mt-0.5" />
                 <div>
-                  <div className="font-bold text-white">Office Address</div>
-                  <div className="text-xs text-slate-400">Goodlucks Tower, Ridge Diplomatic Precinct, Accra, Ghana</div>
+                  <div className="font-bold text-ink">Office Address</div>
+                  <div className="text-xs text-ink/70">Goodlucks Tower, Ridge Diplomatic Precinct, Accra, Ghana</div>
                 </div>
               </div>
 
               <div className="flex items-start gap-3">
-                <Mail className="w-5 h-5 text-[#08D9D6] shrink-0 mt-0.5" />
+                <Mail className="w-5 h-5 text-ink shrink-0 mt-0.5" />
                 <div>
-                  <div className="font-bold text-white">Email Address</div>
-                  <div className="text-xs text-slate-400">rentals@goodlucks.co</div>
+                  <div className="font-bold text-ink">Email Address</div>
+                  <div className="text-xs text-ink/70">rentals@goodlucks.co</div>
                 </div>
               </div>
 
               <div className="flex items-start gap-3">
-                <Phone className="w-5 h-5 text-[#08D9D6] shrink-0 mt-0.5" />
+                <Phone className="w-5 h-5 text-ink shrink-0 mt-0.5" />
                 <div>
-                  <div className="font-bold text-white">Telephone Support</div>
-                  <div className="text-xs text-slate-400">+233 23 769 0080</div>
+                  <div className="font-bold text-ink">Telephone Support</div>
+                  <div className="text-xs text-ink/70">+233 23 769 0080</div>
                 </div>
               </div>
 
               <div className="flex items-start gap-3">
-                <Share2 className="w-5 h-5 text-[#08D9D6] shrink-0 mt-0.5" />
+                <Share2 className="w-5 h-5 text-ink shrink-0 mt-0.5" />
                 <div>
-                  <div className="font-bold text-white">Social Media</div>
-                  <div className="text-xs text-[#08D9D6] font-semibold mb-1">@GoodlucksHomes on all platforms</div>
-                  <div className="flex items-center gap-2 pt-1 text-slate-300">
-                    <a href="https://www.instagram.com/GoodlucksHomes" target="_blank" rel="noopener noreferrer" className="p-1.5 rounded-lg bg-slate-900 hover:text-[#08D9D6] transition-colors" title="Instagram">
+                  <div className="font-bold text-ink">Social Media</div>
+                  <div className="text-xs text-ink font-semibold mb-1">@GoodlucksHomes on all platforms</div>
+                  <div className="flex items-center gap-2 pt-1 text-ink/70">
+                    <a href="https://www.instagram.com/GoodlucksHomes" target="_blank" rel="noopener noreferrer" className="p-1.5 rounded-lg bg-surface hover:text-ink transition-colors" title="Instagram">
                       <Instagram className="w-4 h-4" />
                     </a>
-                    <a href="https://www.tiktok.com/@GoodlucksHomes" target="_blank" rel="noopener noreferrer" className="p-1.5 rounded-lg bg-slate-900 hover:text-[#08D9D6] transition-colors" title="TikTok @GoodlucksHomes">
+                    <a href="https://www.tiktok.com/@GoodlucksHomes" target="_blank" rel="noopener noreferrer" className="p-1.5 rounded-lg bg-surface hover:text-ink transition-colors" title="TikTok @GoodlucksHomes">
                       <Music2 className="w-4 h-4" />
                     </a>
-                    <a href="https://www.linkedin.com/company/GoodlucksHomes" target="_blank" rel="noopener noreferrer" className="p-1.5 rounded-lg bg-slate-900 hover:text-[#08D9D6] transition-colors" title="LinkedIn">
+                    <a href="https://www.linkedin.com/company/GoodlucksHomes" target="_blank" rel="noopener noreferrer" className="p-1.5 rounded-lg bg-surface hover:text-ink transition-colors" title="LinkedIn">
                       <Linkedin className="w-4 h-4" />
                     </a>
-                    <a href="https://x.com/GoodlucksHomes" target="_blank" rel="noopener noreferrer" className="p-1.5 rounded-lg bg-slate-900 hover:text-[#08D9D6] transition-colors" title="X / Twitter">
+                    <a href="https://x.com/GoodlucksHomes" target="_blank" rel="noopener noreferrer" className="p-1.5 rounded-lg bg-surface hover:text-ink transition-colors" title="X / Twitter">
                       <Twitter className="w-4 h-4" />
                     </a>
-                    <a href="https://www.facebook.com/GoodlucksHomes" target="_blank" rel="noopener noreferrer" className="p-1.5 rounded-lg bg-slate-900 hover:text-[#08D9D6] transition-colors" title="Facebook">
+                    <a href="https://www.facebook.com/GoodlucksHomes" target="_blank" rel="noopener noreferrer" className="p-1.5 rounded-lg bg-surface hover:text-ink transition-colors" title="Facebook">
                       <Facebook className="w-4 h-4" />
                     </a>
                   </div>
@@ -104,66 +104,66 @@ export const ContactView: React.FC = () => {
               </div>
             </div>
 
-            <div className="pt-4 border-t border-white/10 text-xs text-slate-400">
+            <div className="pt-4 border-t border-line text-xs text-ink/70">
               Operating Hours: Mon - Sat: 8:00 AM - 6:00 PM GMT
             </div>
           </div>
 
           {/* Form */}
-          <div className="bg-slate-800/80 p-8 rounded-3xl border border-white/10 shadow-xl">
+          <div className="bg-surface p-8 rounded-2xl border border-line shadow-lg">
             {!sent ? (
               <form onSubmit={handleSubmit} className="space-y-4">
-                <h2 className="text-xl font-bold text-white">Send Direct Message</h2>
+                <h2 className="text-xl font-bold text-ink">Send Direct Message</h2>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">Your Name</label>
+                  <label className="block text-xs font-semibold text-ink/70 mb-1">Your Name</label>
                   <input
                     type="text"
                     required
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     placeholder="Full name"
-                    className="w-full bg-slate-900 border border-white/10 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-[#08D9D6]"
+                    className="w-full bg-page border border-line rounded-xl p-3 text-sm text-ink focus:outline-none focus:border-interactive"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">Email Address</label>
+                  <label className="block text-xs font-semibold text-ink/70 mb-1">Email Address</label>
                   <input
                     type="email"
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="your@email.com"
-                    className="w-full bg-slate-900 border border-white/10 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-[#08D9D6]"
+                    className="w-full bg-page border border-line rounded-xl p-3 text-sm text-ink focus:outline-none focus:border-interactive"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">Phone Number <span className="text-slate-500 font-normal">(optional)</span></label>
+                  <label className="block text-xs font-semibold text-ink/70 mb-1">Phone Number <span className="text-ink/70 font-normal">(optional)</span></label>
                   <input
                     type="tel"
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
                     placeholder="+233 24 000 0000"
-                    className="w-full bg-slate-900 border border-white/10 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-[#08D9D6]"
+                    className="w-full bg-page border border-line rounded-xl p-3 text-sm text-ink focus:outline-none focus:border-interactive"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">Message / Question</label>
+                  <label className="block text-xs font-semibold text-ink/70 mb-1">Message / Question</label>
                   <textarea
                     rows={4}
                     required
                     value={message}
                     onChange={(e) => setMessage(e.target.value)}
                     placeholder="How can Goodlucks Homes assist you today?"
-                    className="w-full bg-slate-900 border border-white/10 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-[#08D9D6]"
+                    className="w-full bg-page border border-line rounded-xl p-3 text-sm text-ink focus:outline-none focus:border-interactive"
                   />
                 </div>
 
                 {error && (
-                  <div role="alert" className="p-3 rounded-xl bg-[#FF2E63]/15 border border-[#FF2E63]/30 text-[#FF8FA8] text-xs flex items-start gap-2">
+                  <div role="alert" className="p-3 rounded-xl bg-accent/15 border border-accent/30 text-ink text-xs flex items-start gap-2">
                     <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
                     <span>{error}</span>
                   </div>
@@ -172,11 +172,11 @@ export const ContactView: React.FC = () => {
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="w-full py-3.5 rounded-xl bg-[#08D9D6] text-[#252A34] font-bold text-sm hover:bg-[#08D9D6]/90 transition-all shadow-md flex items-center justify-center gap-2 disabled:opacity-60"
+                  className="gl-btn gl-btn-primary w-full"
                 >
                   {isSubmitting ? (
                     <>
-                      <span className="w-4 h-4 border-2 border-[#252A34]/30 border-t-[#252A34] rounded-full animate-spin" />
+                      <span className="w-4 h-4 border-2 border-ink/30 border-t-ink rounded-full animate-spin" />
                       Sending...
                     </>
                   ) : (
@@ -188,9 +188,9 @@ export const ContactView: React.FC = () => {
               </form>
             ) : (
               <div className="text-center py-10 space-y-4">
-                <CheckCircle2 className="w-12 h-12 text-[#08D9D6] mx-auto" />
-                <h3 className="text-xl font-bold text-white">Message Delivered</h3>
-                <p className="text-xs text-slate-300">Thank you for reaching out. A Goodlucks Homes specialist will reply via email shortly.</p>
+                <CheckCircle2 className="w-12 h-12 text-ink mx-auto" />
+                <h3 className="text-xl font-bold text-ink">Message Delivered</h3>
+                <p className="text-xs text-ink/70">Thank you for reaching out. A Goodlucks Homes specialist will reply via email shortly.</p>
               </div>
             )}
           </div>

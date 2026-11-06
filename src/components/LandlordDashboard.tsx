@@ -44,11 +44,11 @@ const PROPERTY_STATUS_LABEL: Record<string, string> = {
 };
 
 const PROPERTY_STATUS_TONE: Record<string, string> = {
-  active: 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30',
-  pending: 'bg-amber-500/20 text-amber-400 border border-amber-500/30',
-  rejected: 'bg-[#FF2E63]/20 text-[#FF8FA8] border border-[#FF2E63]/30',
-  rented: 'bg-blue-500/20 text-blue-400 border border-blue-500/30',
-  deactivated: 'bg-slate-700 text-slate-400',
+  active: 'bg-emerald-500/20 text-emerald-700 border border-emerald-500/30',
+  pending: 'bg-amber-500/20 text-amber-700 border border-amber-500/30',
+  rejected: 'bg-accent/20 text-ink border border-accent/30',
+  rented: 'bg-blue-500/20 text-blue-700 border border-blue-500/30',
+  deactivated: 'bg-line text-ink/70',
 };
 
 const VERIFICATION_LABEL: Record<string, string> = {
@@ -199,7 +199,7 @@ export const LandlordDashboard: React.FC = () => {
       {actionError && (
         <div
           role="alert"
-          className="p-3 rounded-xl bg-[#FF2E63]/15 border border-[#FF2E63]/30 text-[#FF8FA8] text-xs flex items-start gap-2"
+          className="p-3 rounded-xl bg-accent/15 border border-accent/30 text-ink text-xs flex items-start gap-2"
         >
           <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
           <span className="flex-1">{actionError}</span>
@@ -219,7 +219,7 @@ export const LandlordDashboard: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setCurrentView('list-property')}
-                className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-[#08D9D6] text-[#252A34] text-xs font-extrabold hover:bg-[#08D9D6]/90 transition-colors"
+                className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-interactive text-ink text-xs font-extrabold hover:bg-interactive/90 transition-colors"
               >
                 <PlusCircle className="w-4 h-4" />
                 List a property
@@ -263,34 +263,34 @@ export const LandlordDashboard: React.FC = () => {
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             {/* Upcoming viewings */}
-            <section className="lg:col-span-2 bg-[#252A34]/70 border border-white/10 rounded-2xl p-5 space-y-3">
+            <section className="lg:col-span-2 bg-surface border border-line rounded-2xl p-5 space-y-3">
               <div className="flex items-center justify-between gap-2">
-                <h2 className="text-xs font-extrabold uppercase tracking-wider text-[#08D9D6]">Upcoming viewings</h2>
+                <h2 className="text-xs font-extrabold uppercase tracking-wider text-ink">Upcoming viewings</h2>
                 <button
                   type="button"
                   onClick={() => navigate('/landlord/viewings')}
-                  className="text-[11px] font-bold text-slate-300 hover:text-white flex items-center gap-1"
+                  className="text-[11px] font-bold text-ink/70 hover:text-ink flex items-center gap-1"
                 >
                   All viewings <ArrowRight className="w-3 h-3" />
                 </button>
               </div>
               {upcomingViewings.length === 0 ? (
-                <p className="text-[11px] text-slate-400 leading-relaxed">
+                <p className="text-[11px] text-ink/70 leading-relaxed">
                   No viewing has been requested for your listings yet. Requests appear here once a tenant asks for one.
                 </p>
               ) : (
                 <ul className="space-y-2">
                   {upcomingViewings.map((v) => (
-                    <li key={v.id} className="bg-slate-900/60 border border-white/5 rounded-xl px-3 py-2.5">
+                    <li key={v.id} className="bg-surface border border-line rounded-xl px-3 py-2.5">
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
-                          <p className="text-xs font-bold text-white truncate">{v.propertyTitle}</p>
-                          <p className="text-[11px] text-slate-400">
+                          <p className="text-xs font-bold text-ink truncate">{v.propertyTitle}</p>
+                          <p className="text-[11px] text-ink/70">
                             {v.isConfirmed ? 'Agreed for' : 'Requested for'} {v.date || 'date to agree'}
                             {v.time ? ` at ${v.time}` : ''} · {v.statusLabel}
                           </p>
                         </div>
-                        <span className="text-[10px] text-slate-500 shrink-0">
+                        <span className="text-[10px] text-ink/70 shrink-0">
                           {v.assignedAgent || 'No agent assigned'}
                         </span>
                       </div>
@@ -302,25 +302,25 @@ export const LandlordDashboard: React.FC = () => {
 
             {/* Notifications + verification status */}
             <div className="space-y-4">
-              <section className="bg-[#252A34]/70 border border-white/10 rounded-2xl p-5 space-y-2">
+              <section className="bg-surface border border-line rounded-2xl p-5 space-y-2">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <Bell className="w-4 h-4 text-[#08D9D6]" />
-                    <h2 className="text-xs font-bold text-white">Notifications</h2>
+                    <Bell className="w-4 h-4 text-ink" />
+                    <h2 className="text-xs font-bold text-ink">Notifications</h2>
                   </div>
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-[#08D9D6]/20 text-[#08D9D6]">
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-interactive/20 text-ink">
                     {unreadNotifications} unread
                   </span>
                 </div>
                 {notifications.length === 0 ? (
-                  <p className="text-[11px] text-slate-400 leading-relaxed">
+                  <p className="text-[11px] text-ink/70 leading-relaxed">
                     Nothing yet. Listing reviews and viewing updates will appear here.
                   </p>
                 ) : (
                   <ul className="space-y-1.5">
                     {notifications.slice(0, 2).map((n) => (
-                      <li key={n.id} className="text-[11px] text-slate-300 truncate">
-                        <span className={n.read ? '' : 'text-white font-bold'}>{n.title}</span>
+                      <li key={n.id} className="text-[11px] text-ink/70 truncate">
+                        <span className={n.read ? '' : 'text-ink font-bold'}>{n.title}</span>
                       </li>
                     ))}
                   </ul>
@@ -328,28 +328,28 @@ export const LandlordDashboard: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => navigate('/landlord/notifications')}
-                  className="text-[11px] font-bold text-[#08D9D6] hover:underline"
+                  className="text-[11px] font-bold text-ink hover:underline"
                 >
                   View all notifications
                 </button>
               </section>
 
-              <section className="bg-[#252A34]/70 border border-white/10 rounded-2xl p-5 space-y-2">
+              <section className="bg-surface border border-line rounded-2xl p-5 space-y-2">
                 <div className="flex items-center gap-2">
-                  <ShieldCheck className="w-4 h-4 text-[#08D9D6]" />
-                  <h2 className="text-xs font-bold text-white">Verification</h2>
+                  <ShieldCheck className="w-4 h-4 text-ink" />
+                  <h2 className="text-xs font-bold text-ink">Verification</h2>
                 </div>
-                <p className="text-xs font-bold text-white">
+                <p className="text-xs font-bold text-ink">
                   Identity: {identityStatus ? VERIFICATION_LABEL[identityStatus] || identityStatus : 'Not submitted'}
                 </p>
-                <p className="text-[11px] text-slate-400 leading-relaxed">
+                <p className="text-[11px] text-ink/70 leading-relaxed">
                   Optional. Verifying your identity does not prove that you own a particular property, and no listing
                   is marked verified because of it.
                 </p>
                 <button
                   type="button"
                   onClick={() => navigate('/landlord/verification')}
-                  className="text-[11px] font-bold text-[#08D9D6] hover:underline"
+                  className="text-[11px] font-bold text-ink hover:underline"
                 >
                   Open verification
                 </button>
@@ -358,29 +358,29 @@ export const LandlordDashboard: React.FC = () => {
           </div>
 
           {/* Quick links */}
-          <section className="bg-[#252A34]/70 border border-white/10 rounded-2xl p-5 space-y-3">
-            <h2 className="text-xs font-extrabold uppercase tracking-wider text-[#08D9D6]">Quick links</h2>
+          <section className="bg-surface border border-line rounded-2xl p-5 space-y-3">
+            <h2 className="text-xs font-extrabold uppercase tracking-wider text-ink">Quick links</h2>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               <button
                 type="button"
                 onClick={() => navigate('/landlord/receipts')}
-                className="px-3 py-2.5 rounded-xl bg-slate-900/70 border border-white/10 text-xs font-bold text-white hover:border-[#08D9D6]/40 transition-colors flex items-center gap-1.5"
+                className="px-3 py-2.5 rounded-xl bg-surface border border-line text-xs font-bold text-ink hover:border-interactive/40 transition-colors flex items-center gap-1.5"
               >
-                <FileCheck className="w-3.5 h-3.5 text-[#08D9D6]" /> Payment records & receipts
+                <FileCheck className="w-3.5 h-3.5 text-ink" /> Payment records & receipts
               </button>
               <button
                 type="button"
                 onClick={() => navigate('/landlord/profile')}
-                className="px-3 py-2.5 rounded-xl bg-slate-900/70 border border-white/10 text-xs font-bold text-white hover:border-[#08D9D6]/40 transition-colors flex items-center gap-1.5"
+                className="px-3 py-2.5 rounded-xl bg-surface border border-line text-xs font-bold text-ink hover:border-interactive/40 transition-colors flex items-center gap-1.5"
               >
-                <User className="w-3.5 h-3.5 text-[#08D9D6]" /> Profile
+                <User className="w-3.5 h-3.5 text-ink" /> Profile
               </button>
               <button
                 type="button"
                 onClick={() => navigate('/landlord/settings')}
-                className="px-3 py-2.5 rounded-xl bg-slate-900/70 border border-white/10 text-xs font-bold text-white hover:border-[#08D9D6]/40 transition-colors flex items-center gap-1.5"
+                className="px-3 py-2.5 rounded-xl bg-surface border border-line text-xs font-bold text-ink hover:border-interactive/40 transition-colors flex items-center gap-1.5"
               >
-                <ShieldCheck className="w-3.5 h-3.5 text-[#08D9D6]" /> Password & picture
+                <ShieldCheck className="w-3.5 h-3.5 text-ink" /> Password & picture
               </button>
             </div>
           </section>
@@ -397,7 +397,7 @@ export const LandlordDashboard: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setCurrentView('list-property')}
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#08D9D6] text-[#252A34] text-xs font-extrabold hover:bg-[#08D9D6]/90 transition-colors"
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-interactive text-ink text-xs font-extrabold hover:bg-interactive/90 transition-colors"
               >
                 <PlusCircle className="w-4 h-4" /> Add listing
               </button>
@@ -413,7 +413,7 @@ export const LandlordDashboard: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setCurrentView('list-property')}
-                  className="px-5 py-2.5 rounded-xl bg-[#08D9D6] text-[#252A34] text-xs font-black"
+                  className="px-5 py-2.5 rounded-xl bg-interactive text-ink text-xs font-black"
                 >
                   List a property
                 </button>
@@ -424,7 +424,7 @@ export const LandlordDashboard: React.FC = () => {
               {myProperties.map((prop) => (
                 <div
                   key={prop.id}
-                  className="bg-slate-900/70 border border-white/10 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
+                  className="bg-surface border border-line rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
                 >
                   <div className="flex items-start gap-3 sm:gap-4 min-w-0">
                     {prop.images?.[0] ? (
@@ -433,11 +433,11 @@ export const LandlordDashboard: React.FC = () => {
                         alt={prop.title}
                         loading="lazy"
                         decoding="async"
-                        className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl object-cover border border-white/10 shrink-0"
+                        className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl object-cover border border-line shrink-0"
                       />
                     ) : (
-                      <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl bg-slate-800 border border-white/10 flex items-center justify-center shrink-0">
-                        <Building2 className="w-6 h-6 text-slate-500" />
+                      <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl bg-surface border border-line flex items-center justify-center shrink-0">
+                        <Building2 className="w-6 h-6 text-ink/70" />
                       </div>
                     )}
                     <div className="space-y-1 min-w-0">
@@ -449,20 +449,20 @@ export const LandlordDashboard: React.FC = () => {
                         >
                           {PROPERTY_STATUS_LABEL[prop.status] || prop.status}
                         </span>
-                        <span className="text-[11px] text-slate-400 font-medium">{prop.propertyType}</span>
+                        <span className="text-[11px] text-ink/70 font-medium">{prop.propertyType}</span>
                       </div>
-                      <h3 className="font-bold text-sm sm:text-base text-white break-words">{prop.title}</h3>
-                      <div className="text-xs text-slate-300 font-medium">
+                      <h3 className="font-bold text-sm sm:text-base text-ink break-words">{prop.title}</h3>
+                      <div className="text-xs text-ink/70 font-medium">
                         {prop.location} ·{' '}
-                        <strong className="text-[#08D9D6]">GH₵ {prop.rentGhs.toLocaleString()}/mo</strong>
+                        <strong className="text-ink">GH₵ {prop.rentGhs.toLocaleString()}/mo</strong>
                       </div>
                       {/* Task 03 update: the viewing fee is set by Goodlucks Homes, not
                           by the landlord. Shown read-only so nothing suggests otherwise. */}
-                      <p className="text-[11px] text-slate-400 leading-relaxed">
+                      <p className="text-[11px] text-ink/70 leading-relaxed">
                         Viewing fee:{' '}
                         {prop.viewingTerms?.feeGhs ? (
                           <>
-                            <strong className="text-white">GH₵ {prop.viewingTerms.feeGhs.toLocaleString()}</strong> — set by
+                            <strong className="text-ink">GH₵ {prop.viewingTerms.feeGhs.toLocaleString()}</strong> — set by
                             Goodlucks Homes and paid to Goodlucks after the viewing. You don't receive it and you can't
                             change it.
                           </>
@@ -471,19 +471,19 @@ export const LandlordDashboard: React.FC = () => {
                         )}
                       </p>
                       {prop.status === 'rejected' && prop.rejectionReason && (
-                        <p className="text-[11px] text-[#FF8FA8] leading-relaxed break-words">
+                        <p className="text-[11px] text-ink leading-relaxed break-words">
                           Reason given: {prop.rejectionReason}
                         </p>
                       )}
                     </div>
                   </div>
 
-                  <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto pt-2 sm:pt-0 border-t sm:border-0 border-white/10">
+                  <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto pt-2 sm:pt-0 border-t sm:border-0 border-line">
                     {prop.status === 'active' ? (
                       <button
                         type="button"
                         onClick={() => void handleStatusChange(prop.id, 'deactivated')}
-                        className="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300 hover:text-white text-xs font-semibold flex items-center gap-1 border border-white/5"
+                        className="px-3 py-1.5 rounded-lg bg-surface text-ink/70 hover:text-ink text-xs font-semibold flex items-center gap-1 border border-line"
                       >
                         <Power className="w-3.5 h-3.5" /> Deactivate
                       </button>
@@ -491,12 +491,12 @@ export const LandlordDashboard: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => void handleStatusChange(prop.id, 'active')}
-                        className="px-3 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 text-xs font-semibold flex items-center gap-1 border border-emerald-500/30"
+                        className="px-3 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-700 hover:bg-emerald-500/30 text-xs font-semibold flex items-center gap-1 border border-emerald-500/30"
                       >
                         <CheckCircle2 className="w-3.5 h-3.5" /> Reactivate
                       </button>
                     ) : (
-                      <span className="text-[11px] text-slate-500">
+                      <span className="text-[11px] text-ink/70">
                         {prop.status === 'pending' ? 'Waiting for review' : 'Not currently live'}
                       </span>
                     )}
@@ -504,7 +504,7 @@ export const LandlordDashboard: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => void handleStatusChange(prop.id, 'rented')}
-                      className="px-3 py-1.5 rounded-lg bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 text-xs font-semibold flex items-center gap-1 border border-blue-500/30"
+                      className="px-3 py-1.5 rounded-lg bg-blue-500/20 text-blue-700 hover:bg-blue-500/30 text-xs font-semibold flex items-center gap-1 border border-blue-500/30"
                     >
                       Mark rented
                     </button>
@@ -512,7 +512,7 @@ export const LandlordDashboard: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => setDeleteModalPropId(prop.id)}
-                      className="px-3 py-1.5 rounded-lg bg-[#FF2E63]/20 text-[#FF2E63] hover:bg-[#FF2E63]/30 text-xs font-semibold flex items-center gap-1 border border-[#FF2E63]/30"
+                      className="px-3 py-1.5 rounded-lg bg-accent/20 text-accent hover:bg-accent/30 text-xs font-semibold flex items-center gap-1 border border-accent/30"
                     >
                       <Trash2 className="w-3.5 h-3.5" /> Delete
                     </button>
@@ -540,25 +540,25 @@ export const LandlordDashboard: React.FC = () => {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {viewingSchedules.map((v) => (
-                <div key={v.id} className="bg-slate-900/70 p-5 rounded-2xl border border-white/10 space-y-2">
+                <div key={v.id} className="bg-surface p-5 rounded-2xl border border-line space-y-2">
                   <div className="flex justify-between items-start gap-2">
                     <div className="min-w-0">
-                      <div className="text-xs font-bold text-[#08D9D6] truncate">{v.propertyTitle}</div>
-                      <div className="text-xs text-slate-300 font-medium">
+                      <div className="text-xs font-bold text-ink truncate">{v.propertyTitle}</div>
+                      <div className="text-xs text-ink/70 font-medium">
                         {v.isConfirmed ? 'Agreed for' : 'Requested for'}: {v.date || '—'} {v.time ? `at ${v.time}` : ''}
                       </div>
                     </div>
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-white/10 text-slate-200 border border-white/10 shrink-0">
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-page text-ink border border-line shrink-0">
                       {v.statusLabel}
                     </span>
                   </div>
-                  <p className="text-xs text-slate-400 leading-relaxed">
-                    Viewing agent: <strong className="text-white">{v.assignedAgent || 'not yet assigned'}</strong>.{' '}
+                  <p className="text-xs text-ink/70 leading-relaxed">
+                    Viewing agent: <strong className="text-ink">{v.assignedAgent || 'not yet assigned'}</strong>.{' '}
                     {v.isConfirmed ? 'A time has been agreed.' : 'No time has been agreed yet.'}{' '}
                     {v.feeSource === 'platform_policy' ? (
                       <>
                         Viewing fee:{' '}
-                        <strong className="text-emerald-400">
+                        <strong className="text-emerald-700">
                           {v.feeAmountGhs > 0 ? `GH₵ ${v.feeAmountGhs.toLocaleString()}` : 'none'}
                         </strong>
                         , set by Goodlucks Homes and paid to Goodlucks after the viewing —{' '}
@@ -567,7 +567,7 @@ export const LandlordDashboard: React.FC = () => {
                     ) : (
                       <>
                         Viewing fee:{' '}
-                        <strong className="text-emerald-400">
+                        <strong className="text-emerald-700">
                           {v.viewingFeePaid ? 'recorded as collected on site by the agent' : 'not recorded'}
                         </strong>
                         . Goodlucks did not take this payment.
@@ -599,11 +599,11 @@ export const LandlordDashboard: React.FC = () => {
             title="Verification"
             description="Identity verification is optional for landlords."
           />
-          <div className="bg-slate-900/60 border border-white/10 rounded-2xl p-4">
-            <h2 className="text-sm font-bold text-white flex items-center gap-2">
-              <ShieldCheck className="w-4 h-4 text-[#08D9D6]" /> Identity verification is optional
+          <div className="bg-surface border border-line rounded-2xl p-4">
+            <h2 className="text-sm font-bold text-ink flex items-center gap-2">
+              <ShieldCheck className="w-4 h-4 text-ink" /> Identity verification is optional
             </h2>
-            <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
+            <p className="text-[11px] text-ink/70 mt-1 leading-relaxed">
               You can register and list properties without it. Verifying your identity does not verify that you own or
               may let any particular property — ownership is a separate question and no listing is marked verified
               because of this check.
@@ -626,7 +626,7 @@ export const LandlordDashboard: React.FC = () => {
               <button
                 type="button"
                 onClick={() => navigate('/landlord/settings')}
-                className="px-3.5 py-2 rounded-xl bg-white/5 border border-white/10 text-xs font-bold text-slate-200 hover:text-white hover:bg-white/10 transition-colors"
+                className="px-3.5 py-2 rounded-xl bg-page border border-line text-xs font-bold text-ink hover:text-ink hover:bg-page transition-colors"
               >
                 Account settings
               </button>
@@ -634,13 +634,13 @@ export const LandlordDashboard: React.FC = () => {
           />
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            <div className="lg:col-span-2 bg-slate-900/60 border border-white/10 rounded-2xl p-5 sm:p-6 space-y-4">
+            <div className="lg:col-span-2 bg-surface border border-line rounded-2xl p-5 sm:p-6 space-y-4">
               <div className="flex items-center justify-between gap-3">
-                <h2 className="text-sm font-bold text-white flex items-center gap-2">
-                  <User className="w-4 h-4 text-[#08D9D6]" /> Your details
+                <h2 className="text-sm font-bold text-ink flex items-center gap-2">
+                  <User className="w-4 h-4 text-ink" /> Your details
                 </h2>
                 {saveSuccess && (
-                  <span className="text-[11px] font-bold text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20 flex items-center gap-1">
+                  <span className="text-[11px] font-bold text-emerald-700 bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20 flex items-center gap-1">
                     <Check className="w-3 h-3" /> Saved
                   </span>
                 )}
@@ -648,7 +648,7 @@ export const LandlordDashboard: React.FC = () => {
 
               <form onSubmit={handleSaveProfile} className="space-y-4">
                 <div>
-                  <label htmlFor="landlord-profile-name" className="block text-xs font-semibold text-slate-300 mb-1.5">
+                  <label htmlFor="landlord-profile-name" className="block text-xs font-semibold text-ink/70 mb-1.5">
                     Full name
                   </label>
                   <input
@@ -657,12 +657,12 @@ export const LandlordDashboard: React.FC = () => {
                     required
                     value={profileName}
                     onChange={(e) => setProfileName(e.target.value)}
-                    className="w-full bg-slate-950 border border-white/10 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-[#08D9D6]"
+                    className="w-full bg-page border border-line rounded-xl p-3 text-sm text-ink focus:outline-none focus:border-interactive"
                   />
                 </div>
 
                 <div>
-                  <label htmlFor="landlord-profile-company" className="block text-xs font-semibold text-slate-300 mb-1.5">
+                  <label htmlFor="landlord-profile-company" className="block text-xs font-semibold text-ink/70 mb-1.5">
                     Company / agency name (optional)
                   </label>
                   <input
@@ -670,13 +670,13 @@ export const LandlordDashboard: React.FC = () => {
                     type="text"
                     value={profileCompany}
                     onChange={(e) => setProfileCompany(e.target.value)}
-                    className="w-full bg-slate-950 border border-white/10 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-[#08D9D6]"
+                    className="w-full bg-page border border-line rounded-xl p-3 text-sm text-ink focus:outline-none focus:border-interactive"
                   />
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label htmlFor="landlord-profile-phone" className="block text-xs font-semibold text-slate-300 mb-1.5">
+                    <label htmlFor="landlord-profile-phone" className="block text-xs font-semibold text-ink/70 mb-1.5">
                       Phone number
                     </label>
                     <input
@@ -685,12 +685,12 @@ export const LandlordDashboard: React.FC = () => {
                       required
                       value={profilePhone}
                       onChange={(e) => setProfilePhone(e.target.value)}
-                      className="w-full bg-slate-950 border border-white/10 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-[#08D9D6]"
+                      className="w-full bg-page border border-line rounded-xl p-3 text-sm text-ink focus:outline-none focus:border-interactive"
                     />
                   </div>
 
                   <div>
-                    <label htmlFor="landlord-profile-email" className="block text-xs font-semibold text-slate-300 mb-1.5">
+                    <label htmlFor="landlord-profile-email" className="block text-xs font-semibold text-ink/70 mb-1.5">
                       Email address
                     </label>
                     <input
@@ -699,16 +699,16 @@ export const LandlordDashboard: React.FC = () => {
                       value={currentUser?.email || ''}
                       readOnly
                       aria-describedby="landlord-profile-email-hint"
-                      className="w-full bg-slate-950/60 border border-white/10 rounded-xl p-3 text-sm text-slate-400 cursor-not-allowed"
+                      className="w-full bg-page border border-line rounded-xl p-3 text-sm text-ink/70 cursor-not-allowed"
                     />
-                    <p id="landlord-profile-email-hint" className="text-[10px] text-slate-500 mt-1">
+                    <p id="landlord-profile-email-hint" className="text-[10px] text-ink/70 mt-1">
                       Contact Goodlucks Homes support to change the email on your account.
                     </p>
                   </div>
                 </div>
 
                 <div>
-                  <label htmlFor="landlord-profile-bio" className="block text-xs font-semibold text-slate-300 mb-1.5">
+                  <label htmlFor="landlord-profile-bio" className="block text-xs font-semibold text-ink/70 mb-1.5">
                     Landlord bio / overview
                   </label>
                   <textarea
@@ -716,27 +716,27 @@ export const LandlordDashboard: React.FC = () => {
                     rows={3}
                     value={profileBio}
                     onChange={(e) => setProfileBio(e.target.value)}
-                    className="w-full bg-slate-950 border border-white/10 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-[#08D9D6]"
+                    className="w-full bg-page border border-line rounded-xl p-3 text-sm text-ink focus:outline-none focus:border-interactive"
                   />
                 </div>
 
                 <button
                   type="submit"
                   disabled={isSavingProfile}
-                  className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-[#08D9D6] text-[#252A34] font-extrabold text-sm hover:bg-[#08D9D6]/90 disabled:opacity-60 transition-colors"
+                  className="gl-btn gl-btn-primary w-full sm:w-auto px-5 py-2.5 text-sm"
                 >
                   {isSavingProfile ? 'Saving…' : 'Save profile'}
                 </button>
               </form>
             </div>
 
-            <div className="bg-slate-900/60 border border-white/10 rounded-2xl p-5 space-y-3">
+            <div className="bg-surface border border-line rounded-2xl p-5 space-y-3">
               <Avatar name={currentUser?.name} src={currentUser?.avatar} size="lg" />
               <div>
-                <p className="text-sm font-bold text-white truncate">{currentUser?.name}</p>
-                <p className="text-[11px] text-[#08D9D6] font-semibold">{currentUser?.company || 'Landlord account'}</p>
+                <p className="text-sm font-bold text-ink truncate">{currentUser?.name}</p>
+                <p className="text-[11px] text-ink font-semibold">{currentUser?.company || 'Landlord account'}</p>
               </div>
-              <div className="text-[11px] text-slate-400 space-y-1">
+              <div className="text-[11px] text-ink/70 space-y-1">
                 <p className="flex items-center gap-1.5 break-all">
                   <Mail className="w-3 h-3 shrink-0" /> {currentUser?.email}
                 </p>
@@ -744,13 +744,13 @@ export const LandlordDashboard: React.FC = () => {
                   <Phone className="w-3 h-3 shrink-0" /> {currentUser?.phone || 'No phone saved'}
                 </p>
               </div>
-              <p className="text-[11px] text-slate-400 leading-relaxed">
+              <p className="text-[11px] text-ink/70 leading-relaxed">
                 Your profile picture is used next to your name. Change it, or your password, in Account settings.
               </p>
               <button
                 type="button"
                 onClick={() => navigate('/landlord/settings')}
-                className="w-full px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-xs font-bold text-slate-200 hover:text-white hover:bg-white/10 transition-colors"
+                className="w-full px-3 py-2 rounded-xl bg-page border border-line text-xs font-bold text-ink hover:text-ink hover:bg-page transition-colors"
               >
                 Open account settings
               </button>
@@ -770,7 +770,7 @@ export const LandlordDashboard: React.FC = () => {
             <button
               type="button"
               onClick={() => navigate('/landlord/dashboard')}
-              className="text-xs font-bold text-[#08D9D6] hover:underline"
+              className="text-xs font-bold text-ink hover:underline"
             >
               Back to overview
             </button>
@@ -780,26 +780,26 @@ export const LandlordDashboard: React.FC = () => {
 
       {/* Delete confirmation */}
       {deleteModalPropId && (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/80 backdrop-blur-md animate-fadeIn p-2 sm:p-4 flex items-start sm:items-center justify-center">
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-ink/60 backdrop-blur-md animate-fadeIn p-2 sm:p-4 flex items-start sm:items-center justify-center">
           <div
             role="dialog"
             aria-modal="true"
             aria-label="Delete property listing"
-            className="bg-[#252A34] border border-[#FF2E63]/40 rounded-2xl sm:rounded-3xl p-5 sm:p-6 max-w-md w-full text-center space-y-4 shadow-2xl my-auto max-h-[88dvh] overflow-y-auto"
+            className="bg-surface border border-accent/40 rounded-2xl sm:rounded-2xl p-5 sm:p-6 max-w-md w-full text-center space-y-4 shadow-lg my-auto max-h-[88dvh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="w-12 h-12 rounded-full bg-[#FF2E63]/20 text-[#FF2E63] border border-[#FF2E63]/30 flex items-center justify-center mx-auto">
+            <div className="w-12 h-12 rounded-full bg-accent/20 text-accent border border-accent/30 flex items-center justify-center mx-auto">
               <AlertTriangle className="w-6 h-6" />
             </div>
-            <h3 className="text-xl font-bold text-white">Delete this listing?</h3>
-            <p className="text-xs text-slate-300 leading-relaxed">
+            <h3 className="text-xl font-bold text-ink">Delete this listing?</h3>
+            <p className="text-xs text-ink/70 leading-relaxed">
               This removes the listing from Goodlucks Homes. It cannot be undone.
             </p>
             <div className="flex gap-3 pt-2">
               <button
                 type="button"
                 onClick={() => setDeleteModalPropId(null)}
-                className="flex-1 py-2.5 rounded-xl bg-slate-800 text-slate-300 font-semibold text-xs hover:bg-slate-700"
+                className="flex-1 py-2.5 rounded-xl bg-surface text-ink/70 font-semibold text-xs hover:bg-line"
               >
                 Cancel
               </button>
@@ -807,7 +807,7 @@ export const LandlordDashboard: React.FC = () => {
                 type="button"
                 onClick={() => void handleDeleteConfirm()}
                 disabled={isDeleting}
-                className="flex-1 py-2.5 rounded-xl bg-[#FF2E63] text-white font-bold text-xs hover:bg-[#FF2E63]/90 disabled:opacity-60 shadow-md"
+                className="flex-1 gl-btn gl-btn-primary text-xs"
               >
                 {isDeleting ? 'Deleting…' : 'Delete permanently'}
               </button>

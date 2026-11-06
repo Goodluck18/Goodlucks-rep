@@ -56,16 +56,16 @@ export const BlogArticleBody: React.FC<Props> = ({
 
   const showcase = cards.length > 0 ? (
     <section className="my-8 space-y-3" aria-label="Listings mentioned in this article">
-      <div className="flex items-baseline justify-between gap-3 border-b border-white/10 pb-2">
-        <h2 className="text-lg sm:text-xl font-black text-white">{showcaseHeading}</h2>
-        <span className="text-[10px] uppercase tracking-wider text-slate-400">Live listings</span>
+      <div className="flex items-baseline justify-between gap-3 border-b border-line pb-2">
+        <h2 className="text-lg sm:text-xl font-black text-ink">{showcaseHeading}</h2>
+        <span className="text-[10px] uppercase tracking-wider text-ink/70">Live listings</span>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {cards.map((card) => (
           <BlogPropertyCard key={card.propertyId} card={card} />
         ))}
       </div>
-      <p className="text-[11px] text-slate-400 leading-snug">{showcaseHint}</p>
+      <p className="text-[11px] text-ink/70 leading-snug">{showcaseHint}</p>
     </section>
   ) : null;
 
@@ -77,7 +77,7 @@ export const BlogArticleBody: React.FC<Props> = ({
         <div className="gl-article" onClick={handleClick} dangerouslySetInnerHTML={{ __html: after }} />
       ) : null}
       {cards.length === 0 && index >= 0 ? (
-        <p className="text-xs text-slate-400 flex items-center gap-2">
+        <p className="text-xs text-ink/70 flex items-center gap-2">
           <Building2 className="w-4 h-4" />
           No listings are attached to this article right now.
         </p>

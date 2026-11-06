@@ -187,8 +187,8 @@ export const ReceiptsView: React.FC<{ embedded?: boolean }> = ({ embedded = fals
     <div
       className={
         embedded
-          ? 'text-white'
-          : 'min-h-screen bg-[#252A34] text-white py-10 px-4 sm:px-6 lg:px-8'
+          ? 'text-ink'
+          : 'min-h-screen bg-page text-ink py-10 px-4 sm:px-6 lg:px-8'
       }
     >
       <SEOHead
@@ -227,17 +227,17 @@ export const ReceiptsView: React.FC<{ embedded?: boolean }> = ({ embedded = fals
       <div className="max-w-7xl mx-auto space-y-8 animate-fadeIn">
 
         {/* Header Title */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-white/10 pb-6 no-print">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-line pb-6 no-print">
           <div>
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#08D9D6]/10 text-[#08D9D6] text-xs font-bold border border-[#08D9D6]/20 mb-2">
-              <ShieldCheck className="w-4 h-4 text-[#08D9D6]" />
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-interactive/10 text-ink text-xs font-bold border border-interactive/20 mb-2">
+              <ShieldCheck className="w-4 h-4 text-ink" />
               Intermediary payment record
             </div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white flex items-center gap-3">
-              <Receipt className="w-8 h-8 text-[#08D9D6]" />
+            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-ink flex items-center gap-3">
+              <Receipt className="w-8 h-8 text-ink" />
               Rent Payment Records
             </h1>
-            <p className="text-xs sm:text-sm text-slate-300 mt-1 max-w-2xl">
+            <p className="text-xs sm:text-sm text-ink/70 mt-1 max-w-2xl">
               Records of rent paid directly between a tenant and a landlord. Goodlucks Homes does not draft
               or sign tenancy agreements and does not receive rent on a landlord&apos;s behalf.
             </p>
@@ -248,9 +248,9 @@ export const ReceiptsView: React.FC<{ embedded?: boolean }> = ({ embedded = fals
               onClick={handlePrintDocument}
               disabled={!currentReceiptForPreview}
               title={currentReceiptForPreview ? 'Print the record shown below' : 'No record to print yet'}
-              className="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs flex items-center gap-2 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+              className="px-4 py-2.5 rounded-xl bg-page hover:bg-line text-ink font-bold text-xs flex items-center gap-2 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              <Printer className="w-4 h-4 text-[#08D9D6]" />
+              <Printer className="w-4 h-4 text-ink" />
               Print / Export PDF
             </button>
           </div>
@@ -259,10 +259,10 @@ export const ReceiptsView: React.FC<{ embedded?: boolean }> = ({ embedded = fals
         {/* Issuing status notice */}
         {!receiptIssuingEnabled && (
           <div className="flex items-start gap-3 rounded-2xl border border-amber-400/30 bg-amber-400/10 p-4 no-print">
-            <Info className="w-5 h-5 text-amber-300 shrink-0 mt-0.5" />
-            <div className="text-xs sm:text-sm text-amber-100 space-y-1">
+            <Info className="w-5 h-5 text-amber-700 shrink-0 mt-0.5" />
+            <div className="text-xs sm:text-sm text-amber-800 space-y-1">
               <p className="font-bold">Recording new payments is temporarily switched off.</p>
-              <p className="text-amber-200/90">
+              <p className="text-amber-800/90">
                 The old receipt template could imply that Goodlucks received money that was paid straight to a
                 landlord. Recording reopens with the corrected payment and commission model. Records already
                 saved can still be viewed and printed below.
@@ -272,13 +272,13 @@ export const ReceiptsView: React.FC<{ embedded?: boolean }> = ({ embedded = fals
         )}
 
         {/* Navigation Tabs */}
-        <div className="flex items-center gap-2 border-b border-white/10 pb-3 overflow-x-auto no-print">
+        <div className="flex items-center gap-2 border-b border-line pb-3 overflow-x-auto no-print">
           <button
             onClick={() => setActiveTab('record')}
             className={`px-5 py-2.5 rounded-xl font-bold text-xs sm:text-sm flex items-center gap-2 transition-all whitespace-nowrap ${
               activeTab === 'record'
-                ? 'bg-[#08D9D6] text-[#252A34] shadow-lg shadow-[#08D9D6]/20 font-extrabold'
-                : 'bg-white/5 text-slate-300 hover:text-white hover:bg-white/10'
+                ? 'bg-interactive text-ink shadow-lg shadow-ink/10 font-extrabold'
+                : 'bg-page text-ink/70 hover:text-ink hover:bg-page'
             }`}
           >
             <Receipt className="w-4 h-4" />
@@ -289,8 +289,8 @@ export const ReceiptsView: React.FC<{ embedded?: boolean }> = ({ embedded = fals
             onClick={() => setActiveTab('vault')}
             className={`px-5 py-2.5 rounded-xl font-bold text-xs sm:text-sm flex items-center gap-2 transition-all whitespace-nowrap ${
               activeTab === 'vault'
-                ? 'bg-[#08D9D6] text-[#252A34] shadow-lg shadow-[#08D9D6]/20 font-extrabold'
-                : 'bg-white/5 text-slate-300 hover:text-white hover:bg-white/10'
+                ? 'bg-interactive text-ink shadow-lg shadow-ink/10 font-extrabold'
+                : 'bg-page text-ink/70 hover:text-ink hover:bg-page'
             }`}
           >
             <Award className="w-4 h-4" />
@@ -303,81 +303,81 @@ export const ReceiptsView: React.FC<{ embedded?: boolean }> = ({ embedded = fals
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
 
             {/* Record Form Controls */}
-            <div className="lg:col-span-5 bg-[#1F242D] p-6 rounded-2xl border border-white/10 space-y-5">
-              <div className="flex items-center gap-2 border-b border-white/10 pb-3">
-                <Receipt className="w-5 h-5 text-[#08D9D6]" />
-                <h2 className="font-extrabold text-sm text-white">Payment details</h2>
+            <div className="lg:col-span-5 bg-page p-6 rounded-2xl border border-line space-y-5">
+              <div className="flex items-center gap-2 border-b border-line pb-3">
+                <Receipt className="w-5 h-5 text-ink" />
+                <h2 className="font-extrabold text-sm text-ink">Payment details</h2>
               </div>
 
               <form onSubmit={handleGenerateReceipt} className="space-y-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  <label className="block text-xs font-semibold text-ink/70 mb-1">
                     Property
                   </label>
                   <input
                     type="text"
                     value={recPropertyTitle}
                     onChange={(e) => setRecPropertyTitle(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-[#252A34] border border-white/10 text-white text-xs focus:outline-none focus:border-[#08D9D6]"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-page border border-line text-ink text-xs focus:outline-none focus:border-interactive"
                     required
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  <label className="block text-xs font-semibold text-ink/70 mb-1">
                     Property address
                   </label>
                   <input
                     type="text"
                     value={recPropertyAddress}
                     onChange={(e) => setRecPropertyAddress(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-[#252A34] border border-white/10 text-white text-xs focus:outline-none focus:border-[#08D9D6]"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-page border border-line text-ink text-xs focus:outline-none focus:border-interactive"
                     required
                   />
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1">
+                    <label className="block text-xs font-semibold text-ink/70 mb-1">
                       Tenant name
                     </label>
                     <input
                       type="text"
                       value={recTenantName}
                       onChange={(e) => setRecTenantName(e.target.value)}
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-[#252A34] border border-white/10 text-white text-xs focus:outline-none focus:border-[#08D9D6]"
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-page border border-line text-ink text-xs focus:outline-none focus:border-interactive"
                       required
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1">
+                    <label className="block text-xs font-semibold text-ink/70 mb-1">
                       Tenant phone
                     </label>
                     <input
                       type="tel"
                       value={recTenantPhone}
                       onChange={(e) => setRecTenantPhone(e.target.value)}
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-[#252A34] border border-white/10 text-white text-xs focus:outline-none focus:border-[#08D9D6]"
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-page border border-line text-ink text-xs focus:outline-none focus:border-interactive"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  <label className="block text-xs font-semibold text-ink/70 mb-1">
                     Landlord who received the money
                   </label>
                   <input
                     type="text"
                     value={recLandlordName}
                     onChange={(e) => setRecLandlordName(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-[#252A34] border border-white/10 text-white text-xs focus:outline-none focus:border-[#08D9D6]"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-page border border-line text-ink text-xs focus:outline-none focus:border-interactive"
                     required
                   />
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1">
+                    <label className="block text-xs font-semibold text-ink/70 mb-1">
                       Amount (GH₵)
                     </label>
                     <input
@@ -385,18 +385,18 @@ export const ReceiptsView: React.FC<{ embedded?: boolean }> = ({ embedded = fals
                       min={1}
                       value={recAmountGhs}
                       onChange={(e) => setRecAmountGhs(parseFloat(e.target.value) || 0)}
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-[#252A34] border border-white/10 text-white text-xs focus:outline-none focus:border-[#08D9D6]"
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-page border border-line text-ink text-xs focus:outline-none focus:border-interactive"
                       required
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1">
+                    <label className="block text-xs font-semibold text-ink/70 mb-1">
                       Payment method
                     </label>
                     <select
                       value={recPaymentMethod}
                       onChange={(e) => setRecPaymentMethod(e.target.value as typeof recPaymentMethod)}
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-[#252A34] border border-white/10 text-white text-xs focus:outline-none focus:border-[#08D9D6]"
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-page border border-line text-ink text-xs focus:outline-none focus:border-interactive"
                     >
                       <option value="Bank Transfer">Bank Transfer</option>
                       <option value="MTN MoMo">MTN Mobile Money</option>
@@ -408,20 +408,20 @@ export const ReceiptsView: React.FC<{ embedded?: boolean }> = ({ embedded = fals
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  <label className="block text-xs font-semibold text-ink/70 mb-1">
                     Purpose
                   </label>
                   <input
                     type="text"
                     value={recPaymentPurpose}
                     onChange={(e) => setRecPaymentPurpose(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-[#252A34] border border-white/10 text-white text-xs focus:outline-none focus:border-[#08D9D6]"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-page border border-line text-ink text-xs focus:outline-none focus:border-interactive"
                   />
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1">
+                    <label className="block text-xs font-semibold text-ink/70 mb-1">
                       Transaction reference
                     </label>
                     <input
@@ -429,18 +429,18 @@ export const ReceiptsView: React.FC<{ embedded?: boolean }> = ({ embedded = fals
                       value={recTransactionRef}
                       onChange={(e) => setRecTransactionRef(e.target.value)}
                       placeholder="Bank / MoMo reference"
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-[#252A34] border border-white/10 text-white text-xs placeholder-slate-500 focus:outline-none focus:border-[#08D9D6]"
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-page border border-line text-ink text-xs placeholder-ink/50 focus:outline-none focus:border-interactive"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1">
+                    <label className="block text-xs font-semibold text-ink/70 mb-1">
                       Payment date
                     </label>
                     <input
                       type="date"
                       value={recPaymentDate}
                       onChange={(e) => setRecPaymentDate(e.target.value)}
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-[#252A34] border border-white/10 text-white text-xs focus:outline-none focus:border-[#08D9D6]"
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-page border border-line text-ink text-xs focus:outline-none focus:border-interactive"
                     />
                   </div>
                 </div>
@@ -450,8 +450,8 @@ export const ReceiptsView: React.FC<{ embedded?: boolean }> = ({ embedded = fals
                   disabled={!receiptIssuingEnabled || isSavingReceipt}
                   className={`w-full py-3 rounded-xl font-extrabold text-xs flex items-center justify-center gap-2 transition-all ${
                     receiptIssuingEnabled
-                      ? 'bg-[#08D9D6] text-[#252A34] hover:bg-[#08D9D6]/90 shadow-lg shadow-[#08D9D6]/20'
-                      : 'bg-white/10 text-slate-400 cursor-not-allowed'
+                      ? 'bg-interactive text-ink hover:bg-interactive/90 shadow-lg shadow-ink/10'
+                      : 'bg-page text-ink/70 cursor-not-allowed'
                   }`}
                 >
                   <Receipt className="w-4 h-4" />
@@ -461,7 +461,7 @@ export const ReceiptsView: React.FC<{ embedded?: boolean }> = ({ embedded = fals
                 </button>
 
                 {!receiptIssuingEnabled && (
-                  <p className="text-[11px] text-amber-200/80 flex items-start gap-1.5">
+                  <p className="text-[11px] text-amber-800/80 flex items-start gap-1.5">
                     <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
                     Goodlucks does not receive rent, so no new record can be created until the corrected
                     payment and commission model is in place.
@@ -474,13 +474,13 @@ export const ReceiptsView: React.FC<{ embedded?: boolean }> = ({ embedded = fals
             <div className="lg:col-span-7 space-y-4">
 
               <div className="flex items-center justify-between no-print px-2">
-                <span className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
-                  <Award className="w-4 h-4 text-[#08D9D6]" />
+                <span className="text-xs font-bold text-ink/70 flex items-center gap-1.5">
+                  <Award className="w-4 h-4 text-ink" />
                   Payment record preview
                 </span>
                 <button
                   onClick={handlePrintDocument}
-                  className="text-xs text-[#08D9D6] hover:underline flex items-center gap-1 font-semibold"
+                  className="text-xs text-ink hover:underline flex items-center gap-1 font-semibold"
                 >
                   <Printer className="w-3.5 h-3.5" />
                   Print
@@ -490,38 +490,38 @@ export const ReceiptsView: React.FC<{ embedded?: boolean }> = ({ embedded = fals
               {currentReceiptForPreview ? (
                 <div
                   id="printable-document"
-                  className="bg-white text-slate-900 p-8 rounded-2xl shadow-2xl border-4 border-[#08D9D6]/40 space-y-6 relative overflow-hidden font-sans"
+                  className="bg-white text-ink p-8 rounded-2xl shadow-lg border-4 border-interactive/40 space-y-6 relative overflow-hidden font-sans"
                 >
                   {/* Record header */}
-                  <div className="flex items-start justify-between border-b-2 border-slate-900 pb-4">
+                  <div className="flex items-start justify-between border-b-2 border-line pb-4">
                     <div>
                       <div className="flex items-center gap-2 mb-1">
-                        <div className="w-8 h-8 rounded-lg bg-[#08D9D6] flex items-center justify-center text-[#252A34] font-black">
+                        <div className="w-8 h-8 rounded-lg bg-interactive flex items-center justify-center text-ink font-black">
                           GH
                         </div>
-                        <span className="font-extrabold text-lg tracking-tight text-slate-900">
+                        <span className="font-extrabold text-lg tracking-tight text-ink">
                           Goodlucks <span className="text-teal-600">Homes</span>
                         </span>
                       </div>
-                      <p className="text-[11px] text-slate-600">
+                      <p className="text-[11px] text-ink/70">
                         Property intermediary &amp; viewing coordination<br />
                         Ridge, Accra, Ghana | +233 23 769 0080 | rent.goodlucks.co
                       </p>
                     </div>
 
                     <div className="text-right">
-                      <span className="text-[10px] font-bold uppercase text-slate-400 block">RECORD NO</span>
+                      <span className="text-[10px] font-bold uppercase text-ink/70 block">RECORD NO</span>
                       <span className="text-sm font-black font-mono text-teal-700 bg-teal-50 px-2.5 py-1 rounded border border-teal-200 block mb-1">
                         {currentReceiptForPreview.receiptNo}
                       </span>
-                      <span className="text-[11px] text-slate-500 font-medium">
+                      <span className="text-[11px] text-ink/70 font-medium">
                         Date: {currentReceiptForPreview.paymentDate}
                       </span>
                     </div>
                   </div>
 
                   <div className="text-center space-y-1.5">
-                    <span className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">
+                    <span className="text-xs font-black uppercase tracking-[0.2em] text-ink/70">
                       Rent payment record
                     </span>
                     <div className="inline-block px-2 py-0.5 rounded border border-amber-300 bg-amber-50 text-[10px] font-bold uppercase tracking-wider text-amber-800">
@@ -530,33 +530,33 @@ export const ReceiptsView: React.FC<{ embedded?: boolean }> = ({ embedded = fals
                   </div>
 
                   {/* Parties */}
-                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
+                  <div className="bg-page p-4 rounded-xl border border-line space-y-3">
                     <div className="grid grid-cols-2 gap-4 text-xs">
                       <div>
-                        <span className="text-[10px] font-extrabold uppercase text-slate-400 block">PAID BY (TENANT)</span>
-                        <span className="font-bold text-slate-900 block text-sm">{currentReceiptForPreview.tenantName}</span>
-                        <span className="text-slate-600 text-[11px]">{currentReceiptForPreview.tenantPhone}</span>
+                        <span className="text-[10px] font-extrabold uppercase text-ink/70 block">PAID BY (TENANT)</span>
+                        <span className="font-bold text-ink block text-sm">{currentReceiptForPreview.tenantName}</span>
+                        <span className="text-ink/70 text-[11px]">{currentReceiptForPreview.tenantPhone}</span>
                       </div>
                       <div>
-                        <span className="text-[10px] font-extrabold uppercase text-slate-400 block">PAID TO (LANDLORD)</span>
-                        <span className="font-bold text-slate-900 block text-sm">{currentReceiptForPreview.landlordName}</span>
-                        <span className="text-slate-600 text-[11px]">Property owner</span>
+                        <span className="text-[10px] font-extrabold uppercase text-ink/70 block">PAID TO (LANDLORD)</span>
+                        <span className="font-bold text-ink block text-sm">{currentReceiptForPreview.landlordName}</span>
+                        <span className="text-ink/70 text-[11px]">Property owner</span>
                       </div>
                     </div>
 
-                    <div className="border-t border-slate-200 pt-3">
-                      <span className="text-[10px] font-extrabold uppercase text-slate-400 block">PROPERTY ADDRESS</span>
-                      <span className="font-semibold text-slate-800 text-xs">
+                    <div className="border-t border-line pt-3">
+                      <span className="text-[10px] font-extrabold uppercase text-ink/70 block">PROPERTY ADDRESS</span>
+                      <span className="font-semibold text-ink text-xs">
                         {currentReceiptForPreview.propertyTitle}
                       </span>
-                      <span className="text-slate-600 text-[11px] block">{currentReceiptForPreview.propertyAddress}</span>
+                      <span className="text-ink/70 text-[11px] block">{currentReceiptForPreview.propertyAddress}</span>
                     </div>
                   </div>
 
                   {/* Amount table */}
-                  <div className="border border-slate-200 rounded-xl overflow-hidden">
+                  <div className="border border-line rounded-xl overflow-x-auto">
                     <table className="w-full text-xs text-left">
-                      <thead className="bg-slate-900 text-white text-[11px] uppercase font-bold">
+                      <thead className="bg-page text-ink text-[11px] uppercase font-bold">
                         <tr>
                           <th className="p-3">Payment purpose</th>
                           <th className="p-3">Method</th>
@@ -564,12 +564,12 @@ export const ReceiptsView: React.FC<{ embedded?: boolean }> = ({ embedded = fals
                           <th className="p-3 text-right">Amount (GH₵)</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-slate-200 text-slate-800 font-medium">
+                      <tbody className="divide-y divide-line text-ink font-medium">
                         <tr>
                           <td className="p-3 font-semibold">{currentReceiptForPreview.paymentPurpose}</td>
                           <td className="p-3">{currentReceiptForPreview.paymentMethod}</td>
                           <td className="p-3 font-mono text-[11px]">{currentReceiptForPreview.transactionRef || '—'}</td>
-                          <td className="p-3 text-right font-bold text-slate-900">
+                          <td className="p-3 text-right font-bold text-ink">
                             GH₵ {currentReceiptForPreview.amountGhs.toLocaleString()}
                           </td>
                         </tr>
@@ -609,13 +609,13 @@ export const ReceiptsView: React.FC<{ embedded?: boolean }> = ({ embedded = fals
                   </div>
 
                   {/* Sign-off */}
-                  <div className="pt-4 border-t border-slate-200 flex items-end justify-between text-xs">
+                  <div className="pt-4 border-t border-line flex items-end justify-between text-xs">
                     <div className="space-y-1">
-                      <div className="flex items-center gap-1.5 text-slate-700 font-bold">
-                        <CheckCircle2 className="w-4 h-4 text-slate-500" />
+                      <div className="flex items-center gap-1.5 text-ink/70 font-bold">
+                        <CheckCircle2 className="w-4 h-4 text-ink/70" />
                         Recorded by Goodlucks Homes (intermediary record)
                       </div>
-                      <div className="text-[10px] text-slate-500 font-mono">
+                      <div className="text-[10px] text-ink/70 font-mono">
                         Record reference: {currentReceiptForPreview.verificationCode}
                       </div>
                       {currentReceiptForPreview.legacyReference && (
@@ -627,25 +627,25 @@ export const ReceiptsView: React.FC<{ embedded?: boolean }> = ({ embedded = fals
                     </div>
 
                     <div className="text-right space-y-1">
-                      <div className="font-extrabold text-slate-900 border-b border-slate-300 pb-0.5">
+                      <div className="font-extrabold text-ink border-b border-slate-300 pb-0.5">
                         {currentReceiptForPreview.issuedBy}
                       </div>
-                      <div className="text-[10px] text-slate-500">Recorded by</div>
+                      <div className="text-[10px] text-ink/70">Recorded by</div>
                     </div>
                   </div>
                 </div>
               ) : (
-                <div className="p-10 text-center bg-[#1F242D] rounded-2xl border border-white/10 text-slate-400 text-xs">
+                <div className="p-10 text-center bg-page rounded-2xl border border-line text-ink/70 text-xs">
                   No payment records yet. Fill the form to preview the layout.
                 </div>
               )}
 
               {/* Action toolbar */}
               {currentReceiptForPreview && (
-                <div className="flex items-center justify-between bg-[#1F242D] p-4 rounded-xl border border-white/10 no-print">
+                <div className="flex items-center justify-between bg-page p-4 rounded-xl border border-line no-print">
                   <button
                     onClick={handlePrintDocument}
-                    className="px-4 py-2 rounded-xl bg-[#08D9D6] text-[#252A34] font-extrabold text-xs flex items-center gap-1.5 hover:bg-[#08D9D6]/90 transition-all shadow"
+                    className="gl-btn gl-btn-primary px-4 py-2 text-xs flex"
                   >
                     <Printer className="w-4 h-4" />
                     Print record
@@ -653,9 +653,9 @@ export const ReceiptsView: React.FC<{ embedded?: boolean }> = ({ embedded = fals
 
                   <button
                     onClick={() => handleCopyCode(currentReceiptForPreview.verificationCode)}
-                    className="px-4 py-2 rounded-xl bg-white/10 text-white font-bold text-xs flex items-center gap-1.5 hover:bg-white/20 transition-all"
+                    className="px-4 py-2 rounded-xl bg-page text-ink font-bold text-xs flex items-center gap-1.5 hover:bg-line transition-all"
                   >
-                    <Copy className="w-4 h-4 text-[#08D9D6]" />
+                    <Copy className="w-4 h-4 text-ink" />
                     Copy reference
                   </button>
                 </div>
@@ -669,32 +669,32 @@ export const ReceiptsView: React.FC<{ embedded?: boolean }> = ({ embedded = fals
         {activeTab === 'vault' && (
           <div className="space-y-6 no-print">
 
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-[#1F242D] p-4 rounded-2xl border border-white/10">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-page p-4 rounded-2xl border border-line">
               <div className="relative w-full sm:w-96">
-                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+                <Search className="w-4 h-4 text-ink/70 absolute left-3.5 top-3" />
                 <input
                   type="text"
                   placeholder="Search records by property, tenant, landlord, or reference..."
                   value={vaultSearchQuery}
                   onChange={(e) => setVaultSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-[#252A34] border border-white/10 text-white text-xs placeholder-slate-400 focus:outline-none focus:border-[#08D9D6]"
+                  className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-page border border-line text-ink text-xs placeholder-ink/50 focus:outline-none focus:border-interactive"
                 />
               </div>
 
-              <div className="text-xs text-slate-300 font-medium flex items-center gap-2">
-                <ShieldCheck className="w-4 h-4 text-[#08D9D6]" />
+              <div className="text-xs text-ink/70 font-medium flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 text-ink" />
                 Only you and authorised staff can see these records
               </div>
             </div>
 
             <div className="space-y-4">
-              <h2 className="text-base font-bold text-white flex items-center gap-2 border-b border-white/10 pb-2">
-                <Receipt className="w-5 h-5 text-[#08D9D6]" />
+              <h2 className="text-base font-bold text-ink flex items-center gap-2 border-b border-line pb-2">
+                <Receipt className="w-5 h-5 text-ink" />
                 Rent Payment Records ({filteredReceipts.length})
               </h2>
 
               {filteredReceipts.length === 0 ? (
-                <div className="p-8 text-center bg-[#1F242D] rounded-2xl border border-white/10 text-slate-400 text-xs">
+                <div className="p-8 text-center bg-page rounded-2xl border border-line text-ink/70 text-xs">
                   No payment records match your search.
                 </div>
               ) : (
@@ -702,38 +702,38 @@ export const ReceiptsView: React.FC<{ embedded?: boolean }> = ({ embedded = fals
                   {filteredReceipts.map(rec => (
                     <div
                       key={rec.id}
-                      className="bg-[#1F242D] p-5 rounded-2xl border border-white/10 space-y-4 hover:border-[#08D9D6]/40 transition-all"
+                      className="bg-page p-5 rounded-2xl border border-line space-y-4 hover:border-interactive/40 transition-all"
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div>
-                          <span className="text-[10px] font-mono text-[#08D9D6] bg-[#08D9D6]/10 px-2 py-0.5 rounded font-bold">
+                          <span className="text-[10px] font-mono text-ink bg-interactive/10 px-2 py-0.5 rounded font-bold">
                             {rec.receiptNo}
                           </span>
-                          <h3 className="font-extrabold text-sm text-white mt-1.5">{rec.propertyTitle}</h3>
-                          <p className="text-xs text-slate-400">{rec.paymentPurpose}</p>
+                          <h3 className="font-extrabold text-sm text-ink mt-1.5">{rec.propertyTitle}</h3>
+                          <p className="text-xs text-ink/70">{rec.paymentPurpose}</p>
                         </div>
-                        <span className="text-[10px] font-extrabold px-2.5 py-1 rounded-full uppercase tracking-wider bg-slate-500/20 text-slate-300 border border-white/10">
+                        <span className="text-[10px] font-extrabold px-2.5 py-1 rounded-full uppercase tracking-wider bg-line/20 text-ink/70 border border-line">
                           Recorded
                         </span>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-2 text-xs bg-white/5 p-3 rounded-xl border border-white/5">
+                      <div className="grid grid-cols-2 gap-2 text-xs bg-page p-3 rounded-xl border border-line">
                         <div>
-                          <span className="text-[10px] text-slate-400 block">Paid by</span>
-                          <span className="font-bold text-slate-200">{rec.tenantName}</span>
+                          <span className="text-[10px] text-ink/70 block">Paid by</span>
+                          <span className="font-bold text-ink">{rec.tenantName}</span>
                         </div>
                         <div>
-                          <span className="text-[10px] text-slate-400 block">Amount</span>
-                          <span className="font-extrabold text-[#08D9D6]">GH₵ {rec.amountGhs.toLocaleString()}</span>
+                          <span className="text-[10px] text-ink/70 block">Amount</span>
+                          <span className="font-extrabold text-ink">GH₵ {rec.amountGhs.toLocaleString()}</span>
                         </div>
                         <div>
-                          <span className="text-[10px] text-slate-400 block">Paid to</span>
-                          <span className="font-bold text-slate-200">{rec.landlordName}</span>
+                          <span className="text-[10px] text-ink/70 block">Paid to</span>
+                          <span className="font-bold text-ink">{rec.landlordName}</span>
                         </div>
                         <div>
-                          <span className="text-[10px] text-slate-400 block">Date</span>
-                          <span className="font-bold text-slate-200 flex items-center gap-1">
-                            <Calendar className="w-3 h-3 text-slate-400" /> {rec.paymentDate}
+                          <span className="text-[10px] text-ink/70 block">Date</span>
+                          <span className="font-bold text-ink flex items-center gap-1">
+                            <Calendar className="w-3 h-3 text-ink/70" /> {rec.paymentDate}
                           </span>
                         </div>
                       </div>
@@ -744,14 +744,14 @@ export const ReceiptsView: React.FC<{ embedded?: boolean }> = ({ embedded = fals
                             setPreviewReceipt(rec);
                             setActiveTab('record');
                           }}
-                          className="px-3.5 py-1.5 rounded-lg bg-[#08D9D6] text-[#252A34] text-xs font-extrabold hover:bg-[#08D9D6]/90 transition-all"
+                          className="px-3.5 py-1.5 rounded-lg bg-interactive text-ink text-xs font-extrabold hover:bg-interactive/90 transition-all"
                         >
                           View &amp; Print
                         </button>
 
                         <button
                           onClick={() => handleCopyCode(rec.verificationCode)}
-                          className="text-xs text-slate-300 hover:text-[#08D9D6] flex items-center gap-1 font-semibold"
+                          className="text-xs text-ink/70 hover:text-ink flex items-center gap-1 font-semibold"
                         >
                           <Copy className="w-3.5 h-3.5" />
                           Copy reference

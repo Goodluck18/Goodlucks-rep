@@ -335,50 +335,50 @@ export const AdminDashboard: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#1A1E26] text-white py-8 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-page text-ink py-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-7xl mx-auto space-y-8 animate-fadeIn">
         
         {/* SaaS Header */}
-        <div className="bg-slate-800/90 border border-white/10 p-6 rounded-3xl flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-2xl">
+        <div className="gl-card p-5 sm:p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-[#08D9D6] text-[#252A34] flex items-center justify-center font-bold text-xl shadow-lg shadow-[#08D9D6]/20">
+            <div className="w-12 h-12 rounded-2xl bg-interactive text-ink flex items-center justify-center font-bold text-xl">
               <ShieldCheck className="w-7 h-7" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-2xl font-black text-white tracking-tight">Goodlucks Admin SaaS Control Panel</h1>
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-[#FF2E63]/20 text-[#FF2E63] border border-[#FF2E63]/30">
+                <h1 className="text-2xl font-black text-ink tracking-tight">Goodlucks Admin SaaS Control Panel</h1>
+                <span className="gl-badge gl-badge-danger">
                   Live Operations
                 </span>
               </div>
-              <p className="text-xs text-slate-400">Intermediary Rental Management, AI Match Scoring & Physical Viewing Operations</p>
+              <p className="text-xs text-ink/70">Intermediary Rental Management, AI Match Scoring & Physical Viewing Operations</p>
             </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
             <button 
               onClick={handleExportCsv}
-              className="px-3.5 py-2.5 rounded-xl bg-slate-700/80 hover:bg-slate-700 text-white font-bold text-xs border border-white/10 transition-all shadow-md flex items-center gap-1.5"
+              className="gl-btn gl-btn-secondary px-3.5 text-xs"
               title="Download every listing as a CSV spreadsheet"
             >
-              <Database className="w-4 h-4 text-[#08D9D6]" />
-              <Download className="w-3.5 h-3.5 text-slate-300" />
+              <Database className="w-4 h-4 text-ink" />
+              <Download className="w-3.5 h-3.5 text-ink/70" />
               <span>Export Listings (CSV)</span>
             </button>
 
             <button
               onClick={() => void handleRunAlertDigest()}
               disabled={isRunningAlerts}
-              className="px-3.5 py-2.5 rounded-xl bg-slate-700/80 hover:bg-slate-700 text-white font-bold text-xs border border-white/10 transition-all shadow-md flex items-center gap-1.5 disabled:opacity-60"
+              className="gl-btn gl-btn-secondary px-3.5 text-xs"
               title="Email saved searches that match a new listing"
             >
-              <Bell className="w-4 h-4 text-[#08D9D6]" />
+              <Bell className="w-4 h-4 text-ink" />
               <span>{isRunningAlerts ? 'Sending…' : 'Send Alert Digests'}</span>
             </button>
 
             <button 
               onClick={() => setShowScheduleModal(true)}
-              className="px-4 py-2.5 rounded-xl bg-[#08D9D6] text-[#252A34] font-extrabold text-xs hover:bg-[#08D9D6]/90 transition-all shadow-md shadow-[#08D9D6]/20 flex items-center gap-1.5"
+              className="gl-btn gl-btn-primary px-4 text-xs"
             >
               <Calendar className="w-4 h-4" /> Schedule Physical Viewing
             </button>
@@ -386,125 +386,101 @@ export const AdminDashboard: React.FC = () => {
         </div>
 
         {/* Tab Selector */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-2 border-b border-white/10">
+        <div className="flex items-center gap-2 overflow-x-auto pb-2 border-b border-line">
           <button
             onClick={() => setActiveAdminTab('analytics')}
-            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-2 ${
-              activeAdminTab === 'analytics' ? 'bg-[#08D9D6] text-[#252A34]' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-            }`}
+            className={`gl-tab ${activeAdminTab === 'analytics' ? 'gl-tab-active' : ''}`}
           >
             <BarChart2 className="w-4 h-4" /> Analytics Dashboard
           </button>
 
           <button
             onClick={() => setActiveAdminTab('approval-queue')}
-            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-2 ${
-              activeAdminTab === 'approval-queue' ? 'bg-[#08D9D6] text-[#252A34]' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-            }`}
+            className={`gl-tab ${activeAdminTab === 'approval-queue' ? 'gl-tab-active' : ''}`}
           >
             <Building2 className="w-4 h-4" /> Property Approval Queue ({pendingProps.length})
           </button>
 
           <button
             onClick={() => setActiveAdminTab('manage')}
-            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-2 ${
-              activeAdminTab === 'manage' ? 'bg-[#08D9D6] text-[#252A34]' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-            }`}
+            className={`gl-tab ${activeAdminTab === 'manage' ? 'gl-tab-active' : ''}`}
           >
             <Building2 className="w-4 h-4" /> Manage All Listings ({properties.length})
           </button>
 
           <button
             onClick={() => setActiveAdminTab('matching')}
-            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-2 ${
-              activeAdminTab === 'matching' ? 'bg-[#08D9D6] text-[#252A34]' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-            }`}
+            className={`gl-tab ${activeAdminTab === 'matching' ? 'gl-tab-active' : ''}`}
           >
             <Sparkles className="w-4 h-4" /> Tenant AI Matching ({tenantRequests.length})
           </button>
 
           <button
             onClick={() => setActiveAdminTab('viewings')}
-            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-2 ${
-              activeAdminTab === 'viewings' ? 'bg-[#08D9D6] text-[#252A34]' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-            }`}
+            className={`gl-tab ${activeAdminTab === 'viewings' ? 'gl-tab-active' : ''}`}
           >
             <Calendar className="w-4 h-4" /> Viewing requests &amp; appointments ({viewingSchedules.length})
           </button>
 
           <button
             onClick={() => setActiveAdminTab('agents')}
-            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-2 ${
-              activeAdminTab === 'agents' ? 'bg-[#08D9D6] text-[#252A34]' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-            }`}
+            className={`gl-tab ${activeAdminTab === 'agents' ? 'gl-tab-active' : ''}`}
           >
             <UserCheck className="w-4 h-4" /> Agent Accounts
           </button>
 
           <button
             onClick={() => setActiveAdminTab('fee-policies')}
-            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-2 ${
-              activeAdminTab === 'fee-policies' ? 'bg-[#08D9D6] text-[#252A34]' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-            }`}
+            className={`gl-tab ${activeAdminTab === 'fee-policies' ? 'gl-tab-active' : ''}`}
           >
             <DollarSign className="w-4 h-4" /> Fee Policies
           </button>
 
           <button
             onClick={() => setActiveAdminTab('finance')}
-            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-2 ${
-              activeAdminTab === 'finance' ? 'bg-[#08D9D6] text-[#252A34]' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-            }`}
+            className={`gl-tab ${activeAdminTab === 'finance' ? 'gl-tab-active' : ''}`}
           >
             <Wallet className="w-4 h-4" /> Finance
           </button>
 
           <button
             onClick={() => setActiveAdminTab('enquiries')}
-            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-2 ${
-              activeAdminTab === 'enquiries' ? 'bg-[#08D9D6] text-[#252A34]' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-            }`}
+            className={`gl-tab ${activeAdminTab === 'enquiries' ? 'gl-tab-active' : ''}`}
           >
             <FileText className="w-4 h-4" /> Website Enquiries ({enquiries.length})
           </button>
 
           <button
             onClick={() => setActiveAdminTab('email-logs')}
-            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-2 ${
-              activeAdminTab === 'email-logs' ? 'bg-[#08D9D6] text-[#252A34]' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-            }`}
+            className={`gl-tab ${activeAdminTab === 'email-logs' ? 'gl-tab-active' : ''}`}
           >
             <Mail className="w-4 h-4" /> Transactional Emails ({emailLogs.length})
           </button>
 
           <button
             onClick={() => setActiveAdminTab('blog')}
-            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-2 ${
-              activeAdminTab === 'blog' ? 'bg-[#08D9D6] text-[#252A34]' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-            }`}
+            className={`gl-tab ${activeAdminTab === 'blog' ? 'gl-tab-active' : ''}`}
           >
             <BookOpen className="w-4 h-4" /> Blog Management
           </button>
 
           <button
             onClick={() => setActiveAdminTab('email-templates')}
-            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-2 ${
-              activeAdminTab === 'email-templates' ? 'bg-[#08D9D6] text-[#252A34]' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-            }`}
+            className={`gl-tab ${activeAdminTab === 'email-templates' ? 'gl-tab-active' : ''}`}
           >
             <Mail className="w-4 h-4" /> Email Templates
           </button>
 
           <button
             onClick={() => setCurrentView('receipts')}
-            className="px-4 py-2.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-2 bg-[#08D9D6]/10 text-[#08D9D6] border border-[#08D9D6]/30 hover:bg-[#08D9D6]/20"
+            className="px-4 py-2.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-2 bg-interactive/10 text-ink border border-interactive/30 hover:bg-interactive/20"
           >
-            <FileText className="w-4 h-4 text-[#08D9D6]" /> Payment Records
+            <FileText className="w-4 h-4 text-ink" /> Payment Records
           </button>
         </div>
 
         {actionError && (
-          <div role="alert" className="p-3 rounded-xl bg-[#FF2E63]/15 border border-[#FF2E63]/30 text-[#FF8FA8] text-xs flex items-start gap-2">
+          <div role="alert" className="p-3 rounded-xl bg-accent/15 border border-accent/30 text-ink text-xs flex items-start gap-2">
             <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
             <span className="flex-1">{actionError}</span>
             <button type="button" onClick={() => setActionError(null)} className="font-bold">
@@ -519,39 +495,39 @@ export const AdminDashboard: React.FC = () => {
             
             {/* Visitor Statistics Header Cards */}
             <div className="space-y-3">
-              <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                <TrendingUp className="w-5 h-5 text-[#08D9D6]" /> Website Traffic & Visitor Analytics
+              <h2 className="text-lg font-bold text-ink flex items-center gap-2">
+                <TrendingUp className="w-5 h-5 text-ink" /> Website Traffic & Visitor Analytics
               </h2>
 
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
-                <div className="bg-slate-800/80 p-4 rounded-2xl border border-white/10 space-y-1">
-                  <div className="text-[11px] text-slate-400 font-semibold">Today</div>
-                  <div className="text-xl font-black text-white">{analytics.visitorsToday.toLocaleString()}</div>
-                  <div className="text-[10px] text-emerald-400 font-bold">+14% vs yesterday</div>
+                <div className="bg-surface p-4 rounded-2xl border border-line space-y-1">
+                  <div className="text-[11px] text-ink/70 font-semibold">Today</div>
+                  <div className="text-xl font-black text-ink">{analytics.visitorsToday.toLocaleString()}</div>
+                  <div className="text-[10px] text-emerald-700 font-bold">+14% vs yesterday</div>
                 </div>
 
-                <div className="bg-slate-800/80 p-4 rounded-2xl border border-white/10 space-y-1">
-                  <div className="text-[11px] text-slate-400 font-semibold">Yesterday</div>
-                  <div className="text-xl font-black text-slate-200">{analytics.visitorsYesterday.toLocaleString()}</div>
-                  <div className="text-[10px] text-slate-400 font-medium">Recorded</div>
+                <div className="bg-surface p-4 rounded-2xl border border-line space-y-1">
+                  <div className="text-[11px] text-ink/70 font-semibold">Yesterday</div>
+                  <div className="text-xl font-black text-ink">{analytics.visitorsYesterday.toLocaleString()}</div>
+                  <div className="text-[10px] text-ink/70 font-medium">Recorded</div>
                 </div>
 
-                <div className="bg-slate-800/80 p-4 rounded-2xl border border-white/10 space-y-1">
-                  <div className="text-[11px] text-slate-400 font-semibold">Last 7 Days</div>
-                  <div className="text-xl font-black text-white">{analytics.visitorsLast7Days.toLocaleString()}</div>
-                  <div className="text-[10px] text-emerald-400 font-bold">+18.5% Growth</div>
+                <div className="bg-surface p-4 rounded-2xl border border-line space-y-1">
+                  <div className="text-[11px] text-ink/70 font-semibold">Last 7 Days</div>
+                  <div className="text-xl font-black text-ink">{analytics.visitorsLast7Days.toLocaleString()}</div>
+                  <div className="text-[10px] text-emerald-700 font-bold">+18.5% Growth</div>
                 </div>
 
-                <div className="bg-slate-800/80 p-4 rounded-2xl border border-white/10 space-y-1">
-                  <div className="text-[11px] text-slate-400 font-semibold">Last 30 Days</div>
-                  <div className="text-xl font-black text-white">{analytics.visitorsLast30Days.toLocaleString()}</div>
-                  <div className="text-[10px] text-[#08D9D6] font-bold">104k Page views</div>
+                <div className="bg-surface p-4 rounded-2xl border border-line space-y-1">
+                  <div className="text-[11px] text-ink/70 font-semibold">Last 30 Days</div>
+                  <div className="text-xl font-black text-ink">{analytics.visitorsLast30Days.toLocaleString()}</div>
+                  <div className="text-[10px] text-ink font-bold">104k Page views</div>
                 </div>
 
-                <div className="bg-slate-800/80 p-4 rounded-2xl border border-white/10 space-y-1 col-span-2 sm:col-span-1">
-                  <div className="text-[11px] text-slate-400 font-semibold">Last 12 Months</div>
-                  <div className="text-xl font-black text-[#08D9D6]">{analytics.visitorsLast12Months.toLocaleString()}</div>
-                  <div className="text-[10px] text-slate-400 font-medium">Cumulative Traffic</div>
+                <div className="bg-surface p-4 rounded-2xl border border-line space-y-1 col-span-2 sm:col-span-1">
+                  <div className="text-[11px] text-ink/70 font-semibold">Last 12 Months</div>
+                  <div className="text-xl font-black text-ink">{analytics.visitorsLast12Months.toLocaleString()}</div>
+                  <div className="text-[10px] text-ink/70 font-medium">Cumulative Traffic</div>
                 </div>
               </div>
             </div>
@@ -560,31 +536,31 @@ export const AdminDashboard: React.FC = () => {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               
               {/* Daily Traffic Chart */}
-              <div className="bg-slate-800/90 p-6 rounded-3xl border border-white/10 space-y-4">
+              <div className="bg-surface p-6 rounded-2xl border border-line space-y-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h3 className="font-bold text-base text-white">Weekly Traffic Trends</h3>
-                    <p className="text-xs text-slate-400">Daily unique visitors over the last 7 days</p>
+                    <h3 className="font-bold text-base text-ink">Weekly Traffic Trends</h3>
+                    <p className="text-xs text-ink/70">Daily unique visitors over the last 7 days</p>
                   </div>
-                  <span className="text-xs font-bold text-emerald-400 bg-emerald-500/20 px-2.5 py-1 rounded-full border border-emerald-500/30">
+                  <span className="text-xs font-bold text-emerald-700 bg-emerald-500/20 px-2.5 py-1 rounded-full border border-emerald-500/30">
                     +18.5%
                   </span>
                 </div>
 
                 {/* SVG Visualizer */}
-                <div className="h-48 w-full flex items-end gap-2 pt-6 pb-2 border-b border-white/10">
+                <div className="h-48 w-full flex items-end gap-2 pt-6 pb-2 border-b border-line">
                   {analytics.dailyTraffic.map((pt, i) => {
                     const heightPercent = Math.min((pt.visitors / 1600) * 100, 100);
                     return (
                       <div key={i} className="flex-1 flex flex-col items-center gap-2 h-full justify-end group">
-                        <div className="opacity-0 group-hover:opacity-100 transition-opacity text-[10px] font-bold text-[#08D9D6]">
+                        <div className="opacity-0 group-hover:opacity-100 transition-opacity text-[10px] font-bold text-ink">
                           {pt.visitors}
                         </div>
                         <div 
                           style={{ height: `${heightPercent}%` }}
-                          className="w-full bg-gradient-to-t from-[#08D9D6]/30 to-[#08D9D6] rounded-t-lg transition-all group-hover:brightness-125"
+                          className="w-full bg-gradient-to-t from-interactive/30 to-interactive rounded-t-lg transition-all group-hover:brightness-125"
                         />
-                        <span className="text-[10px] text-slate-400 font-semibold">{pt.label}</span>
+                        <span className="text-[10px] text-ink/70 font-semibold">{pt.label}</span>
                       </div>
                     );
                   })}
@@ -592,31 +568,31 @@ export const AdminDashboard: React.FC = () => {
               </div>
 
               {/* Monthly Growth Chart */}
-              <div className="bg-slate-800/90 p-6 rounded-3xl border border-white/10 space-y-4">
+              <div className="bg-surface p-6 rounded-2xl border border-line space-y-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h3 className="font-bold text-base text-white">Monthly Platform Visitors</h3>
-                    <p className="text-xs text-slate-400">6-Month growth trajectory in Ghana</p>
+                    <h3 className="font-bold text-base text-ink">Monthly Platform Visitors</h3>
+                    <p className="text-xs text-ink/70">6-Month growth trajectory in Ghana</p>
                   </div>
-                  <span className="text-xs font-bold text-[#08D9D6] bg-[#08D9D6]/20 px-2.5 py-1 rounded-full border border-[#08D9D6]/30">
+                  <span className="text-xs font-bold text-ink bg-interactive/20 px-2.5 py-1 rounded-full border border-interactive/30">
                     32,500 Current Mo.
                   </span>
                 </div>
 
                 {/* SVG Visualizer */}
-                <div className="h-48 w-full flex items-end gap-3 pt-6 pb-2 border-b border-white/10">
+                <div className="h-48 w-full flex items-end gap-3 pt-6 pb-2 border-b border-line">
                   {analytics.monthlyTraffic.map((pt, i) => {
                     const heightPercent = Math.min((pt.visitors / 35000) * 100, 100);
                     return (
                       <div key={i} className="flex-1 flex flex-col items-center gap-2 h-full justify-end group">
-                        <div className="opacity-0 group-hover:opacity-100 transition-opacity text-[10px] font-bold text-[#FF2E63]">
+                        <div className="opacity-0 group-hover:opacity-100 transition-opacity text-[10px] font-bold text-accent">
                           {(pt.visitors / 1000).toFixed(1)}k
                         </div>
                         <div 
                           style={{ height: `${heightPercent}%` }}
-                          className="w-full bg-gradient-to-t from-[#FF2E63]/30 to-[#FF2E63] rounded-t-lg transition-all group-hover:brightness-125"
+                          className="w-full bg-gradient-to-t from-accent/30 to-accent rounded-t-lg transition-all group-hover:brightness-125"
                         />
-                        <span className="text-[10px] text-slate-400 font-semibold">{pt.label}</span>
+                        <span className="text-[10px] text-ink/70 font-semibold">{pt.label}</span>
                       </div>
                     );
                   })}
@@ -627,32 +603,32 @@ export const AdminDashboard: React.FC = () => {
 
             {/* Platform Metrics Summary */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-              <div className="bg-slate-800/60 p-5 rounded-2xl border border-white/10">
-                <div className="text-xs text-slate-400 font-medium">Registered Users</div>
-                <div className="text-2xl font-extrabold text-white">{analytics.totalRegisteredUsers}</div>
-                <div className="text-[10px] text-slate-400">
+              <div className="bg-surface p-5 rounded-2xl border border-line">
+                <div className="text-xs text-ink/70 font-medium">Registered Users</div>
+                <div className="text-2xl font-extrabold text-ink">{analytics.totalRegisteredUsers}</div>
+                <div className="text-[10px] text-ink/70">
                   {analytics.totalTenants} Tenants / {analytics.totalLandlords} Landlords / {analytics.totalAgents ?? 0} Agents
                 </div>
               </div>
 
-              <div className="bg-slate-800/60 p-5 rounded-2xl border border-white/10">
-                <div className="text-xs text-slate-400 font-medium">Physical Viewings Scheduled</div>
-                <div className="text-2xl font-extrabold text-[#08D9D6]">{analytics.totalViewings}</div>
-                <div className="text-[10px] text-[#08D9D6]">{analytics.completedViewings} completed · reported by staff</div>
+              <div className="bg-surface p-5 rounded-2xl border border-line">
+                <div className="text-xs text-ink/70 font-medium">Physical Viewings Scheduled</div>
+                <div className="text-2xl font-extrabold text-ink">{analytics.totalViewings}</div>
+                <div className="text-[10px] text-ink">{analytics.completedViewings} completed · reported by staff</div>
               </div>
 
-              <div className="bg-slate-800/60 p-5 rounded-2xl border border-white/10">
-                <div className="text-xs text-slate-400 font-medium">Viewing Fees Recorded</div>
-                <div className="text-2xl font-extrabold text-[#08D9D6]">GH₵ {analytics.viewingFeesCollectedGhs.toLocaleString()}</div>
-                <div className="text-[10px] text-slate-400">
+              <div className="bg-surface p-5 rounded-2xl border border-line">
+                <div className="text-xs text-ink/70 font-medium">Viewing Fees Recorded</div>
+                <div className="text-2xl font-extrabold text-ink">GH₵ {analytics.viewingFeesCollectedGhs.toLocaleString()}</div>
+                <div className="text-[10px] text-ink/70">
                   Agent collections and landlord fees — reconciled in the ledger below
                 </div>
               </div>
 
-              <div className="bg-slate-800/60 p-5 rounded-2xl border border-white/10">
-                <div className="text-xs text-slate-400 font-medium">Approved Active Listings</div>
-                <div className="text-2xl font-extrabold text-white">{activeProps.length} Properties</div>
-                <div className="text-[10px] text-amber-400">{pendingProps.length} Pending Review</div>
+              <div className="bg-surface p-5 rounded-2xl border border-line">
+                <div className="text-xs text-ink/70 font-medium">Approved Active Listings</div>
+                <div className="text-2xl font-extrabold text-ink">{activeProps.length} Properties</div>
+                <div className="text-[10px] text-amber-700">{pendingProps.length} Pending Review</div>
               </div>
             </div>
 
@@ -665,10 +641,10 @@ export const AdminDashboard: React.FC = () => {
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-xl font-bold text-white">Pending Landlord Property Approvals</h2>
-                <p className="text-xs text-slate-400">Review documents and details before making listings public on Goodlucks Homes</p>
+                <h2 className="text-xl font-bold text-ink">Pending Landlord Property Approvals</h2>
+                <p className="text-xs text-ink/70">Review documents and details before making listings public on Goodlucks Homes</p>
               </div>
-              <span className="px-3 py-1 rounded-full bg-amber-500/20 text-amber-400 text-xs font-bold border border-amber-500/30">
+              <span className="px-3 py-1 rounded-full bg-amber-500/20 text-amber-700 text-xs font-bold border border-amber-500/30">
                 {pendingProps.length} Action Required
               </span>
             </div>
@@ -676,14 +652,14 @@ export const AdminDashboard: React.FC = () => {
             {pendingProps.length > 0 ? (
               <div className="grid grid-cols-1 gap-4">
                 {pendingProps.map(prop => (
-                  <div key={prop.id} className="bg-slate-800 p-5 rounded-2xl border border-white/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                  <div key={prop.id} className="bg-surface p-5 rounded-2xl border border-line flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                     <div className="flex items-center gap-4">
-                      <img src={prop.images[0]} alt="" loading="lazy" decoding="async" className="w-20 h-20 rounded-xl object-cover border border-white/10 shrink-0" />
+                      <img src={prop.images[0]} alt="" loading="lazy" decoding="async" className="w-20 h-20 rounded-xl object-cover border border-line shrink-0" />
                       <div>
-                        <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider">Pending Review</span>
-                        <h3 className="font-bold text-base text-white">{prop.title}</h3>
-                        <p className="text-xs text-slate-300">{prop.location} • GH₵ {prop.rentGhs.toLocaleString()}/mo • {prop.bedrooms} Bed / {prop.bathrooms} Bath</p>
-                        <p className="text-[11px] text-slate-400 mt-1">Landlord ID: {prop.landlordId}</p>
+                        <span className="text-[10px] font-bold text-amber-700 uppercase tracking-wider">Pending Review</span>
+                        <h3 className="font-bold text-base text-ink">{prop.title}</h3>
+                        <p className="text-xs text-ink/70">{prop.location} • GH₵ {prop.rentGhs.toLocaleString()}/mo • {prop.bedrooms} Bed / {prop.bathrooms} Bath</p>
+                        <p className="text-[11px] text-ink/70 mt-1">Landlord ID: {prop.landlordId}</p>
                       </div>
                     </div>
 
@@ -693,19 +669,19 @@ export const AdminDashboard: React.FC = () => {
                           setViewPropertyModal(prop);
                           setActiveModalImage(0);
                         }}
-                        className="px-3.5 py-2 rounded-xl bg-[#08D9D6]/10 text-[#08D9D6] border border-[#08D9D6]/30 font-bold text-xs hover:bg-[#08D9D6]/20 transition-colors flex items-center gap-1.5"
+                        className="px-3.5 py-2 rounded-xl bg-interactive/10 text-ink border border-interactive/30 font-bold text-xs hover:bg-interactive/20 transition-colors flex items-center gap-1.5"
                       >
                         <Eye className="w-4 h-4" /> View Property
                       </button>
                       <button
                         onClick={() => handleApproveProperty(prop.id)}
-                        className="px-4 py-2 rounded-xl bg-emerald-500 text-slate-950 font-bold text-xs hover:bg-emerald-400 transition-colors flex items-center gap-1 shadow-md"
+                        className="px-4 py-2 rounded-xl bg-emerald-500 text-ink font-bold text-xs hover:bg-emerald-400 transition-colors flex items-center gap-1 shadow-md"
                       >
                         <CheckCircle2 className="w-4 h-4" /> Approve Listing
                       </button>
                       <button
                         onClick={() => handleRejectProperty(prop.id)}
-                        className="px-4 py-2 rounded-xl bg-[#FF2E63]/20 text-[#FF2E63] font-bold text-xs hover:bg-[#FF2E63]/30 transition-colors flex items-center gap-1"
+                        className="px-4 py-2 rounded-xl bg-accent/20 text-accent font-bold text-xs hover:bg-accent/30 transition-colors flex items-center gap-1"
                       >
                         <XCircle className="w-4 h-4" /> Reject
                       </button>
@@ -714,10 +690,10 @@ export const AdminDashboard: React.FC = () => {
                 ))}
               </div>
             ) : (
-              <div className="text-center py-12 bg-slate-800/40 rounded-3xl border border-white/10">
-                <CheckCircle2 className="w-12 h-12 text-emerald-400 mx-auto mb-3" />
-                <div className="text-base font-bold text-white">Queue Clear!</div>
-                <p className="text-xs text-slate-400">All submitted properties have been reviewed by Goodlucks Homes.</p>
+              <div className="text-center py-12 bg-surface/40 rounded-2xl border border-line">
+                <CheckCircle2 className="w-12 h-12 text-emerald-700 mx-auto mb-3" />
+                <div className="text-base font-bold text-ink">Queue Clear!</div>
+                <p className="text-xs text-ink/70">All submitted properties have been reviewed by Goodlucks Homes.</p>
               </div>
             )}
           </div>
@@ -733,19 +709,19 @@ export const AdminDashboard: React.FC = () => {
 
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <div>
-                <h2 className="text-xl font-bold text-white">All Property Listings</h2>
-                <p className="text-xs text-slate-400">
+                <h2 className="text-xl font-bold text-ink">All Property Listings</h2>
+                <p className="text-xs text-ink/70">
                   Edit details, publish or archive listings, and control what appears on the public website.
                 </p>
               </div>
-              <span className="px-3 py-1 rounded-full bg-[#08D9D6]/15 text-[#08D9D6] text-xs font-bold border border-[#08D9D6]/30">
+              <span className="px-3 py-1 rounded-full bg-interactive/15 text-ink text-xs font-bold border border-interactive/30">
                 {properties.length} total records
               </span>
             </div>
 
-            <div className="bg-slate-800 rounded-2xl border border-white/10 divide-y divide-white/10">
+            <div className="bg-surface rounded-2xl border border-line divide-y divide-line">
               {properties.length === 0 && (
-                <div className="p-8 text-center text-xs text-slate-400">No property records yet.</div>
+                <div className="p-8 text-center text-xs text-ink/70">No property records yet.</div>
               )}
               {properties.map((property) => (
                 <div key={property.id} className="p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
@@ -755,45 +731,45 @@ export const AdminDashboard: React.FC = () => {
                       alt=""
                       loading="lazy"
                       decoding="async"
-                      className="w-14 h-14 rounded-xl object-cover border border-white/10 shrink-0"
+                      className="w-14 h-14 rounded-xl object-cover border border-line shrink-0"
                     />
                     <div className="min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span
                           className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
                             property.status === 'active'
-                              ? 'bg-emerald-500/20 text-emerald-400'
+                              ? 'bg-emerald-500/20 text-emerald-700'
                               : property.status === 'pending'
-                                ? 'bg-amber-500/20 text-amber-400'
+                                ? 'bg-amber-500/20 text-amber-700'
                                 : property.status === 'rejected'
-                                  ? 'bg-[#FF2E63]/20 text-[#FF2E63]'
-                                  : 'bg-slate-600/40 text-slate-300'
+                                  ? 'bg-accent/20 text-accent'
+                                  : 'bg-line/40 text-ink/70'
                           }`}
                         >
                           {property.status}
                         </span>
                         {property.featured && (
-                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#08D9D6]/20 text-[#08D9D6]">
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-interactive/20 text-ink">
                             FEATURED
                           </span>
                         )}
                         <span
                           className={`px-2 py-0.5 rounded text-[10px] font-bold ${
                             property.isLandlordVerified
-                              ? 'bg-emerald-500/20 text-emerald-400'
-                              : 'bg-slate-600/40 text-slate-300'
+                              ? 'bg-emerald-500/20 text-emerald-700'
+                              : 'bg-line/40 text-ink/70'
                           }`}
                         >
                           {property.isLandlordVerified ? 'LANDLORD VERIFIED' : 'NOT VERIFIED'}
                         </span>
-                        <span className="text-[10px] text-slate-500 font-mono">{property.id}</span>
+                        <span className="text-[10px] text-ink/70 font-mono">{property.id}</span>
                       </div>
-                      <h3 className="font-bold text-sm text-white truncate">{property.title}</h3>
-                      <p className="text-[11px] text-slate-400 truncate">
+                      <h3 className="font-bold text-sm text-ink truncate">{property.title}</h3>
+                      <p className="text-[11px] text-ink/70 truncate">
                         {property.location} • GH₵ {property.rentGhs.toLocaleString()}/mo • {property.bedrooms} Bed /{' '}
                         {property.bathrooms} Bath • {property.viewsCount} views
                       </p>
-                      <p className="text-[11px] text-slate-500">
+                      <p className="text-[11px] text-ink/70">
                         Viewing fee:{' '}
                         {property.viewingTerms?.isApproved && property.viewingTerms.feeGhs
                           ? `GH₵ ${property.viewingTerms.feeGhs.toLocaleString()} (approved)`
@@ -807,7 +783,7 @@ export const AdminDashboard: React.FC = () => {
                   <div className="flex flex-wrap items-center gap-1.5 shrink-0">
                     <button
                       onClick={() => openEditProperty(property)}
-                      className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white font-bold text-[11px]"
+                      className="px-3 py-1.5 rounded-lg bg-page hover:bg-line text-ink font-bold text-[11px]"
                     >
                       Edit
                     </button>
@@ -815,14 +791,14 @@ export const AdminDashboard: React.FC = () => {
                     {property.status !== 'active' ? (
                       <button
                         onClick={() => handleApproveProperty(property.id)}
-                        className="px-3 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 font-bold text-[11px]"
+                        className="px-3 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-700 hover:bg-emerald-500/30 font-bold text-[11px]"
                       >
                         Publish
                       </button>
                     ) : (
                       <button
                         onClick={() => void runAction(() => updatePropertyStatus(property.id, 'deactivated'), 'Could not archive the listing.')}
-                        className="px-3 py-1.5 rounded-lg bg-slate-700/60 text-slate-200 hover:bg-slate-700 font-bold text-[11px]"
+                        className="px-3 py-1.5 rounded-lg bg-line/60 text-ink hover:bg-line font-bold text-[11px]"
                       >
                         Archive
                       </button>
@@ -837,8 +813,8 @@ export const AdminDashboard: React.FC = () => {
                       }
                       className={`px-3 py-1.5 rounded-lg font-bold text-[11px] ${
                         property.isLandlordVerified
-                          ? 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30'
-                          : 'bg-white/10 text-white hover:bg-white/20'
+                          ? 'bg-emerald-500/20 text-emerald-700 hover:bg-emerald-500/30'
+                          : 'bg-page text-ink hover:bg-line'
                       }`}
                       title="Only mark this after Goodlucks staff have inspected the property"
                     >
@@ -847,7 +823,7 @@ export const AdminDashboard: React.FC = () => {
 
                     <button
                       onClick={() => void runAction(() => toggleFeatured(property.id, !property.featured), 'Could not update the featured flag.')}
-                      className="px-3 py-1.5 rounded-lg bg-[#08D9D6]/15 text-[#08D9D6] hover:bg-[#08D9D6]/25 font-bold text-[11px]"
+                      className="px-3 py-1.5 rounded-lg bg-interactive/15 text-ink hover:bg-interactive/25 font-bold text-[11px]"
                     >
                       {property.featured ? 'Unfeature' : 'Feature'}
                     </button>
@@ -858,7 +834,7 @@ export const AdminDashboard: React.FC = () => {
                           void runAction(() => deleteProperty(property.id), 'Could not delete the listing.');
                         }
                       }}
-                      className="px-3 py-1.5 rounded-lg bg-[#FF2E63]/15 text-[#FF2E63] hover:bg-[#FF2E63]/25 font-bold text-[11px]"
+                      className="px-3 py-1.5 rounded-lg bg-accent/15 text-accent hover:bg-accent/25 font-bold text-[11px]"
                     >
                       Delete
                     </button>
@@ -886,46 +862,46 @@ export const AdminDashboard: React.FC = () => {
         {activeAdminTab === 'enquiries' && (
           <div className="space-y-4">
             <div>
-              <h2 className="text-xl font-bold text-white">Website Enquiries & Messages</h2>
-              <p className="text-xs text-slate-400">Contact form and property questions submitted through the website.</p>
+              <h2 className="text-xl font-bold text-ink">Website Enquiries & Messages</h2>
+              <p className="text-xs text-ink/70">Contact form and property questions submitted through the website.</p>
             </div>
 
             {enquiries.length === 0 ? (
-              <div className="text-center py-12 bg-slate-800/40 rounded-3xl border border-white/10">
-                <Mail className="w-12 h-12 text-slate-500 mx-auto mb-3" />
-                <div className="text-base font-bold text-white">No enquiries yet</div>
-                <p className="text-xs text-slate-400">Messages sent from the contact form will appear here.</p>
+              <div className="text-center py-12 bg-surface/40 rounded-2xl border border-line">
+                <Mail className="w-12 h-12 text-ink/70 mx-auto mb-3" />
+                <div className="text-base font-bold text-ink">No enquiries yet</div>
+                <p className="text-xs text-ink/70">Messages sent from the contact form will appear here.</p>
               </div>
             ) : (
-              <div className="bg-slate-800 rounded-2xl border border-white/10 divide-y divide-white/10">
+              <div className="bg-surface rounded-2xl border border-line divide-y divide-line">
                 {enquiries.map((enquiry) => (
                   <div key={enquiry.id} className="p-4 space-y-1.5">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="px-2 py-0.5 rounded bg-[#08D9D6]/20 text-[#08D9D6] font-bold text-[10px] uppercase">
+                      <span className="px-2 py-0.5 rounded bg-interactive/20 text-ink font-bold text-[10px] uppercase">
                         {enquiry.source === 'property_page' ? 'property enquiry' : 'contact form'}
                       </span>
-                      <span className="font-bold text-white text-sm">{enquiry.name}</span>
-                      <span className="text-[11px] text-slate-400">{enquiry.email}</span>
-                      {enquiry.phone && <span className="text-[11px] text-slate-400">• {enquiry.phone}</span>}
+                      <span className="font-bold text-ink text-sm">{enquiry.name}</span>
+                      <span className="text-[11px] text-ink/70">{enquiry.email}</span>
+                      {enquiry.phone && <span className="text-[11px] text-ink/70">• {enquiry.phone}</span>}
                       <span
                         className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
                           enquiry.status === 'new'
-                            ? 'bg-amber-500/20 text-amber-300'
+                            ? 'bg-amber-500/20 text-amber-700'
                             : enquiry.status === 'contacted'
-                              ? 'bg-sky-500/20 text-sky-300'
-                              : 'bg-slate-600/40 text-slate-300'
+                              ? 'bg-sky-500/20 text-sky-700'
+                              : 'bg-line/40 text-ink/70'
                         }`}
                       >
                         {enquiry.status.replace('_', ' ')}
                       </span>
-                      <span className="text-[10px] text-slate-500 ml-auto">
+                      <span className="text-[10px] text-ink/70 ml-auto">
                         {new Date(enquiry.createdAt).toLocaleString()}
                       </span>
                     </div>
                     {enquiry.propertyTitle && (
-                      <div className="text-[11px] text-[#08D9D6]">Re: {enquiry.propertyTitle}</div>
+                      <div className="text-[11px] text-ink">Re: {enquiry.propertyTitle}</div>
                     )}
-                    <p className="text-xs text-slate-300 whitespace-pre-line">{enquiry.message}</p>
+                    <p className="text-xs text-ink/70 whitespace-pre-line">{enquiry.message}</p>
 
                     <div className="flex flex-wrap items-center gap-1.5 pt-1">
                       {enquiry.status !== 'contacted' && (
@@ -933,7 +909,7 @@ export const AdminDashboard: React.FC = () => {
                           onClick={() =>
                             void runAction(() => setEnquiryStatus(enquiry.id, 'contacted'), 'Could not update the enquiry.')
                           }
-                          className="px-3 py-1.5 rounded-lg bg-sky-500/20 text-sky-300 hover:bg-sky-500/30 font-bold text-[11px]"
+                          className="px-3 py-1.5 rounded-lg bg-sky-500/20 text-sky-700 hover:bg-sky-500/30 font-bold text-[11px]"
                         >
                           Mark contacted
                         </button>
@@ -943,7 +919,7 @@ export const AdminDashboard: React.FC = () => {
                           onClick={() =>
                             void runAction(() => setEnquiryStatus(enquiry.id, 'closed'), 'Could not update the enquiry.')
                           }
-                          className="px-3 py-1.5 rounded-lg bg-slate-700/70 text-slate-200 hover:bg-slate-700 font-bold text-[11px]"
+                          className="px-3 py-1.5 rounded-lg bg-line/70 text-ink hover:bg-line font-bold text-[11px]"
                         >
                           Close
                         </button>
@@ -953,14 +929,14 @@ export const AdminDashboard: React.FC = () => {
                           onClick={() =>
                             void runAction(() => setEnquiryStatus(enquiry.id, 'new'), 'Could not update the enquiry.')
                           }
-                          className="px-3 py-1.5 rounded-lg bg-white/10 text-white hover:bg-white/20 font-bold text-[11px]"
+                          className="px-3 py-1.5 rounded-lg bg-page text-ink hover:bg-line font-bold text-[11px]"
                         >
                           Reopen
                         </button>
                       )}
                       <a
                         href={`mailto:${enquiry.email}?subject=${encodeURIComponent('Re: your enquiry with Goodlucks Homes')}`}
-                        className="px-3 py-1.5 rounded-lg bg-[#08D9D6]/15 text-[#08D9D6] hover:bg-[#08D9D6]/25 font-bold text-[11px]"
+                        className="px-3 py-1.5 rounded-lg bg-interactive/15 text-ink hover:bg-interactive/25 font-bold text-[11px]"
                       >
                         Reply by email
                       </a>
@@ -976,46 +952,46 @@ export const AdminDashboard: React.FC = () => {
         {activeAdminTab === 'matching' && (
           <div className="space-y-6">
             <div>
-              <h2 className="text-xl font-bold text-white">Tenant Request & AI Matching Matrix</h2>
-              <p className="text-xs text-slate-400">Match tenant requests with active properties and calculate Match Scores</p>
+              <h2 className="text-xl font-bold text-ink">Tenant Request & AI Matching Matrix</h2>
+              <p className="text-xs text-ink/70">Match tenant requests with active properties and calculate Match Scores</p>
             </div>
 
             <div className="grid grid-cols-1 gap-6">
               {tenantRequests.map(req => (
-                <div key={req.id} className="bg-slate-800 p-6 rounded-3xl border border-white/10 space-y-4">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-white/10 pb-4">
+                <div key={req.id} className="bg-surface p-6 rounded-2xl border border-line space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-line pb-4">
                     <div>
-                      <span className="text-[10px] font-bold uppercase text-[#08D9D6]">Tenant Enquiry #{req.id}</span>
-                      <h3 className="text-lg font-bold text-white">{req.tenantName} ({req.tenantPhone})</h3>
-                      <p className="text-xs text-slate-300">
+                      <span className="text-[10px] font-bold uppercase text-ink">Tenant Enquiry #{req.id}</span>
+                      <h3 className="text-lg font-bold text-ink">{req.tenantName} ({req.tenantPhone})</h3>
+                      <p className="text-xs text-ink/70">
                         Locations: <strong>{req.preferredLocations.join(', ')}</strong> • Budget: <strong>GH₵ {req.budgetMin} - GH₵ {req.budgetMax}/mo</strong> • {req.bedrooms} Beds
                       </p>
                     </div>
 
-                    <span className="px-3 py-1 rounded-full text-xs font-bold uppercase bg-[#08D9D6]/20 text-[#08D9D6] border border-[#08D9D6]/30 shrink-0">
+                    <span className="px-3 py-1 rounded-full text-xs font-bold uppercase bg-interactive/20 text-ink border border-interactive/30 shrink-0">
                       Status: {req.status}
                     </span>
                   </div>
 
                   {/* Available Active Properties & Match Suggestions */}
                   <div className="space-y-2">
-                    <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">Top AI Property Matches for {req.tenantName}:</div>
+                    <div className="text-xs font-bold text-ink/70 uppercase tracking-wider">Top AI Property Matches for {req.tenantName}:</div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       {(requestMatches[req.id] ?? []).slice(0, 2).map(({ property: prop, score, reason, curated }) => (
-                        <div key={prop.id} className="bg-slate-900 p-4 rounded-2xl border border-white/10 flex items-center justify-between gap-3">
+                        <div key={prop.id} className="bg-surface p-4 rounded-2xl border border-line flex items-center justify-between gap-3">
                           <div>
                             <div className="flex items-center gap-1.5">
                               <span
                                 title={reason}
                                 className={`px-2 py-0.5 rounded text-[10px] font-black ${
-                                  curated ? 'bg-[#08D9D6] text-[#252A34]' : 'bg-emerald-500 text-slate-950'
+                                  curated ? 'bg-interactive text-ink' : 'bg-emerald-500 text-ink'
                                 }`}
                               >
                                 {curated ? 'Chosen' : `${score}% match`}
                               </span>
-                              <span className="text-xs font-bold text-white">{prop.title}</span>
+                              <span className="text-xs font-bold text-ink">{prop.title}</span>
                             </div>
-                            <div className="text-[11px] text-slate-400 mt-1">
+                            <div className="text-[11px] text-ink/70 mt-1">
                               {prop.location} • GH₵ {prop.rentGhs.toLocaleString()}/mo
                             </div>
                           </div>
@@ -1023,7 +999,7 @@ export const AdminDashboard: React.FC = () => {
                           {!curated && (
                             <button
                               onClick={() => handleConfirmMatch(req.id, prop.id)}
-                              className="px-3 py-1.5 rounded-lg bg-[#08D9D6] text-[#252A34] font-bold text-xs hover:bg-[#08D9D6]/90 transition-all shadow-md shrink-0"
+                              className="gl-btn gl-btn-primary px-3 py-1.5 text-xs shrink-0"
                             >
                               Confirm Match
                             </button>
@@ -1031,12 +1007,12 @@ export const AdminDashboard: React.FC = () => {
                         </div>
                       ))}
                       {!matchesLoading && (requestMatches[req.id] ?? []).length === 0 && (
-                        <p className="text-[11px] text-slate-400 bg-slate-900/60 border border-white/10 rounded-2xl p-4">
+                        <p className="text-[11px] text-ink/70 bg-surface border border-line rounded-2xl p-4">
                           No live listing scores against this request yet — the tenant will see new homes as soon as they pass verification.
                         </p>
                       )}
                       {matchesLoading && (requestMatches[req.id] ?? []).length === 0 && (
-                        <p className="text-[11px] text-slate-400 bg-slate-900/60 border border-white/10 rounded-2xl p-4">
+                        <p className="text-[11px] text-ink/70 bg-surface border border-line rounded-2xl p-4">
                           Scoring live listings…
                         </p>
                       )}
@@ -1053,14 +1029,14 @@ export const AdminDashboard: React.FC = () => {
         {activeAdminTab === 'viewings' && (
           <div className="space-y-4">
             <AdminViewingsPanel />
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-slate-800/60 border border-white/10 rounded-2xl p-4">
-              <p className="text-[11px] text-slate-400 max-w-xl">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-surface border border-line rounded-2xl p-4">
+              <p className="text-[11px] text-ink/70 max-w-xl">
                 Need to log a viewing that was arranged by phone? Create it as a request. It will not be shown as a
                 confirmed appointment until the tenant and agent have agreed a time.
               </p>
               <button
                 onClick={() => setShowScheduleModal(true)}
-                className="px-4 py-2 rounded-xl bg-[#08D9D6] text-[#252A34] font-bold text-xs hover:bg-[#08D9D6]/90 shrink-0"
+                className="gl-btn gl-btn-primary px-4 py-2 text-xs shrink-0"
               >
                 Log a phone request
               </button>
@@ -1089,60 +1065,60 @@ export const AdminDashboard: React.FC = () => {
           <div className="space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
-                <h2 className="text-xl font-bold text-white">Transactional Email Audit Logs</h2>
-                <p className="text-xs text-slate-400 mt-1">
+                <h2 className="text-xl font-bold text-ink">Transactional Email Audit Logs</h2>
+                <p className="text-xs text-ink/70 mt-1">
                   Mail is queued during the request and delivered after it, so a slow mail provider never delays a submit.
                 </p>
               </div>
               <button
                 onClick={() => void runEmailOutbox().catch(error => showErrorToast('Could not process the queue', messageForError(error)))}
-                className="px-4 py-2.5 rounded-xl bg-[#08D9D6] text-[#252A34] font-bold text-xs hover:bg-[#08D9D6]/90 transition-all shrink-0"
+                className="gl-btn gl-btn-primary px-4 py-2.5 text-xs shrink-0"
               >
                 Send queued email now
               </button>
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-              <div className="bg-slate-800 border border-white/10 rounded-2xl p-4">
-                <div className="text-[10px] uppercase tracking-wider text-slate-400">Queued</div>
-                <div className="text-xl font-black text-amber-400">{emailOutbox.pending}</div>
+              <div className="bg-surface border border-line rounded-2xl p-4">
+                <div className="text-[10px] uppercase tracking-wider text-ink/70">Queued</div>
+                <div className="text-xl font-black text-amber-700">{emailOutbox.pending}</div>
               </div>
-              <div className="bg-slate-800 border border-white/10 rounded-2xl p-4">
-                <div className="text-[10px] uppercase tracking-wider text-slate-400">Failed</div>
-                <div className="text-xl font-black text-[#FF8FA8]">{emailOutbox.failed}</div>
+              <div className="bg-surface border border-line rounded-2xl p-4">
+                <div className="text-[10px] uppercase tracking-wider text-ink/70">Failed</div>
+                <div className="text-xl font-black text-ink">{emailOutbox.failed}</div>
               </div>
-              <div className="bg-slate-800 border border-white/10 rounded-2xl p-4">
-                <div className="text-[10px] uppercase tracking-wider text-slate-400">Sent today</div>
-                <div className="text-xl font-black text-emerald-400">{emailOutbox.sentToday}</div>
+              <div className="bg-surface border border-line rounded-2xl p-4">
+                <div className="text-[10px] uppercase tracking-wider text-ink/70">Sent today</div>
+                <div className="text-xl font-black text-emerald-700">{emailOutbox.sentToday}</div>
               </div>
-              <div className="bg-slate-800 border border-white/10 rounded-2xl p-4">
-                <div className="text-[10px] uppercase tracking-wider text-slate-400">Oldest waiting</div>
-                <div className="text-xs font-bold text-slate-200 mt-1">
+              <div className="bg-surface border border-line rounded-2xl p-4">
+                <div className="text-[10px] uppercase tracking-wider text-ink/70">Oldest waiting</div>
+                <div className="text-xs font-bold text-ink mt-1">
                   {emailOutbox.oldestPendingAt ? new Date(emailOutbox.oldestPendingAt).toLocaleString() : '—'}
                 </div>
               </div>
             </div>
-            <div className="bg-slate-800 rounded-2xl border border-white/10 overflow-hidden">
-              <div className="divide-y divide-white/10 text-xs">
+            <div className="bg-surface rounded-2xl border border-line overflow-hidden">
+              <div className="divide-y divide-line text-xs">
                 {emailLogs.map(log => (
                   <div key={log.id} className="p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
                     <div>
                       <div className="flex items-center gap-2">
-                        <span className="px-2 py-0.5 rounded bg-[#08D9D6]/20 text-[#08D9D6] font-bold text-[10px] uppercase">
+                        <span className="px-2 py-0.5 rounded bg-interactive/20 text-ink font-bold text-[10px] uppercase">
                           {log.type}
                         </span>
-                        <span className="font-bold text-white">{log.subject}</span>
+                        <span className="font-bold text-ink">{log.subject}</span>
                       </div>
-                      <p className="text-slate-300 mt-1">{log.bodyPreview}</p>
-                      <span className="text-[10px] text-slate-500">To: {log.recipientName} ({log.recipientEmail}) • Sent: {new Date(log.sentAt).toLocaleString()}</span>
+                      <p className="text-ink/70 mt-1">{log.bodyPreview}</p>
+                      <span className="text-[10px] text-ink/70">To: {log.recipientName} ({log.recipientEmail}) • Sent: {new Date(log.sentAt).toLocaleString()}</span>
                     </div>
                     <span
                       className={`px-2.5 py-1 rounded-full text-[10px] font-bold shrink-0 ${
                         log.status === 'delivered'
-                          ? 'bg-emerald-500/20 text-emerald-400'
+                          ? 'bg-emerald-500/20 text-emerald-700'
                           : log.status === 'failed'
-                            ? 'bg-[#FF2E63]/20 text-[#FF8FA8]'
-                            : 'bg-amber-500/20 text-amber-400'
+                            ? 'bg-accent/20 text-ink'
+                            : 'bg-amber-500/20 text-amber-700'
                       }`}
                     >
                       {log.status === 'delivered' ? 'Delivered' : log.status === 'failed' ? 'Failed' : 'Queued'}
@@ -1158,24 +1134,24 @@ export const AdminDashboard: React.FC = () => {
 
       {/* Admin Schedule Viewing Modal */}
       {showScheduleModal && (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/80 backdrop-blur-md animate-fadeIn p-2 sm:p-4 flex items-start sm:items-center justify-center">
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-ink/60 backdrop-blur-md animate-fadeIn p-2 sm:p-4 flex items-start sm:items-center justify-center">
           <div 
-            className="bg-[#252A34] border border-white/10 rounded-2xl sm:rounded-3xl p-4 sm:p-6 max-w-lg w-full space-y-4 text-white shadow-2xl my-auto max-h-[88dvh] overflow-y-auto"
+            className="bg-surface border border-line rounded-2xl sm:rounded-2xl p-4 sm:p-6 max-w-lg w-full space-y-4 text-ink shadow-lg my-auto max-h-[88dvh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-lg sm:text-xl font-bold text-white">Log a viewing request (Goodlucks intermediary)</h3>
-            <p className="text-[11px] text-amber-300/90">
+            <h3 className="text-lg sm:text-xl font-bold text-ink">Log a viewing request (Goodlucks intermediary)</h3>
+            <p className="text-[11px] text-amber-700/90">
               This records a request on the tenant&apos;s behalf. It is not a confirmed appointment: the tenant and the
               agent must agree the time before it is shown as agreed, and nothing here records a payment.
             </p>
 
             <form onSubmit={handleScheduleViewingAdmin} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">Select Tenant Request</label>
+                <label className="block text-xs font-semibold text-ink/70 mb-1">Select Tenant Request</label>
                 <select
                   value={selectedReqId}
                   onChange={(e) => setSelectedReqId(e.target.value)}
-                  className="w-full bg-slate-900 border border-white/10 rounded-xl p-3 text-xs sm:text-sm text-white"
+                  className="w-full bg-page border border-line rounded-xl p-3 text-xs sm:text-sm text-ink"
                 >
                   {tenantRequests.map(r => (
                     <option key={r.id} value={r.id}>{r.tenantName} ({r.preferredLocations.join(', ')})</option>
@@ -1184,11 +1160,11 @@ export const AdminDashboard: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">Select Property</label>
+                <label className="block text-xs font-semibold text-ink/70 mb-1">Select Property</label>
                 <select
                   value={selectedPropId}
                   onChange={(e) => setSelectedPropId(e.target.value)}
-                  className="w-full bg-slate-900 border border-white/10 rounded-xl p-3 text-xs sm:text-sm text-white"
+                  className="w-full bg-page border border-line rounded-xl p-3 text-xs sm:text-sm text-ink"
                 >
                   {properties.map(p => (
                     <option key={p.id} value={p.id}>{p.title} ({p.location}) - GH₵ {p.rentGhs}/mo</option>
@@ -1198,22 +1174,22 @@ export const AdminDashboard: React.FC = () => {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">Viewing Date</label>
+                  <label className="block text-xs font-semibold text-ink/70 mb-1">Viewing Date</label>
                   <input
                     type="date"
                     required
                     value={viewDate}
                     onChange={(e) => setViewDate(e.target.value)}
-                    className="w-full bg-slate-900 border border-white/10 rounded-xl p-3 text-xs sm:text-sm text-white"
+                    className="w-full bg-page border border-line rounded-xl p-3 text-xs sm:text-sm text-ink"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">Time Slot</label>
+                  <label className="block text-xs font-semibold text-ink/70 mb-1">Time Slot</label>
                   <select
                     value={viewTime}
                     onChange={(e) => setViewTime(e.target.value)}
-                    className="w-full bg-slate-900 border border-white/10 rounded-xl p-3 text-xs sm:text-sm text-white"
+                    className="w-full bg-page border border-line rounded-xl p-3 text-xs sm:text-sm text-ink"
                   >
                     <option value="09:00 AM">09:00 AM</option>
                     <option value="11:00 AM">11:00 AM</option>
@@ -1224,14 +1200,14 @@ export const AdminDashboard: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">Viewing agent</label>
+                <label className="block text-xs font-semibold text-ink/70 mb-1">Viewing agent</label>
                 <input
                   type="text"
                   required
                   value={assignedAgent}
                   onChange={(e) => setAssignedAgent(e.target.value)}
                   placeholder="Name of the staff member logging this request"
-                  className="w-full bg-slate-900 border border-white/10 rounded-xl p-3 text-xs sm:text-sm text-white"
+                  className="w-full bg-page border border-line rounded-xl p-3 text-xs sm:text-sm text-ink"
                 />
               </div>
 
@@ -1239,13 +1215,13 @@ export const AdminDashboard: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setShowScheduleModal(false)}
-                  className="flex-1 py-3 rounded-xl bg-slate-800 text-slate-300 font-semibold text-xs"
+                  className="flex-1 py-3 rounded-xl bg-surface text-ink/70 font-semibold text-xs"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-3 rounded-xl bg-[#08D9D6] text-[#252A34] font-bold text-xs shadow-md"
+                  className="gl-btn gl-btn-primary flex-1 py-3 text-xs"
                 >
                   Send viewing request
                 </button>
@@ -1257,27 +1233,27 @@ export const AdminDashboard: React.FC = () => {
 
       {/* Admin Property Inspection & Authenticity Modal */}
       {viewPropertyModal && (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/80 backdrop-blur-md animate-fadeIn p-2 sm:p-4 flex items-start sm:items-center justify-center">
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-ink/60 backdrop-blur-md animate-fadeIn p-2 sm:p-4 flex items-start sm:items-center justify-center">
           <div 
-            className="bg-[#252A34] border border-white/10 rounded-2xl sm:rounded-3xl p-4 sm:p-8 max-w-3xl w-full text-white shadow-2xl my-auto max-h-[88dvh] overflow-y-auto space-y-6"
+            className="bg-surface border border-line rounded-2xl sm:rounded-2xl p-4 sm:p-8 max-w-3xl w-full text-ink shadow-lg my-auto max-h-[88dvh] overflow-y-auto space-y-6"
             onClick={(e) => e.stopPropagation()}
           >
             
             {/* Modal Header */}
-            <div className="flex items-start justify-between border-b border-white/10 pb-4 gap-4">
+            <div className="flex items-start justify-between border-b border-line pb-4 gap-4">
               <div>
-                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/20 text-amber-400 text-xs font-bold border border-amber-500/30 mb-1">
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/20 text-amber-700 text-xs font-bold border border-amber-500/30 mb-1">
                   <Clock className="w-3.5 h-3.5" />
                   Admin Authenticity & Compliance Inspection
                 </div>
-                <h3 className="text-xl sm:text-2xl font-black text-white">{viewPropertyModal.title}</h3>
-                <p className="text-xs text-slate-300 mt-1 flex items-center gap-1">
-                  <MapPin className="w-3.5 h-3.5 text-[#08D9D6]" /> {viewPropertyModal.location} ({viewPropertyModal.city})
+                <h3 className="text-xl sm:text-2xl font-black text-ink">{viewPropertyModal.title}</h3>
+                <p className="text-xs text-ink/70 mt-1 flex items-center gap-1">
+                  <MapPin className="w-3.5 h-3.5 text-ink" /> {viewPropertyModal.location} ({viewPropertyModal.city})
                 </p>
               </div>
               <button
                 onClick={() => setViewPropertyModal(null)}
-                className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white transition-colors"
+                className="p-2 rounded-xl bg-page hover:bg-line text-ink/70 hover:text-ink transition-colors"
                 aria-label="Close property inspection modal"
               >
                 <X className="w-5 h-5" />
@@ -1286,7 +1262,7 @@ export const AdminDashboard: React.FC = () => {
 
             {/* Photo Gallery Grid */}
             <div className="space-y-3">
-              <div className="relative aspect-video rounded-2xl overflow-hidden bg-slate-900 border border-white/10">
+              <div className="relative aspect-video rounded-2xl overflow-hidden bg-surface border border-line">
                 <img 
                   src={viewPropertyModal.images[activeModalImage] || viewPropertyModal.images[0]} 
                   alt={viewPropertyModal.title} 
@@ -1294,7 +1270,7 @@ export const AdminDashboard: React.FC = () => {
                   decoding="async" 
                   className="w-full h-full object-cover"
                 />
-                <div className="absolute bottom-3 right-3 bg-black/70 backdrop-blur-md px-3 py-1 rounded-lg text-xs font-semibold text-white">
+                <div className="absolute bottom-3 right-3 bg-surface/95 backdrop-blur-md px-3 py-1 rounded-lg text-xs font-semibold text-ink shadow-sm">
                   Photo {activeModalImage + 1} of {viewPropertyModal.images.length}
                 </div>
               </div>
@@ -1306,7 +1282,7 @@ export const AdminDashboard: React.FC = () => {
                       key={idx}
                       onClick={() => setActiveModalImage(idx)}
                       className={`w-20 h-14 rounded-xl overflow-hidden border-2 transition-all ${
-                        activeModalImage === idx ? 'border-[#08D9D6] scale-105' : 'border-transparent opacity-60 hover:opacity-100'
+                        activeModalImage === idx ? 'border-interactive scale-105' : 'border-transparent opacity-60 hover:opacity-100'
                       }`}
                     >
                       <img src={img} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
@@ -1317,61 +1293,61 @@ export const AdminDashboard: React.FC = () => {
             </div>
 
             {/* Property Specs Grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-900/80 p-4 rounded-2xl border border-white/10">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-surface p-4 rounded-2xl border border-line">
               <div>
-                <span className="text-[10px] font-bold text-slate-400 uppercase">Monthly Rent</span>
-                <div className="text-base font-black text-[#08D9D6]">GH₵ {viewPropertyModal.rentGhs.toLocaleString()}</div>
+                <span className="text-[10px] font-bold text-ink/70 uppercase">Monthly Rent</span>
+                <div className="text-base font-black text-ink">GH₵ {viewPropertyModal.rentGhs.toLocaleString()}</div>
               </div>
               <div>
-                <span className="text-[10px] font-bold text-slate-400 uppercase">Property Type</span>
-                <div className="text-sm font-bold text-white">{viewPropertyModal.propertyType}</div>
+                <span className="text-[10px] font-bold text-ink/70 uppercase">Property Type</span>
+                <div className="text-sm font-bold text-ink">{viewPropertyModal.propertyType}</div>
               </div>
               <div>
-                <span className="text-[10px] font-bold text-slate-400 uppercase">Bedrooms / Baths</span>
-                <div className="text-sm font-bold text-white">{viewPropertyModal.bedrooms} Bed / {viewPropertyModal.bathrooms} Bath</div>
+                <span className="text-[10px] font-bold text-ink/70 uppercase">Bedrooms / Baths</span>
+                <div className="text-sm font-bold text-ink">{viewPropertyModal.bedrooms} Bed / {viewPropertyModal.bathrooms} Bath</div>
               </div>
               <div>
-                <span className="text-[10px] font-bold text-slate-400 uppercase">Availability</span>
-                <div className="text-sm font-bold text-emerald-400">{viewPropertyModal.availability}</div>
+                <span className="text-[10px] font-bold text-ink/70 uppercase">Availability</span>
+                <div className="text-sm font-bold text-emerald-700">{viewPropertyModal.availability}</div>
               </div>
             </div>
 
             {/* Description */}
-            <div className="space-y-2 bg-slate-900/60 p-4 rounded-2xl border border-white/10">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-300">Description & Overview</h4>
-              <p className="text-xs text-slate-300 leading-relaxed whitespace-pre-line">{viewPropertyModal.description}</p>
+            <div className="space-y-2 bg-surface p-4 rounded-2xl border border-line">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-ink/70">Description & Overview</h4>
+              <p className="text-xs text-ink/70 leading-relaxed whitespace-pre-line">{viewPropertyModal.description}</p>
             </div>
 
             {/* Amenities & Verification Metadata */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-2 bg-slate-900/60 p-4 rounded-2xl border border-white/10">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-300">Amenities ({viewPropertyModal.amenities.length})</h4>
+              <div className="space-y-2 bg-surface p-4 rounded-2xl border border-line">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-ink/70">Amenities ({viewPropertyModal.amenities.length})</h4>
                 <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto pr-1">
                   {viewPropertyModal.amenities.map((a, i) => (
-                    <span key={i} className="px-2.5 py-1 rounded-lg bg-white/5 text-[11px] font-medium text-slate-300 border border-white/5">
+                    <span key={i} className="px-2.5 py-1 rounded-lg bg-page text-[11px] font-medium text-ink/70 border border-line">
                       ✓ {a}
                     </span>
                   ))}
                 </div>
               </div>
 
-              <div className="space-y-2 bg-slate-900/60 p-4 rounded-2xl border border-white/10">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-300">Verification Checklist</h4>
-                <div className="text-xs space-y-1.5 text-slate-300">
-                  <div>Landlord Account ID: <strong className="text-white">{viewPropertyModal.landlordId}</strong></div>
-                  <div>Submission Date: <strong className="text-white">{new Date(viewPropertyModal.createdAt).toLocaleDateString()}</strong></div>
-                  <div className="text-emerald-400 font-semibold flex items-center gap-1.5 pt-1">
-                    <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" /> Check for duplicate images & location authenticity
+              <div className="space-y-2 bg-surface p-4 rounded-2xl border border-line">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-ink/70">Verification Checklist</h4>
+                <div className="text-xs space-y-1.5 text-ink/70">
+                  <div>Landlord Account ID: <strong className="text-ink">{viewPropertyModal.landlordId}</strong></div>
+                  <div>Submission Date: <strong className="text-ink">{new Date(viewPropertyModal.createdAt).toLocaleDateString()}</strong></div>
+                  <div className="text-emerald-700 font-semibold flex items-center gap-1.5 pt-1">
+                    <ShieldCheck className="w-4 h-4 text-emerald-700 shrink-0" /> Check for duplicate images & location authenticity
                   </div>
                 </div>
               </div>
             </div>
 
             {/* Admin Action Buttons */}
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-white/10">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-line">
               <button
                 onClick={() => setViewPropertyModal(null)}
-                className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-slate-800 text-slate-300 font-semibold text-xs hover:bg-slate-700 transition-colors"
+                className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-surface text-ink/70 font-semibold text-xs hover:bg-line transition-colors"
               >
                 Close Inspection
               </button>
@@ -1382,7 +1358,7 @@ export const AdminDashboard: React.FC = () => {
                     handleRejectProperty(viewPropertyModal.id);
                     setViewPropertyModal(null);
                   }}
-                  className="flex-1 sm:flex-initial px-5 py-2.5 rounded-xl bg-[#FF2E63]/20 text-[#FF2E63] font-bold text-xs hover:bg-[#FF2E63]/30 transition-colors flex items-center justify-center gap-1.5"
+                  className="flex-1 sm:flex-initial px-5 py-2.5 rounded-xl bg-accent/20 text-accent font-bold text-xs hover:bg-accent/30 transition-colors flex items-center justify-center gap-1.5"
                 >
                   <XCircle className="w-4 h-4" /> Reject Listing
                 </button>
@@ -1392,7 +1368,7 @@ export const AdminDashboard: React.FC = () => {
                     handleApproveProperty(viewPropertyModal.id);
                     setViewPropertyModal(null);
                   }}
-                  className="flex-1 sm:flex-initial px-6 py-2.5 rounded-xl bg-emerald-500 text-slate-950 font-extrabold text-xs hover:bg-emerald-400 transition-colors shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-1.5"
+                  className="flex-1 sm:flex-initial px-6 py-2.5 rounded-xl bg-emerald-500 text-ink font-extrabold text-xs hover:bg-emerald-400 transition-colors shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-1.5"
                 >
                   <CheckCircle2 className="w-4 h-4" /> Approve Listing
                 </button>
@@ -1406,20 +1382,20 @@ export const AdminDashboard: React.FC = () => {
 
       {/* EDIT LISTING MODAL */}
       {editProperty && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 overflow-y-auto">
+        <div className="fixed inset-0 z-50 bg-ink/60 backdrop-blur-sm flex items-center justify-center p-3 overflow-y-auto">
           <form
             onSubmit={handleSavePropertyEdit}
-            className="w-full max-w-2xl bg-slate-900 border border-white/10 rounded-3xl p-5 sm:p-6 space-y-4 my-auto"
+            className="w-full max-w-2xl bg-surface border border-line rounded-2xl p-5 sm:p-6 space-y-4 my-auto"
           >
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h3 className="text-lg font-black text-white">Edit Listing</h3>
-                <p className="text-[11px] text-slate-400 font-mono">{editProperty.id}</p>
+                <h3 className="text-lg font-black text-ink">Edit Listing</h3>
+                <p className="text-[11px] text-ink/70 font-mono">{editProperty.id}</p>
               </div>
               <button
                 type="button"
                 onClick={() => setEditProperty(null)}
-                className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300"
+                className="p-2 rounded-xl bg-page hover:bg-page text-ink/70"
                 aria-label="Close editor"
               >
                 <X className="w-4 h-4" />
@@ -1428,87 +1404,87 @@ export const AdminDashboard: React.FC = () => {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <label className="space-y-1 sm:col-span-2">
-                <span className="text-[11px] font-bold text-slate-300">Title</span>
+                <span className="text-[11px] font-bold text-ink/70">Title</span>
                 <input
                   required
                   value={editForm.title || ''}
                   onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
-                  className="w-full bg-slate-800 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-[#08D9D6]"
+                  className="w-full bg-page border border-line rounded-xl px-3 py-2 text-sm text-ink focus:outline-none focus:border-interactive"
                 />
               </label>
 
               <label className="space-y-1">
-                <span className="text-[11px] font-bold text-slate-300">Location</span>
+                <span className="text-[11px] font-bold text-ink/70">Location</span>
                 <input
                   required
                   value={editForm.location || ''}
                   onChange={(e) => setEditForm({ ...editForm, location: e.target.value })}
-                  className="w-full bg-slate-800 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-[#08D9D6]"
+                  className="w-full bg-page border border-line rounded-xl px-3 py-2 text-sm text-ink focus:outline-none focus:border-interactive"
                 />
               </label>
 
               <label className="space-y-1">
-                <span className="text-[11px] font-bold text-slate-300">City</span>
+                <span className="text-[11px] font-bold text-ink/70">City</span>
                 <input
                   required
                   value={editForm.city || ''}
                   onChange={(e) => setEditForm({ ...editForm, city: e.target.value })}
-                  className="w-full bg-slate-800 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-[#08D9D6]"
+                  className="w-full bg-page border border-line rounded-xl px-3 py-2 text-sm text-ink focus:outline-none focus:border-interactive"
                 />
               </label>
 
               <label className="space-y-1">
-                <span className="text-[11px] font-bold text-slate-300">Monthly rent (GH₵)</span>
+                <span className="text-[11px] font-bold text-ink/70">Monthly rent (GH₵)</span>
                 <input
                   type="number"
                   min={1}
                   required
                   value={editForm.rentGhs ?? ''}
                   onChange={(e) => setEditForm({ ...editForm, rentGhs: e.target.value })}
-                  className="w-full bg-slate-800 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-[#08D9D6]"
+                  className="w-full bg-page border border-line rounded-xl px-3 py-2 text-sm text-ink focus:outline-none focus:border-interactive"
                 />
               </label>
 
               <label className="space-y-1">
-                <span className="text-[11px] font-bold text-slate-300">Property type</span>
+                <span className="text-[11px] font-bold text-ink/70">Property type</span>
                 <input
                   required
                   value={editForm.propertyType || ''}
                   onChange={(e) => setEditForm({ ...editForm, propertyType: e.target.value })}
-                  className="w-full bg-slate-800 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-[#08D9D6]"
+                  className="w-full bg-page border border-line rounded-xl px-3 py-2 text-sm text-ink focus:outline-none focus:border-interactive"
                 />
               </label>
 
               <label className="space-y-1">
-                <span className="text-[11px] font-bold text-slate-300">Bedrooms</span>
+                <span className="text-[11px] font-bold text-ink/70">Bedrooms</span>
                 <input
                   type="number"
                   min={0}
                   required
                   value={editForm.bedrooms ?? ''}
                   onChange={(e) => setEditForm({ ...editForm, bedrooms: e.target.value })}
-                  className="w-full bg-slate-800 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-[#08D9D6]"
+                  className="w-full bg-page border border-line rounded-xl px-3 py-2 text-sm text-ink focus:outline-none focus:border-interactive"
                 />
               </label>
 
               <label className="space-y-1">
-                <span className="text-[11px] font-bold text-slate-300">Bathrooms</span>
+                <span className="text-[11px] font-bold text-ink/70">Bathrooms</span>
                 <input
                   type="number"
                   min={0}
                   required
                   value={editForm.bathrooms ?? ''}
                   onChange={(e) => setEditForm({ ...editForm, bathrooms: e.target.value })}
-                  className="w-full bg-slate-800 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-[#08D9D6]"
+                  className="w-full bg-page border border-line rounded-xl px-3 py-2 text-sm text-ink focus:outline-none focus:border-interactive"
                 />
               </label>
 
               <label className="space-y-1">
-                <span className="text-[11px] font-bold text-slate-300">Availability</span>
+                <span className="text-[11px] font-bold text-ink/70">Availability</span>
                 <select
                   value={editForm.availability || 'available'}
                   onChange={(e) => setEditForm({ ...editForm, availability: e.target.value })}
-                  className="w-full bg-slate-800 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-[#08D9D6]"
+                  className="w-full bg-page border border-line rounded-xl px-3 py-2 text-sm text-ink focus:outline-none focus:border-interactive"
                 >
                   <option value="available">Available</option>
                   <option value="occupied">Occupied</option>
@@ -1517,23 +1493,23 @@ export const AdminDashboard: React.FC = () => {
               </label>
 
               <label className="space-y-1 sm:col-span-2">
-                <span className="text-[11px] font-bold text-slate-300">Description</span>
+                <span className="text-[11px] font-bold text-ink/70">Description</span>
                 <textarea
                   rows={3}
                   required
                   value={editForm.description || ''}
                   onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
-                  className="w-full bg-slate-800 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-[#08D9D6]"
+                  className="w-full bg-page border border-line rounded-xl px-3 py-2 text-sm text-ink focus:outline-none focus:border-interactive"
                 />
               </label>
 
               <label className="space-y-1 sm:col-span-2">
-                <span className="text-[11px] font-bold text-slate-300">Image URLs (one per line)</span>
+                <span className="text-[11px] font-bold text-ink/70">Image URLs (one per line)</span>
                 <textarea
                   rows={3}
                   value={editForm.images || ''}
                   onChange={(e) => setEditForm({ ...editForm, images: e.target.value })}
-                  className="w-full bg-slate-800 border border-white/10 rounded-xl px-3 py-2 text-[11px] font-mono text-white focus:outline-none focus:border-[#08D9D6]"
+                  className="w-full bg-page border border-line rounded-xl px-3 py-2 text-[11px] font-mono text-ink focus:outline-none focus:border-interactive"
                 />
               </label>
             </div>
@@ -1542,16 +1518,16 @@ export const AdminDashboard: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setEditProperty(null)}
-                className="px-4 py-2.5 rounded-xl bg-slate-800 text-slate-300 font-semibold text-xs hover:bg-slate-700"
+                className="px-4 py-2.5 rounded-xl bg-surface text-ink/70 font-semibold text-xs hover:bg-line"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={isSavingEdit}
-                className="px-5 py-2.5 rounded-xl bg-[#08D9D6] text-[#252A34] font-extrabold text-xs hover:bg-[#08D9D6]/90 disabled:opacity-60 flex items-center gap-2"
+                className="gl-btn gl-btn-primary px-5 py-2.5 text-xs flex"
               >
-                {isSavingEdit && <span className="w-3.5 h-3.5 border-2 border-[#252A34]/30 border-t-[#252A34] rounded-full animate-spin" />}
+                {isSavingEdit && <span className="w-3.5 h-3.5 border-2 border-ink/30 border-t-ink rounded-full animate-spin" />}
                 Save Changes
               </button>
             </div>

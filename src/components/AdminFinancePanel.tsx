@@ -45,22 +45,22 @@ const money = (value: number | null | undefined): string =>
     : `GH₵ ${Number(value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 const remittanceStyles: Record<RemittanceSubmission['status'], string> = {
-  submitted: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
-  confirmed: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30',
-  rejected: 'bg-[#FF2E63]/15 text-[#FF8FA8] border-[#FF2E63]/30',
-  disputed: 'bg-orange-500/15 text-orange-300 border-orange-500/30',
+  submitted: 'bg-amber-500/15 text-amber-700 border-amber-500/30',
+  confirmed: 'bg-emerald-500/15 text-emerald-700 border-emerald-500/30',
+  rejected: 'bg-accent/15 text-ink border-accent/30',
+  disputed: 'bg-orange-500/15 text-orange-700 border-orange-500/30',
 };
 
 const commissionStyles: Record<RentalCommissionStatus, string> = {
-  draft: 'bg-slate-500/20 text-slate-300 border-white/10',
-  awaiting_agreement: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
-  agreed: 'bg-sky-500/15 text-sky-300 border-sky-500/30',
-  due: 'bg-indigo-500/15 text-indigo-300 border-indigo-500/30',
-  partially_paid: 'bg-[#08D9D6]/15 text-[#08D9D6] border-[#08D9D6]/30',
-  paid: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30',
-  disputed: 'bg-orange-500/15 text-orange-300 border-orange-500/30',
-  cancelled: 'bg-slate-500/20 text-slate-400 border-white/10',
-  corrected: 'bg-purple-500/15 text-purple-300 border-purple-500/30',
+  draft: 'bg-line/20 text-ink/70 border-line',
+  awaiting_agreement: 'bg-amber-500/15 text-amber-700 border-amber-500/30',
+  agreed: 'bg-sky-500/15 text-sky-700 border-sky-500/30',
+  due: 'bg-indigo-500/15 text-indigo-700 border-indigo-500/30',
+  partially_paid: 'bg-interactive/15 text-ink border-interactive/30',
+  paid: 'bg-emerald-500/15 text-emerald-700 border-emerald-500/30',
+  disputed: 'bg-orange-500/15 text-orange-700 border-orange-500/30',
+  cancelled: 'bg-line/20 text-ink/70 border-line',
+  corrected: 'bg-purple-500/15 text-purple-700 border-purple-500/30',
 };
 
 type Tab = 'remittances' | 'commissions' | 'landlord' | 'adjustments';
@@ -176,7 +176,7 @@ export const AdminFinancePanel: React.FC = () => {
 
   if (loading && !summary) {
     return (
-      <div className="bg-[#252A34]/70 border border-white/10 rounded-3xl p-6 flex items-center gap-2 text-xs text-slate-400">
+      <div className="bg-surface border border-line rounded-2xl p-6 flex items-center gap-2 text-xs text-ink/70">
         <Loader2 className="w-4 h-4 animate-spin" /> Loading the money position…
       </div>
     );
@@ -185,7 +185,7 @@ export const AdminFinancePanel: React.FC = () => {
   return (
     <div className="space-y-5">
       {!canConfirm && (
-        <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-[11px] text-amber-200 flex items-start gap-2">
+        <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-[11px] text-amber-800 flex items-start gap-2">
           <ShieldAlert className="w-4 h-4 mt-0.5 shrink-0" />
           <span>
             You can read financial records but not confirm money. Confirming receipt, allocating it,
@@ -196,81 +196,81 @@ export const AdminFinancePanel: React.FC = () => {
       )}
 
       {/* Reconciliation summary */}
-      <div className="bg-[#252A34]/70 border border-white/10 rounded-3xl p-6 space-y-4">
+      <div className="bg-surface border border-line rounded-2xl p-6 space-y-4">
         <div className="flex items-center gap-2">
-          <Scale className="w-4 h-4 text-[#08D9D6]" />
+          <Scale className="w-4 h-4 text-ink" />
           <h2 className="text-sm font-bold">Reconciliation</h2>
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="rounded-2xl border border-white/10 bg-slate-900/40 p-4">
-            <p className="text-[11px] text-slate-400">Collected by agents</p>
-            <p className="text-lg font-bold text-white">{money(totals?.collectedGhs)}</p>
-            <p className="text-[10px] text-slate-500">Reported by agents. Not revenue.</p>
+          <div className="rounded-2xl border border-line bg-surface p-4">
+            <p className="text-[11px] text-ink/70">Collected by agents</p>
+            <p className="text-lg font-bold text-ink">{money(totals?.collectedGhs)}</p>
+            <p className="text-[10px] text-ink/70">Reported by agents. Not revenue.</p>
           </div>
-          <div className="rounded-2xl border border-white/10 bg-slate-900/40 p-4">
-            <p className="text-[11px] text-slate-400">Owed to Goodlucks</p>
-            <p className="text-lg font-bold text-[#08D9D6]">{money(totals?.entitledGhs)}</p>
-            <p className="text-[10px] text-slate-500">Under explicit agreements or approved policies.</p>
+          <div className="rounded-2xl border border-line bg-surface p-4">
+            <p className="text-[11px] text-ink/70">Owed to Goodlucks</p>
+            <p className="text-lg font-bold text-ink">{money(totals?.entitledGhs)}</p>
+            <p className="text-[10px] text-ink/70">Under explicit agreements or approved policies.</p>
           </div>
           <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-4">
-            <p className="text-[11px] text-emerald-200/80">Confirmed receipts</p>
-            <p className="text-lg font-bold text-emerald-300">{money(totals?.receivedGhs)}</p>
-            <p className="text-[10px] text-emerald-200/60">Money Goodlucks has actually received.</p>
+            <p className="text-[11px] text-emerald-800/80">Confirmed receipts</p>
+            <p className="text-lg font-bold text-emerald-700">{money(totals?.receivedGhs)}</p>
+            <p className="text-[10px] text-emerald-800/60">Money Goodlucks has actually received.</p>
           </div>
           <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4">
-            <p className="text-[11px] text-amber-200/80">Outstanding viewings</p>
-            <p className="text-lg font-bold text-amber-300">{money(totals?.outstandingGhs)}</p>
-            <p className="text-[10px] text-amber-200/60">Still owed on agreed shares.</p>
+            <p className="text-[11px] text-amber-800/80">Outstanding viewings</p>
+            <p className="text-lg font-bold text-amber-700">{money(totals?.outstandingGhs)}</p>
+            <p className="text-[10px] text-amber-800/60">Still owed on agreed shares.</p>
           </div>
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 text-[11px]">
-          <div className="rounded-xl border border-white/10 bg-slate-900/40 px-3 py-2">
-            <span className="text-slate-400">Claims awaiting confirmation</span>
+          <div className="rounded-xl border border-line bg-surface px-3 py-2">
+            <span className="text-ink/70">Claims awaiting confirmation</span>
             <div className="flex items-baseline justify-between">
-              <span className="font-bold text-amber-300">{money(claims?.reportedAwaitingConfirmationGhs)}</span>
-              <span className="text-slate-500">{claims?.awaitingConfirmationCount ?? 0} claims</span>
+              <span className="font-bold text-amber-700">{money(claims?.reportedAwaitingConfirmationGhs)}</span>
+              <span className="text-ink/70">{claims?.awaitingConfirmationCount ?? 0} claims</span>
             </div>
           </div>
-          <div className="rounded-xl border border-white/10 bg-slate-900/40 px-3 py-2">
-            <span className="text-slate-400">Applied to obligations</span>
-            <p className="font-bold text-white">{money(claims?.appliedToObligationsGhs)}</p>
+          <div className="rounded-xl border border-line bg-surface px-3 py-2">
+            <span className="text-ink/70">Applied to obligations</span>
+            <p className="font-bold text-ink">{money(claims?.appliedToObligationsGhs)}</p>
           </div>
-          <div className="rounded-xl border border-white/10 bg-slate-900/40 px-3 py-2">
-            <span className="text-slate-400">Confirmed, not yet allocated</span>
-            <p className="font-bold text-[#08D9D6]">{money(claims?.unallocatedGhs)}</p>
+          <div className="rounded-xl border border-line bg-surface px-3 py-2">
+            <span className="text-ink/70">Confirmed, not yet allocated</span>
+            <p className="font-bold text-ink">{money(claims?.unallocatedGhs)}</p>
           </div>
-          <div className="rounded-xl border border-white/10 bg-slate-900/40 px-3 py-2">
-            <span className="text-slate-400">Rejected / disputed claims</span>
-            <p className="font-bold text-[#FF8FA8]">
+          <div className="rounded-xl border border-line bg-surface px-3 py-2">
+            <span className="text-ink/70">Rejected / disputed claims</span>
+            <p className="font-bold text-ink">
               {claims?.rejectedCount ?? 0} / {claims?.disputedCount ?? 0}
             </p>
           </div>
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 text-[11px]">
-          <div className="rounded-xl border border-white/10 bg-slate-900/40 px-3 py-2">
-            <span className="text-slate-400">Commissions agreed</span>
-            <p className="font-bold text-white">{money(commissionTotals?.agreedGhs)}</p>
+          <div className="rounded-xl border border-line bg-surface px-3 py-2">
+            <span className="text-ink/70">Commissions agreed</span>
+            <p className="font-bold text-ink">{money(commissionTotals?.agreedGhs)}</p>
           </div>
-          <div className="rounded-xl border border-white/10 bg-slate-900/40 px-3 py-2">
-            <span className="text-slate-400">Commission received</span>
-            <p className="font-bold text-emerald-300">{money(commissionTotals?.receivedGhs)}</p>
+          <div className="rounded-xl border border-line bg-surface px-3 py-2">
+            <span className="text-ink/70">Commission received</span>
+            <p className="font-bold text-emerald-700">{money(commissionTotals?.receivedGhs)}</p>
           </div>
-          <div className="rounded-xl border border-white/10 bg-slate-900/40 px-3 py-2">
-            <span className="text-slate-400">Commission outstanding</span>
-            <p className="font-bold text-amber-300">{money(commissionTotals?.outstandingGhs)}</p>
+          <div className="rounded-xl border border-line bg-surface px-3 py-2">
+            <span className="text-ink/70">Commission outstanding</span>
+            <p className="font-bold text-amber-700">{money(commissionTotals?.outstandingGhs)}</p>
           </div>
-          <div className="rounded-xl border border-white/10 bg-slate-900/40 px-3 py-2">
-            <span className="text-slate-400">Adjustments / reversals</span>
-            <p className="font-bold text-purple-300">
+          <div className="rounded-xl border border-line bg-surface px-3 py-2">
+            <span className="text-ink/70">Adjustments / reversals</span>
+            <p className="font-bold text-purple-700">
               {summary?.adjustments.count ?? 0} · {money(summary?.adjustments.netGhs)}
             </p>
           </div>
         </div>
 
-        <p className="text-[11px] text-slate-500 leading-snug">
+        <p className="text-[11px] text-ink/70 leading-snug">
           {summary?.confirmedRevenue.note ??
             'Only confirmed money counts as revenue. Reported collections and unconfirmed claims never do.'}
         </p>
@@ -293,8 +293,8 @@ export const AdminFinancePanel: React.FC = () => {
             onClick={() => setTab(key)}
             className={`px-3 py-1.5 rounded-xl text-[11px] font-bold border ${
               tab === key
-                ? 'bg-[#08D9D6] text-[#252A34] border-[#08D9D6]'
-                : 'bg-slate-800 text-slate-300 border-white/10 hover:bg-slate-700'
+                ? 'bg-interactive text-ink border-interactive'
+                : 'bg-surface text-ink/70 border-line hover:bg-line'
             }`}
           >
             {label}
@@ -303,15 +303,15 @@ export const AdminFinancePanel: React.FC = () => {
       </div>
 
       {tab === 'remittances' && (
-        <div className="bg-[#252A34]/70 border border-white/10 rounded-3xl p-6 space-y-4">
+        <div className="bg-surface border border-line rounded-2xl p-6 space-y-4">
           <div className="flex items-center gap-2">
-            <Receipt className="w-4 h-4 text-[#08D9D6]" />
+            <Receipt className="w-4 h-4 text-ink" />
             <h2 className="text-sm font-bold">Remittance claims</h2>
-            <span className="text-[11px] text-slate-500 ml-auto">{remittances.length} total</span>
+            <span className="text-[11px] text-ink/70 ml-auto">{remittances.length} total</span>
           </div>
 
           {remittances.length === 0 ? (
-            <p className="text-xs text-slate-400">No agent has submitted a remittance yet.</p>
+            <p className="text-xs text-ink/70">No agent has submitted a remittance yet.</p>
           ) : (
             <ul className="space-y-3">
               {remittances.map((submission) => {
@@ -319,21 +319,21 @@ export const AdminFinancePanel: React.FC = () => {
                 const eligible = eligibleRecords(submission.agentUserId);
                 const open = submission.status === 'submitted' || submission.status === 'disputed';
                 return (
-                  <li key={submission.id} className="rounded-2xl border border-white/10 bg-slate-900/40 p-4 space-y-3">
+                  <li key={submission.id} className="rounded-2xl border border-line bg-surface p-4 space-y-3">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-mono text-[11px] text-slate-300">{submission.reference}</span>
+                      <span className="font-mono text-[11px] text-ink/70">{submission.reference}</span>
                       <span className={`px-2 py-0.5 rounded-md border text-[10px] ${remittanceStyles[submission.status]}`}>
                         {submission.statusLabel}
                       </span>
-                      <span className="text-[11px] text-slate-400">
+                      <span className="text-[11px] text-ink/70">
                         {submission.agentName} · sent {submission.paidAt} · {submission.method.replace('_', ' ')}
                         {submission.paymentReference ? ` · ${submission.paymentReference}` : ''}
                       </span>
-                      <span className="text-sm font-bold text-white ml-auto">{money(submission.amountGhs)}</span>
+                      <span className="text-sm font-bold text-ink ml-auto">{money(submission.amountGhs)}</span>
                     </div>
 
                     {submission.status === 'confirmed' && (
-                      <p className="text-[11px] text-emerald-300 flex flex-wrap items-center gap-2">
+                      <p className="text-[11px] text-emerald-700 flex flex-wrap items-center gap-2">
                         <CheckCircle2 className="w-3 h-3" />
                         Confirmed {money(submission.confirmedGhs)} received · applied{' '}
                         {money(submission.allocatedGhs)}
@@ -342,11 +342,11 @@ export const AdminFinancePanel: React.FC = () => {
                     )}
 
                     {submission.decisionReason && (
-                      <p className="text-[11px] text-slate-400">Note / reason: {submission.decisionReason}</p>
+                      <p className="text-[11px] text-ink/70">Note / reason: {submission.decisionReason}</p>
                     )}
 
                     {submission.allocations.length > 0 && (
-                      <ul className="text-[10px] text-slate-500 space-y-0.5">
+                      <ul className="text-[10px] text-ink/70 space-y-0.5">
                         {submission.allocations.map((allocation) => (
                           <li key={allocation.id}>
                             Applied {money(allocation.amountGhs)} to {allocation.reference}{' '}
@@ -357,13 +357,13 @@ export const AdminFinancePanel: React.FC = () => {
                     )}
 
                     {open && canConfirm && (
-                      <div className="space-y-2 border-t border-white/5 pt-3">
-                        <p className="text-[11px] text-slate-400">
+                      <div className="space-y-2 border-t border-line pt-3">
+                        <p className="text-[11px] text-ink/70">
                           Allocate the money to what this agent owes. Anything left over stays visible as
                           unmatched funds — it is never attached to an obligation twice.
                         </p>
                         {eligible.length === 0 && (
-                          <p className="text-[11px] text-amber-300 flex items-center gap-1">
+                          <p className="text-[11px] text-amber-700 flex items-center gap-1">
                             <AlertTriangle className="w-3 h-3" /> No outstanding obligation to allocate to.
                             You can still confirm receipt; the money will show as unmatched.
                           </p>
@@ -377,7 +377,7 @@ export const AdminFinancePanel: React.FC = () => {
                                 next[index] = { ...next[index], viewingFeeRecordId: event.target.value };
                                 setAllocations((prev) => ({ ...prev, [submission.id]: next }));
                               }}
-                              className="rounded-lg bg-slate-900/60 border border-white/10 px-2 py-1 text-[11px] text-white"
+                              className="rounded-lg bg-page border border-line px-2 py-1 text-[11px] text-ink"
                             >
                               <option value="">Choose an obligation…</option>
                               {eligible.map((record) => (
@@ -396,7 +396,7 @@ export const AdminFinancePanel: React.FC = () => {
                                 next[index] = { ...next[index], amountGhs: event.target.value };
                                 setAllocations((prev) => ({ ...prev, [submission.id]: next }));
                               }}
-                              className="w-24 rounded-lg bg-slate-900/60 border border-white/10 px-2 py-1 text-[11px] text-white"
+                              className="w-24 rounded-lg bg-page border border-line px-2 py-1 text-[11px] text-ink"
                               placeholder="Amount"
                             />
                             <button
@@ -404,7 +404,7 @@ export const AdminFinancePanel: React.FC = () => {
                                 const next = rows.filter((_, i) => i !== index);
                                 setAllocations((prev) => ({ ...prev, [submission.id]: next }));
                               }}
-                              className="text-[10px] text-slate-400 hover:text-white"
+                              className="text-[10px] text-ink/70 hover:text-ink"
                             >
                               Remove
                             </button>
@@ -416,7 +416,7 @@ export const AdminFinancePanel: React.FC = () => {
                               ...prev,
                               [submission.id]: [...rows, { viewingFeeRecordId: '', amountGhs: '' }],
                             }))}
-                            className="text-[11px] text-[#08D9D6] inline-flex items-center gap-1"
+                            className="text-[11px] text-ink inline-flex items-center gap-1"
                           >
                             <Plus className="w-3 h-3" /> Add allocation
                           </button>
@@ -426,7 +426,7 @@ export const AdminFinancePanel: React.FC = () => {
                             onChange={(event) =>
                               setDecisionReason((prev) => ({ ...prev, [submission.id]: event.target.value }))
                             }
-                            className="flex-1 min-w-[180px] rounded-lg bg-slate-900/60 border border-white/10 px-2 py-1 text-[11px] text-white"
+                            className="flex-1 min-w-[180px] rounded-lg bg-page border border-line px-2 py-1 text-[11px] text-ink"
                             placeholder="Note or reason (required to reject or dispute)"
                           />
                         </div>
@@ -434,7 +434,7 @@ export const AdminFinancePanel: React.FC = () => {
                           <button
                             onClick={() => confirmRemittance(submission)}
                             disabled={busy === `confirm-${submission.id}`}
-                            className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-500/20 border border-emerald-500/40 px-3 py-1.5 text-[11px] font-bold text-emerald-200 disabled:opacity-50"
+                            className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-500/20 border border-emerald-500/40 px-3 py-1.5 text-[11px] font-bold text-emerald-800 disabled:opacity-50"
                           >
                             {busy === `confirm-${submission.id}` ? (
                               <Loader2 className="w-3 h-3 animate-spin" />
@@ -446,14 +446,14 @@ export const AdminFinancePanel: React.FC = () => {
                           <button
                             onClick={() => decide(submission, 'disputed')}
                             disabled={busy === `disputed-${submission.id}`}
-                            className="inline-flex items-center gap-1.5 rounded-lg bg-orange-500/15 border border-orange-500/40 px-3 py-1.5 text-[11px] font-bold text-orange-200 disabled:opacity-50"
+                            className="inline-flex items-center gap-1.5 rounded-lg bg-orange-500/15 border border-orange-500/40 px-3 py-1.5 text-[11px] font-bold text-orange-700 disabled:opacity-50"
                           >
                             <FileWarning className="w-3 h-3" /> Dispute
                           </button>
                           <button
                             onClick={() => decide(submission, 'rejected')}
                             disabled={busy === `rejected-${submission.id}`}
-                            className="inline-flex items-center gap-1.5 rounded-lg bg-[#FF2E63]/15 border border-[#FF2E63]/40 px-3 py-1.5 text-[11px] font-bold text-[#FF8FA8] disabled:opacity-50"
+                            className="inline-flex items-center gap-1.5 rounded-lg bg-accent/15 border border-accent/40 px-3 py-1.5 text-[11px] font-bold text-ink disabled:opacity-50"
                           >
                             <XCircle className="w-3 h-3" /> Reject
                           </button>
@@ -469,21 +469,21 @@ export const AdminFinancePanel: React.FC = () => {
       )}
 
       {tab === 'commissions' && (
-        <div className="bg-[#252A34]/70 border border-white/10 rounded-3xl p-6 space-y-4">
+        <div className="bg-surface border border-line rounded-2xl p-6 space-y-4">
           <div className="flex items-center gap-2">
-            <Wallet className="w-4 h-4 text-[#08D9D6]" />
+            <Wallet className="w-4 h-4 text-ink" />
             <h2 className="text-sm font-bold">Rental commissions</h2>
             {canConfirm && (
               <button
                 onClick={() => setShowCreate((value) => !value)}
-                className="ml-auto inline-flex items-center gap-1 rounded-lg bg-[#08D9D6] px-3 py-1.5 text-[11px] font-bold text-[#252A34]"
+                className="ml-auto inline-flex items-center gap-1 rounded-lg bg-interactive px-3 py-1.5 text-[11px] font-bold text-ink"
               >
                 <Plus className="w-3 h-3" /> Record agreement
               </button>
             )}
           </div>
 
-          <p className="text-[11px] text-slate-500 leading-snug">
+          <p className="text-[11px] text-ink/70 leading-snug">
             A commission exists only because someone recorded an actual agreement. Nothing here is
             generated from a rental, a viewing or a listing, and no percentage is applied unless an
             approved policy prices it. Ghana tax and licensing treatment of these arrangements still
@@ -491,12 +491,12 @@ export const AdminFinancePanel: React.FC = () => {
           </p>
 
           {showCreate && canConfirm && (
-            <div className="rounded-2xl border border-white/10 bg-slate-900/40 p-4 space-y-2">
+            <div className="rounded-2xl border border-line bg-surface p-4 space-y-2">
               <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                 <select
                   value={newCommission.propertyId}
                   onChange={(event) => setNewCommission((prev) => ({ ...prev, propertyId: event.target.value }))}
-                  className="rounded-lg bg-slate-900/60 border border-white/10 px-2 py-1.5 text-[11px] text-white"
+                  className="rounded-lg bg-page border border-line px-2 py-1.5 text-[11px] text-ink"
                 >
                   <option value="">Property…</option>
                   {properties.map((property) => (
@@ -512,27 +512,27 @@ export const AdminFinancePanel: React.FC = () => {
                   placeholder="Agreed commission (GHS)"
                   value={newCommission.amountGhs}
                   onChange={(event) => setNewCommission((prev) => ({ ...prev, amountGhs: event.target.value }))}
-                  className="rounded-lg bg-slate-900/60 border border-white/10 px-2 py-1.5 text-[11px] text-white"
+                  className="rounded-lg bg-page border border-line px-2 py-1.5 text-[11px] text-ink"
                 />
                 <input
                   type="text"
                   placeholder="Rental agreement reference"
                   value={newCommission.rentalReference}
                   onChange={(event) => setNewCommission((prev) => ({ ...prev, rentalReference: event.target.value }))}
-                  className="rounded-lg bg-slate-900/60 border border-white/10 px-2 py-1.5 text-[11px] text-white"
+                  className="rounded-lg bg-page border border-line px-2 py-1.5 text-[11px] text-ink"
                 />
                 <input
                   type="date"
                   value={newCommission.dueDate}
                   onChange={(event) => setNewCommission((prev) => ({ ...prev, dueDate: event.target.value }))}
-                  className="rounded-lg bg-slate-900/60 border border-white/10 px-2 py-1.5 text-[11px] text-white"
+                  className="rounded-lg bg-page border border-line px-2 py-1.5 text-[11px] text-ink"
                 />
                 <input
                   type="text"
                   placeholder="Notes: who agreed, on what basis"
                   value={newCommission.notes}
                   onChange={(event) => setNewCommission((prev) => ({ ...prev, notes: event.target.value }))}
-                  className="rounded-lg bg-slate-900/60 border border-white/10 px-2 py-1.5 text-[11px] text-white sm:col-span-2"
+                  className="rounded-lg bg-page border border-line px-2 py-1.5 text-[11px] text-ink sm:col-span-2"
                 />
               </div>
               <button
@@ -550,7 +550,7 @@ export const AdminFinancePanel: React.FC = () => {
                     setNewCommission({ propertyId: '', amountGhs: '', agentUserId: '', rentalReference: '', dueDate: '', notes: '' });
                   })
                 }
-                className="rounded-lg bg-[#08D9D6] px-3 py-1.5 text-[11px] font-bold text-[#252A34]"
+                className="rounded-lg bg-interactive px-3 py-1.5 text-[11px] font-bold text-ink"
               >
                 Create draft commission
               </button>
@@ -558,22 +558,22 @@ export const AdminFinancePanel: React.FC = () => {
           )}
 
           {commissions.length === 0 ? (
-            <p className="text-xs text-slate-400">No rental commission has been recorded.</p>
+            <p className="text-xs text-ink/70">No rental commission has been recorded.</p>
           ) : (
             <ul className="space-y-3">
               {commissions.map((commission) => (
-                <li key={commission.id} className="rounded-2xl border border-white/10 bg-slate-900/40 p-4 space-y-2">
+                <li key={commission.id} className="rounded-2xl border border-line bg-surface p-4 space-y-2">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-mono text-[11px] text-slate-300">{commission.reference}</span>
+                    <span className="font-mono text-[11px] text-ink/70">{commission.reference}</span>
                     <span className={`px-2 py-0.5 rounded-md border text-[10px] ${commissionStyles[commission.status]}`}>
                       {commission.statusLabel}
                     </span>
-                    <span className="text-[11px] text-slate-400">
+                    <span className="text-[11px] text-ink/70">
                       {commission.propertyTitle || 'Property'} · {commission.rentalReference || 'no agreement reference yet'}
                     </span>
-                    <span className="text-sm font-bold text-white ml-auto">{money(commission.amountGhs)}</span>
+                    <span className="text-sm font-bold text-ink ml-auto">{money(commission.amountGhs)}</span>
                   </div>
-                  <p className="text-[11px] text-slate-400">
+                  <p className="text-[11px] text-ink/70">
                     Received {money(commission.receivedGhs)} · outstanding {money(commission.outstandingGhs)} ·
                     basis {commission.basis === 'policy_snapshot' ? 'approved policy snapshot' : 'recorded agreement'}
                   </p>
@@ -581,9 +581,9 @@ export const AdminFinancePanel: React.FC = () => {
                       read from the stored record — an old commission keeps the
                       percentages it was agreed under. */}
                   {commission.agentSharePercent !== null && commission.agentSharePercent !== undefined ? (
-                    <p className="text-[11px] text-slate-300">
+                    <p className="text-[11px] text-ink/70">
                       Tier split:{' '}
-                      <span className="font-bold text-[#08D9D6]">
+                      <span className="font-bold text-ink">
                         {commission.agentSharePercent}% agent ({money(commission.agentShareGhs ?? null)}) /{' '}
                         {commission.goodlucksSharePercent}% Goodlucks ({money(commission.goodlucksShareGhs ?? null)})
                       </span>{' '}
@@ -591,7 +591,7 @@ export const AdminFinancePanel: React.FC = () => {
                       {commission.splitFrozenAt ? commission.splitFrozenAt.slice(0, 10) : 'at pricing'}
                     </p>
                   ) : (
-                    <p className="text-[11px] text-slate-500">
+                    <p className="text-[11px] text-ink/70">
                       No tier split is recorded on this commission
                       {commission.basis === 'policy_snapshot'
                         ? ' — it was priced by an approved fee policy, whose own snapshot is authoritative.'
@@ -599,7 +599,7 @@ export const AdminFinancePanel: React.FC = () => {
                     </p>
                   )}
                   {commission.payments.length > 0 && (
-                    <ul className="text-[10px] text-slate-500 space-y-0.5">
+                    <ul className="text-[10px] text-ink/70 space-y-0.5">
                       {commission.payments.map((payment) => (
                         <li key={payment.id}>
                           {payment.entryType === 'reversal' ? 'Reversal' : 'Receipt'} {money(payment.amountGhs)} on{' '}
@@ -610,7 +610,7 @@ export const AdminFinancePanel: React.FC = () => {
                   )}
 
                   {canConfirm && (
-                    <div className="flex flex-wrap gap-2 border-t border-white/5 pt-2">
+                    <div className="flex flex-wrap gap-2 border-t border-line pt-2">
                       {(['awaiting_agreement', 'agreed', 'due'] as RentalCommissionStatus[])
                         .filter((status) => status !== commission.status)
                         .map((status) => (
@@ -625,7 +625,7 @@ export const AdminFinancePanel: React.FC = () => {
                                 showSuccessToast(`Commission moved to ${status.replace('_', ' ')}.`);
                               })
                             }
-                            className="rounded-lg bg-slate-800 border border-white/10 px-2 py-1 text-[10px] text-slate-300"
+                            className="rounded-lg bg-surface border border-line px-2 py-1 text-[10px] text-ink/70"
                           >
                             Mark {status.replace('_', ' ')}
                           </button>
@@ -645,7 +645,7 @@ export const AdminFinancePanel: React.FC = () => {
                             showSuccessToast('Commission payment recorded against the agreement.');
                           })
                         }
-                        className="rounded-lg bg-emerald-500/20 border border-emerald-500/40 px-2 py-1 text-[10px] text-emerald-200"
+                        className="rounded-lg bg-emerald-500/20 border border-emerald-500/40 px-2 py-1 text-[10px] text-emerald-800"
                       >
                         Record payment
                       </button>
@@ -661,28 +661,28 @@ export const AdminFinancePanel: React.FC = () => {
       {tab === 'landlord' && <AdminLandlordFinance />}
 
       {tab === 'adjustments' && (
-        <div className="bg-[#252A34]/70 border border-white/10 rounded-3xl p-6 space-y-4">
+        <div className="bg-surface border border-line rounded-2xl p-6 space-y-4">
           <div className="flex items-center gap-2">
-            <RotateCcw className="w-4 h-4 text-[#08D9D6]" />
+            <RotateCcw className="w-4 h-4 text-ink" />
             <h2 className="text-sm font-bold">Adjustments and reversals</h2>
           </div>
-          <p className="text-[11px] text-slate-500 leading-snug">
+          <p className="text-[11px] text-ink/70 leading-snug">
             A confirmed receipt is never edited or deleted. A correction is a new record linked to the
             original, with the amount, the reason and the person who authorised it.
           </p>
           {(summary?.adjustments.recent.length ?? 0) === 0 ? (
-            <p className="text-xs text-slate-400">No financial adjustment has been recorded.</p>
+            <p className="text-xs text-ink/70">No financial adjustment has been recorded.</p>
           ) : (
-            <ul className="divide-y divide-white/5">
+            <ul className="divide-y divide-line">
               {summary?.adjustments.recent.map((adjustment) => (
                 <li key={adjustment.id} className="py-2 flex flex-wrap items-center gap-2 text-[11px]">
-                  <span className="font-mono text-slate-400">{adjustment.subjectType}</span>
-                  <span className="text-slate-500">{adjustment.kind}</span>
-                  <span className={`font-bold ${adjustment.amountGhs < 0 ? 'text-[#FF8FA8]' : 'text-emerald-300'}`}>
+                  <span className="font-mono text-ink/70">{adjustment.subjectType}</span>
+                  <span className="text-ink/70">{adjustment.kind}</span>
+                  <span className={`font-bold ${adjustment.amountGhs < 0 ? 'text-ink' : 'text-emerald-700'}`}>
                     {money(adjustment.amountGhs)}
                   </span>
-                  <span className="text-slate-400 flex-1 min-w-[200px]">{adjustment.reason}</span>
-                  <span className="text-slate-500">{adjustment.createdAt?.slice(0, 10)}</span>
+                  <span className="text-ink/70 flex-1 min-w-[200px]">{adjustment.reason}</span>
+                  <span className="text-ink/70">{adjustment.createdAt?.slice(0, 10)}</span>
                 </li>
               ))}
             </ul>
@@ -690,12 +690,12 @@ export const AdminFinancePanel: React.FC = () => {
         </div>
       )}
 
-      <div className="bg-[#252A34]/70 border border-white/10 rounded-3xl p-6 space-y-2">
+      <div className="bg-surface border border-line rounded-2xl p-6 space-y-2">
         <div className="flex items-center gap-2">
-          <Banknote className="w-4 h-4 text-[#08D9D6]" />
+          <Banknote className="w-4 h-4 text-ink" />
           <h2 className="text-sm font-bold">Where the numbers come from</h2>
         </div>
-        <ul className="text-[11px] text-slate-400 space-y-1 list-disc pl-4">
+        <ul className="text-[11px] text-ink/70 space-y-1 list-disc pl-4">
           <li>Collected: what agents reported taking from tenants. Never revenue.</li>
           <li>Owed: the Goodlucks share set by an explicit agreement or an approved policy snapshot.</li>
           <li>Claimed: what an agent says they sent. Not money until confirmed.</li>
