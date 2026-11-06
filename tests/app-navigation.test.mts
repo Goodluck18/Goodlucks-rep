@@ -1399,3 +1399,66 @@ test('the admin console has Blog Management and Email Templates sections', async
 
   await app.unmount();
 });
+
+/* -------------------------------------------------------------------------- */
+/* Task 08: the rendered pages use the light design system                    */
+/* -------------------------------------------------------------------------- */
+
+/** The old dark-theme utilities the redesign removed. */
+const LEGACY_THEME_TOKENS = [
+  'bg-[#1F242D]',
+  'bg-[#252A34]',
+  'bg-[#1A1E26]',
+  'bg-slate-900',
+  'bg-slate-950',
+  'bg-slate-800',
+  'bg-black/',
+  'border-white/',
+  'text-slate-300',
+  'text-slate-400',
+];
+
+test('every public page and dashboard renders on the light system', async () => {
+  const pages: Array<[string, 'tenant' | 'landlord' | 'agent' | 'admin' | null]> = [
+    ['/', null],
+    ['/properties', null],
+    ['/property/prop-landlord', null],
+    ['/find-a-home', null],
+    ['/list-property', null],
+    ['/blog', null],
+    ['/blog/top-available-properties-east-legon', null],
+    ['/about', null],
+    ['/contact', null],
+    ['/receipts', null],
+    ['/tenant/dashboard', 'tenant'],
+    ['/landlord/dashboard', 'landlord'],
+    ['/agent/dashboard', 'agent'],
+    ['/admin', 'admin'],
+  ];
+
+  for (const [path, role] of pages) {
+    const app = await renderAt(path, role, {
+      // Listings are only needed where the page renders a card; the dashboards
+      // read their state from the account bootstrap.
+      properties: path.startsWith('/property') || path === '/' ? [LANDLORD_LISTING] : [],
+      blog: { posts: [blogSummary()], post: blogArticle() },
+    });
+
+    const html = app.container.innerHTML;
+    for (const token of LEGACY_THEME_TOKENS) {
+      assert.equal(
+        html.includes(token),
+        false,
+        `${path} still renders the dark-theme class “${token}”`
+      );
+    }
+    // The page is painted with the light page background or a white surface.
+    assert.match(
+      html,
+      /bg-page|bg-surface/,
+      `${path} renders without the light page/surface background`
+    );
+
+    await app.unmount();
+  }
+});

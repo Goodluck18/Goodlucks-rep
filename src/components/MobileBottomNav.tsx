@@ -49,22 +49,22 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({ onOpenAuth }) 
         aria-current={isActive ? 'page' : undefined}
         aria-label={tab.description ?? tab.label}
         title={tab.description ?? tab.label}
-        className={`flex-1 flex flex-col items-center justify-center gap-0.5 py-2 min-h-[56px] rounded-lg transition-colors ${
+        className={`flex-1 flex flex-col items-center justify-center gap-0.5 py-2 my-1 min-h-[56px] rounded-xl transition-colors ${
           isActive
-            ? 'text-[#08D9D6]'
+            ? 'bg-interactive/20 text-ink'
             : isEmphasis
-              ? 'text-[#08D9D6]/90'
-              : 'text-slate-400 hover:text-white'
+              ? 'text-ink hover:bg-page'
+              : 'text-ink/70 hover:text-ink hover:bg-page'
         }`}
       >
-        <Icon className={`w-[22px] h-[22px] ${isActive || isEmphasis ? 'text-[#08D9D6]' : ''}`} />
+        <Icon className="w-[22px] h-[22px]" />
         <span className={`text-[10px] leading-none ${isActive ? 'font-bold' : 'font-medium'}`}>{tab.label}</span>
       </button>
     );
   };
 
   return (
-    <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#252A34]/95 backdrop-blur-lg border-t border-white/10 shadow-2xl pb-[env(safe-area-inset-bottom)]">
+    <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-surface border-t border-line pb-[env(safe-area-inset-bottom)]">
       <nav aria-label="Quick links" className="flex items-stretch justify-around px-1">
         {tabs.map(renderTab)}
       </nav>

@@ -14,40 +14,40 @@ export const FindAHomeView: React.FC<FindAHomeViewProps> = ({ onOpenAuth }) => {
   // Guard Condition 1: User is NOT logged in (guest / no account)
   if (!currentUser || currentRole === 'guest') {
     return (
-      <div className="min-h-screen bg-[#252A34] text-white py-12 px-4 sm:px-6 lg:px-8 flex items-center justify-center">
+      <div className="min-h-screen bg-page text-ink py-12 px-4 sm:px-6 lg:px-8 flex items-center justify-center">
         <SEOHead
           title="Find a Rental Home - Custom Matching Service | Goodlucks Homes"
           description="Submit your location, budget, bedroom requirements, and move-in date. Goodlucks Homes matches your request against listings reviewed by our staff."
         />
-        <div className="max-w-xl w-full bg-slate-800/90 border border-[#08D9D6]/30 rounded-3xl p-6 sm:p-8 shadow-2xl text-center space-y-6 animate-fadeIn">
-          <div className="w-16 h-16 rounded-2xl bg-[#08D9D6]/20 text-[#08D9D6] border border-[#08D9D6]/30 flex items-center justify-center mx-auto shadow-inner">
+        <div className="max-w-xl w-full bg-surface border border-interactive/30 rounded-2xl p-6 sm:p-8 shadow-lg text-center space-y-6 animate-fadeIn">
+          <div className="w-16 h-16 rounded-2xl bg-interactive/20 text-ink border border-interactive/30 flex items-center justify-center mx-auto shadow-inner">
             <LogIn className="w-8 h-8" />
           </div>
 
           <div className="space-y-2">
-            <span className="px-3.5 py-1 rounded-full text-[11px] font-extrabold bg-[#08D9D6]/10 text-[#08D9D6] border border-[#08D9D6]/20 uppercase tracking-wider">
+            <span className="px-3.5 py-1 rounded-full text-[11px] font-extrabold bg-interactive/10 text-ink border border-interactive/20 uppercase tracking-wider">
               Tenant Sign In Required
             </span>
-            <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+            <h1 className="text-2xl sm:text-3xl font-black text-ink tracking-tight">
               Log In to Match Properties
             </h1>
-            <p className="text-xs sm:text-sm text-slate-300 leading-relaxed max-w-md mx-auto">
+            <p className="text-xs sm:text-sm text-ink/70 leading-relaxed max-w-md mx-auto">
               You are currently not signed in. To submit your location and budget preferences for Goodlucks Homes property matching, please <strong>log in as a Tenant</strong>.
             </p>
           </div>
 
-          <div className="bg-slate-900/80 p-4 rounded-2xl border border-white/5 text-xs text-slate-400 space-y-2.5 text-left">
-            <div className="font-bold text-slate-200">Why Log In as a Tenant?</div>
-            <div className="flex items-center gap-2 text-slate-300">
-              <span className="w-2 h-2 rounded-full bg-[#08D9D6]" />
+          <div className="bg-surface p-4 rounded-2xl border border-line text-xs text-ink/70 space-y-2.5 text-left">
+            <div className="font-bold text-ink">Why Log In as a Tenant?</div>
+            <div className="flex items-center gap-2 text-ink/70">
+              <span className="w-2 h-2 rounded-full bg-interactive" />
               <span>Receive suggested property matches based on your budget in GH₵</span>
             </div>
-            <div className="flex items-center gap-2 text-slate-300">
-              <span className="w-2 h-2 rounded-full bg-[#08D9D6]" />
+            <div className="flex items-center gap-2 text-ink/70">
+              <span className="w-2 h-2 rounded-full bg-interactive" />
               <span>Track physical viewing schedules & match updates on your tenant dashboard</span>
             </div>
-            <div className="flex items-center gap-2 text-slate-300">
-              <span className="w-2 h-2 rounded-full bg-[#08D9D6]" />
+            <div className="flex items-center gap-2 text-ink/70">
+              <span className="w-2 h-2 rounded-full bg-interactive" />
               <span>Message our Accra team if an arrangement needs sorting out</span>
             </div>
           </div>
@@ -55,14 +55,14 @@ export const FindAHomeView: React.FC<FindAHomeViewProps> = ({ onOpenAuth }) => {
           <div className="flex flex-col sm:flex-row gap-3 justify-center pt-2">
             <button
               onClick={() => onOpenAuth && onOpenAuth('login')}
-              className="px-6 py-3.5 rounded-2xl bg-[#08D9D6] text-[#252A34] font-black text-xs sm:text-sm hover:bg-[#08D9D6]/90 transition-all shadow-lg shadow-[#08D9D6]/20 flex items-center justify-center gap-2"
+              className="gl-btn gl-btn-primary px-6 py-3.5 text-xs sm:text-sm flex"
             >
               <UserCheck className="w-4 h-4" />
               Log In as Tenant to Match Property
             </button>
             <button
               onClick={() => setCurrentView('home')}
-              className="px-6 py-3.5 rounded-2xl bg-white/10 text-white font-bold text-xs sm:text-sm hover:bg-white/20 transition-all border border-white/10"
+              className="px-6 py-3.5 rounded-2xl bg-page text-ink font-bold text-xs sm:text-sm hover:bg-line transition-all border border-line"
             >
               Browse Properties
             </button>
@@ -75,31 +75,31 @@ export const FindAHomeView: React.FC<FindAHomeViewProps> = ({ onOpenAuth }) => {
   // Guard Condition 2: User IS logged in, but as a LANDLORD
   if (currentRole === 'landlord') {
     return (
-      <div className="min-h-screen bg-[#252A34] text-white py-12 px-4 sm:px-6 lg:px-8 flex items-center justify-center">
-        <div className="max-w-xl w-full bg-slate-800/90 border border-amber-500/30 rounded-3xl p-6 sm:p-8 shadow-2xl text-center space-y-6 animate-fadeIn">
-          <div className="w-16 h-16 rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center mx-auto shadow-inner">
+      <div className="min-h-screen bg-page text-ink py-12 px-4 sm:px-6 lg:px-8 flex items-center justify-center">
+        <div className="max-w-xl w-full bg-surface border border-amber-500/30 rounded-2xl p-6 sm:p-8 shadow-lg text-center space-y-6 animate-fadeIn">
+          <div className="w-16 h-16 rounded-2xl bg-amber-500/20 text-amber-700 border border-amber-500/30 flex items-center justify-center mx-auto shadow-inner">
             <ShieldAlert className="w-8 h-8" />
           </div>
 
           <div className="space-y-2">
-            <span className="px-3.5 py-1 rounded-full text-[11px] font-extrabold bg-amber-500/10 text-amber-300 border border-amber-500/20 uppercase tracking-wider">
+            <span className="px-3.5 py-1 rounded-full text-[11px] font-extrabold bg-amber-500/10 text-amber-700 border border-amber-500/20 uppercase tracking-wider">
               Landlord Account Detected
             </span>
-            <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+            <h1 className="text-2xl sm:text-3xl font-black text-ink tracking-tight">
               Property Matching Reserved for Tenants
             </h1>
-            <p className="text-xs sm:text-sm text-slate-300 leading-relaxed max-w-md mx-auto">
+            <p className="text-xs sm:text-sm text-ink/70 leading-relaxed max-w-md mx-auto">
               You are currently logged in as a <strong>Landlord</strong>. Landlords list properties and manage viewings. To submit property matching requests, please log in with a <strong>Tenant Account</strong>.
             </p>
           </div>
 
-          <div className="bg-slate-900/80 p-4 rounded-2xl border border-white/5 text-xs text-slate-400 space-y-2.5 text-left">
-            <div className="font-bold text-slate-200">Account Role Permissions:</div>
-            <div className="flex items-center gap-2 text-slate-300">
+          <div className="bg-surface p-4 rounded-2xl border border-line text-xs text-ink/70 space-y-2.5 text-left">
+            <div className="font-bold text-ink">Account Role Permissions:</div>
+            <div className="flex items-center gap-2 text-ink/70">
               <span className="w-2 h-2 rounded-full bg-emerald-400" />
               <span><strong>Tenant:</strong> Submit matching requests and see the listings scored against them</span>
             </div>
-            <div className="flex items-center gap-2 text-slate-300">
+            <div className="flex items-center gap-2 text-ink/70">
               <span className="w-2 h-2 rounded-full bg-amber-400" />
               <span><strong>Landlord:</strong> Manage property listings and viewing approvals</span>
             </div>
@@ -108,16 +108,16 @@ export const FindAHomeView: React.FC<FindAHomeViewProps> = ({ onOpenAuth }) => {
           <div className="flex flex-col sm:flex-row gap-3 justify-center pt-2">
             <button
               onClick={() => onOpenAuth && onOpenAuth('login')}
-              className="px-6 py-3 rounded-2xl bg-[#08D9D6] text-[#252A34] font-extrabold text-xs sm:text-sm hover:bg-[#08D9D6]/90 transition-all shadow-lg shadow-[#08D9D6]/20 flex items-center justify-center gap-2"
+              className="gl-btn gl-btn-primary px-6 py-3 text-xs sm:text-sm flex"
             >
               <UserCheck className="w-4 h-4" />
               Log In as Tenant
             </button>
             <button
               onClick={() => setCurrentView('dashboard')}
-              className="px-6 py-3 rounded-2xl bg-white/10 text-white font-bold text-xs sm:text-sm hover:bg-white/20 transition-all border border-white/10 flex items-center justify-center gap-2"
+              className="px-6 py-3 rounded-2xl bg-page text-ink font-bold text-xs sm:text-sm hover:bg-line transition-all border border-line flex items-center justify-center gap-2"
             >
-              <Building2 className="w-4 h-4 text-[#08D9D6]" />
+              <Building2 className="w-4 h-4 text-ink" />
               Go to Landlord Dashboard
             </button>
           </div>
@@ -191,7 +191,7 @@ export const FindAHomeView: React.FC<FindAHomeViewProps> = ({ onOpenAuth }) => {
   };
 
   return (
-    <div className="min-h-screen bg-[#252A34] text-white py-10 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-page text-ink py-10 px-4 sm:px-6 lg:px-8">
       <SEOHead
         title="Find a Rental Home - Property Matching Service | Goodlucks Homes Ghana"
         description="Submit your target location, budget, bedroom requirements, and move-in date. Goodlucks Homes matches your request against listings reviewed by our staff."
@@ -200,31 +200,31 @@ export const FindAHomeView: React.FC<FindAHomeViewProps> = ({ onOpenAuth }) => {
         
         {/* Header Header */}
         <div className="text-center space-y-3">
-          <div className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[#08D9D6]/10 text-[#08D9D6] text-xs font-bold border border-[#08D9D6]/20">
+          <div className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-interactive/10 text-ink text-xs font-bold border border-interactive/20">
             <Sparkles className="w-4 h-4" />
             Assisted property matching
           </div>
-          <h1 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
+          <h1 className="text-3xl sm:text-4xl font-extrabold text-ink tracking-tight">
             Find Your Ideal Rental Home
           </h1>
-          <p className="text-sm text-slate-300 max-w-xl mx-auto leading-relaxed">
+          <p className="text-sm text-ink/70 max-w-xl mx-auto leading-relaxed">
             Tell us your preferred areas, budget and number of bedrooms. We score the live listings against your request and show you the closest matches, with the reason each one was suggested.
           </p>
         </div>
 
         {!submitted ? (
-          <form onSubmit={handleSubmit} className="bg-slate-800/80 border border-white/10 rounded-3xl p-6 sm:p-8 shadow-2xl space-y-6">
+          <form onSubmit={handleSubmit} className="bg-surface border border-line rounded-2xl p-6 sm:p-8 shadow-lg space-y-6">
             
             {/* Contact Details */}
-            <div className="space-y-4 pb-6 border-b border-white/10">
-              <h2 className="text-lg font-bold text-[#08D9D6] flex items-center gap-2">
+            <div className="space-y-4 pb-6 border-b border-line">
+              <h2 className="text-lg font-bold text-ink flex items-center gap-2">
                 <Compass className="w-5 h-5" />
                 1. Tenant Contact Information
               </h2>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                  <label className="block text-xs font-semibold text-ink/70 mb-1.5">
                     Your Full Name
                   </label>
                   <input
@@ -233,12 +233,12 @@ export const FindAHomeView: React.FC<FindAHomeViewProps> = ({ onOpenAuth }) => {
                     value={tenantName}
                     onChange={(e) => setTenantName(e.target.value)}
                     placeholder="e.g. Kofi Mensah"
-                    className="w-full bg-slate-900 border border-white/10 rounded-xl p-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-[#08D9D6]"
+                    className="w-full bg-page border border-line rounded-xl p-3 text-sm text-ink placeholder-ink/50 focus:outline-none focus:border-interactive"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                  <label className="block text-xs font-semibold text-ink/70 mb-1.5">
                     Phone Number
                   </label>
                   <input
@@ -247,12 +247,12 @@ export const FindAHomeView: React.FC<FindAHomeViewProps> = ({ onOpenAuth }) => {
                     value={tenantPhone}
                     onChange={(e) => setTenantPhone(e.target.value)}
                     placeholder="+233 24 000 0000"
-                    className="w-full bg-slate-900 border border-white/10 rounded-xl p-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-[#08D9D6]"
+                    className="w-full bg-page border border-line rounded-xl p-3 text-sm text-ink placeholder-ink/50 focus:outline-none focus:border-interactive"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                  <label className="block text-xs font-semibold text-ink/70 mb-1.5">
                     Email Address
                   </label>
                   <input
@@ -261,19 +261,19 @@ export const FindAHomeView: React.FC<FindAHomeViewProps> = ({ onOpenAuth }) => {
                     value={tenantEmail}
                     onChange={(e) => setTenantEmail(e.target.value)}
                     placeholder="tenant@example.com"
-                    className="w-full bg-slate-900 border border-white/10 rounded-xl p-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-[#08D9D6]"
+                    className="w-full bg-page border border-line rounded-xl p-3 text-sm text-ink placeholder-ink/50 focus:outline-none focus:border-interactive"
                   />
                 </div>
               </div>
             </div>
 
             {/* Location Preference */}
-            <div className="space-y-3 pb-6 border-b border-white/10">
-              <h2 className="text-lg font-bold text-[#08D9D6] flex items-center gap-2">
+            <div className="space-y-3 pb-6 border-b border-line">
+              <h2 className="text-lg font-bold text-ink flex items-center gap-2">
                 <MapPin className="w-5 h-5" />
                 2. Preferred Locations in Ghana
               </h2>
-              <p className="text-xs text-slate-400">Select one or more target areas:</p>
+              <p className="text-xs text-ink/70">Select one or more target areas:</p>
 
               <div className="flex flex-wrap gap-2 pt-1">
                 {GHANA_LOCATIONS.map(loc => {
@@ -285,8 +285,8 @@ export const FindAHomeView: React.FC<FindAHomeViewProps> = ({ onOpenAuth }) => {
                       onClick={() => toggleLocation(loc)}
                       className={`px-3.5 py-2 rounded-xl text-xs font-semibold transition-all ${
                         isSelected 
-                          ? 'bg-[#08D9D6] text-[#252A34] shadow-md shadow-[#08D9D6]/20' 
-                          : 'bg-slate-900 text-slate-300 border border-white/10 hover:border-white/30'
+                          ? 'bg-interactive text-ink shadow-md shadow-ink/10' 
+                          : 'bg-surface text-ink/70 border border-line hover:border-line'
                       }`}
                     >
                       {isSelected ? '✓ ' : '+ '}{loc}
@@ -297,15 +297,15 @@ export const FindAHomeView: React.FC<FindAHomeViewProps> = ({ onOpenAuth }) => {
             </div>
 
             {/* Budget & Property Specs */}
-            <div className="space-y-4 pb-6 border-b border-white/10">
-              <h2 className="text-lg font-bold text-[#08D9D6] flex items-center gap-2">
+            <div className="space-y-4 pb-6 border-b border-line">
+              <h2 className="text-lg font-bold text-ink flex items-center gap-2">
                 <DollarSign className="w-5 h-5" />
                 3. Budget & Property Specifications
               </h2>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                  <label className="block text-xs font-semibold text-ink/70 mb-1.5">
                     Monthly Budget Range (GHS)
                   </label>
                   <div className="flex items-center gap-2">
@@ -314,27 +314,27 @@ export const FindAHomeView: React.FC<FindAHomeViewProps> = ({ onOpenAuth }) => {
                       step={500}
                       value={budgetMin}
                       onChange={(e) => setBudgetMin(Number(e.target.value))}
-                      className="w-full bg-slate-900 border border-white/10 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-[#08D9D6]"
+                      className="w-full bg-page border border-line rounded-xl p-3 text-sm text-ink focus:outline-none focus:border-interactive"
                     />
-                    <span className="text-slate-400 text-xs">to</span>
+                    <span className="text-ink/70 text-xs">to</span>
                     <input
                       type="number"
                       step={500}
                       value={budgetMax}
                       onChange={(e) => setBudgetMax(Number(e.target.value))}
-                      className="w-full bg-slate-900 border border-white/10 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-[#08D9D6]"
+                      className="w-full bg-page border border-line rounded-xl p-3 text-sm text-ink focus:outline-none focus:border-interactive"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                  <label className="block text-xs font-semibold text-ink/70 mb-1.5">
                     Property Type
                   </label>
                   <select
                     value={propertyType}
                     onChange={(e) => setPropertyType(e.target.value)}
-                    className="w-full bg-slate-900 border border-white/10 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-[#08D9D6]"
+                    className="w-full bg-page border border-line rounded-xl p-3 text-sm text-ink focus:outline-none focus:border-interactive"
                   >
                     <option value="Apartment">Apartment</option>
                     <option value="Luxury Villa">Luxury Villa</option>
@@ -348,7 +348,7 @@ export const FindAHomeView: React.FC<FindAHomeViewProps> = ({ onOpenAuth }) => {
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                  <label className="block text-xs font-semibold text-ink/70 mb-1.5">
                     Bedrooms Required
                   </label>
                   <input
@@ -357,12 +357,12 @@ export const FindAHomeView: React.FC<FindAHomeViewProps> = ({ onOpenAuth }) => {
                     max={10}
                     value={bedrooms}
                     onChange={(e) => setBedrooms(Number(e.target.value))}
-                    className="w-full bg-slate-900 border border-white/10 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-[#08D9D6]"
+                    className="w-full bg-page border border-line rounded-xl p-3 text-sm text-ink focus:outline-none focus:border-interactive"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                  <label className="block text-xs font-semibold text-ink/70 mb-1.5">
                     Bathrooms Required
                   </label>
                   <input
@@ -371,25 +371,25 @@ export const FindAHomeView: React.FC<FindAHomeViewProps> = ({ onOpenAuth }) => {
                     max={10}
                     value={bathrooms}
                     onChange={(e) => setBathrooms(Number(e.target.value))}
-                    className="w-full bg-slate-900 border border-white/10 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-[#08D9D6]"
+                    className="w-full bg-page border border-line rounded-xl p-3 text-sm text-ink focus:outline-none focus:border-interactive"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                  <label className="block text-xs font-semibold text-ink/70 mb-1.5">
                     Expected Move-in Date
                   </label>
                   <input
                     type="date"
                     value={moveInDate}
                     onChange={(e) => setMoveInDate(e.target.value)}
-                    className="w-full bg-slate-900 border border-white/10 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-[#08D9D6]"
+                    className="w-full bg-page border border-line rounded-xl p-3 text-sm text-ink focus:outline-none focus:border-interactive"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                <label className="block text-xs font-semibold text-ink/70 mb-1.5">
                   Special Requirements or Notes
                 </label>
                 <textarea
@@ -397,7 +397,7 @@ export const FindAHomeView: React.FC<FindAHomeViewProps> = ({ onOpenAuth }) => {
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                   placeholder="e.g. Must have 24/7 standby generator, swimming pool, pet friendly."
-                  className="w-full bg-slate-900 border border-white/10 rounded-xl p-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-[#08D9D6]"
+                  className="w-full bg-page border border-line rounded-xl p-3 text-sm text-ink placeholder-ink/50 focus:outline-none focus:border-interactive"
                 />
               </div>
             </div>
@@ -405,11 +405,11 @@ export const FindAHomeView: React.FC<FindAHomeViewProps> = ({ onOpenAuth }) => {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="w-full py-4 rounded-2xl bg-[#08D9D6] text-[#252A34] font-extrabold text-base hover:bg-[#08D9D6]/90 transition-all shadow-xl shadow-[#08D9D6]/20 flex items-center justify-center gap-2 active:scale-[0.99] disabled:opacity-60"
+              className="gl-btn gl-btn-primary w-full"
             >
               {isSubmitting ? (
                 <>
-                  <span className="w-5 h-5 border-2 border-[#252A34]/30 border-t-[#252A34] rounded-full animate-spin" />
+                  <span className="w-5 h-5 border-2 border-ink/30 border-t-ink rounded-full animate-spin" />
                   <span>Submitting Request...</span>
                 </>
               ) : (
@@ -421,7 +421,7 @@ export const FindAHomeView: React.FC<FindAHomeViewProps> = ({ onOpenAuth }) => {
             </button>
 
             {formError && (
-              <div role="alert" className="p-3 rounded-xl bg-[#FF2E63]/15 border border-[#FF2E63]/30 text-[#FF8FA8] text-xs flex items-start gap-2">
+              <div role="alert" className="p-3 rounded-xl bg-accent/15 border border-accent/30 text-ink text-xs flex items-start gap-2">
                 <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
                 <span>{formError}</span>
               </div>
@@ -429,29 +429,29 @@ export const FindAHomeView: React.FC<FindAHomeViewProps> = ({ onOpenAuth }) => {
 
           </form>
         ) : (
-          <div className="bg-slate-800/90 border border-[#08D9D6]/40 rounded-3xl p-8 text-center space-y-6 shadow-2xl">
-            <div className="w-20 h-20 rounded-full bg-[#08D9D6]/20 text-[#08D9D6] border border-[#08D9D6]/40 flex items-center justify-center mx-auto">
+          <div className="bg-surface border border-interactive/40 rounded-2xl p-8 text-center space-y-6 shadow-lg">
+            <div className="w-20 h-20 rounded-full bg-interactive/20 text-ink border border-interactive/40 flex items-center justify-center mx-auto">
               <CheckCircle2 className="w-10 h-10" />
             </div>
 
             <div className="space-y-2">
-              <h2 className="text-2xl sm:text-3xl font-extrabold text-white">
+              <h2 className="text-2xl sm:text-3xl font-extrabold text-ink">
                 Request Submitted Successfully!
               </h2>
-              <p className="text-sm text-slate-300 max-w-md mx-auto leading-relaxed">
+              <p className="text-sm text-ink/70 max-w-md mx-auto leading-relaxed">
                 Your request is saved. We compare it against the live listings and show the closest matches on your dashboard, with the reason each one was suggested.
               </p>
             </div>
 
-            <div className="bg-slate-900 p-5 rounded-2xl text-xs text-left max-w-md mx-auto space-y-2 border border-white/10">
-              <div className="text-[#08D9D6] font-bold uppercase tracking-wider">Your Request Progress</div>
-              <div className="flex items-center justify-between text-white font-medium pt-1">
+            <div className="bg-surface p-5 rounded-2xl text-xs text-left max-w-md mx-auto space-y-2 border border-line">
+              <div className="text-ink font-bold uppercase tracking-wider">Your Request Progress</div>
+              <div className="flex items-center justify-between text-ink font-medium pt-1">
                 <span>Locations: {selectedLocations.join(', ')}</span>
               </div>
-              <div className="text-slate-400">
+              <div className="text-ink/70">
                 Budget: GH₵ {budgetMin.toLocaleString()} - GH₵ {budgetMax.toLocaleString()} / mo
               </div>
-              <div className="text-slate-400">
+              <div className="text-ink/70">
                 Move-in Target: {moveInDate}
               </div>
             </div>
@@ -459,13 +459,13 @@ export const FindAHomeView: React.FC<FindAHomeViewProps> = ({ onOpenAuth }) => {
             <div className="pt-2 flex flex-col sm:flex-row gap-3 justify-center">
               <button
                 onClick={() => setCurrentView('dashboard')}
-                className="px-6 py-3 rounded-xl bg-[#08D9D6] text-[#252A34] font-bold text-sm shadow-md"
+                className="gl-btn gl-btn-primary px-6 py-3 text-sm"
               >
                 Go to Tenant Dashboard
               </button>
               <button
                 onClick={() => setCurrentView('browse')}
-                className="px-6 py-3 rounded-xl bg-white/10 text-white font-semibold text-sm"
+                className="px-6 py-3 rounded-xl bg-page text-ink font-semibold text-sm"
               >
                 Browse All Properties
               </button>

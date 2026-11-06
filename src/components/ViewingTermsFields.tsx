@@ -51,7 +51,7 @@ export const viewingTermsPayload = (form: ViewingTermsFormState): ViewingTermsVa
 });
 
 const inputClass =
-  'w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-[#08D9D6]';
+  'w-full bg-surface border border-line rounded-xl px-3 py-2 text-xs text-ink placeholder-ink/50 focus:outline-none focus:border-interactive';
 
 export const ViewingTermsFields: React.FC<{
   form: ViewingTermsFormState;
@@ -65,19 +65,19 @@ export const ViewingTermsFields: React.FC<{
   const id = (name: string) => `${idPrefix}-${name}`;
 
   return (
-    <div className="space-y-3 rounded-2xl border border-white/10 bg-slate-900/50 p-3">
-      <div className="flex items-start gap-2 text-[11px] text-slate-400">
-        <Info className="w-3.5 h-3.5 mt-0.5 shrink-0 text-[#08D9D6]" />
+    <div className="space-y-3 rounded-2xl border border-line bg-surface p-3">
+      <div className="flex items-start gap-2 text-[11px] text-ink/70">
+        <Info className="w-3.5 h-3.5 mt-0.5 shrink-0 text-ink" />
         <span>
-          This fee belongs to <strong className="text-white">this property only</strong>. It is not the rental
+          This fee belongs to <strong className="text-ink">this property only</strong>. It is not the rental
           commission and no commission percentage is applied to it. Nothing here is shown to tenants until Goodlucks
           staff approve the listing, and the fee is paid on site — never online.
         </span>
       </div>
 
       <div>
-        <label htmlFor={id('fee')} className="block text-xs font-semibold text-slate-300 mb-1">
-          Viewing fee for this property (GHS) <span className="text-[#FF8FA8]">*</span>
+        <label htmlFor={id('fee')} className="block text-xs font-semibold text-ink/70 mb-1">
+          Viewing fee for this property (GHS) <span className="text-ink">*</span>
         </label>
         <input
           id={id('fee')}
@@ -90,12 +90,12 @@ export const ViewingTermsFields: React.FC<{
           placeholder="e.g. 150"
           className={inputClass}
         />
-        {fieldErrors.viewingFeeGhs && <p className="text-[11px] text-[#FF8FA8] mt-1">{fieldErrors.viewingFeeGhs}</p>}
+        {fieldErrors.viewingFeeGhs && <p className="text-[11px] font-semibold text-accent-text mt-1">{fieldErrors.viewingFeeGhs}</p>}
       </div>
 
       <div>
-        <label htmlFor={id('appointment')} className="block text-xs font-semibold text-slate-300 mb-1">
-          Is an appointment required? <span className="text-[#FF8FA8]">*</span>
+        <label htmlFor={id('appointment')} className="block text-xs font-semibold text-ink/70 mb-1">
+          Is an appointment required? <span className="text-ink">*</span>
         </label>
         <select
           id={id('appointment')}
@@ -107,13 +107,13 @@ export const ViewingTermsFields: React.FC<{
           <option value="no">No — tenants may call in without an appointment</option>
         </select>
         {fieldErrors['viewingTerms.appointmentRequired'] && (
-          <p className="text-[11px] text-[#FF8FA8] mt-1">{fieldErrors['viewingTerms.appointmentRequired']}</p>
+          <p className="text-[11px] font-semibold text-accent-text mt-1">{fieldErrors['viewingTerms.appointmentRequired']}</p>
         )}
       </div>
 
       <div>
-        <label htmlFor={id('how')} className="block text-xs font-semibold text-slate-300 mb-1">
-          How to arrange the viewing <span className="text-[#FF8FA8]">*</span>
+        <label htmlFor={id('how')} className="block text-xs font-semibold text-ink/70 mb-1">
+          How to arrange the viewing <span className="text-ink">*</span>
         </label>
         <textarea
           id={id('how')}
@@ -124,13 +124,13 @@ export const ViewingTermsFields: React.FC<{
           className={inputClass}
         />
         {fieldErrors['viewingTerms.howToArrange'] && (
-          <p className="text-[11px] text-[#FF8FA8] mt-1">{fieldErrors['viewingTerms.howToArrange']}</p>
+          <p className="text-[11px] font-semibold text-accent-text mt-1">{fieldErrors['viewingTerms.howToArrange']}</p>
         )}
       </div>
 
       <div>
-        <label htmlFor={id('payment')} className="block text-xs font-semibold text-slate-300 mb-1">
-          How the viewing fee is paid <span className="text-[#FF8FA8]">*</span>
+        <label htmlFor={id('payment')} className="block text-xs font-semibold text-ink/70 mb-1">
+          How the viewing fee is paid <span className="text-ink">*</span>
         </label>
         <textarea
           id={id('payment')}
@@ -141,13 +141,13 @@ export const ViewingTermsFields: React.FC<{
           className={inputClass}
         />
         {fieldErrors['viewingTerms.paymentInstructions'] && (
-          <p className="text-[11px] text-[#FF8FA8] mt-1">{fieldErrors['viewingTerms.paymentInstructions']}</p>
+          <p className="text-[11px] font-semibold text-accent-text mt-1">{fieldErrors['viewingTerms.paymentInstructions']}</p>
         )}
       </div>
 
       <div>
-        <label htmlFor={id('conditions')} className="block text-xs font-semibold text-slate-300 mb-1">
-          Conditions <span className="text-slate-500 font-normal">(optional)</span>
+        <label htmlFor={id('conditions')} className="block text-xs font-semibold text-ink/70 mb-1">
+          Conditions <span className="text-ink/70 font-normal">(optional)</span>
         </label>
         <textarea
           id={id('conditions')}
@@ -158,13 +158,13 @@ export const ViewingTermsFields: React.FC<{
           className={inputClass}
         />
         {fieldErrors['viewingTerms.conditions'] && (
-          <p className="text-[11px] text-[#FF8FA8] mt-1">{fieldErrors['viewingTerms.conditions']}</p>
+          <p className="text-[11px] font-semibold text-accent-text mt-1">{fieldErrors['viewingTerms.conditions']}</p>
         )}
       </div>
 
       <div>
-        <label htmlFor={id('restrictions')} className="block text-xs font-semibold text-slate-300 mb-1">
-          Restrictions <span className="text-slate-500 font-normal">(optional)</span>
+        <label htmlFor={id('restrictions')} className="block text-xs font-semibold text-ink/70 mb-1">
+          Restrictions <span className="text-ink/70 font-normal">(optional)</span>
         </label>
         <textarea
           id={id('restrictions')}
@@ -175,7 +175,7 @@ export const ViewingTermsFields: React.FC<{
           className={inputClass}
         />
         {fieldErrors['viewingTerms.restrictions'] && (
-          <p className="text-[11px] text-[#FF8FA8] mt-1">{fieldErrors['viewingTerms.restrictions']}</p>
+          <p className="text-[11px] font-semibold text-accent-text mt-1">{fieldErrors['viewingTerms.restrictions']}</p>
         )}
       </div>
     </div>

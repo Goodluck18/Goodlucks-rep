@@ -44,32 +44,32 @@ const ToastItem: React.FC<ToastItemProps> = ({ toast, onDismiss }) => {
     switch (toast.type) {
       case 'success':
         return {
-          bg: 'bg-slate-900/95 border-[#08D9D6]/60 text-white shadow-[#08D9D6]/20',
-          iconBg: 'bg-[#08D9D6]/20 text-[#08D9D6] border border-[#08D9D6]/30',
-          progressBg: 'bg-[#08D9D6]',
-          icon: <CheckCircle2 className="w-5 h-5 text-[#08D9D6]" />,
+          bg: 'bg-surface border-interactive/60 text-ink shadow-ink/10',
+          iconBg: 'bg-interactive/20 text-ink border border-interactive/30',
+          progressBg: 'bg-interactive',
+          icon: <CheckCircle2 className="w-5 h-5 text-ink" />,
         };
       case 'error':
         return {
-          bg: 'bg-slate-900/95 border-rose-500/60 text-white shadow-rose-500/20',
-          iconBg: 'bg-rose-500/20 text-rose-400 border border-rose-500/30',
+          bg: 'bg-surface border-rose-500/60 text-ink shadow-rose-500/20',
+          iconBg: 'bg-rose-500/20 text-rose-700 border border-rose-500/30',
           progressBg: 'bg-rose-500',
-          icon: <AlertCircle className="w-5 h-5 text-rose-400" />,
+          icon: <AlertCircle className="w-5 h-5 text-rose-700" />,
         };
       case 'warning':
         return {
-          bg: 'bg-slate-900/95 border-amber-500/60 text-white shadow-amber-500/20',
-          iconBg: 'bg-amber-500/20 text-amber-400 border border-amber-500/30',
+          bg: 'bg-surface border-amber-500/60 text-ink shadow-amber-500/20',
+          iconBg: 'bg-amber-500/20 text-amber-700 border border-amber-500/30',
           progressBg: 'bg-amber-500',
-          icon: <AlertTriangle className="w-5 h-5 text-amber-400" />,
+          icon: <AlertTriangle className="w-5 h-5 text-amber-700" />,
         };
       case 'info':
       default:
         return {
-          bg: 'bg-slate-900/95 border-cyan-500/60 text-white shadow-cyan-500/20',
-          iconBg: 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30',
+          bg: 'bg-surface border-cyan-500/60 text-ink shadow-cyan-500/20',
+          iconBg: 'bg-cyan-500/20 text-cyan-700 border border-cyan-500/30',
           progressBg: 'bg-cyan-400',
-          icon: <Info className="w-5 h-5 text-cyan-400" />,
+          icon: <Info className="w-5 h-5 text-cyan-700" />,
         };
     }
   };
@@ -83,18 +83,18 @@ const ToastItem: React.FC<ToastItemProps> = ({ toast, onDismiss }) => {
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, scale: 0.9, y: -10 }}
       transition={{ duration: 0.25, ease: 'easeOut' }}
-      className={`relative overflow-hidden pointer-events-auto rounded-2xl border p-4 shadow-2xl backdrop-blur-md flex items-start gap-3.5 ${style.bg}`}
+      className={`relative overflow-hidden pointer-events-auto rounded-2xl border p-4 shadow-lg backdrop-blur-md flex items-start gap-3.5 ${style.bg}`}
     >
       <div className={`p-2 rounded-xl shrink-0 ${style.iconBg}`}>
         {style.icon}
       </div>
 
       <div className="flex-1 pr-2 pt-0.5 min-w-0">
-        <h4 className="text-sm font-bold text-white leading-tight tracking-tight">
+        <h4 className="text-sm font-bold text-ink leading-tight tracking-tight">
           {toast.title}
         </h4>
         {toast.message && (
-          <p className="text-xs text-slate-300 mt-1 leading-snug break-words">
+          <p className="text-xs text-ink/70 mt-1 leading-snug break-words">
             {toast.message}
           </p>
         )}
@@ -102,7 +102,7 @@ const ToastItem: React.FC<ToastItemProps> = ({ toast, onDismiss }) => {
 
       <button
         onClick={() => onDismiss(toast.id)}
-        className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-white/10 transition-colors shrink-0 -mr-1 -mt-1"
+        className="text-ink/70 hover:text-ink p-1 rounded-lg hover:bg-page transition-colors shrink-0 -mr-1 -mt-1"
         aria-label="Close notification"
       >
         <X className="w-4 h-4" />

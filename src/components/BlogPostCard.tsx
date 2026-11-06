@@ -27,14 +27,14 @@ export const BlogPostCard: React.FC<Props> = ({ post, variant = 'default', onSel
 
   return (
     <article
-      className={`group bg-[#252A34]/90 border border-white/10 rounded-2xl overflow-hidden flex flex-col h-full hover:border-[#08D9D6]/40 hover:shadow-xl hover:shadow-[#08D9D6]/10 transition-all ${
+      className={`group gl-card gl-card-interactive overflow-hidden flex flex-col h-full ${
         isLead ? 'sm:flex-row' : ''
       }`}
     >
       <a
         href={`/blog/${post.slug}`}
         onClick={open}
-        className={`block bg-slate-800 overflow-hidden ${
+        className={`block bg-page overflow-hidden ${
           isLead ? 'sm:w-1/2 aspect-[16/10] sm:aspect-auto' : isCompact ? 'aspect-[16/9]' : 'aspect-[16/10]'
         }`}
         tabIndex={-1}
@@ -49,7 +49,7 @@ export const BlogPostCard: React.FC<Props> = ({ post, variant = 'default', onSel
             className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
           />
         ) : (
-          <div className="w-full h-full min-h-[140px] flex items-center justify-center bg-gradient-to-br from-[#08D9D6]/10 to-transparent text-[#08D9D6]/60">
+          <div className="w-full h-full min-h-[140px] flex items-center justify-center bg-page text-ink/60">
             <span className="text-xs font-bold uppercase tracking-widest">Learning Centre</span>
           </div>
         )}
@@ -61,23 +61,23 @@ export const BlogPostCard: React.FC<Props> = ({ post, variant = 'default', onSel
             <BlogCategoryChip name={post.category.name} slug={post.category.slug} onSelect={onSelectCategory} />
           ) : null}
           {post.isFeatured ? (
-            <span className="text-[10px] font-bold uppercase tracking-wider text-amber-300">Featured</span>
+            <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700">Featured</span>
           ) : null}
         </div>
 
-        <h3 className={`font-black text-white leading-snug ${isLead ? 'text-xl sm:text-2xl' : isCompact ? 'text-sm' : 'text-base'}`}>
-          <a href={`/blog/${post.slug}`} onClick={open} className="hover:text-[#08D9D6] transition-colors">
+        <h3 className={`font-black text-ink leading-snug ${isLead ? 'text-xl sm:text-2xl' : isCompact ? 'text-sm' : 'text-base'}`}>
+          <a href={`/blog/${post.slug}`} onClick={open} className="hover:text-ink transition-colors">
             {post.title}
           </a>
         </h3>
 
         {post.summary ? (
-          <p className={`text-slate-300 leading-relaxed ${isCompact ? 'text-[11px] line-clamp-2' : isLead ? 'text-sm' : 'text-xs'}`}>
+          <p className={`text-ink/70 leading-relaxed ${isCompact ? 'text-[11px] line-clamp-2' : isLead ? 'text-sm' : 'text-xs'}`}>
             {post.summary}
           </p>
         ) : null}
 
-        <div className="mt-auto pt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-slate-400">
+        <div className="mt-auto pt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-ink/70">
           <span>{formatBlogDate(post.publishedAt || post.createdAt)}</span>
           <span className="flex items-center gap-1">
             <Clock className="w-3 h-3" /> {post.readingMinutes} min read

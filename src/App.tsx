@@ -32,8 +32,8 @@ const BlogPostView = lazy(() => import('./components/BlogPostView').then((m) => 
 /** Lightweight placeholder shown while a lazy view chunk downloads. */
 const ViewFallback: React.FC = () => (
   <div className="min-h-[60vh] flex flex-col items-center justify-center gap-3 text-center px-6">
-    <span className="w-8 h-8 border-2 border-[#08D9D6]/30 border-t-[#08D9D6] rounded-full animate-spin" />
-    <p className="text-xs text-slate-400">Loading…</p>
+    <span className="w-8 h-8 border-2 border-interactive/30 border-t-interactive rounded-full animate-spin" />
+    <p className="text-xs text-ink/70">Loading…</p>
   </div>
 );
 
@@ -148,13 +148,13 @@ const AppContent: React.FC = () => {
 
   if (isBooting) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-[#252A34] text-[#EAEAEA] px-6 text-center">
-        <div className="w-12 h-12 rounded-2xl bg-[#08D9D6]/15 border border-[#08D9D6]/30 text-[#08D9D6] flex items-center justify-center">
-          <span className="w-6 h-6 border-2 border-[#08D9D6]/30 border-t-[#08D9D6] rounded-full animate-spin" />
+      <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-page text-ink px-6 text-center">
+        <div className="w-12 h-12 rounded-2xl bg-interactive/15 border border-interactive/30 text-ink flex items-center justify-center">
+          <span className="w-6 h-6 border-2 border-interactive/30 border-t-interactive rounded-full animate-spin" />
         </div>
         <div className="space-y-1">
-          <p className="text-sm font-bold text-white">Loading Goodlucks Homes</p>
-          <p className="text-xs text-slate-400">Loading listings and your account…</p>
+          <p className="text-sm font-bold text-ink">Loading Goodlucks Homes</p>
+          <p className="text-xs text-ink/70">Loading listings and your account…</p>
         </div>
       </div>
     );
@@ -162,16 +162,16 @@ const AppContent: React.FC = () => {
 
   if (bootError) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#252A34] text-[#EAEAEA] px-4">
-        <div className="max-w-md w-full bg-slate-800/90 border border-[#FF2E63]/30 rounded-3xl p-8 text-center space-y-4">
-          <h1 className="text-xl font-black text-white">We could not load the website</h1>
-          <p className="text-xs text-slate-300 leading-relaxed">{bootError}</p>
-          <p className="text-[11px] text-slate-400">
+      <div className="min-h-screen flex items-center justify-center bg-page text-ink px-4">
+        <div className="gl-card max-w-md w-full p-8 text-center space-y-4">
+          <h1 className="text-xl font-black text-ink">We could not load the website</h1>
+          <p className="text-xs text-ink/70 leading-relaxed">{bootError}</p>
+          <p className="text-[11px] text-ink/70">
             If this persists, please call +233 23 769 0080 or email rentals@goodlucks.co.
           </p>
           <button
             onClick={retryBootstrap}
-            className="px-6 py-3 rounded-xl bg-[#08D9D6] text-[#252A34] font-extrabold text-sm shadow-lg shadow-[#08D9D6]/20"
+            className="gl-btn gl-btn-primary px-6 text-sm"
           >
             Try Again
           </button>
@@ -190,7 +190,7 @@ const AppContent: React.FC = () => {
   const hideChrome = currentRole === 'admin' || route.name === 'admin-login' || route.name === 'admin';
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#252A34] text-[#EAEAEA] font-sans antialiased selection:bg-[#08D9D6] selection:text-[#252A34]">
+    <div className="min-h-screen flex flex-col bg-page text-ink font-sans antialiased selection:bg-interactive selection:text-ink">
 
       {/* Header Navbar */}
       <Navbar onOpenAuth={handleOpenAuth} />

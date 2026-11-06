@@ -36,18 +36,18 @@ import { NotificationsView } from './dashboard/NotificationsView';
 import { AccountSettingsView } from './dashboard/AccountSettingsView';
 
 const VIEWING_TONES: Record<ViewingSchedule['status'], string> = {
-  enquiry_received: 'bg-slate-500/20 text-slate-200 border-white/10',
-  viewing_requested: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
-  awaiting_agent: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
-  proposed: 'bg-sky-500/15 text-sky-300 border-sky-500/30',
-  confirmed: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30',
-  reschedule_requested: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
-  rescheduled: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30',
-  cancelled: 'bg-slate-600/20 text-slate-300 border-white/10',
-  completed: 'bg-emerald-500/10 text-emerald-200 border-emerald-500/20',
-  tenant_no_show: 'bg-[#FF2E63]/15 text-[#FF8FA8] border-[#FF2E63]/30',
-  agent_no_show: 'bg-[#FF2E63]/15 text-[#FF8FA8] border-[#FF2E63]/30',
-  could_not_proceed: 'bg-[#FF2E63]/10 text-[#FF8FA8] border-[#FF2E63]/20',
+  enquiry_received: 'bg-line/20 text-ink border-line',
+  viewing_requested: 'bg-amber-500/15 text-amber-700 border-amber-500/30',
+  awaiting_agent: 'bg-amber-500/15 text-amber-700 border-amber-500/30',
+  proposed: 'bg-sky-500/15 text-sky-700 border-sky-500/30',
+  confirmed: 'bg-emerald-500/15 text-emerald-700 border-emerald-500/30',
+  reschedule_requested: 'bg-amber-500/15 text-amber-700 border-amber-500/30',
+  rescheduled: 'bg-emerald-500/15 text-emerald-700 border-emerald-500/30',
+  cancelled: 'bg-line/20 text-ink/70 border-line',
+  completed: 'bg-emerald-500/10 text-emerald-800 border-emerald-500/20',
+  tenant_no_show: 'bg-accent/15 text-ink border-accent/30',
+  agent_no_show: 'bg-accent/15 text-ink border-accent/30',
+  could_not_proceed: 'bg-accent/10 text-ink border-accent/20',
 };
 
 /**
@@ -92,15 +92,15 @@ const TenantViewingCard: React.FC<{ viewing: ViewingSchedule; onOpenProperty: (i
   };
 
   return (
-    <div className="bg-slate-900/80 border border-white/10 rounded-2xl p-5 space-y-3 shadow-lg">
+    <div className="bg-surface border border-line rounded-2xl p-5 space-y-3 shadow-lg">
       <div className="flex justify-between items-start gap-2">
         <div>
-          <span className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">
+          <span className="text-[10px] font-bold uppercase text-ink/70 tracking-wider">
             {viewing.requestType === 'enquiry' ? 'Property enquiry' : 'Viewing request'}
           </span>
-          <h3 className="text-base font-bold text-white">{viewing.propertyTitle}</h3>
-          <p className="text-xs text-slate-400 flex items-center gap-1 mt-0.5">
-            <MapPin className="w-3.5 h-3.5 text-[#08D9D6]" /> {viewing.propertyLocation}
+          <h3 className="text-base font-bold text-ink">{viewing.propertyTitle}</h3>
+          <p className="text-xs text-ink/70 flex items-center gap-1 mt-0.5">
+            <MapPin className="w-3.5 h-3.5 text-ink" /> {viewing.propertyLocation}
           </p>
         </div>
         <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold border ${VIEWING_TONES[viewing.status]}`}>
@@ -108,28 +108,28 @@ const TenantViewingCard: React.FC<{ viewing: ViewingSchedule; onOpenProperty: (i
         </span>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs bg-slate-950/80 p-3 rounded-xl border border-white/5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs bg-surface p-3 rounded-xl border border-line">
         <div>
-          <div className="text-slate-400">{viewing.isConfirmed ? 'Agreed date & time' : 'Requested date & time'}</div>
-          <div className="font-bold text-white">
+          <div className="text-ink/70">{viewing.isConfirmed ? 'Agreed date & time' : 'Requested date & time'}</div>
+          <div className="font-bold text-ink">
             {viewing.date || '—'} {viewing.time ? `at ${viewing.time}` : ''}
           </div>
         </div>
         <div>
-          <div className="text-slate-400">Agent</div>
-          <div className="font-bold text-white">{viewing.assignedAgent || 'No named agent assigned yet'}</div>
+          <div className="text-ink/70">Agent</div>
+          <div className="font-bold text-ink">{viewing.assignedAgent || 'No named agent assigned yet'}</div>
         </div>
       </div>
 
       {!viewing.isConfirmed && !viewing.isTerminal && (
-        <p className="text-[11px] text-amber-300/90">
+        <p className="text-[11px] text-amber-700/90">
           Not confirmed yet. The agent will contact you to agree a time; until then nothing is booked.
         </p>
       )}
       {viewing.cancelReason && (
-        <p className="text-[11px] text-[#FF8FA8]">Cancellation reason: {viewing.cancelReason}</p>
+        <p className="text-[11px] text-ink">Cancellation reason: {viewing.cancelReason}</p>
       )}
-      <p className="text-[11px] text-slate-500">
+      <p className="text-[11px] text-ink/70">
         {viewing.feeSource === 'platform_policy'
           ? viewing.viewingFeePaid
             ? 'Goodlucks Homes has recorded the viewing fee for this viewing as received. Goodlucks does not ask for a viewing fee online.'
@@ -142,14 +142,14 @@ const TenantViewingCard: React.FC<{ viewing: ViewingSchedule; onOpenProperty: (i
       <div className="flex flex-wrap items-center gap-2 pt-1">
         <button
           onClick={() => onOpenProperty(viewing.propertyId)}
-          className="text-[#08D9D6] font-semibold text-xs hover:underline"
+          className="text-ink font-semibold text-xs hover:underline"
         >
           View property
         </button>
         {!viewing.isTerminal && (
           <button
             onClick={() => setOpen((prev) => !prev)}
-            className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-[11px] font-bold"
+            className="px-3 py-1.5 rounded-lg bg-page hover:bg-line text-ink text-[11px] font-bold"
           >
             {open ? 'Close' : 'Change or cancel'}
           </button>
@@ -157,33 +157,33 @@ const TenantViewingCard: React.FC<{ viewing: ViewingSchedule; onOpenProperty: (i
       </div>
 
       {open && !viewing.isTerminal && (
-        <div className="space-y-2 border-t border-white/10 pt-3">
+        <div className="space-y-2 border-t border-line pt-3">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <input
               type="date"
               value={date}
               min={new Date().toISOString().slice(0, 10)}
               onChange={(event) => setDate(event.target.value)}
-              className="bg-slate-800 border border-white/10 rounded-lg px-2 py-1.5 text-[11px] text-white"
+              className="bg-page border border-line rounded-lg px-2 py-1.5 text-[11px] text-ink"
             />
             <input
               type="time"
               value={time}
               onChange={(event) => setTime(event.target.value)}
-              className="bg-slate-800 border border-white/10 rounded-lg px-2 py-1.5 text-[11px] text-white"
+              className="bg-page border border-line rounded-lg px-2 py-1.5 text-[11px] text-ink"
             />
           </div>
           <input
             value={note}
             onChange={(event) => setNote(event.target.value)}
             placeholder="Add a note (e.g. why the time no longer works)"
-            className="w-full bg-slate-800 border border-white/10 rounded-lg px-2 py-1.5 text-[11px] text-white"
+            className="w-full bg-page border border-line rounded-lg px-2 py-1.5 text-[11px] text-ink"
           />
           <div className="flex flex-wrap gap-2">
             <button
               disabled={busy !== null}
               onClick={() => void run('request-reschedule')}
-              className="px-3 py-1.5 rounded-lg bg-[#08D9D6]/15 text-[#08D9D6] text-[11px] font-bold disabled:opacity-50"
+              className="px-3 py-1.5 rounded-lg bg-interactive/15 text-ink text-[11px] font-bold disabled:opacity-50"
             >
               {busy === 'request-reschedule' ? 'Sending…' : 'Ask for another time'}
             </button>
@@ -191,7 +191,7 @@ const TenantViewingCard: React.FC<{ viewing: ViewingSchedule; onOpenProperty: (i
               <button
                 disabled={busy !== null}
                 onClick={() => void run('confirm')}
-                className="px-3 py-1.5 rounded-lg bg-emerald-500/15 text-emerald-300 text-[11px] font-bold disabled:opacity-50"
+                className="px-3 py-1.5 rounded-lg bg-emerald-500/15 text-emerald-700 text-[11px] font-bold disabled:opacity-50"
               >
                 Accept this time
               </button>
@@ -200,7 +200,7 @@ const TenantViewingCard: React.FC<{ viewing: ViewingSchedule; onOpenProperty: (i
               <button
                 disabled={busy !== null}
                 onClick={() => void run('no-show')}
-                className="px-3 py-1.5 rounded-lg bg-[#FF2E63]/15 text-[#FF8FA8] text-[11px] font-bold disabled:opacity-50"
+                className="px-3 py-1.5 rounded-lg bg-accent/15 text-ink text-[11px] font-bold disabled:opacity-50"
               >
                 The agent did not attend
               </button>
@@ -208,12 +208,12 @@ const TenantViewingCard: React.FC<{ viewing: ViewingSchedule; onOpenProperty: (i
             <button
               disabled={busy !== null}
               onClick={() => void run('cancel')}
-              className="px-3 py-1.5 rounded-lg bg-[#FF2E63]/15 text-[#FF8FA8] text-[11px] font-bold disabled:opacity-50"
+              className="px-3 py-1.5 rounded-lg bg-accent/15 text-ink text-[11px] font-bold disabled:opacity-50"
             >
               {busy === 'cancel' ? 'Cancelling…' : 'Cancel request'}
             </button>
           </div>
-          <p className="text-[10px] text-slate-500">
+          <p className="text-[10px] text-ink/70">
             Asking for another time does not move the appointment. It stays where it is until the agent proposes a new
             slot and it is agreed.
           </p>
@@ -372,7 +372,7 @@ export const TenantDashboard: React.FC = () => {
       {actionError && (
         <div
           role="alert"
-          className="p-3 rounded-xl bg-[#FF2E63]/15 border border-[#FF2E63]/30 text-[#FF8FA8] text-xs flex items-start gap-2"
+          className="p-3 rounded-xl bg-accent/15 border border-accent/30 text-ink text-xs flex items-start gap-2"
         >
           <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
           <span className="flex-1">{actionError}</span>
@@ -392,7 +392,7 @@ export const TenantDashboard: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setCurrentView('find-home')}
-                className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-[#08D9D6] text-[#252A34] text-xs font-extrabold hover:bg-[#08D9D6]/90 transition-colors"
+                className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-interactive text-ink text-xs font-extrabold hover:bg-interactive/90 transition-colors"
               >
                 <Plus className="w-4 h-4" />
                 New rental request
@@ -433,46 +433,46 @@ export const TenantDashboard: React.FC = () => {
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             {/* Account card */}
-            <section className="lg:col-span-2 bg-[#252A34]/70 border border-white/10 rounded-2xl p-5 space-y-4">
+            <section className="lg:col-span-2 bg-surface border border-line rounded-2xl p-5 space-y-4">
               <div className="flex items-start gap-4">
                 <Avatar name={currentUser?.name} src={currentUser?.avatar} size="lg" />
                 <div className="min-w-0 space-y-1">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <h2 className="text-lg font-black text-white truncate">{currentUser?.name || 'Your account'}</h2>
-                    <span className="px-2 py-0.5 rounded-md text-[10px] font-bold uppercase bg-[#08D9D6]/20 text-[#08D9D6] border border-[#08D9D6]/30">
+                    <h2 className="text-lg font-black text-ink truncate">{currentUser?.name || 'Your account'}</h2>
+                    <span className="px-2 py-0.5 rounded-md text-[10px] font-bold uppercase bg-interactive/20 text-ink border border-interactive/30">
                       Tenant
                     </span>
                   </div>
                   {currentUser?.address && (
-                    <p className="text-xs text-slate-300 flex items-center gap-1">
-                      <MapPin className="w-3.5 h-3.5 text-[#08D9D6]" /> {currentUser.address}
+                    <p className="text-xs text-ink/70 flex items-center gap-1">
+                      <MapPin className="w-3.5 h-3.5 text-ink" /> {currentUser.address}
                     </p>
                   )}
-                  <div className="text-xs text-slate-400 flex flex-wrap gap-3 pt-1">
+                  <div className="text-xs text-ink/70 flex flex-wrap gap-3 pt-1">
                     <span className="flex items-center gap-1">
-                      <Phone className="w-3 h-3 text-[#08D9D6]" /> {currentUser?.phone || 'No phone saved'}
+                      <Phone className="w-3 h-3 text-ink" /> {currentUser?.phone || 'No phone saved'}
                     </span>
                     <span className="flex items-center gap-1">
-                      <Mail className="w-3 h-3 text-[#08D9D6]" /> {currentUser?.email}
+                      <Mail className="w-3 h-3 text-ink" /> {currentUser?.email}
                     </span>
                   </div>
                 </div>
               </div>
-              <div className="pt-3 border-t border-white/10 flex flex-wrap items-center justify-between gap-2 text-xs">
-                <span className="text-slate-400">Profile and account settings are separate pages.</span>
+              <div className="pt-3 border-t border-line flex flex-wrap items-center justify-between gap-2 text-xs">
+                <span className="text-ink/70">Profile and account settings are separate pages.</span>
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
                     onClick={() => navigate('/tenant/profile')}
-                    className="px-3.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs transition-colors flex items-center gap-1.5"
+                    className="px-3.5 py-1.5 rounded-xl bg-page hover:bg-line text-ink font-bold text-xs transition-colors flex items-center gap-1.5"
                   >
-                    <Edit className="w-3.5 h-3.5 text-[#08D9D6]" />
+                    <Edit className="w-3.5 h-3.5 text-ink" />
                     Edit profile
                   </button>
                   <button
                     type="button"
                     onClick={() => navigate('/tenant/settings')}
-                    className="px-3.5 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-200 font-bold text-xs transition-colors"
+                    className="px-3.5 py-1.5 rounded-xl bg-page hover:bg-page text-ink font-bold text-xs transition-colors"
                   >
                     Settings
                   </button>
@@ -481,27 +481,27 @@ export const TenantDashboard: React.FC = () => {
             </section>
 
             {/* Recent notifications — nothing is marked read by viewing this. */}
-            <section className="bg-[#252A34]/70 border border-white/10 rounded-2xl p-5 flex flex-col justify-between gap-3">
+            <section className="bg-surface border border-line rounded-2xl p-5 flex flex-col justify-between gap-3">
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2">
-                    <Bell className="w-4 h-4 text-[#08D9D6]" />
-                    <h2 className="text-xs font-bold text-white">Notifications</h2>
+                    <Bell className="w-4 h-4 text-ink" />
+                    <h2 className="text-xs font-bold text-ink">Notifications</h2>
                   </div>
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-[#08D9D6]/20 text-[#08D9D6]">
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-interactive/20 text-ink">
                     {unreadNotifications} unread
                   </span>
                 </div>
                 {notifications.length === 0 ? (
-                  <p className="text-[11px] text-slate-400 leading-relaxed">
+                  <p className="text-[11px] text-ink/70 leading-relaxed">
                     No notifications yet. Viewing updates and account changes will appear here.
                   </p>
                 ) : (
                   <ul className="space-y-2 max-h-[132px] overflow-y-auto pr-1">
                     {notifications.slice(0, 3).map((notif) => (
-                      <li key={notif.id} className="bg-slate-900/60 p-2.5 rounded-xl border border-white/5 space-y-0.5">
-                        <div className="text-[11px] font-bold text-white truncate">{notif.title}</div>
-                        <div className="text-[10px] text-slate-400 line-clamp-1">{notif.message}</div>
+                      <li key={notif.id} className="bg-surface p-2.5 rounded-xl border border-line space-y-0.5">
+                        <div className="text-[11px] font-bold text-ink truncate">{notif.title}</div>
+                        <div className="text-[10px] text-ink/70 line-clamp-1">{notif.message}</div>
                       </li>
                     ))}
                   </ul>
@@ -510,7 +510,7 @@ export const TenantDashboard: React.FC = () => {
               <button
                 type="button"
                 onClick={() => navigate('/tenant/notifications')}
-                className="text-[11px] font-bold text-[#08D9D6] hover:underline flex items-center gap-1 self-start"
+                className="text-[11px] font-bold text-ink hover:underline flex items-center gap-1 self-start"
               >
                 View all notifications <ArrowRight className="w-3 h-3" />
               </button>
@@ -518,32 +518,32 @@ export const TenantDashboard: React.FC = () => {
           </div>
 
           {/* Quick actions */}
-          <section className="bg-[#252A34]/70 border border-white/10 rounded-2xl p-5 space-y-3">
-            <h2 className="text-xs font-extrabold uppercase tracking-wider text-[#08D9D6]">Quick actions</h2>
+          <section className="bg-surface border border-line rounded-2xl p-5 space-y-3">
+            <h2 className="text-xs font-extrabold uppercase tracking-wider text-ink">Quick actions</h2>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               <button
                 type="button"
                 onClick={() => navigate('/tenant/search-alerts')}
-                className="px-3 py-2.5 rounded-xl bg-slate-900/70 border border-white/10 text-xs font-bold text-white hover:border-[#08D9D6]/40 transition-colors flex items-center justify-between gap-2"
+                className="px-3 py-2.5 rounded-xl bg-surface border border-line text-xs font-bold text-ink hover:border-interactive/40 transition-colors flex items-center justify-between gap-2"
               >
                 <span className="flex items-center gap-1.5">
-                  <Bell className="w-3.5 h-3.5 text-[#08D9D6]" /> Search alerts
+                  <Bell className="w-3.5 h-3.5 text-ink" /> Search alerts
                 </span>
-                <span className="text-slate-500">{searchAlerts.length}</span>
+                <span className="text-ink/70">{searchAlerts.length}</span>
               </button>
               <button
                 type="button"
                 onClick={() => setCurrentView('browse')}
-                className="px-3 py-2.5 rounded-xl bg-slate-900/70 border border-white/10 text-xs font-bold text-white hover:border-[#08D9D6]/40 transition-colors flex items-center gap-1.5"
+                className="px-3 py-2.5 rounded-xl bg-surface border border-line text-xs font-bold text-ink hover:border-interactive/40 transition-colors flex items-center gap-1.5"
               >
-                <Search className="w-3.5 h-3.5 text-[#08D9D6]" /> Browse properties
+                <Search className="w-3.5 h-3.5 text-ink" /> Browse properties
               </button>
               <button
                 type="button"
                 onClick={() => setCurrentView('receipts')}
-                className="px-3 py-2.5 rounded-xl bg-slate-900/70 border border-white/10 text-xs font-bold text-white hover:border-[#08D9D6]/40 transition-colors flex items-center gap-1.5"
+                className="px-3 py-2.5 rounded-xl bg-surface border border-line text-xs font-bold text-ink hover:border-interactive/40 transition-colors flex items-center gap-1.5"
               >
-                <FileCheck className="w-3.5 h-3.5 text-[#08D9D6]" /> My payment records
+                <FileCheck className="w-3.5 h-3.5 text-ink" /> My payment records
               </button>
             </div>
           </section>
@@ -567,7 +567,7 @@ export const TenantDashboard: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setCurrentView('find-home')}
-                  className="px-5 py-2.5 rounded-xl bg-[#08D9D6] text-[#252A34] font-extrabold text-xs"
+                  className="gl-btn gl-btn-primary px-5 py-2.5 text-xs"
                 >
                   Start a rental request
                 </button>
@@ -577,14 +577,14 @@ export const TenantDashboard: React.FC = () => {
             <>
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="min-w-0">
-                  <div className="text-[11px] font-bold text-[#08D9D6] uppercase tracking-wider">Search criteria</div>
-                  <h2 className="text-lg font-bold text-white mt-0.5 break-words">
+                  <div className="text-[11px] font-bold text-ink uppercase tracking-wider">Search criteria</div>
+                  <h2 className="text-lg font-bold text-ink mt-0.5 break-words">
                     Target areas: {activeRequest.preferredLocations?.join(', ') || 'Not stated'}
                   </h2>
                 </div>
-                <div className="text-xs bg-slate-900/90 px-3.5 py-2 rounded-xl border border-white/10 text-slate-300 shrink-0">
+                <div className="text-xs bg-surface px-3.5 py-2 rounded-xl border border-line text-ink/70 shrink-0">
                   Budget:{' '}
-                  <strong className="text-[#08D9D6]">
+                  <strong className="text-ink">
                     GH₵ {activeRequest.budgetMin?.toLocaleString()} – GH₵ {activeRequest.budgetMax?.toLocaleString()} / mo
                   </strong>
                 </div>
@@ -598,35 +598,35 @@ export const TenantDashboard: React.FC = () => {
                       key={step.key}
                       className={`p-4 rounded-2xl border ${
                         status === 'completed'
-                          ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                          ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-700'
                           : status === 'current'
-                            ? 'bg-[#08D9D6]/20 border-[#08D9D6] text-[#08D9D6]'
-                            : 'bg-slate-900/50 border-white/5 text-slate-500'
+                            ? 'bg-interactive/20 border-interactive text-ink'
+                            : 'bg-surface border-line text-ink/70'
                       }`}
                     >
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-[10px] font-bold uppercase tracking-wider">Step 0{idx + 1}</span>
-                        {status === 'completed' && <CheckCircle2 className="w-4 h-4 text-emerald-400" />}
-                        {status === 'current' && <Clock className="w-4 h-4 text-[#08D9D6] animate-pulse" />}
+                        {status === 'completed' && <CheckCircle2 className="w-4 h-4 text-emerald-700" />}
+                        {status === 'current' && <Clock className="w-4 h-4 text-ink animate-pulse" />}
                       </div>
-                      <div className="font-bold text-xs text-white">{step.label}</div>
-                      <div className="text-[10px] text-slate-400 mt-1">{step.desc}</div>
+                      <div className="font-bold text-xs text-ink">{step.label}</div>
+                      <div className="text-[10px] text-ink/70 mt-1">{step.desc}</div>
                     </div>
                   );
                 })}
               </div>
 
-              <div className="bg-[#08D9D6]/10 border border-[#08D9D6]/30 p-4 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs text-slate-200">
+              <div className="bg-interactive/10 border border-interactive/30 p-4 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs text-ink">
                 <div className="flex items-center gap-2.5">
-                  <ShieldCheck className="w-5 h-5 text-[#08D9D6] shrink-0" />
+                  <ShieldCheck className="w-5 h-5 text-ink shrink-0" />
                   <span>
-                    Assigned agent: <strong className="text-white">{activeRequest.assignedAgent || 'No named agent assigned yet'}</strong>
+                    Assigned agent: <strong className="text-ink">{activeRequest.assignedAgent || 'No named agent assigned yet'}</strong>
                   </span>
                 </div>
                 <button
                   type="button"
                   onClick={() => navigate('/tenant/matches')}
-                  className="text-[#08D9D6] font-bold underline hover:text-white shrink-0"
+                  className="text-ink font-bold underline hover:text-ink shrink-0"
                 >
                   Explore matched homes →
                 </button>
@@ -643,7 +643,7 @@ export const TenantDashboard: React.FC = () => {
             title="Matched properties"
             description="Live listings scored against your request's budget, bedrooms and preferred areas."
             actions={
-              <span className="px-3 py-1 rounded-full bg-[#08D9D6]/20 text-[#08D9D6] text-xs font-bold border border-[#08D9D6]/30">
+              <span className="px-3 py-1 rounded-full bg-interactive/20 text-ink text-xs font-bold border border-interactive/30">
                 {matchedProps.length} {matchedProps.length === 1 ? 'match' : 'matches'}
               </span>
             }
@@ -656,7 +656,7 @@ export const TenantDashboard: React.FC = () => {
                   <div
                     title={reason}
                     className={`absolute top-3 left-3 z-20 font-black text-[10px] px-2 py-0.5 rounded-md shadow-md flex items-center gap-1 ${
-                      curated ? 'bg-[#08D9D6] text-[#252A34]' : 'bg-emerald-500 text-slate-950'
+                      curated ? 'bg-interactive text-ink' : 'bg-emerald-500 text-ink'
                     }`}
                   >
                     <Sparkles className="w-3 h-3" />
@@ -680,7 +680,7 @@ export const TenantDashboard: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setCurrentView('find-home')}
-                    className="px-5 py-2.5 rounded-xl bg-[#08D9D6] text-[#252A34] font-extrabold text-xs"
+                    className="gl-btn gl-btn-primary px-5 py-2.5 text-xs"
                   >
                     Start a rental request
                   </button>
@@ -714,7 +714,7 @@ export const TenantDashboard: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setCurrentView('browse')}
-                  className="px-5 py-2.5 rounded-xl bg-[#08D9D6] text-[#252A34] font-extrabold text-xs"
+                  className="gl-btn gl-btn-primary px-5 py-2.5 text-xs"
                 >
                   Browse properties
                 </button>
@@ -754,7 +754,7 @@ export const TenantDashboard: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setCurrentView('browse')}
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#08D9D6] text-[#252A34] text-xs font-black hover:bg-[#08D9D6]/90 transition-colors"
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-interactive text-ink text-xs font-black hover:bg-interactive/90 transition-colors"
               >
                 <Plus className="w-4 h-4" /> Add search alert
               </button>
@@ -764,55 +764,55 @@ export const TenantDashboard: React.FC = () => {
           {searchAlerts.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {searchAlerts.map((alert) => (
-                <div key={alert.id} className="bg-slate-900/80 border border-white/10 rounded-2xl p-5 space-y-4">
+                <div key={alert.id} className="bg-surface border border-line rounded-2xl p-5 space-y-4">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-center gap-3 min-w-0">
-                      <div className="p-2.5 rounded-xl bg-[#08D9D6]/15 text-[#08D9D6] border border-[#08D9D6]/30 shrink-0">
+                      <div className="p-2.5 rounded-xl bg-interactive/15 text-ink border border-interactive/30 shrink-0">
                         <Bell className="w-5 h-5" />
                       </div>
                       <div className="min-w-0">
-                        <div className="text-sm font-black text-white truncate">
+                        <div className="text-sm font-black text-ink truncate">
                           {alert.location === 'All' ? 'Greater Accra' : alert.location} ({alert.propertyType})
                         </div>
-                        <div className="text-xs text-slate-400 mt-0.5 truncate">
-                          Alert sent to: <strong className="text-slate-200">{alert.email}</strong>
+                        <div className="text-xs text-ink/70 mt-0.5 truncate">
+                          Alert sent to: <strong className="text-ink">{alert.email}</strong>
                         </div>
                       </div>
                     </div>
-                    <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shrink-0">
+                    <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase bg-emerald-500/10 text-emerald-700 border border-emerald-500/20 shrink-0">
                       Active
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-2 text-xs bg-[#252A34] p-3 rounded-xl border border-white/5">
+                  <div className="grid grid-cols-2 gap-2 text-xs bg-surface p-3 rounded-xl border border-line">
                     <div>
-                      <span className="block text-[10px] text-slate-400 font-bold uppercase">Max rent budget</span>
-                      <span className="font-extrabold text-[#08D9D6]">GH₵ {alert.maxRentGhs.toLocaleString()}/mo</span>
+                      <span className="block text-[10px] text-ink/70 font-bold uppercase">Max rent budget</span>
+                      <span className="font-extrabold text-ink">GH₵ {alert.maxRentGhs.toLocaleString()}/mo</span>
                     </div>
                     <div>
-                      <span className="block text-[10px] text-slate-400 font-bold uppercase">Bedrooms</span>
-                      <span className="font-bold text-white">
+                      <span className="block text-[10px] text-ink/70 font-bold uppercase">Bedrooms</span>
+                      <span className="font-bold text-ink">
                         {alert.bedrooms === 'All' ? 'Any bedrooms' : `${alert.bedrooms} bed`}
                       </span>
                     </div>
                     <div>
-                      <span className="block text-[10px] text-slate-400 font-bold uppercase">Frequency</span>
-                      <span className="font-bold text-slate-200 capitalize">{alert.frequency}</span>
+                      <span className="block text-[10px] text-ink/70 font-bold uppercase">Frequency</span>
+                      <span className="font-bold text-ink capitalize">{alert.frequency}</span>
                     </div>
                     <div>
-                      <span className="block text-[10px] text-slate-400 font-bold uppercase">Subscribed on</span>
-                      <span className="font-bold text-slate-300">{new Date(alert.createdAt).toLocaleDateString()}</span>
+                      <span className="block text-[10px] text-ink/70 font-bold uppercase">Subscribed on</span>
+                      <span className="font-bold text-ink/70">{new Date(alert.createdAt).toLocaleDateString()}</span>
                     </div>
                   </div>
 
                   <div className="flex items-center justify-between pt-1">
-                    <span className="text-[11px] text-slate-400 flex items-center gap-1">
-                      <Mail className="w-3.5 h-3.5 text-[#08D9D6]" /> Email alerts active
+                    <span className="text-[11px] text-ink/70 flex items-center gap-1">
+                      <Mail className="w-3.5 h-3.5 text-ink" /> Email alerts active
                     </span>
                     <button
                       type="button"
                       onClick={() => void handleUnsubscribe(alert.id)}
-                      className="text-xs font-bold text-[#FF2E63] hover:underline"
+                      className="text-xs font-bold text-accent hover:underline"
                     >
                       Remove alert
                     </button>
@@ -829,7 +829,7 @@ export const TenantDashboard: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setCurrentView('browse')}
-                  className="px-5 py-2.5 rounded-xl bg-[#08D9D6] text-[#252A34] text-xs font-black"
+                  className="px-5 py-2.5 rounded-xl bg-interactive text-ink text-xs font-black"
                 >
                   Browse properties
                 </button>
@@ -852,7 +852,7 @@ export const TenantDashboard: React.FC = () => {
               <button
                 type="button"
                 onClick={() => navigate('/tenant/settings')}
-                className="px-3.5 py-2 rounded-xl bg-white/5 border border-white/10 text-xs font-bold text-slate-200 hover:text-white hover:bg-white/10 transition-colors"
+                className="px-3.5 py-2 rounded-xl bg-page border border-line text-xs font-bold text-ink hover:text-ink hover:bg-page transition-colors"
               >
                 Account settings
               </button>
@@ -860,13 +860,13 @@ export const TenantDashboard: React.FC = () => {
           />
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            <div className="lg:col-span-2 bg-slate-900/60 border border-white/10 rounded-2xl p-5 sm:p-6 space-y-4">
+            <div className="lg:col-span-2 bg-surface border border-line rounded-2xl p-5 sm:p-6 space-y-4">
               <div className="flex items-center justify-between gap-3">
-                <h2 className="text-sm font-bold text-white flex items-center gap-2">
-                  <User className="w-4 h-4 text-[#08D9D6]" /> Your details
+                <h2 className="text-sm font-bold text-ink flex items-center gap-2">
+                  <User className="w-4 h-4 text-ink" /> Your details
                 </h2>
                 {saveSuccess && (
-                  <span className="text-[11px] font-bold text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20 flex items-center gap-1">
+                  <span className="text-[11px] font-bold text-emerald-700 bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20 flex items-center gap-1">
                     <Check className="w-3 h-3" /> Saved
                   </span>
                 )}
@@ -874,7 +874,7 @@ export const TenantDashboard: React.FC = () => {
 
               <form onSubmit={handleSaveProfile} className="space-y-4">
                 <div>
-                  <label htmlFor="tenant-profile-name" className="block text-xs font-semibold text-slate-300 mb-1.5">
+                  <label htmlFor="tenant-profile-name" className="block text-xs font-semibold text-ink/70 mb-1.5">
                     Full name
                   </label>
                   <input
@@ -883,13 +883,13 @@ export const TenantDashboard: React.FC = () => {
                     required
                     value={profileName}
                     onChange={(e) => setProfileName(e.target.value)}
-                    className="w-full bg-slate-950 border border-white/10 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-[#08D9D6]"
+                    className="w-full bg-page border border-line rounded-xl p-3 text-sm text-ink focus:outline-none focus:border-interactive"
                   />
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label htmlFor="tenant-profile-phone" className="block text-xs font-semibold text-slate-300 mb-1.5">
+                    <label htmlFor="tenant-profile-phone" className="block text-xs font-semibold text-ink/70 mb-1.5">
                       Phone number
                     </label>
                     <input
@@ -898,12 +898,12 @@ export const TenantDashboard: React.FC = () => {
                       required
                       value={profilePhone}
                       onChange={(e) => setProfilePhone(e.target.value)}
-                      className="w-full bg-slate-950 border border-white/10 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-[#08D9D6]"
+                      className="w-full bg-page border border-line rounded-xl p-3 text-sm text-ink focus:outline-none focus:border-interactive"
                     />
                   </div>
 
                   <div>
-                    <label htmlFor="tenant-profile-email" className="block text-xs font-semibold text-slate-300 mb-1.5">
+                    <label htmlFor="tenant-profile-email" className="block text-xs font-semibold text-ink/70 mb-1.5">
                       Email address
                     </label>
                     <input
@@ -912,16 +912,16 @@ export const TenantDashboard: React.FC = () => {
                       value={currentUser?.email || ''}
                       readOnly
                       aria-describedby="tenant-profile-email-hint"
-                      className="w-full bg-slate-950/60 border border-white/10 rounded-xl p-3 text-sm text-slate-400 cursor-not-allowed"
+                      className="w-full bg-page border border-line rounded-xl p-3 text-sm text-ink/70 cursor-not-allowed"
                     />
-                    <p id="tenant-profile-email-hint" className="text-[10px] text-slate-500 mt-1">
+                    <p id="tenant-profile-email-hint" className="text-[10px] text-ink/70 mt-1">
                       Contact Goodlucks Homes support to change the email on your account.
                     </p>
                   </div>
                 </div>
 
                 <div>
-                  <label htmlFor="tenant-profile-address" className="block text-xs font-semibold text-slate-300 mb-1.5">
+                  <label htmlFor="tenant-profile-address" className="block text-xs font-semibold text-ink/70 mb-1.5">
                     Current address in Ghana
                   </label>
                   <input
@@ -929,34 +929,34 @@ export const TenantDashboard: React.FC = () => {
                     type="text"
                     value={profileAddress}
                     onChange={(e) => setProfileAddress(e.target.value)}
-                    className="w-full bg-slate-950 border border-white/10 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-[#08D9D6]"
+                    className="w-full bg-page border border-line rounded-xl p-3 text-sm text-ink focus:outline-none focus:border-interactive"
                   />
                 </div>
 
                 <button
                   type="submit"
                   disabled={isSavingProfile}
-                  className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-[#08D9D6] text-[#252A34] font-extrabold text-sm hover:bg-[#08D9D6]/90 disabled:opacity-60 transition-colors"
+                  className="gl-btn gl-btn-primary w-full sm:w-auto px-5 py-2.5 text-sm"
                 >
                   {isSavingProfile ? 'Saving…' : 'Save profile details'}
                 </button>
               </form>
             </div>
 
-            <div className="bg-slate-900/60 border border-white/10 rounded-2xl p-5 space-y-3">
+            <div className="bg-surface border border-line rounded-2xl p-5 space-y-3">
               <Avatar name={currentUser?.name} src={currentUser?.avatar} size="lg" />
               <div>
-                <p className="text-sm font-bold text-white truncate">{currentUser?.name}</p>
-                <p className="text-[11px] text-slate-400 break-words">{currentUser?.email}</p>
+                <p className="text-sm font-bold text-ink truncate">{currentUser?.name}</p>
+                <p className="text-[11px] text-ink/70 break-words">{currentUser?.email}</p>
               </div>
-              <p className="text-[11px] text-slate-400 leading-relaxed">
+              <p className="text-[11px] text-ink/70 leading-relaxed">
                 Your profile picture is used next to your name across your account. Change it, or your password, in
                 Account settings.
               </p>
               <button
                 type="button"
                 onClick={() => navigate('/tenant/settings')}
-                className="w-full px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-xs font-bold text-slate-200 hover:text-white hover:bg-white/10 transition-colors"
+                className="w-full px-3 py-2 rounded-xl bg-page border border-line text-xs font-bold text-ink hover:text-ink hover:bg-page transition-colors"
               >
                 Open account settings
               </button>
@@ -979,7 +979,7 @@ export const TenantDashboard: React.FC = () => {
             <button
               type="button"
               onClick={() => navigate('/tenant/dashboard')}
-              className="text-xs font-bold text-[#08D9D6] hover:underline"
+              className="text-xs font-bold text-ink hover:underline"
             >
               Back to overview
             </button>

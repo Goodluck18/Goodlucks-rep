@@ -70,44 +70,44 @@ export const AgentViewingTermsPanel: React.FC<{
   };
 
   return (
-    <div className="mt-2 rounded-xl border border-white/10 bg-slate-900/40 p-3 space-y-2">
+    <div className="mt-2 rounded-xl border border-line bg-surface p-3 space-y-2">
       <div className="flex flex-wrap items-center gap-2 text-[11px]">
-        <span className="text-slate-400">Viewing fee:</span>
+        <span className="text-ink/70">Viewing fee:</span>
         {approved ? (
-          <span className="px-2 py-0.5 rounded-md bg-[#08D9D6]/15 border border-[#08D9D6]/30 text-[#08D9D6] font-bold">
+          <span className="px-2 py-0.5 rounded-md bg-interactive/15 border border-interactive/30 text-ink font-bold">
             GH₵ {approved.feeGhs?.toLocaleString()}
           </span>
         ) : (
-          <span className="px-2 py-0.5 rounded-md bg-amber-500/10 border border-amber-500/30 text-amber-200">
+          <span className="px-2 py-0.5 rounded-md bg-amber-500/10 border border-amber-500/30 text-amber-800">
             Not approved yet
           </span>
         )}
         {terms?.state === 'pending_review' && (
-          <span className="px-2 py-0.5 rounded-md bg-slate-800 border border-white/10 text-slate-300 inline-flex items-center gap-1">
+          <span className="px-2 py-0.5 rounded-md bg-surface border border-line text-ink/70 inline-flex items-center gap-1">
             <Clock3 className="w-3 h-3" /> Waiting for review
           </span>
         )}
         {terms?.state === 'rejected' && (
-          <span className="px-2 py-0.5 rounded-md bg-[#FF2E63]/10 border border-[#FF2E63]/30 text-[#FF8FA8] inline-flex items-center gap-1">
+          <span className="px-2 py-0.5 rounded-md bg-accent/10 border border-accent/30 text-ink inline-flex items-center gap-1">
             <XCircle className="w-3 h-3" /> Last change was rejected
           </span>
         )}
         {terms?.state === 'approved' && (
-          <span className="px-2 py-0.5 rounded-md bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 inline-flex items-center gap-1">
+          <span className="px-2 py-0.5 rounded-md bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 inline-flex items-center gap-1">
             <CheckCircle2 className="w-3 h-3" /> Approved
           </span>
         )}
         <button
           type="button"
           onClick={startEdit}
-          className="ml-auto px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-slate-200 inline-flex items-center gap-1"
+          className="ml-auto px-2.5 py-1 rounded-lg bg-page hover:bg-page border border-line text-ink inline-flex items-center gap-1"
         >
           <Pencil className="w-3 h-3" /> {approved ? 'Change fee & terms' : 'Set fee & terms'}
         </button>
       </div>
 
       {approved?.terms && (
-        <p className="text-[11px] text-slate-400 leading-snug">
+        <p className="text-[11px] text-ink/70 leading-snug">
           {approved.terms.appointmentRequired ? 'Appointment required' : 'No appointment needed'}
           {' · '}
           {approved.terms.howToArrange}
@@ -115,21 +115,21 @@ export const AgentViewingTermsPanel: React.FC<{
       )}
 
       {pending && (
-        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-2 text-[11px] text-amber-100">
+        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-2 text-[11px] text-amber-800">
           A change to GH₵ {pending.proposedFeeGhs?.toLocaleString()} is waiting for review. The approved fee above
           stays in place until staff decide.
         </div>
       )}
 
       {terms?.state === 'rejected' && !pending && (
-        <div className="rounded-lg border border-[#FF2E63]/30 bg-[#FF2E63]/10 p-2 text-[11px] text-[#FF8FA8]">
+        <div className="rounded-lg border border-accent/30 bg-accent/10 p-2 text-[11px] text-ink">
           The last proposal was not approved, so the fee above still applies. Read the reason in the notification and
           submit a corrected fee and terms.
         </div>
       )}
 
       {notice && (
-        <div className="rounded-lg border border-[#08D9D6]/30 bg-[#08D9D6]/10 p-2 text-[11px] text-[#08D9D6]">
+        <div className="rounded-lg border border-interactive/30 bg-interactive/10 p-2 text-[11px] text-ink">
           {notice}
         </div>
       )}
@@ -138,7 +138,7 @@ export const AgentViewingTermsPanel: React.FC<{
         <form onSubmit={submit} className="space-y-3 pt-1">
           <ViewingTermsFields form={form} onChange={setForm} errors={fields} idPrefix={`terms-${property.id}`} />
           {error && (
-            <div role="alert" className="p-2 rounded-lg bg-[#FF2E63]/15 border border-[#FF2E63]/30 text-[11px] text-[#FF8FA8] flex items-start gap-2">
+            <div role="alert" className="p-2 rounded-lg bg-accent/15 border border-accent/30 text-[11px] text-ink flex items-start gap-2">
               <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" /> <span>{error}</span>
             </div>
           )}
@@ -146,7 +146,7 @@ export const AgentViewingTermsPanel: React.FC<{
             <button
               type="submit"
               disabled={saving}
-              className="px-3 py-1.5 rounded-lg bg-[#08D9D6] text-[#252A34] font-bold text-[11px] disabled:opacity-60 inline-flex items-center gap-1.5"
+              className="gl-btn gl-btn-primary px-3 py-1.5 text-[11px]"
             >
               {saving && <Loader2 className="w-3 h-3 animate-spin" />}
               {saving ? 'Sending…' : 'Send for review'}
@@ -154,11 +154,11 @@ export const AgentViewingTermsPanel: React.FC<{
             <button
               type="button"
               onClick={() => setEditing(false)}
-              className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-slate-300 text-[11px]"
+              className="px-3 py-1.5 rounded-lg bg-page border border-line text-ink/70 text-[11px]"
             >
               Cancel
             </button>
-            <span className="text-[10px] text-slate-500">
+            <span className="text-[10px] text-ink/70">
               Changes to a live listing are reviewed before they take effect.
             </span>
           </div>

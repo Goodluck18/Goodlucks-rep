@@ -183,28 +183,28 @@ export const ListPropertyView: React.FC<ListPropertyViewProps> = ({ onOpenAuth }
   // Landlord Auth Guard Check
   if (!currentUser || currentRole !== 'landlord') {
     return (
-      <div className="min-h-[80vh] bg-[#252A34] text-white py-12 px-4 sm:px-6 lg:px-8 flex items-center justify-center">
+      <div className="min-h-[80vh] bg-surface text-ink py-12 px-4 sm:px-6 lg:px-8 flex items-center justify-center">
         <SEOHead
           title="List Property for Rent - Landlord Portal | Goodlucks Homes Ghana"
           description="List your property with Goodlucks Homes Ghana. Landlords and agents submit listings, our team reviews them before publishing, and viewing requests are arranged through the platform."
         />
-        <div className="max-w-xl w-full bg-slate-800/90 border border-white/10 rounded-3xl p-6 sm:p-10 text-center space-y-6 shadow-2xl animate-fadeIn">
+        <div className="max-w-xl w-full bg-surface border border-line rounded-2xl p-6 sm:p-10 text-center space-y-6 shadow-lg animate-fadeIn">
           
-          <div className="w-20 h-20 rounded-3xl bg-[#08D9D6]/10 text-[#08D9D6] border border-[#08D9D6]/30 flex items-center justify-center mx-auto shadow-lg shadow-[#08D9D6]/10">
+          <div className="w-20 h-20 rounded-2xl bg-interactive/10 text-ink border border-interactive/30 flex items-center justify-center mx-auto shadow-lg shadow-ink/5">
             <Building2 className="w-10 h-10" />
           </div>
 
           <div className="space-y-3">
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#08D9D6]/10 text-[#08D9D6] text-xs font-bold border border-[#08D9D6]/20">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-interactive/10 text-ink text-xs font-bold border border-interactive/20">
               <ShieldAlert className="w-3.5 h-3.5" />
               Landlord Login Required
             </div>
             
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-ink tracking-tight">
               {!currentUser ? 'Log In to List Your Property' : 'Landlord Account Required'}
             </h1>
             
-            <p className="text-sm text-slate-300 leading-relaxed max-w-md mx-auto">
+            <p className="text-sm text-ink/70 leading-relaxed max-w-md mx-auto">
               {!currentUser
                 ? 'To keep every listing reviewed before it appears, you must log in or register as a Landlord on Goodlucks Homes to submit properties.'
                 : `You are currently signed in as ${currentUser.name} (${currentUser.role.toUpperCase()} Account). Please switch to a Landlord account to list properties.`}
@@ -212,19 +212,19 @@ export const ListPropertyView: React.FC<ListPropertyViewProps> = ({ onOpenAuth }
           </div>
 
           {/* Value Props Card */}
-          <div className="bg-slate-900/80 p-4 rounded-2xl border border-white/5 text-left text-xs space-y-2.5">
-            <div className="text-xs font-bold text-[#08D9D6] uppercase tracking-wider">Why List with Goodlucks Homes?</div>
-            <ul className="space-y-2 text-slate-300">
+          <div className="bg-surface p-4 rounded-2xl border border-line text-left text-xs space-y-2.5">
+            <div className="text-xs font-bold text-ink uppercase tracking-wider">Why List with Goodlucks Homes?</div>
+            <ul className="space-y-2 text-ink/70">
               <li className="flex items-start gap-2">
-                <CheckCircle2 className="w-4 h-4 text-[#08D9D6] shrink-0 mt-0.5" />
+                <CheckCircle2 className="w-4 h-4 text-ink shrink-0 mt-0.5" />
                 <span><strong>Viewing requests only:</strong> tenants ask through Goodlucks Homes and you agree the time with them directly.</span>
               </li>
               <li className="flex items-start gap-2">
-                <CheckCircle2 className="w-4 h-4 text-[#08D9D6] shrink-0 mt-0.5" />
+                <CheckCircle2 className="w-4 h-4 text-ink shrink-0 mt-0.5" />
                 <span><strong>Zero Listing Fees:</strong> Submit your apartment, villa, or townhouse with no upfront charges.</span>
               </li>
               <li className="flex items-start gap-2">
-                <CheckCircle2 className="w-4 h-4 text-[#08D9D6] shrink-0 mt-0.5" />
+                <CheckCircle2 className="w-4 h-4 text-ink shrink-0 mt-0.5" />
                 <span><strong>Matched to tenant requests:</strong> your listing is suggested to tenants whose area, budget and bedrooms fit.</span>
               </li>
             </ul>
@@ -237,7 +237,7 @@ export const ListPropertyView: React.FC<ListPropertyViewProps> = ({ onOpenAuth }
                 <button
                   type="button"
                   onClick={() => onOpenAuth && onOpenAuth('login', 'landlord')}
-                  className="w-full py-3.5 rounded-2xl bg-[#08D9D6] text-[#252A34] font-extrabold text-sm hover:bg-[#08D9D6]/90 transition-all shadow-xl shadow-[#08D9D6]/20 flex items-center justify-center gap-2 active:scale-98"
+                  className="gl-btn gl-btn-primary w-full py-3.5 text-sm flex active:scale-98"
                 >
                   <Lock className="w-4 h-4" />
                   <span>Log In as Landlord to List</span>
@@ -247,7 +247,7 @@ export const ListPropertyView: React.FC<ListPropertyViewProps> = ({ onOpenAuth }
                   <button
                     type="button"
                     onClick={() => onOpenAuth && onOpenAuth('login', 'landlord')}
-                    className="flex-1 py-2.5 rounded-xl bg-slate-900 text-[#08D9D6] border border-[#08D9D6]/30 hover:bg-slate-800 font-bold text-xs transition-colors flex items-center justify-center gap-1.5"
+                    className="flex-1 py-2.5 rounded-xl bg-surface text-ink border border-interactive/30 hover:bg-surface font-bold text-xs transition-colors flex items-center justify-center gap-1.5"
                   >
                     <Lock className="w-3.5 h-3.5" />
                     <span>Existing Landlord Sign-In</span>
@@ -256,7 +256,7 @@ export const ListPropertyView: React.FC<ListPropertyViewProps> = ({ onOpenAuth }
                   <button
                     type="button"
                     onClick={() => onOpenAuth && onOpenAuth('register', 'landlord')}
-                    className="flex-1 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-semibold text-xs transition-colors"
+                    className="flex-1 py-2.5 rounded-xl bg-page hover:bg-line text-ink font-semibold text-xs transition-colors"
                   >
                     Register New Account
                   </button>
@@ -267,14 +267,14 @@ export const ListPropertyView: React.FC<ListPropertyViewProps> = ({ onOpenAuth }
                 <button
                   type="button"
                   onClick={() => onOpenAuth && onOpenAuth('login', 'landlord')}
-                  className="flex-1 py-3 rounded-2xl bg-[#08D9D6] text-[#252A34] font-extrabold text-sm hover:bg-[#08D9D6]/90 transition-all shadow-lg"
+                  className="gl-btn gl-btn-primary flex-1 py-3 text-sm"
                 >
                   Switch to Landlord Account
                 </button>
                 <button
                   type="button"
                   onClick={() => setCurrentView('home')}
-                  className="px-5 py-3 rounded-2xl bg-white/10 hover:bg-white/20 text-white font-semibold text-sm transition-colors"
+                  className="px-5 py-3 rounded-2xl bg-page hover:bg-line text-ink font-semibold text-sm transition-colors"
                 >
                   Return to Home
                 </button>
@@ -288,7 +288,7 @@ export const ListPropertyView: React.FC<ListPropertyViewProps> = ({ onOpenAuth }
   }
 
   return (
-    <div className="min-h-screen bg-[#252A34] text-white py-10 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-page text-ink py-10 px-4 sm:px-6 lg:px-8">
       <SEOHead
         title="List Property for Rent - Landlord Portal | Goodlucks Homes Ghana"
         description="List your apartment or house with Goodlucks Homes Ghana. Describe the property, submit it for review and receive viewing requests from tenants in Greater Accra."
@@ -297,38 +297,38 @@ export const ListPropertyView: React.FC<ListPropertyViewProps> = ({ onOpenAuth }
         
         {/* Header */}
         <div className="text-center space-y-3">
-          <div className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[#08D9D6]/10 text-[#08D9D6] text-xs font-bold border border-[#08D9D6]/20">
+          <div className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-interactive/10 text-ink text-xs font-bold border border-interactive/20">
             <Building2 className="w-4 h-4" />
             Landlord Listing Portal
           </div>
-          <h1 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
+          <h1 className="text-3xl sm:text-4xl font-extrabold text-ink tracking-tight">
             List Your Property with Goodlucks Homes
           </h1>
-          <p className="text-sm text-slate-300 max-w-xl mx-auto leading-relaxed">
+          <p className="text-sm text-ink/70 max-w-xl mx-auto leading-relaxed">
             Submit your listing, and viewing requests come to you through the platform. You keep control of your tenancy agreement and deal directly with your tenant.
           </p>
         </div>
 
         {!submitted ? (
-          <form onSubmit={handleSubmit} className="bg-slate-800/80 border border-white/10 rounded-3xl p-6 sm:p-8 shadow-2xl space-y-8">
+          <form onSubmit={handleSubmit} className="bg-surface border border-line rounded-2xl p-6 sm:p-8 shadow-lg space-y-8">
             
             {/* Image Upload Section */}
-            <div className="space-y-4 pb-6 border-b border-white/10">
+            <div className="space-y-4 pb-6 border-b border-line">
               <div className="flex items-center justify-between">
                 <div>
-                  <h2 className="text-lg font-bold text-[#08D9D6] flex items-center gap-2">
+                  <h2 className="text-lg font-bold text-ink flex items-center gap-2">
                     <ImageIcon className="w-5 h-5" />
                     Property Images Upload
                   </h2>
-                  <p className="text-xs text-slate-400">Drag & drop or select real high-res images of your property</p>
+                  <p className="text-xs text-ink/70">Drag & drop or select real high-res images of your property</p>
                 </div>
-                <span className="text-xs text-slate-400 font-semibold">
+                <span className="text-xs text-ink/70 font-semibold">
                   {isUploading ? 'Uploading images…' : `${images.length} images selected`}
                 </span>
               </div>
 
               {/* Upload Dropzone */}
-              <div className="relative border-2 border-dashed border-white/20 hover:border-[#08D9D6] rounded-2xl p-6 text-center bg-slate-900/50 transition-colors">
+              <div className="relative border-2 border-dashed border-line hover:border-interactive rounded-2xl p-6 text-center bg-surface transition-colors">
                 <input
                   type="file"
                   multiple
@@ -337,13 +337,13 @@ export const ListPropertyView: React.FC<ListPropertyViewProps> = ({ onOpenAuth }
                   className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
                 />
                 <div className="flex flex-col items-center space-y-2">
-                  <div className="w-12 h-12 rounded-full bg-[#08D9D6]/10 text-[#08D9D6] flex items-center justify-center">
+                  <div className="w-12 h-12 rounded-full bg-interactive/10 text-ink flex items-center justify-center">
                     <Upload className="w-6 h-6" />
                   </div>
-                  <div className="text-sm font-semibold text-white">
+                  <div className="text-sm font-semibold text-ink">
                     Click to Upload or Drag Images Here
                   </div>
-                  <div className="text-xs text-slate-400">
+                  <div className="text-xs text-ink/70">
                     Supports JPG, PNG, WEBP or GIF (max 8MB per file)
                   </div>
                 </div>
@@ -353,12 +353,12 @@ export const ListPropertyView: React.FC<ListPropertyViewProps> = ({ onOpenAuth }
               {images.length > 0 && (
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
                   {images.map((img, idx) => (
-                    <div key={idx} className="relative aspect-[4/3] rounded-xl overflow-hidden group border border-white/10">
+                    <div key={idx} className="relative aspect-[4/3] rounded-xl overflow-hidden group border border-line">
                       <img src={img} alt={`Preview ${idx}`} loading="lazy" decoding="async" className="w-full h-full object-cover" />
                       <button
                         type="button"
                         onClick={() => removeImage(idx)}
-                        className="absolute top-1 right-1 p-1 rounded-full bg-black/70 text-white hover:bg-[#FF2E63] transition-colors"
+                        className="absolute top-1 right-1 p-1 rounded-full bg-surface/95 text-ink shadow-sm hover:bg-accent hover:text-white transition-colors"
                       >
                         <X className="w-3.5 h-3.5" />
                       </button>
@@ -369,11 +369,11 @@ export const ListPropertyView: React.FC<ListPropertyViewProps> = ({ onOpenAuth }
             </div>
 
             {/* Basic Property Specs */}
-            <div className="space-y-4 pb-6 border-b border-white/10">
-              <h2 className="text-lg font-bold text-[#08D9D6]">Basic Property Details</h2>
+            <div className="space-y-4 pb-6 border-b border-line">
+              <h2 className="text-lg font-bold text-ink">Basic Property Details</h2>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                <label className="block text-xs font-semibold text-ink/70 mb-1.5">
                   Property Title
                 </label>
                 <input
@@ -382,13 +382,13 @@ export const ListPropertyView: React.FC<ListPropertyViewProps> = ({ onOpenAuth }
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   placeholder="e.g. Cantonments Executive 3-Bedroom Luxury Apartment"
-                  className="w-full bg-slate-900 border border-white/10 rounded-xl p-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-[#08D9D6]"
+                  className="w-full bg-page border border-line rounded-xl p-3 text-sm text-ink placeholder-ink/50 focus:outline-none focus:border-interactive"
                 />
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                  <label className="block text-xs font-semibold text-ink/70 mb-1.5">
                     Location / Suburb
                   </label>
                   <input
@@ -397,12 +397,12 @@ export const ListPropertyView: React.FC<ListPropertyViewProps> = ({ onOpenAuth }
                     value={location}
                     onChange={(e) => setLocation(e.target.value)}
                     placeholder="e.g. Cantonments, East Legon"
-                    className="w-full bg-slate-900 border border-white/10 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-[#08D9D6]"
+                    className="w-full bg-page border border-line rounded-xl p-3 text-sm text-ink focus:outline-none focus:border-interactive"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                  <label className="block text-xs font-semibold text-ink/70 mb-1.5">
                     City
                   </label>
                   <input
@@ -411,12 +411,12 @@ export const ListPropertyView: React.FC<ListPropertyViewProps> = ({ onOpenAuth }
                     value={city}
                     onChange={(e) => setCity(e.target.value)}
                     placeholder="e.g. Accra or Kumasi"
-                    className="w-full bg-slate-900 border border-white/10 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-[#08D9D6]"
+                    className="w-full bg-page border border-line rounded-xl p-3 text-sm text-ink focus:outline-none focus:border-interactive"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                  <label className="block text-xs font-semibold text-ink/70 mb-1.5">
                     Monthly Rent (GHS)
                   </label>
                   <input
@@ -425,14 +425,14 @@ export const ListPropertyView: React.FC<ListPropertyViewProps> = ({ onOpenAuth }
                     step={100}
                     value={rentGhs}
                     onChange={(e) => setRentGhs(Number(e.target.value))}
-                    className="w-full bg-slate-900 border border-white/10 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-[#08D9D6]"
+                    className="w-full bg-page border border-line rounded-xl p-3 text-sm text-ink focus:outline-none focus:border-interactive"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                  <label className="block text-xs font-semibold text-ink/70 mb-1.5">
                     Bedrooms
                   </label>
                   <input
@@ -440,12 +440,12 @@ export const ListPropertyView: React.FC<ListPropertyViewProps> = ({ onOpenAuth }
                     min={1}
                     value={bedrooms}
                     onChange={(e) => setBedrooms(Number(e.target.value))}
-                    className="w-full bg-slate-900 border border-white/10 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-[#08D9D6]"
+                    className="w-full bg-page border border-line rounded-xl p-3 text-sm text-ink focus:outline-none focus:border-interactive"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                  <label className="block text-xs font-semibold text-ink/70 mb-1.5">
                     Bathrooms
                   </label>
                   <input
@@ -453,18 +453,18 @@ export const ListPropertyView: React.FC<ListPropertyViewProps> = ({ onOpenAuth }
                     min={1}
                     value={bathrooms}
                     onChange={(e) => setBathrooms(Number(e.target.value))}
-                    className="w-full bg-slate-900 border border-white/10 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-[#08D9D6]"
+                    className="w-full bg-page border border-line rounded-xl p-3 text-sm text-ink focus:outline-none focus:border-interactive"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                  <label className="block text-xs font-semibold text-ink/70 mb-1.5">
                     Property Type
                   </label>
                   <select
                     value={propertyType}
                     onChange={(e) => setPropertyType(e.target.value as any)}
-                    className="w-full bg-slate-900 border border-white/10 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-[#08D9D6]"
+                    className="w-full bg-page border border-line rounded-xl p-3 text-sm text-ink focus:outline-none focus:border-interactive"
                   >
                     <option value="Apartment">Apartment</option>
                     <option value="Luxury Villa">Luxury Villa</option>
@@ -478,16 +478,16 @@ export const ListPropertyView: React.FC<ListPropertyViewProps> = ({ onOpenAuth }
             </div>
 
             {/* Description & AI Generator */}
-            <div className="space-y-3 pb-6 border-b border-white/10">
+            <div className="space-y-3 pb-6 border-b border-line">
               <div className="flex items-center justify-between">
-                <label className="block text-xs font-semibold text-slate-300">
+                <label className="block text-xs font-semibold text-ink/70">
                   Property Description
                 </label>
                 <button
                   type="button"
                   onClick={generateAiDescription}
                   disabled={generatingAi}
-                  className="px-3 py-1 rounded-lg bg-[#08D9D6]/20 text-[#08D9D6] hover:bg-[#08D9D6]/30 text-xs font-bold flex items-center gap-1.5 transition-colors"
+                  className="px-3 py-1 rounded-lg bg-interactive/20 text-ink hover:bg-interactive/30 text-xs font-bold flex items-center gap-1.5 transition-colors"
                 >
                   <Sparkles className="w-3.5 h-3.5" />
                   {generatingAi ? 'Generating Description...' : 'Generate with AI'}
@@ -500,13 +500,13 @@ export const ListPropertyView: React.FC<ListPropertyViewProps> = ({ onOpenAuth }
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="Describe your property amenities, security, backup generator, water storage..."
-                className="w-full bg-slate-900 border border-white/10 rounded-xl p-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-[#08D9D6]"
+                className="w-full bg-page border border-line rounded-xl p-3 text-sm text-ink placeholder-ink/50 focus:outline-none focus:border-interactive"
               />
             </div>
 
             {/* Amenities Select */}
             <div className="space-y-3">
-              <label className="block text-xs font-semibold text-slate-300">
+              <label className="block text-xs font-semibold text-ink/70">
                 Select Amenities & Features
               </label>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
@@ -519,8 +519,8 @@ export const ListPropertyView: React.FC<ListPropertyViewProps> = ({ onOpenAuth }
                       onClick={() => toggleAmenity(amenity)}
                       className={`p-2.5 rounded-xl text-xs text-left font-medium transition-all ${
                         isChecked
-                          ? 'bg-[#08D9D6]/20 text-[#08D9D6] border border-[#08D9D6]/40 font-semibold'
-                          : 'bg-slate-900 text-slate-400 border border-white/5 hover:border-white/20'
+                          ? 'bg-interactive/20 text-ink border border-interactive/40 font-semibold'
+                          : 'bg-surface text-ink/70 border border-line hover:border-line'
                       }`}
                     >
                       {isChecked ? '✓ ' : '+ '}{amenity}
@@ -531,7 +531,7 @@ export const ListPropertyView: React.FC<ListPropertyViewProps> = ({ onOpenAuth }
             </div>
 
             {formError && (
-              <div role="alert" className="p-3 rounded-xl bg-[#FF2E63]/15 border border-[#FF2E63]/30 text-[#FF8FA8] text-xs flex items-start gap-2">
+              <div role="alert" className="p-3 rounded-xl bg-accent/15 border border-accent/30 text-ink text-xs flex items-start gap-2">
                 <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
                 <span>{formError}</span>
               </div>
@@ -540,11 +540,11 @@ export const ListPropertyView: React.FC<ListPropertyViewProps> = ({ onOpenAuth }
             <button
               type="submit"
               disabled={isSubmitting || isUploading}
-              className="w-full py-4 rounded-2xl bg-[#08D9D6] text-[#252A34] font-extrabold text-base hover:bg-[#08D9D6]/90 transition-all shadow-xl shadow-[#08D9D6]/20 flex items-center justify-center gap-2 active:scale-[0.99] disabled:opacity-60"
+              className="gl-btn gl-btn-primary w-full"
             >
               {isSubmitting ? (
                 <>
-                  <span className="w-5 h-5 border-2 border-[#252A34]/30 border-t-[#252A34] rounded-full animate-spin" />
+                  <span className="w-5 h-5 border-2 border-ink/30 border-t-ink rounded-full animate-spin" />
                   <span>Submitting Listing...</span>
                 </>
               ) : (
@@ -557,23 +557,23 @@ export const ListPropertyView: React.FC<ListPropertyViewProps> = ({ onOpenAuth }
 
           </form>
         ) : (
-          <div className="bg-slate-800/90 border border-[#08D9D6]/40 rounded-3xl p-8 text-center space-y-6 shadow-2xl">
-            <div className="w-20 h-20 rounded-full bg-[#08D9D6]/20 text-[#08D9D6] border border-[#08D9D6]/40 flex items-center justify-center mx-auto">
+          <div className="bg-surface border border-interactive/40 rounded-2xl p-8 text-center space-y-6 shadow-lg">
+            <div className="w-20 h-20 rounded-full bg-interactive/20 text-ink border border-interactive/40 flex items-center justify-center mx-auto">
               <CheckCircle2 className="w-10 h-10" />
             </div>
 
             <div className="space-y-2">
-              <h2 className="text-2xl sm:text-3xl font-extrabold text-white">
+              <h2 className="text-2xl sm:text-3xl font-extrabold text-ink">
                 Property Submitted for Review!
               </h2>
-              <p className="text-sm text-slate-300 max-w-md mx-auto leading-relaxed">
-                Your listing <span className="text-white font-semibold">{title}</span> has been logged into the Goodlucks Homes Admin Queue for approval.
+              <p className="text-sm text-ink/70 max-w-md mx-auto leading-relaxed">
+                Your listing <span className="text-ink font-semibold">{title}</span> has been logged into the Goodlucks Homes Admin Queue for approval.
               </p>
             </div>
 
-            <div className="bg-slate-900 p-5 rounded-2xl text-xs text-left max-w-md mx-auto space-y-2 border border-white/10">
-              <div className="text-[#08D9D6] font-bold uppercase tracking-wider">Status: Pending Approval</div>
-              <p className="text-slate-300">
+            <div className="bg-surface p-5 rounded-2xl text-xs text-left max-w-md mx-auto space-y-2 border border-line">
+              <div className="text-ink font-bold uppercase tracking-wider">Status: Pending Approval</div>
+              <p className="text-ink/70">
                 A member of our team reviews the listing details before it goes live. For a landlord listing the viewing fee is the standard fee set by Goodlucks Homes; on an agent listing, the agent sets it. You can track the status on your dashboard.
               </p>
             </div>
@@ -581,13 +581,13 @@ export const ListPropertyView: React.FC<ListPropertyViewProps> = ({ onOpenAuth }
             <div className="pt-2 flex flex-col sm:flex-row gap-3 justify-center">
               <button
                 onClick={() => setCurrentView('dashboard')}
-                className="px-6 py-3 rounded-xl bg-[#08D9D6] text-[#252A34] font-bold text-sm shadow-md"
+                className="gl-btn gl-btn-primary px-6 py-3 text-sm"
               >
                 Go to your dashboard
               </button>
               <button
                 onClick={() => setSubmitted(false)}
-                className="px-6 py-3 rounded-xl bg-white/10 text-white font-semibold text-sm"
+                className="px-6 py-3 rounded-xl bg-page text-ink font-semibold text-sm"
               >
                 Add Another Property
               </button>

@@ -104,7 +104,7 @@ export const PriceDropModal: React.FC<PriceDropModalProps> = ({
 
   return (
     <div 
-      className="fixed inset-0 z-50 overflow-y-auto bg-black/80 backdrop-blur-md animate-fadeIn p-2 sm:p-4 flex items-center justify-center"
+      className="fixed inset-0 z-50 overflow-y-auto bg-ink/60 backdrop-blur-md animate-fadeIn p-2 sm:p-4 flex items-center justify-center"
       onClick={onClose}
     >
       <div 
@@ -112,17 +112,16 @@ export const PriceDropModal: React.FC<PriceDropModalProps> = ({
         {...dialogProps}
         id="price-drop-modal-container"
         aria-labelledby="price-drop-modal-title"
-        className="relative w-full max-w-md bg-[#252A34] border border-white/10 rounded-2xl sm:rounded-3xl p-5 sm:p-6 shadow-2xl text-white my-auto overflow-hidden focus:outline-none"
+        className="relative w-full max-w-md bg-surface border border-line rounded-2xl sm:rounded-2xl p-5 sm:p-6 shadow-lg text-ink my-auto overflow-hidden focus:outline-none"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Subtle decorative glow */}
-        <div className="absolute top-0 right-0 w-36 h-36 bg-[#08D9D6]/10 rounded-full blur-3xl pointer-events-none" />
 
         {/* Close Button */}
         <button 
           id="price-drop-modal-close-btn"
           onClick={onClose}
-          className="absolute top-4 right-4 p-2 rounded-full bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-colors z-10 cursor-pointer"
+          className="absolute top-4 right-4 p-2 rounded-full bg-page hover:bg-page text-ink/70 hover:text-ink transition-colors z-10 cursor-pointer"
           aria-label="Close price drop alert modal"
         >
           <X className="w-5 h-5" />
@@ -131,36 +130,36 @@ export const PriceDropModal: React.FC<PriceDropModalProps> = ({
         {submitted ? (
           /* Success Screen */
           <div className="py-4 text-center space-y-4">
-            <div className="w-14 h-14 rounded-2xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center mx-auto shadow-lg shadow-emerald-500/10">
+            <div className="w-14 h-14 rounded-2xl bg-emerald-500/20 text-emerald-700 border border-emerald-500/30 flex items-center justify-center mx-auto shadow-lg shadow-emerald-500/10">
               <CheckCircle2 className="w-8 h-8" />
             </div>
 
             <div className="space-y-1.5">
-              <span className="px-3 py-0.5 rounded-full text-[10px] font-extrabold bg-[#08D9D6]/10 text-[#08D9D6] border border-[#08D9D6]/20 uppercase tracking-wider">
+              <span className="px-3 py-0.5 rounded-full text-[10px] font-extrabold bg-interactive/10 text-ink border border-interactive/20 uppercase tracking-wider">
                 Alert Created
               </span>
-              <h3 id="price-drop-modal-title" className="text-xl font-bold text-white">
+              <h3 id="price-drop-modal-title" className="text-xl font-bold text-ink">
                 You're All Set!
               </h3>
-              <p className="text-xs text-slate-300 max-w-sm mx-auto leading-relaxed">
-                We will monitor <strong className="text-white">{property.title}</strong> and email <strong className="text-[#08D9D6]">{email}</strong> immediately if the price drops.
+              <p className="text-xs text-ink/70 max-w-sm mx-auto leading-relaxed">
+                We will monitor <strong className="text-ink">{property.title}</strong> and email <strong className="text-ink">{email}</strong> immediately if the price drops.
               </p>
             </div>
 
-            <div className="bg-slate-900/80 p-3.5 rounded-xl border border-white/10 text-left space-y-1.5 text-xs text-slate-300">
+            <div className="bg-surface p-3.5 rounded-xl border border-line text-left space-y-1.5 text-xs text-ink/70">
               <div className="flex justify-between items-center">
-                <span className="text-slate-400">Current Monthly Rent:</span>
-                <span className="font-bold text-white">GH₵ {currentRent.toLocaleString()}</span>
+                <span className="text-ink/70">Current Monthly Rent:</span>
+                <span className="font-bold text-ink">GH₵ {currentRent.toLocaleString()}</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-slate-400">Alert Trigger:</span>
-                <span className="font-bold text-emerald-400">
+                <span className="text-ink/70">Alert Trigger:</span>
+                <span className="font-bold text-emerald-700">
                   {dropPreference === 'any' ? 'Any price drop' : `Below GH₵ ${getComputedTargetRent()?.toLocaleString()}`}
                 </span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-slate-400">Notification Channel:</span>
-                <span className="font-medium text-white">{email}</span>
+                <span className="text-ink/70">Notification Channel:</span>
+                <span className="font-medium text-ink">{email}</span>
               </div>
             </div>
 
@@ -168,7 +167,7 @@ export const PriceDropModal: React.FC<PriceDropModalProps> = ({
               <button
                 id="price-drop-done-btn"
                 onClick={onClose}
-                className="w-full py-3 rounded-xl bg-[#08D9D6] text-[#252A34] font-extrabold text-xs hover:bg-[#08D9D6]/90 transition-all shadow-md shadow-[#08D9D6]/20 cursor-pointer"
+                className="gl-btn gl-btn-primary w-full py-3 text-xs"
               >
                 Done
               </button>
@@ -179,36 +178,36 @@ export const PriceDropModal: React.FC<PriceDropModalProps> = ({
           <div className="space-y-4">
             {/* Header */}
             <div className="flex items-start gap-3">
-              <div className="w-11 h-11 rounded-2xl bg-[#08D9D6]/10 border border-[#08D9D6]/20 text-[#08D9D6] flex items-center justify-center shrink-0">
+              <div className="w-11 h-11 rounded-2xl bg-interactive/10 border border-interactive/20 text-ink flex items-center justify-center shrink-0">
                 <Bell className="w-5 h-5" />
               </div>
               <div>
-                <h3 id="price-drop-modal-title" className="text-lg font-black text-white tracking-tight flex items-center gap-1.5">
+                <h3 id="price-drop-modal-title" className="text-lg font-black text-ink tracking-tight flex items-center gap-1.5">
                   Notify Me If Price Drops
                 </h3>
-                <p className="text-xs text-slate-400">
+                <p className="text-xs text-ink/70">
                   Receive an instant alert the moment this listing becomes cheaper.
                 </p>
               </div>
             </div>
 
             {/* Property Snippet Card */}
-            <div className="flex items-center gap-3 bg-slate-900/80 p-3 rounded-xl border border-white/10">
+            <div className="flex items-center gap-3 bg-surface p-3 rounded-xl border border-line">
               <img 
                 src={property.images[0]} 
                 alt={property.title} 
                 loading="lazy"
                 decoding="async"
-                className="w-14 h-14 rounded-lg object-cover shrink-0 border border-white/5" 
+                className="w-14 h-14 rounded-lg object-cover shrink-0 border border-line" 
               />
               <div className="min-w-0 flex-1">
-                <div className="text-xs font-bold text-white truncate">{property.title}</div>
-                <div className="text-[11px] text-slate-400 truncate">{property.location}</div>
+                <div className="text-xs font-bold text-ink truncate">{property.title}</div>
+                <div className="text-[11px] text-ink/70 truncate">{property.location}</div>
                 <div className="flex items-baseline gap-1.5 mt-0.5">
-                  <span className="text-xs font-extrabold text-[#08D9D6]">
+                  <span className="text-xs font-extrabold text-ink">
                     GH₵ {currentRent.toLocaleString()}
                   </span>
-                  <span className="text-[10px] text-slate-400">/ month</span>
+                  <span className="text-[10px] text-ink/70">/ month</span>
                 </div>
               </div>
             </div>
@@ -217,11 +216,11 @@ export const PriceDropModal: React.FC<PriceDropModalProps> = ({
             <form onSubmit={handleSubmit} className="space-y-3.5">
               {/* User Email Field */}
               <div className="space-y-1">
-                <label htmlFor="price-alert-email" className="block text-xs font-semibold text-slate-300">
-                  Your Email Address <span className="text-[#FF2E63]">*</span>
+                <label htmlFor="price-alert-email" className="block text-xs font-semibold text-ink/70">
+                  Your Email Address <span className="text-accent">*</span>
                 </label>
                 <div className="relative">
-                  <Mail className="w-4 h-4 absolute left-3 top-3 text-slate-400" />
+                  <Mail className="w-4 h-4 absolute left-3 top-3 text-ink/70" />
                   <input
                     id="price-alert-email"
                     type="email"
@@ -229,32 +228,32 @@ export const PriceDropModal: React.FC<PriceDropModalProps> = ({
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="e.g. kwame@example.com"
-                    className="w-full bg-slate-900 border border-white/10 rounded-xl pl-9 pr-3 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-[#08D9D6] transition-colors"
+                    className="w-full bg-page border border-line rounded-xl pl-9 pr-3 py-2.5 text-xs text-ink placeholder-ink/50 focus:outline-none focus:border-interactive transition-colors"
                   />
                 </div>
               </div>
 
               {/* User Name Field (Optional) */}
               <div className="space-y-1">
-                <label htmlFor="price-alert-name" className="block text-xs font-semibold text-slate-300">
-                  Your Name <span className="text-[11px] text-slate-500 font-normal">(Optional)</span>
+                <label htmlFor="price-alert-name" className="block text-xs font-semibold text-ink/70">
+                  Your Name <span className="text-[11px] text-ink/70 font-normal">(Optional)</span>
                 </label>
                 <div className="relative">
-                  <User className="w-4 h-4 absolute left-3 top-3 text-slate-400" />
+                  <User className="w-4 h-4 absolute left-3 top-3 text-ink/70" />
                   <input
                     id="price-alert-name"
                     type="text"
                     value={userName}
                     onChange={(e) => setUserName(e.target.value)}
                     placeholder="e.g. Kwame Mensah"
-                    className="w-full bg-slate-900 border border-white/10 rounded-xl pl-9 pr-3 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-[#08D9D6] transition-colors"
+                    className="w-full bg-page border border-line rounded-xl pl-9 pr-3 py-2.5 text-xs text-ink placeholder-ink/50 focus:outline-none focus:border-interactive transition-colors"
                   />
                 </div>
               </div>
 
               {/* Alert Threshold Selector */}
               <div className="space-y-1.5">
-                <label className="block text-xs font-semibold text-slate-300">
+                <label className="block text-xs font-semibold text-ink/70">
                   When should we notify you?
                 </label>
                 <div className="grid grid-cols-2 gap-1.5 text-xs">
@@ -263,8 +262,8 @@ export const PriceDropModal: React.FC<PriceDropModalProps> = ({
                     onClick={() => setDropPreference('any')}
                     className={`py-2 px-2.5 rounded-xl text-left border transition-all cursor-pointer flex items-center justify-between ${
                       dropPreference === 'any'
-                        ? 'bg-[#08D9D6]/10 border-[#08D9D6] text-[#08D9D6] font-bold'
-                        : 'bg-slate-900/60 border-white/10 text-slate-300 hover:border-white/20'
+                        ? 'bg-interactive/10 border-interactive text-ink font-bold'
+                        : 'bg-surface border-line text-ink/70 hover:border-line'
                     }`}
                   >
                     <span>Any price drop</span>
@@ -276,12 +275,12 @@ export const PriceDropModal: React.FC<PriceDropModalProps> = ({
                     onClick={() => setDropPreference('5percent')}
                     className={`py-2 px-2.5 rounded-xl text-left border transition-all cursor-pointer flex flex-col justify-center ${
                       dropPreference === '5percent'
-                        ? 'bg-[#08D9D6]/10 border-[#08D9D6] text-[#08D9D6] font-bold'
-                        : 'bg-slate-900/60 border-white/10 text-slate-300 hover:border-white/20'
+                        ? 'bg-interactive/10 border-interactive text-ink font-bold'
+                        : 'bg-surface border-line text-ink/70 hover:border-line'
                     }`}
                   >
                     <span>5% or more</span>
-                    <span className="text-[10px] text-slate-400 font-normal">≤ GH₵ {rent5PercentDrop.toLocaleString()}</span>
+                    <span className="text-[10px] text-ink/70 font-normal">≤ GH₵ {rent5PercentDrop.toLocaleString()}</span>
                   </button>
 
                   <button
@@ -289,12 +288,12 @@ export const PriceDropModal: React.FC<PriceDropModalProps> = ({
                     onClick={() => setDropPreference('10percent')}
                     className={`py-2 px-2.5 rounded-xl text-left border transition-all cursor-pointer flex flex-col justify-center ${
                       dropPreference === '10percent'
-                        ? 'bg-[#08D9D6]/10 border-[#08D9D6] text-[#08D9D6] font-bold'
-                        : 'bg-slate-900/60 border-white/10 text-slate-300 hover:border-white/20'
+                        ? 'bg-interactive/10 border-interactive text-ink font-bold'
+                        : 'bg-surface border-line text-ink/70 hover:border-line'
                     }`}
                   >
                     <span>10% or more</span>
-                    <span className="text-[10px] text-slate-400 font-normal">≤ GH₵ {rent10PercentDrop.toLocaleString()}</span>
+                    <span className="text-[10px] text-ink/70 font-normal">≤ GH₵ {rent10PercentDrop.toLocaleString()}</span>
                   </button>
 
                   <button
@@ -302,8 +301,8 @@ export const PriceDropModal: React.FC<PriceDropModalProps> = ({
                     onClick={() => setDropPreference('custom')}
                     className={`py-2 px-2.5 rounded-xl text-left border transition-all cursor-pointer flex items-center justify-between ${
                       dropPreference === 'custom'
-                        ? 'bg-[#08D9D6]/10 border-[#08D9D6] text-[#08D9D6] font-bold'
-                        : 'bg-slate-900/60 border-white/10 text-slate-300 hover:border-white/20'
+                        ? 'bg-interactive/10 border-interactive text-ink font-bold'
+                        : 'bg-surface border-line text-ink/70 hover:border-line'
                     }`}
                   >
                     <span>Custom Target</span>
@@ -315,7 +314,7 @@ export const PriceDropModal: React.FC<PriceDropModalProps> = ({
                 {dropPreference === 'custom' && (
                   <div className="pt-1">
                     <div className="relative">
-                      <span className="absolute left-3 top-2.5 text-xs text-slate-400 font-bold">GH₵</span>
+                      <span className="absolute left-3 top-2.5 text-xs text-ink/70 font-bold">GH₵</span>
                       <input
                         type="number"
                         min={100}
@@ -323,10 +322,10 @@ export const PriceDropModal: React.FC<PriceDropModalProps> = ({
                         value={customTargetRent}
                         onChange={(e) => setCustomTargetRent(e.target.value ? Number(e.target.value) : '')}
                         placeholder={`Target rent (less than ${currentRent})`}
-                        className="w-full bg-slate-900 border border-[#08D9D6]/50 rounded-xl pl-11 pr-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-[#08D9D6]"
+                        className="w-full bg-page border border-interactive/50 rounded-xl pl-11 pr-3 py-2 text-xs text-ink placeholder-ink/50 focus:outline-none focus:border-interactive"
                       />
                     </div>
-                    <div className="text-[10px] text-slate-400 mt-1">
+                    <div className="text-[10px] text-ink/70 mt-1">
                       Notify me if rent drops to this amount or lower.
                     </div>
                   </div>
@@ -334,13 +333,13 @@ export const PriceDropModal: React.FC<PriceDropModalProps> = ({
               </div>
 
               {/* Intermediary Guarantee Note */}
-              <div className="flex items-center gap-2 p-2.5 rounded-xl bg-slate-900/50 border border-white/5 text-[11px] text-slate-400">
-                <ShieldCheck className="w-4 h-4 text-[#08D9D6] shrink-0" />
+              <div className="flex items-center gap-2 p-2.5 rounded-xl bg-surface border border-line text-[11px] text-ink/70">
+                <ShieldCheck className="w-4 h-4 text-ink shrink-0" />
                 <span>No spam. We only send notifications if this specific listing drops in price.</span>
               </div>
 
               {error && (
-                <div role="alert" className="p-3 rounded-xl bg-[#FF2E63]/15 border border-[#FF2E63]/30 text-[#FF8FA8] text-xs flex items-start gap-2">
+                <div role="alert" className="p-3 rounded-xl bg-accent/15 border border-accent/30 text-ink text-xs flex items-start gap-2">
                   <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
                   <span>{error}</span>
                 </div>
@@ -351,7 +350,7 @@ export const PriceDropModal: React.FC<PriceDropModalProps> = ({
                 id="price-drop-submit-btn"
                 type="submit"
                 disabled={isSubmitting || !email.trim()}
-                className="w-full py-3 rounded-xl bg-[#08D9D6] text-[#252A34] font-black text-xs hover:bg-[#08D9D6]/90 transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-[#08D9D6]/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="gl-btn gl-btn-primary w-full"
               >
                 {isSubmitting ? (
                   <span>Setting Alert...</span>

@@ -135,10 +135,10 @@ export const AgentDashboard: React.FC = () => {
 
   const toneClasses =
     statusCopy.tone === 'emerald'
-      ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+      ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-700'
       : statusCopy.tone === 'rose'
-        ? 'bg-[#FF2E63]/10 border-[#FF2E63]/30 text-[#FF8FA8]'
-        : 'bg-amber-500/10 border-amber-500/30 text-amber-300';
+        ? 'bg-accent/10 border-accent/30 text-ink'
+        : 'bg-amber-500/10 border-amber-500/30 text-amber-700';
 
   const navItems = dashboardNav('agent', { unreadNotifications });
 
@@ -189,27 +189,27 @@ export const AgentDashboard: React.FC = () => {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            <section className="lg:col-span-2 bg-[#252A34]/70 border border-white/10 rounded-2xl p-5 space-y-3">
+            <section className="lg:col-span-2 bg-surface border border-line rounded-2xl p-5 space-y-3">
               <div className="flex items-center gap-2">
-                <ShieldCheck className="w-4 h-4 text-[#08D9D6]" />
+                <ShieldCheck className="w-4 h-4 text-ink" />
                 <h2 className="text-sm font-bold">Account status</h2>
               </div>
               <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full border text-xs font-bold ${toneClasses}`}>
                 {status === 'active' ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Clock3 className="w-3.5 h-3.5" />}
                 {statusCopy.label}
               </span>
-              <p className="text-xs text-slate-400 leading-relaxed">{statusCopy.blurb}</p>
+              <p className="text-xs text-ink/70 leading-relaxed">{statusCopy.blurb}</p>
               {profile?.statusNote && (
-                <p className="text-[11px] text-slate-500">Note from Goodlucks: {profile.statusNote}</p>
+                <p className="text-[11px] text-ink/70">Note from Goodlucks: {profile.statusNote}</p>
               )}
             </section>
 
-            <section className="bg-[#252A34]/70 border border-white/10 rounded-2xl p-5 space-y-3">
+            <section className="bg-surface border border-line rounded-2xl p-5 space-y-3">
               <div className="flex items-center gap-2">
-                <ShieldAlert className="w-4 h-4 text-amber-300" />
+                <ShieldAlert className="w-4 h-4 text-amber-700" />
                 <h2 className="text-sm font-bold">Verification</h2>
               </div>
-              <ul className="space-y-2 text-xs text-slate-400">
+              <ul className="space-y-2 text-xs text-ink/70">
                 <li className="flex items-start gap-2">
                   <span className="mt-1 w-1.5 h-1.5 rounded-full bg-amber-300 shrink-0" />
                   Identity and professional authorisation are reviewed separately.
@@ -226,15 +226,15 @@ export const AgentDashboard: React.FC = () => {
               <button
                 type="button"
                 onClick={() => navigate('/agent/verification')}
-                className="text-[11px] font-bold text-[#08D9D6] hover:underline flex items-center gap-1"
+                className="text-[11px] font-bold text-ink hover:underline flex items-center gap-1"
               >
                 Open verification <ArrowRight className="w-3 h-3" />
               </button>
             </section>
           </div>
 
-          <section className="bg-[#252A34]/70 border border-white/10 rounded-2xl p-5 space-y-3">
-            <h2 className="text-xs font-extrabold uppercase tracking-wider text-[#08D9D6]">Sections</h2>
+          <section className="bg-surface border border-line rounded-2xl p-5 space-y-3">
+            <h2 className="text-xs font-extrabold uppercase tracking-wider text-ink">Sections</h2>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               {[
                 { label: 'Submitted listings', path: '/agent/properties', icon: Building2 },
@@ -248,9 +248,9 @@ export const AgentDashboard: React.FC = () => {
                   key={item.path}
                   type="button"
                   onClick={() => navigate(item.path)}
-                  className="px-3 py-2.5 rounded-xl bg-slate-900/70 border border-white/10 text-xs font-bold text-white hover:border-[#08D9D6]/40 transition-colors flex items-center gap-1.5 text-left"
+                  className="px-3 py-2.5 rounded-xl bg-surface border border-line text-xs font-bold text-ink hover:border-interactive/40 transition-colors flex items-center gap-1.5 text-left"
                 >
-                  <item.icon className="w-3.5 h-3.5 text-[#08D9D6] shrink-0" /> {item.label}
+                  <item.icon className="w-3.5 h-3.5 text-ink shrink-0" /> {item.label}
                 </button>
               ))}
             </div>
@@ -268,51 +268,51 @@ export const AgentDashboard: React.FC = () => {
 
           <AgentListingForm canSubmit={Boolean(profile?.canSubmitListings) && status === 'active'} />
 
-          <div className="bg-[#252A34]/70 border border-white/10 rounded-2xl p-5 space-y-4">
+          <div className="bg-surface border border-line rounded-2xl p-5 space-y-4">
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-2">
-                <Building2 className="w-4 h-4 text-[#08D9D6]" />
+                <Building2 className="w-4 h-4 text-ink" />
                 <h2 className="text-sm font-bold">Listings you submitted</h2>
               </div>
-              <span className="text-[11px] text-slate-500">{submissions.length} total</span>
+              <span className="text-[11px] text-ink/70">{submissions.length} total</span>
             </div>
 
             {submissions.length === 0 ? (
-              <div className="rounded-2xl border border-white/10 bg-slate-900/40 p-4 space-y-2">
-                <p className="text-xs text-slate-400">No submissions yet.</p>
-                <p className="text-[11px] text-slate-500 leading-snug flex items-start gap-1.5">
-                  <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0 text-amber-300" />
+              <div className="rounded-2xl border border-line bg-surface p-4 space-y-2">
+                <p className="text-xs text-ink/70">No submissions yet.</p>
+                <p className="text-[11px] text-ink/70 leading-snug flex items-start gap-1.5">
+                  <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0 text-amber-700" />
                   Use the submission form above. You name the landlord you act for; Goodlucks records that as your
                   declaration, not as proof of ownership, and staff review every listing before it goes live.
                 </p>
               </div>
             ) : (
-              <ul className="divide-y divide-white/5">
+              <ul className="divide-y divide-line">
                 {submissions.map((property) => (
                   <li key={property.id} className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                     <div className="min-w-0">
-                      <p className="text-xs font-bold text-white break-words">{property.title}</p>
-                      <p className="text-[11px] text-slate-400">
+                      <p className="text-xs font-bold text-ink break-words">{property.title}</p>
+                      <p className="text-[11px] text-ink/70">
                         {property.location}
                         {property.landlordName ? ` · owner: ${property.landlordName}` : ''}
                       </p>
                       {property.landlordAuthorityState === 'claimed_by_agent' && (
-                        <p className="text-[11px] text-amber-300/80">
+                        <p className="text-[11px] text-amber-700/80">
                           Your declaration only — landlord authority is unverified
                         </p>
                       )}
                       <AgentViewingTermsPanel property={property} onUpdated={refreshProperties} />
                     </div>
                     <div className="flex items-center gap-2 text-[11px] flex-wrap">
-                      <span className="px-2 py-0.5 rounded-md bg-slate-800 border border-white/10 text-slate-300 capitalize">
+                      <span className="px-2 py-0.5 rounded-md bg-surface border border-line text-ink/70 capitalize">
                         {property.status}
                       </span>
                       {property.isLandlordVerified ? (
-                        <span className="px-2 py-0.5 rounded-md bg-emerald-500/15 border border-emerald-500/30 text-emerald-300">
+                        <span className="px-2 py-0.5 rounded-md bg-emerald-500/15 border border-emerald-500/30 text-emerald-700">
                           Reviewed by Goodlucks
                         </span>
                       ) : (
-                        <span className="px-2 py-0.5 rounded-md bg-slate-800 border border-white/10 text-slate-400">
+                        <span className="px-2 py-0.5 rounded-md bg-surface border border-line text-ink/70">
                           Unverified
                         </span>
                       )}
@@ -335,11 +335,11 @@ export const AgentDashboard: React.FC = () => {
           {status === 'active' ? (
             <AgentViewingsPanel operational />
           ) : (
-            <div className="bg-slate-900/60 border border-white/10 rounded-2xl p-4 space-y-2">
-              <p className="text-sm font-bold text-white flex items-center gap-2">
-                <Clock3 className="w-4 h-4 text-amber-300" /> Viewing tools are closed
+            <div className="bg-surface border border-line rounded-2xl p-4 space-y-2">
+              <p className="text-sm font-bold text-ink flex items-center gap-2">
+                <Clock3 className="w-4 h-4 text-amber-700" /> Viewing tools are closed
               </p>
-              <p className="text-xs text-slate-400 leading-relaxed">
+              <p className="text-xs text-ink/70 leading-relaxed">
                 Your agent account is not approved yet, so viewing tools stay closed. Existing records are kept and
                 appear once the account is approved.
               </p>
@@ -374,21 +374,21 @@ export const AgentDashboard: React.FC = () => {
       {activeSection === 'status' && (
         <div className="space-y-4 animate-fadeIn">
           <SectionHeader title="Account status" description="What your account may currently do on Goodlucks Homes." />
-          <div className="bg-[#252A34]/70 border border-white/10 rounded-2xl p-5 space-y-3">
+          <div className="bg-surface border border-line rounded-2xl p-5 space-y-3">
             <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full border text-xs font-bold ${toneClasses}`}>
               {status === 'active' ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Clock3 className="w-3.5 h-3.5" />}
               {statusCopy.label}
             </span>
-            <p className="text-xs text-slate-400 leading-relaxed">{statusCopy.blurb}</p>
+            <p className="text-xs text-ink/70 leading-relaxed">{statusCopy.blurb}</p>
             {profile?.statusNote && (
-              <p className="text-[11px] text-slate-500">Note from Goodlucks: {profile.statusNote}</p>
+              <p className="text-[11px] text-ink/70">Note from Goodlucks: {profile.statusNote}</p>
             )}
             {profile?.reviewedAt && (
-              <p className="text-[11px] text-slate-500">
+              <p className="text-[11px] text-ink/70">
                 Last reviewed: {new Date(profile.reviewedAt).toLocaleDateString()}
               </p>
             )}
-            <div className="pt-2 border-t border-white/10 text-[11px] text-slate-400 space-y-1">
+            <div className="pt-2 border-t border-line text-[11px] text-ink/70 space-y-1">
               <p>Listing submissions: {profile?.canSubmitListings && status === 'active' ? 'open' : 'closed'}</p>
               <p>Viewing tools: {status === 'active' ? 'open' : 'closed'}</p>
             </div>
@@ -409,7 +409,7 @@ export const AgentDashboard: React.FC = () => {
               <button
                 type="button"
                 onClick={() => navigate('/agent/settings')}
-                className="px-3.5 py-2 rounded-xl bg-white/5 border border-white/10 text-xs font-bold text-slate-200 hover:text-white hover:bg-white/10 transition-colors"
+                className="px-3.5 py-2 rounded-xl bg-page border border-line text-xs font-bold text-ink hover:text-ink hover:bg-page transition-colors"
               >
                 Account settings
               </button>
@@ -419,17 +419,17 @@ export const AgentDashboard: React.FC = () => {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             <form
               onSubmit={handleSaveProfile}
-              className="lg:col-span-2 bg-[#252A34]/70 border border-white/10 rounded-2xl p-5 sm:p-6 space-y-4"
+              className="lg:col-span-2 bg-surface border border-line rounded-2xl p-5 sm:p-6 space-y-4"
             >
               <div className="flex items-center gap-2">
-                <MapPin className="w-4 h-4 text-[#08D9D6]" />
+                <MapPin className="w-4 h-4 text-ink" />
                 <h2 className="text-sm font-bold">Agent profile</h2>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <label htmlFor="agent-agency-name" className="block text-xs font-semibold text-slate-300">
-                    Agency / business name <span className="text-slate-500 font-normal">(optional)</span>
+                  <label htmlFor="agent-agency-name" className="block text-xs font-semibold text-ink/70">
+                    Agency / business name <span className="text-ink/70 font-normal">(optional)</span>
                   </label>
                   <input
                     id="agent-agency-name"
@@ -437,13 +437,13 @@ export const AgentDashboard: React.FC = () => {
                     value={agencyName}
                     onChange={(event) => setAgencyName(event.target.value)}
                     placeholder="e.g. Mensah Property Partners"
-                    className="w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-[#08D9D6]"
+                    className="w-full bg-page border border-line rounded-xl px-3 py-2.5 text-xs text-ink placeholder-ink/50 focus:outline-none focus:border-interactive"
                   />
                 </div>
 
                 <div className="space-y-1.5">
-                  <label htmlFor="agent-operating-city" className="block text-xs font-semibold text-slate-300">
-                    Operating city / base <span className="text-slate-500 font-normal">(where you work)</span>
+                  <label htmlFor="agent-operating-city" className="block text-xs font-semibold text-ink/70">
+                    Operating city / base <span className="text-ink/70 font-normal">(where you work)</span>
                   </label>
                   <input
                     id="agent-operating-city"
@@ -452,24 +452,24 @@ export const AgentDashboard: React.FC = () => {
                     value={operatingCity}
                     onChange={(event) => setOperatingCity(event.target.value)}
                     placeholder="e.g. Accra"
-                    className="w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-[#08D9D6]"
+                    className="w-full bg-page border border-line rounded-xl px-3 py-2.5 text-xs text-ink placeholder-ink/50 focus:outline-none focus:border-interactive"
                   />
-                  {cityError && <p className="text-[11px] text-[#FF8FA8]">{cityError}</p>}
+                  {cityError && <p className="text-[11px] text-ink">{cityError}</p>}
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs text-slate-400">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs text-ink/70">
                 <div>
-                  <span className="font-semibold text-slate-300">Contact email</span>
+                  <span className="font-semibold text-ink/70">Contact email</span>
                   <p className="mt-1 break-all">{currentUser?.email}</p>
                 </div>
                 <div>
-                  <span className="font-semibold text-slate-300">Contact phone</span>
+                  <span className="font-semibold text-ink/70">Contact phone</span>
                   <p className="mt-1">{currentUser?.phone || 'Not provided'}</p>
                 </div>
               </div>
 
-              <p className="text-[11px] text-slate-500 leading-snug flex items-start gap-1.5">
+              <p className="text-[11px] text-ink/70 leading-snug flex items-start gap-1.5">
                 <Info className="w-3.5 h-3.5 mt-0.5 shrink-0" />
                 Your operating base is where you work. It is not your home address and it is not a claim about the
                 areas you cover.
@@ -478,27 +478,27 @@ export const AgentDashboard: React.FC = () => {
               <button
                 type="submit"
                 disabled={isSaving}
-                className="px-5 py-2.5 rounded-xl bg-[#08D9D6] text-[#252A34] font-extrabold text-xs hover:bg-[#08D9D6]/90 transition-all disabled:opacity-60"
+                className="gl-btn gl-btn-primary px-5 py-2.5 text-xs"
               >
                 {isSaving ? 'Saving…' : 'Save agent profile'}
               </button>
             </form>
 
-            <div className="bg-[#252A34]/70 border border-white/10 rounded-2xl p-5 space-y-3">
+            <div className="bg-surface border border-line rounded-2xl p-5 space-y-3">
               <Avatar name={currentUser?.name} src={currentUser?.avatar} size="lg" />
               <div>
-                <p className="text-sm font-bold text-white truncate">{currentUser?.name}</p>
-                <p className="text-[11px] text-[#08D9D6] font-semibold">
+                <p className="text-sm font-bold text-ink truncate">{currentUser?.name}</p>
+                <p className="text-[11px] text-ink font-semibold">
                   {profile?.agencyName || 'Independent agent'}
                 </p>
               </div>
-              <p className="text-[11px] text-slate-400 leading-relaxed">
+              <p className="text-[11px] text-ink/70 leading-relaxed">
                 Your profile picture appears next to your name. Change it, or your password, in Account settings.
               </p>
               <button
                 type="button"
                 onClick={() => navigate('/agent/settings')}
-                className="w-full px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-xs font-bold text-slate-200 hover:text-white hover:bg-white/10 transition-colors"
+                className="w-full px-3 py-2 rounded-xl bg-page border border-line text-xs font-bold text-ink hover:text-ink hover:bg-page transition-colors"
               >
                 Open account settings
               </button>
@@ -518,7 +518,7 @@ export const AgentDashboard: React.FC = () => {
             <button
               type="button"
               onClick={() => navigate('/agent/dashboard')}
-              className="text-xs font-bold text-[#08D9D6] hover:underline"
+              className="text-xs font-bold text-ink hover:underline"
             >
               Back to overview
             </button>

@@ -36,13 +36,13 @@ const money = (value: number | null): string =>
   value === null ? '—' : `GH₵ ${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 const statusStyles: Record<FeePolicyStatusKind, string> = {
-  draft: 'bg-slate-500/20 text-slate-200 border-white/10',
-  pending_approval: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
-  approved: 'bg-sky-500/10 text-sky-300 border-sky-500/30',
-  active: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30',
-  rejected: 'bg-[#FF2E63]/15 text-[#FF8FA8] border-[#FF2E63]/30',
-  deactivated: 'bg-slate-600/20 text-slate-300 border-white/10',
-  expired: 'bg-[#FF2E63]/10 text-[#FF8FA8] border-[#FF2E63]/20',
+  draft: 'bg-line/20 text-ink border-line',
+  pending_approval: 'bg-amber-500/15 text-amber-700 border-amber-500/30',
+  approved: 'bg-sky-500/10 text-sky-700 border-sky-500/30',
+  active: 'bg-emerald-500/15 text-emerald-700 border-emerald-500/30',
+  rejected: 'bg-accent/15 text-ink border-accent/30',
+  deactivated: 'bg-line/20 text-ink/70 border-line',
+  expired: 'bg-accent/10 text-ink border-accent/20',
 };
 
 const emptyForm = (): FeePolicyInput => ({
@@ -80,7 +80,7 @@ const FeePolicyForm: React.FC<{
 
   return (
     <form
-      className="bg-slate-800/60 border border-white/10 rounded-2xl p-4 space-y-3"
+      className="bg-surface border border-line rounded-2xl p-4 space-y-3"
       onSubmit={(event) => {
         event.preventDefault();
         onSubmit({
@@ -94,34 +94,34 @@ const FeePolicyForm: React.FC<{
       }}
     >
       <div className="flex items-center justify-between">
-        <h4 className="text-xs font-bold text-white flex items-center gap-2">
+        <h4 className="text-xs font-bold text-ink flex items-center gap-2">
           {editing ? <Pencil className="w-3.5 h-3.5" /> : <PlusCircle className="w-3.5 h-3.5" />}
           {editing ? 'Edit draft policy' : 'Create a draft policy'}
         </h4>
-        <span className="text-[10px] text-slate-400">
+        <span className="text-[10px] text-ink/70">
           A draft is not approved, not active and applies to nothing.
         </span>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <label className="block text-[11px] font-semibold text-slate-300">
+        <label className="block text-[11px] font-semibold text-ink/70">
           Policy name
           <input
             required
             value={form.name}
             onChange={(e) => set('name', e.target.value)}
-            className="mt-1 w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-2 text-xs text-white"
+            className="mt-1 w-full bg-page border border-line rounded-xl px-3 py-2 text-xs text-ink"
             placeholder="e.g. Standard viewing fee share (from Jan 2027)"
           />
-          {errors.name && <span className="text-[10px] text-[#FF8FA8]">{errors.name}</span>}
+          {errors.name && <span className="text-[10px] text-ink">{errors.name}</span>}
         </label>
 
-        <label className="block text-[11px] font-semibold text-slate-300">
+        <label className="block text-[11px] font-semibold text-ink/70">
           Fee category
           <select
             value={form.category}
             onChange={(e) => set('category', e.target.value as FeePolicyInput['category'])}
-            className="mt-1 w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-2 text-xs text-white"
+            className="mt-1 w-full bg-page border border-line rounded-xl px-3 py-2 text-xs text-ink"
           >
             {categories.map((category) => (
               <option key={category.value} value={category.value}>
@@ -131,12 +131,12 @@ const FeePolicyForm: React.FC<{
           </select>
         </label>
 
-        <label className="block text-[11px] font-semibold text-slate-300">
+        <label className="block text-[11px] font-semibold text-ink/70">
           Agent tier
           <select
             value={form.agentTier}
             onChange={(e) => set('agentTier', e.target.value as FeePolicyInput['agentTier'])}
-            className="mt-1 w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-2 text-xs text-white"
+            className="mt-1 w-full bg-page border border-line rounded-xl px-3 py-2 text-xs text-ink"
           >
             {tiers.map((tier) => (
               <option key={tier.value} value={tier.value}>
@@ -144,15 +144,15 @@ const FeePolicyForm: React.FC<{
               </option>
             ))}
           </select>
-          {errors.agentTier && <span className="text-[10px] text-[#FF8FA8]">{errors.agentTier}</span>}
+          {errors.agentTier && <span className="text-[10px] text-ink">{errors.agentTier}</span>}
         </label>
 
-        <label className="block text-[11px] font-semibold text-slate-300">
+        <label className="block text-[11px] font-semibold text-ink/70">
           Calculation method
           <select
             value={form.calculationMethod}
             onChange={(e) => set('calculationMethod', e.target.value as 'percentage' | 'fixed')}
-            className="mt-1 w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-2 text-xs text-white"
+            className="mt-1 w-full bg-page border border-line rounded-xl px-3 py-2 text-xs text-ink"
           >
             <option value="percentage">Percentage of the fee</option>
             <option value="fixed">Fixed amounts</option>
@@ -161,7 +161,7 @@ const FeePolicyForm: React.FC<{
 
         {percentage ? (
           <>
-            <label className="block text-[11px] font-semibold text-slate-300">
+            <label className="block text-[11px] font-semibold text-ink/70">
               Agent share (%)
               <input
                 type="number"
@@ -170,11 +170,11 @@ const FeePolicyForm: React.FC<{
                 max="100"
                 value={form.agentSharePercent ?? 0}
                 onChange={(e) => set('agentSharePercent', Number(e.target.value))}
-                className="mt-1 w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-2 text-xs text-white"
+                className="mt-1 w-full bg-page border border-line rounded-xl px-3 py-2 text-xs text-ink"
               />
-              {errors.agentSharePercent && <span className="text-[10px] text-[#FF8FA8]">{errors.agentSharePercent}</span>}
+              {errors.agentSharePercent && <span className="text-[10px] text-ink">{errors.agentSharePercent}</span>}
             </label>
-            <label className="block text-[11px] font-semibold text-slate-300">
+            <label className="block text-[11px] font-semibold text-ink/70">
               Goodlucks share (%)
               <input
                 type="number"
@@ -183,19 +183,19 @@ const FeePolicyForm: React.FC<{
                 max="100"
                 value={form.goodlucksSharePercent ?? 0}
                 onChange={(e) => set('goodlucksSharePercent', Number(e.target.value))}
-                className="mt-1 w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-2 text-xs text-white"
+                className="mt-1 w-full bg-page border border-line rounded-xl px-3 py-2 text-xs text-ink"
               />
               {errors.goodlucksSharePercent && (
-                <span className="text-[10px] text-[#FF8FA8]">{errors.goodlucksSharePercent}</span>
+                <span className="text-[10px] text-ink">{errors.goodlucksSharePercent}</span>
               )}
             </label>
-            <p className="text-[10px] text-slate-400 sm:col-span-2">
+            <p className="text-[10px] text-ink/70 sm:col-span-2">
               The two shares must add up to exactly 100%. The server rejects anything else.
             </p>
           </>
         ) : (
           <>
-            <label className="block text-[11px] font-semibold text-slate-300">
+            <label className="block text-[11px] font-semibold text-ink/70">
               Agent entitlement (GH₵)
               <input
                 type="number"
@@ -203,13 +203,13 @@ const FeePolicyForm: React.FC<{
                 min="0"
                 value={form.agentShareFixedGhs ?? 0}
                 onChange={(e) => set('agentShareFixedGhs', Number(e.target.value))}
-                className="mt-1 w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-2 text-xs text-white"
+                className="mt-1 w-full bg-page border border-line rounded-xl px-3 py-2 text-xs text-ink"
               />
               {errors.agentShareFixedGhs && (
-                <span className="text-[10px] text-[#FF8FA8]">{errors.agentShareFixedGhs}</span>
+                <span className="text-[10px] text-ink">{errors.agentShareFixedGhs}</span>
               )}
             </label>
-            <label className="block text-[11px] font-semibold text-slate-300">
+            <label className="block text-[11px] font-semibold text-ink/70">
               Goodlucks entitlement (GH₵)
               <input
                 type="number"
@@ -217,45 +217,45 @@ const FeePolicyForm: React.FC<{
                 min="0"
                 value={form.goodlucksShareFixedGhs ?? 0}
                 onChange={(e) => set('goodlucksShareFixedGhs', Number(e.target.value))}
-                className="mt-1 w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-2 text-xs text-white"
+                className="mt-1 w-full bg-page border border-line rounded-xl px-3 py-2 text-xs text-ink"
               />
               {errors.goodlucksShareFixedGhs && (
-                <span className="text-[10px] text-[#FF8FA8]">{errors.goodlucksShareFixedGhs}</span>
+                <span className="text-[10px] text-ink">{errors.goodlucksShareFixedGhs}</span>
               )}
             </label>
           </>
         )}
 
-        <label className="block text-[11px] font-semibold text-slate-300">
+        <label className="block text-[11px] font-semibold text-ink/70">
           Effective from
           <input
             type="date"
             required
             value={form.effectiveFrom}
             onChange={(e) => set('effectiveFrom', e.target.value)}
-            className="mt-1 w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-2 text-xs text-white"
+            className="mt-1 w-full bg-page border border-line rounded-xl px-3 py-2 text-xs text-ink"
           />
-          {errors.effectiveFrom && <span className="text-[10px] text-[#FF8FA8]">{errors.effectiveFrom}</span>}
+          {errors.effectiveFrom && <span className="text-[10px] text-ink">{errors.effectiveFrom}</span>}
         </label>
 
-        <label className="block text-[11px] font-semibold text-slate-300">
+        <label className="block text-[11px] font-semibold text-ink/70">
           Effective to (optional)
           <input
             type="date"
             value={form.effectiveTo ?? ''}
             onChange={(e) => set('effectiveTo', e.target.value)}
-            className="mt-1 w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-2 text-xs text-white"
+            className="mt-1 w-full bg-page border border-line rounded-xl px-3 py-2 text-xs text-ink"
           />
-          {errors.effectiveTo && <span className="text-[10px] text-[#FF8FA8]">{errors.effectiveTo}</span>}
+          {errors.effectiveTo && <span className="text-[10px] text-ink">{errors.effectiveTo}</span>}
         </label>
 
-        <label className="block text-[11px] font-semibold text-slate-300 sm:col-span-2">
+        <label className="block text-[11px] font-semibold text-ink/70 sm:col-span-2">
           Description / notes for the approver
           <textarea
             rows={2}
             value={form.description ?? ''}
             onChange={(e) => set('description', e.target.value)}
-            className="mt-1 w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-2 text-xs text-white"
+            className="mt-1 w-full bg-page border border-line rounded-xl px-3 py-2 text-xs text-ink"
             placeholder="Why this policy exists, what it covers, and anything the approver should check."
           />
         </label>
@@ -265,14 +265,14 @@ const FeePolicyForm: React.FC<{
         <button
           type="submit"
           disabled={saving}
-          className="px-4 py-2 rounded-xl bg-[#08D9D6] text-[#252A34] text-xs font-extrabold disabled:opacity-50"
+          className="gl-btn gl-btn-primary px-4 py-2 text-xs"
         >
           {saving ? 'Saving…' : editing ? 'Save draft' : 'Save as draft'}
         </button>
         <button
           type="button"
           onClick={onCancel}
-          className="px-4 py-2 rounded-xl bg-white/10 text-white text-xs font-semibold"
+          className="px-4 py-2 rounded-xl bg-page text-ink text-xs font-semibold"
         >
           Cancel
         </button>
@@ -400,18 +400,18 @@ export const AdminFeePolicies: React.FC = () => {
 
   if (!canRead) {
     return (
-      <div className="bg-slate-800/60 border border-white/10 rounded-2xl p-6 space-y-3">
-        <h3 className="text-sm font-bold text-white flex items-center gap-2">
-          <Lock className="w-4 h-4 text-amber-300" /> Fee policies
+      <div className="bg-surface border border-line rounded-2xl p-6 space-y-3">
+        <h3 className="text-sm font-bold text-ink flex items-center gap-2">
+          <Lock className="w-4 h-4 text-amber-700" /> Fee policies
         </h3>
-        <p className="text-xs text-slate-400 max-w-2xl">
+        <p className="text-xs text-ink/70 max-w-2xl">
           Financial policy is not an administrator default. This account holds neither the fee-policy manager nor
           the approver capability, so the policies, their percentages and the approval actions stay closed.
         </p>
-        <p className="text-[11px] text-slate-500">
+        <p className="text-[11px] text-ink/70">
           A server administrator grants either capability with{' '}
-          <code className="text-[#08D9D6]">php php-backend/grant_finance.php --email=… --manage=1</code> (or{' '}
-          <code className="text-[#08D9D6]">--approve=1</code>). Every endpoint re-checks it.
+          <code className="text-ink">php php-backend/grant_finance.php --email=… --manage=1</code> (or{' '}
+          <code className="text-ink">--approve=1</code>). Every endpoint re-checks it.
         </p>
       </div>
     );
@@ -419,7 +419,7 @@ export const AdminFeePolicies: React.FC = () => {
 
   if (isLoading) {
     return (
-      <div className="bg-slate-800/60 p-6 rounded-2xl border border-white/10 flex items-center gap-3 text-xs text-slate-300">
+      <div className="bg-surface p-6 rounded-2xl border border-line flex items-center gap-3 text-xs text-ink/70">
         <Loader2 className="w-4 h-4 animate-spin" /> Loading fee policies…
       </div>
     );
@@ -427,7 +427,7 @@ export const AdminFeePolicies: React.FC = () => {
 
   if (error || !overview) {
     return (
-      <div className="bg-slate-800/60 p-6 rounded-2xl border border-[#FF2E63]/30 text-xs text-[#FF8FA8] flex items-center gap-2">
+      <div className="bg-surface p-6 rounded-2xl border border-accent/30 text-xs text-ink flex items-center gap-2">
         <AlertTriangle className="w-4 h-4" /> {error || 'Fee policies are unavailable.'}
       </div>
     );
@@ -437,10 +437,10 @@ export const AdminFeePolicies: React.FC = () => {
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
         <div>
-          <h3 className="text-sm font-bold text-white flex items-center gap-2">
-            <ClipboardList className="w-4 h-4 text-[#08D9D6]" /> Fee policies & agent tiers
+          <h3 className="text-sm font-bold text-ink flex items-center gap-2">
+            <ClipboardList className="w-4 h-4 text-ink" /> Fee policies & agent tiers
           </h3>
-          <p className="text-[11px] text-slate-400 max-w-2xl">
+          <p className="text-[11px] text-ink/70 max-w-2xl">
             Creating a policy, approving it and switching it on are three separate acts. Approval must come from a
             different administrator from the one who drafted it, and nothing is applied to a fee unless an authorised
             administrator applies it explicitly.
@@ -452,7 +452,7 @@ export const AdminFeePolicies: React.FC = () => {
               await refreshSession();
               await load();
             }}
-            className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-[11px] font-bold flex items-center gap-1.5"
+            className="px-3 py-1.5 rounded-lg bg-page hover:bg-line text-ink text-[11px] font-bold flex items-center gap-1.5"
           >
             <RefreshCw className="w-3.5 h-3.5" /> Refresh
           </button>
@@ -462,7 +462,7 @@ export const AdminFeePolicies: React.FC = () => {
                 setEditing(null);
                 setShowForm(true);
               }}
-              className="px-3 py-1.5 rounded-lg bg-[#08D9D6] text-[#252A34] text-[11px] font-extrabold flex items-center gap-1.5"
+              className="px-3 py-1.5 rounded-lg bg-interactive text-ink text-[11px] font-extrabold flex items-center gap-1.5"
             >
               <PlusCircle className="w-3.5 h-3.5" /> New draft
             </button>
@@ -472,24 +472,24 @@ export const AdminFeePolicies: React.FC = () => {
 
       {/* Proposals: labelled, inactive, never computed with. */}
       <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4 flex items-start gap-3">
-        <ShieldAlert className="w-5 h-5 text-amber-300 shrink-0 mt-0.5" />
-        <div className="text-[11px] text-amber-100 space-y-1">
+        <ShieldAlert className="w-5 h-5 text-amber-700 shrink-0 mt-0.5" />
+        <div className="text-[11px] text-amber-800 space-y-1">
           <p className="font-bold">Proposed arrangements — inactive</p>
-          <p className="text-amber-200/90">
+          <p className="text-amber-800/90">
             {overview.proposed
               .map((p) => `${p.label}: agent ${p.agentSharePercent}% / Goodlucks ${p.goodlucksSharePercent}%`)
               .join(' · ')}
           </p>
-          <p className="text-amber-200/70">
+          <p className="text-amber-800/70">
             These percentages are proposals only. They are never used in a calculation, they are not policies, and no
             record of them exists in the database. Only a policy you approve and activate below can price a fee.
           </p>
         </div>
       </div>
 
-      <div className="bg-slate-800/60 border border-white/10 rounded-2xl p-4 text-[11px] text-slate-300 space-y-1">
-        <p className="font-bold text-white flex items-center gap-2">
-          <ShieldCheck className="w-4 h-4 text-[#08D9D6]" /> Your capabilities
+      <div className="bg-surface border border-line rounded-2xl p-4 text-[11px] text-ink/70 space-y-1">
+        <p className="font-bold text-ink flex items-center gap-2">
+          <ShieldCheck className="w-4 h-4 text-ink" /> Your capabilities
         </p>
         <p>
           Create / edit: <span className="font-bold">{canManage ? 'yes' : 'no'}</span> · Approve / activate:{' '}
@@ -497,7 +497,7 @@ export const AdminFeePolicies: React.FC = () => {
           {canApprove && !canManage && ' — you can approve policies, but not draft them.'}
           {canManage && !canApprove && ' — you can draft policies, but not approve them.'}
         </p>
-        <p className="text-slate-400">
+        <p className="text-ink/70">
           Active policies: {overview.counts.active ?? 0} · awaiting approval: {overview.counts.pending_approval ?? 0} ·
           drafts: {overview.counts.draft ?? 0}
         </p>
@@ -522,42 +522,42 @@ export const AdminFeePolicies: React.FC = () => {
       )}
 
       {overview.policies.length === 0 ? (
-        <div className="bg-slate-800/60 p-6 rounded-2xl border border-white/10 text-xs text-slate-400">
+        <div className="bg-surface p-6 rounded-2xl border border-line text-xs text-ink/70">
           No fee policy exists. That is the shipped state: every fee is priced by an explicit agreement or not at all.
         </div>
       ) : (
         <div className="space-y-3">
           {overview.policies.map((policy) => (
-            <div key={policy.id} className="bg-slate-800/60 border border-white/10 rounded-2xl p-4 space-y-3">
+            <div key={policy.id} className="bg-surface border border-line rounded-2xl p-4 space-y-3">
               <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
                 <div>
                   <div className="flex items-center gap-2 flex-wrap">
-                    <h4 className="text-sm font-bold text-white">{policy.name}</h4>
+                    <h4 className="text-sm font-bold text-ink">{policy.name}</h4>
                     <span className={`px-2 py-0.5 rounded-full border text-[10px] font-bold ${statusStyles[policy.status]}`}>
                       {policy.statusLabel}
                     </span>
                     {policy.expired && (
-                      <span className="text-[10px] text-[#FF8FA8]">
+                      <span className="text-[10px] text-ink">
                         (stored decision: {policy.storedStatus.replace('_', ' ')})
                       </span>
                     )}
                   </div>
-                  <p className="text-[11px] text-slate-400 mt-1">
+                  <p className="text-[11px] text-ink/70 mt-1">
                     {policy.agentTierLabel} · {policy.categoryLabel} ·{' '}
                     {policy.calculationMethod === 'percentage'
                       ? `agent ${policy.agentSharePercent}% / Goodlucks ${policy.goodlucksSharePercent}%`
                       : `agent ${money(policy.agentShareFixedGhs)} / Goodlucks ${money(policy.goodlucksShareFixedGhs)}`}
                   </p>
-                  <p className="text-[10px] text-slate-500">
+                  <p className="text-[10px] text-ink/70">
                     Effective {policy.effectiveFrom || '—'}
                     {policy.effectiveTo ? ` → ${policy.effectiveTo}` : ' (no end date)'} · version {policy.version}
                     {policy.approved && policy.approvedAt ? ` · approved ${new Date(policy.approvedAt).toLocaleDateString()}` : ' · not approved'}
                   </p>
                   {policy.rejectionReason && (
-                    <p className="text-[10px] text-[#FF8FA8]">Rejected: {policy.rejectionReason}</p>
+                    <p className="text-[10px] text-ink">Rejected: {policy.rejectionReason}</p>
                   )}
                   {policy.deactivationReason && (
-                    <p className="text-[10px] text-slate-400">Deactivated: {policy.deactivationReason}</p>
+                    <p className="text-[10px] text-ink/70">Deactivated: {policy.deactivationReason}</p>
                   )}
                 </div>
 
@@ -569,14 +569,14 @@ export const AdminFeePolicies: React.FC = () => {
                           setEditing(policy);
                           setShowForm(false);
                         }}
-                        className="px-2.5 py-1 rounded-md bg-white/10 hover:bg-white/20 text-white text-[11px] flex items-center gap-1"
+                        className="px-2.5 py-1 rounded-md bg-page hover:bg-line text-ink text-[11px] flex items-center gap-1"
                       >
                         <Pencil className="w-3 h-3" /> Edit
                       </button>
                       <button
                         disabled={busyId === policy.id}
                         onClick={() => void runAction(policy, 'submit')}
-                        className="px-2.5 py-1 rounded-md bg-[#08D9D6]/15 text-[#08D9D6] hover:bg-[#08D9D6]/25 text-[11px] disabled:opacity-50 flex items-center gap-1"
+                        className="px-2.5 py-1 rounded-md bg-interactive/15 text-ink hover:bg-interactive/25 text-[11px] disabled:opacity-50 flex items-center gap-1"
                       >
                         <Send className="w-3 h-3" /> Submit for approval
                       </button>
@@ -587,14 +587,14 @@ export const AdminFeePolicies: React.FC = () => {
                       <button
                         disabled={busyId === policy.id}
                         onClick={() => void runAction(policy, 'approve')}
-                        className="px-2.5 py-1 rounded-md bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25 text-[11px] disabled:opacity-50 flex items-center gap-1"
+                        className="px-2.5 py-1 rounded-md bg-emerald-500/15 text-emerald-700 hover:bg-emerald-500/25 text-[11px] disabled:opacity-50 flex items-center gap-1"
                       >
                         <CheckCircle2 className="w-3 h-3" /> Approve
                       </button>
                       <button
                         disabled={busyId === policy.id}
                         onClick={() => void runAction(policy, 'reject')}
-                        className="px-2.5 py-1 rounded-md bg-[#FF2E63]/15 text-[#FF8FA8] hover:bg-[#FF2E63]/25 text-[11px] disabled:opacity-50 flex items-center gap-1"
+                        className="px-2.5 py-1 rounded-md bg-accent/15 text-ink hover:bg-accent/25 text-[11px] disabled:opacity-50 flex items-center gap-1"
                       >
                         <XCircle className="w-3 h-3" /> Reject
                       </button>
@@ -604,7 +604,7 @@ export const AdminFeePolicies: React.FC = () => {
                     <button
                       disabled={busyId === policy.id}
                       onClick={() => void runAction(policy, 'activate')}
-                      className="px-2.5 py-1 rounded-md bg-[#08D9D6] text-[#252A34] text-[11px] font-bold disabled:opacity-50 flex items-center gap-1"
+                      className="px-2.5 py-1 rounded-md bg-interactive text-ink text-[11px] font-bold disabled:opacity-50 flex items-center gap-1"
                       title="Activation is refused before the start date and while another policy overlaps."
                     >
                       <PlayCircle className="w-3 h-3" /> Activate
@@ -614,14 +614,14 @@ export const AdminFeePolicies: React.FC = () => {
                     <button
                       disabled={busyId === policy.id}
                       onClick={() => void runAction(policy, 'deactivate')}
-                      className="px-2.5 py-1 rounded-md bg-slate-700 text-slate-200 hover:bg-slate-600 text-[11px] disabled:opacity-50 flex items-center gap-1"
+                      className="px-2.5 py-1 rounded-md bg-line text-ink hover:bg-line text-[11px] disabled:opacity-50 flex items-center gap-1"
                     >
                       <StopCircle className="w-3 h-3" /> Deactivate
                     </button>
                   )}
                   <button
                     onClick={() => void openHistory(policy)}
-                    className="px-2.5 py-1 rounded-md bg-white/10 hover:bg-white/20 text-white text-[11px] flex items-center gap-1"
+                    className="px-2.5 py-1 rounded-md bg-page hover:bg-line text-ink text-[11px] flex items-center gap-1"
                   >
                     <History className="w-3 h-3" /> History
                   </button>
@@ -633,7 +633,7 @@ export const AdminFeePolicies: React.FC = () => {
                   value={note}
                   onChange={(e) => setNote(e.target.value)}
                   placeholder="Note for this action (required to approve, reject or deactivate)"
-                  className="w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-2 text-[11px] text-white"
+                  className="w-full bg-page border border-line rounded-xl px-3 py-2 text-[11px] text-ink"
                 />
               )}
             </div>
@@ -641,7 +641,7 @@ export const AdminFeePolicies: React.FC = () => {
         </div>
       )}
 
-      <p className="text-[10px] text-slate-500 flex items-start gap-1.5">
+      <p className="text-[10px] text-ink/70 flex items-start gap-1.5">
         <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
         Approving a policy does not move money and does not mark anything received. Applying a policy to a viewing fee
         freezes its terms in a snapshot; Goodlucks revenue is only recognised when a remittance is recorded in the
@@ -649,34 +649,34 @@ export const AdminFeePolicies: React.FC = () => {
       </p>
 
       {history && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm p-2 sm:p-6 overflow-y-auto">
-          <div className="max-w-2xl mx-auto bg-[#252A34] border border-white/10 rounded-3xl p-5 space-y-4 my-6">
+        <div className="fixed inset-0 z-50 bg-ink/60 backdrop-blur-sm p-2 sm:p-6 overflow-y-auto">
+          <div className="max-w-2xl mx-auto bg-surface border border-line rounded-2xl p-5 space-y-4 my-6">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h4 className="text-sm font-bold text-white">{history.policy.name} — history</h4>
-                <p className="text-[11px] text-slate-400">
+                <h4 className="text-sm font-bold text-ink">{history.policy.name} — history</h4>
+                <p className="text-[11px] text-ink/70">
                   Append-only. Approvals and activations cannot be erased.
                 </p>
               </div>
               <button
                 onClick={() => setHistory(null)}
-                className="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300 text-[11px] font-bold"
+                className="px-3 py-1.5 rounded-lg bg-surface text-ink/70 text-[11px] font-bold"
               >
                 Close
               </button>
             </div>
             <ul className="space-y-1.5">
               {history.events.map((event) => (
-                <li key={event.id} className="text-[11px] bg-slate-900/60 border border-white/10 rounded-lg px-3 py-2 text-slate-300">
-                  <span className="font-bold text-white">{event.action}</span>{' '}
-                  <span className="text-slate-400">
+                <li key={event.id} className="text-[11px] bg-surface border border-line rounded-lg px-3 py-2 text-ink/70">
+                  <span className="font-bold text-ink">{event.action}</span>{' '}
+                  <span className="text-ink/70">
                     {event.fromStatus} → {event.toStatus}
                   </span>
-                  <span className="text-slate-500">
+                  <span className="text-ink/70">
                     {' '}
                     · {event.actorName || 'system'} · {new Date(event.at).toLocaleString()}
                   </span>
-                  {event.note && <p className="text-slate-300 mt-1">{event.note}</p>}
+                  {event.note && <p className="text-ink/70 mt-1">{event.note}</p>}
                 </li>
               ))}
             </ul>

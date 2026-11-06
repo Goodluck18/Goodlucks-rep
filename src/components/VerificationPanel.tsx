@@ -40,15 +40,15 @@ const PROFESSIONAL_STATUS_COPY: Record<ProfessionalAuthorisationStatus, { label:
 const toneClass = (tone: string): string => {
   switch (tone) {
     case 'emerald':
-      return 'bg-emerald-500/15 border-emerald-500/30 text-emerald-300';
+      return 'bg-emerald-500/15 border-emerald-500/30 text-emerald-700';
     case 'amber':
-      return 'bg-amber-500/10 border-amber-500/30 text-amber-300';
+      return 'bg-amber-500/10 border-amber-500/30 text-amber-700';
     case 'rose':
-      return 'bg-[#FF2E63]/15 border-[#FF2E63]/30 text-[#FF8FA8]';
+      return 'bg-accent/15 border-accent/30 text-ink';
     case 'sky':
-      return 'bg-sky-500/10 border-sky-500/30 text-sky-300';
+      return 'bg-sky-500/10 border-sky-500/30 text-sky-700';
     default:
-      return 'bg-slate-800 border-white/10 text-slate-300';
+      return 'bg-surface border-line text-ink/70';
   }
 };
 
@@ -216,16 +216,16 @@ export const VerificationPanel: React.FC<{ scope: 'agent' | 'landlord'; classNam
 
   if (isLoading) {
     return (
-      <div className={`bg-[#252A34]/70 border border-white/10 rounded-3xl p-6 ${className}`}>
-        <p className="text-xs text-slate-400">Loading verification…</p>
+      <div className={`bg-surface border border-line rounded-2xl p-6 ${className}`}>
+        <p className="text-xs text-ink/70">Loading verification…</p>
       </div>
     );
   }
 
   if (!summary) {
     return (
-      <div className={`bg-[#252A34]/70 border border-white/10 rounded-3xl p-6 ${className}`}>
-        <p className="text-xs text-[#FF8FA8]">{error || 'Verification is unavailable right now.'}</p>
+      <div className={`bg-surface border border-line rounded-2xl p-6 ${className}`}>
+        <p className="text-xs text-ink">{error || 'Verification is unavailable right now.'}</p>
       </div>
     );
   }
@@ -245,19 +245,19 @@ export const VerificationPanel: React.FC<{ scope: 'agent' | 'landlord'; classNam
           role="status"
           className={`p-3 rounded-xl border text-xs flex items-start gap-2 ${
             error
-              ? 'bg-[#FF2E63]/15 border-[#FF2E63]/30 text-[#FF8FA8]'
-              : 'bg-[#08D9D6]/10 border-[#08D9D6]/30 text-slate-200'
+              ? 'bg-accent/15 border-accent/30 text-ink'
+              : 'bg-interactive/10 border-interactive/30 text-ink'
           }`}
         >
-          {error ? <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" /> : <Lock className="w-4 h-4 shrink-0 mt-0.5 text-[#08D9D6]" />}
+          {error ? <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" /> : <Lock className="w-4 h-4 shrink-0 mt-0.5 text-ink" />}
           <span className="flex-1">{error || notice}</span>
         </div>
       )}
 
       {scope === 'agent' && summary.agentTier && (
-        <div className="bg-[#252A34]/70 border border-white/10 rounded-3xl p-5 space-y-3">
-          <h2 className="text-sm font-bold text-white flex items-center gap-2">
-            <BadgeCheck className="w-4 h-4 text-[#08D9D6]" /> Your commission tier
+        <div className="bg-surface border border-line rounded-2xl p-5 space-y-3">
+          <h2 className="text-sm font-bold text-ink flex items-center gap-2">
+            <BadgeCheck className="w-4 h-4 text-ink" /> Your commission tier
           </h2>
 
           {/* Task 03: the two tiers and the exact percentage each one earns.
@@ -267,52 +267,52 @@ export const VerificationPanel: React.FC<{ scope: 'agent' | 'landlord'; classNam
             <div
               className={`rounded-2xl border p-3 space-y-1 ${
                 summary.agentTier.commissionTier === 'tier_a' || summary.agentTier.commissionTier === 'higher'
-                  ? 'bg-[#08D9D6]/10 border-[#08D9D6]/40'
-                  : 'bg-slate-900/60 border-white/10'
+                  ? 'bg-interactive/10 border-interactive/40'
+                  : 'bg-surface border-line'
               }`}
             >
-              <p className="text-[11px] font-bold text-white">
+              <p className="text-[11px] font-bold text-ink">
                 Tier A — Basic · {summary.agentTier.basicTierPercent ?? 60}% of an agreed commission
               </p>
-              <p className="text-[10px] text-slate-400">
+              <p className="text-[10px] text-ink/70">
                 Requires {summary.agentTier.basicTierRequires ?? 'an approved Ghana Card identity verification'}.
               </p>
-              <p className="text-[10px] text-slate-400">
+              <p className="text-[10px] text-ink/70">
                 Identity: {summary.agentTier.identityStatus.replace(/_/g, ' ')}
               </p>
             </div>
             <div
               className={`rounded-2xl border p-3 space-y-1 ${
                 summary.agentTier.commissionTier === 'higher'
-                  ? 'bg-[#08D9D6]/10 border-[#08D9D6]/40'
-                  : 'bg-slate-900/60 border-white/10'
+                  ? 'bg-interactive/10 border-interactive/40'
+                  : 'bg-surface border-line'
               }`}
             >
-              <p className="text-[11px] font-bold text-white">
+              <p className="text-[11px] font-bold text-ink">
                 Higher tier · {summary.agentTier.higherTierPercent ?? 70}% of an agreed commission
               </p>
-              <p className="text-[10px] text-slate-400">
+              <p className="text-[10px] text-ink/70">
                 Requires {summary.agentTier.higherTierRequires ?? 'an approved identity AND an approved professional authorisation'}.
               </p>
-              <p className="text-[10px] text-slate-400">
+              <p className="text-[10px] text-ink/70">
                 Professional authorisation: {summary.agentTier.professionalStatus.replace(/_/g, ' ')}
               </p>
             </div>
           </div>
 
-          <p className="text-xs text-white">
+          <p className="text-xs text-ink">
             Currently applied:{' '}
-            <span className="font-bold text-[#08D9D6]">
+            <span className="font-bold text-ink">
               {summary.agentTier.commissionTierLabel ?? summary.agentTier.tierLabel}
             </span>{' '}
             ·{' '}
-            <span className="font-bold text-[#08D9D6]">
+            <span className="font-bold text-ink">
               {summary.agentTier.commissionPercent ?? 0}% agent / {summary.agentTier.goodlucksPercent ?? 100}%
               Goodlucks
             </span>
           </p>
 
-          <ul className="text-[11px] text-slate-300 space-y-1">
+          <ul className="text-[11px] text-ink/70 space-y-1">
             <li>
               Standard agent: {summary.agentTier.eligibleStandard ? 'eligible' : 'not yet eligible'} · identity{' '}
               {summary.agentTier.identityStatus.replace(/_/g, ' ')}
@@ -324,7 +324,7 @@ export const VerificationPanel: React.FC<{ scope: 'agent' | 'landlord'; classNam
             </li>
           </ul>
 
-          <p className="text-[10px] text-slate-500 max-w-xl">
+          <p className="text-[10px] text-ink/70 max-w-xl">
             The percentage is worked out from the decisions on this page every time it is read, and it applies only to
             the agent&apos;s share of a commission that has been agreed for a transaction. Uploading a document never
             changes it — only a reviewer&apos;s approval does. It never applies to a viewing fee, and a commission that
@@ -335,14 +335,14 @@ export const VerificationPanel: React.FC<{ scope: 'agent' | 'landlord'; classNam
       )}
 
       {/* -------------------------------- Identity -------------------------------- */}
-      <div className="bg-[#252A34]/70 border border-white/10 rounded-3xl p-6 space-y-4">
+      <div className="bg-surface border border-line rounded-2xl p-6 space-y-4">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <h2 className="text-sm font-bold text-white flex items-center gap-2">
-              <BadgeCheck className="w-4 h-4 text-[#08D9D6]" />
+            <h2 className="text-sm font-bold text-ink flex items-center gap-2">
+              <BadgeCheck className="w-4 h-4 text-ink" />
               Identity verification
             </h2>
-            <p className="text-[11px] text-slate-400 mt-1 max-w-xl">
+            <p className="text-[11px] text-ink/70 mt-1 max-w-xl">
               {scope === 'agent'
                 ? 'A check that you are the person on the document. It is not a licence, and it says nothing about any property.'
                 : 'Optional for landlords. Identity is not proof that you own or may let any particular property.'}
@@ -352,30 +352,30 @@ export const VerificationPanel: React.FC<{ scope: 'agent' | 'landlord'; classNam
         </div>
 
         {identity.decisionNote && (
-          <p className="text-[11px] text-slate-300 bg-slate-900/60 border border-white/10 rounded-xl p-3">
-            <span className="font-bold text-slate-200">Reviewer note: </span>
+          <p className="text-[11px] text-ink/70 bg-surface border border-line rounded-xl p-3">
+            <span className="font-bold text-ink">Reviewer note: </span>
             {identity.decisionNote}
           </p>
         )}
 
         {identity.status !== 'not_submitted' && (
-          <dl className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] text-slate-400">
+          <dl className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] text-ink/70">
             <div>
-              <dt className="font-semibold text-slate-300">Submitted name</dt>
+              <dt className="font-semibold text-ink/70">Submitted name</dt>
               <dd>{identity.legalName || '—'}</dd>
             </div>
             <div>
-              <dt className="font-semibold text-slate-300">Document</dt>
+              <dt className="font-semibold text-ink/70">Document</dt>
               <dd>
                 {identity.documentTypeLabel} · {identity.documentNumberMasked || '—'}
               </dd>
             </div>
             <div>
-              <dt className="font-semibold text-slate-300">Submitted</dt>
+              <dt className="font-semibold text-ink/70">Submitted</dt>
               <dd>{identity.submittedAt ? new Date(identity.submittedAt).toLocaleString() : '—'}</dd>
             </div>
             <div>
-              <dt className="font-semibold text-slate-300">Last review</dt>
+              <dt className="font-semibold text-ink/70">Last review</dt>
               <dd>{identity.reviewedAt ? new Date(identity.reviewedAt).toLocaleDateString() : 'Not reviewed yet'}</dd>
             </div>
           </dl>
@@ -386,8 +386,8 @@ export const VerificationPanel: React.FC<{ scope: 'agent' | 'landlord'; classNam
             and for how long — and every sentence here is one the implementation
             actually supports (private storage, capability-gated access with an
             audit row, and the retention job). */}
-        <div className="text-[10px] text-slate-500 leading-snug flex items-start gap-1.5">
-          <ShieldAlert className="w-3.5 h-3.5 mt-0.5 shrink-0 text-amber-300" />
+        <div className="text-[10px] text-ink/70 leading-snug flex items-start gap-1.5">
+          <ShieldAlert className="w-3.5 h-3.5 mt-0.5 shrink-0 text-amber-700" />
           <span>
             Your documents are used only to check your identity and to administer your account. They are stored
             privately and are never shown on your public profile or on a listing. Only you and authorised reviewers can
@@ -402,18 +402,18 @@ export const VerificationPanel: React.FC<{ scope: 'agent' | 'landlord'; classNam
 
         {documentsForIdentity.length > 0 && (
           <div className="space-y-2">
-            <p className="text-[11px] font-semibold text-slate-300">Documents on file</p>
+            <p className="text-[11px] font-semibold text-ink/70">Documents on file</p>
             <ul className="space-y-1.5">
               {documentsForIdentity.map((doc) => (
-                <li key={doc.id} className="flex items-center justify-between gap-2 text-[11px] bg-slate-900/50 border border-white/10 rounded-lg px-3 py-2">
-                  <span className="flex items-center gap-2 text-slate-300">
-                    <FileText className="w-3.5 h-3.5 text-slate-400" />
+                <li key={doc.id} className="flex items-center justify-between gap-2 text-[11px] bg-surface border border-line rounded-lg px-3 py-2">
+                  <span className="flex items-center gap-2 text-ink/70">
+                    <FileText className="w-3.5 h-3.5 text-ink/70" />
                     {doc.kindLabel}
-                    <span className="text-slate-500">{Math.round(doc.bytes / 1024)} KB</span>
+                    <span className="text-ink/70">{Math.round(doc.bytes / 1024)} KB</span>
                   </span>
                   <span className="flex items-center gap-3">
                     {doc.downloadUrl && (
-                      <a href={doc.downloadUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-[#08D9D6] font-bold">
+                      <a href={doc.downloadUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-ink font-bold">
                         <Download className="w-3.5 h-3.5" /> Open
                       </a>
                     )}
@@ -422,7 +422,7 @@ export const VerificationPanel: React.FC<{ scope: 'agent' | 'landlord'; classNam
                         type="button"
                         onClick={() => void removeUploaded(doc, 'identity')}
                         disabled={busy}
-                        className="flex items-center gap-1 text-slate-400 hover:text-[#FF8FA8] disabled:opacity-50"
+                        className="flex items-center gap-1 text-ink/70 hover:text-ink disabled:opacity-50"
                       >
                         <Trash2 className="w-3.5 h-3.5" /> Remove
                       </button>
@@ -435,9 +435,9 @@ export const VerificationPanel: React.FC<{ scope: 'agent' | 'landlord'; classNam
         )}
 
         {identityCanSubmit && (
-          <form onSubmit={submitIdentity} className="space-y-3 border-t border-white/10 pt-4">
+          <form onSubmit={submitIdentity} className="space-y-3 border-t border-line pt-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <label className="block text-[11px] font-semibold text-slate-300">
+              <label className="block text-[11px] font-semibold text-ink/70">
                 Full legal name
                 <input
                   type="text"
@@ -445,17 +445,17 @@ export const VerificationPanel: React.FC<{ scope: 'agent' | 'landlord'; classNam
                   value={legalName}
                   onChange={(event) => setLegalName(event.target.value)}
                   placeholder="As printed on the document"
-                  className="mt-1 w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-[#08D9D6]"
+                  className="mt-1 w-full bg-page border border-line rounded-xl px-3 py-2 text-xs text-ink placeholder-ink/50 focus:outline-none focus:border-interactive"
                 />
-                {fieldErrors.legalName && <span className="text-[10px] text-[#FF8FA8]">{fieldErrors.legalName}</span>}
+                {fieldErrors.legalName && <span className="text-[10px] text-ink">{fieldErrors.legalName}</span>}
               </label>
 
-              <label className="block text-[11px] font-semibold text-slate-300">
+              <label className="block text-[11px] font-semibold text-ink/70">
                 Document type
                 <select
                   value={documentType}
                   onChange={(event) => setDocumentType(event.target.value)}
-                  className="mt-1 w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#08D9D6]"
+                  className="mt-1 w-full bg-page border border-line rounded-xl px-3 py-2 text-xs text-ink focus:outline-none focus:border-interactive"
                 >
                   {summary.documentTypes.map((type) => (
                     <option key={type.value} value={type.value}>
@@ -465,7 +465,7 @@ export const VerificationPanel: React.FC<{ scope: 'agent' | 'landlord'; classNam
                 </select>
               </label>
 
-              <label className="block text-[11px] font-semibold text-slate-300 sm:col-span-2">
+              <label className="block text-[11px] font-semibold text-ink/70 sm:col-span-2">
                 Document number
                 <input
                   type="text"
@@ -474,10 +474,10 @@ export const VerificationPanel: React.FC<{ scope: 'agent' | 'landlord'; classNam
                   value={documentNumber}
                   onChange={(event) => setDocumentNumber(event.target.value)}
                   placeholder="e.g. GHA-123456789-0"
-                  className="mt-1 w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-[#08D9D6]"
+                  className="mt-1 w-full bg-page border border-line rounded-xl px-3 py-2 text-xs text-ink placeholder-ink/50 focus:outline-none focus:border-interactive"
                 />
-                {fieldErrors.documentNumber && <span className="text-[10px] text-[#FF8FA8]">{fieldErrors.documentNumber}</span>}
-                <span className="block text-[10px] text-slate-500 mt-1">
+                {fieldErrors.documentNumber && <span className="text-[10px] text-ink">{fieldErrors.documentNumber}</span>}
+                <span className="block text-[10px] text-ink/70 mt-1">
                   Stored encrypted, never shown in full again — reviewers see a masked value unless they hold document access.
                 </span>
               </label>
@@ -485,7 +485,7 @@ export const VerificationPanel: React.FC<{ scope: 'agent' | 'landlord'; classNam
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block text-[11px] font-semibold text-slate-300">Front of document (PDF/JPG/PNG)</label>
+                <label className="block text-[11px] font-semibold text-ink/70">Front of document (PDF/JPG/PNG)</label>
                 <input
                   ref={frontInput}
                   type="file"
@@ -495,11 +495,11 @@ export const VerificationPanel: React.FC<{ scope: 'agent' | 'landlord'; classNam
                     if (file) void upload(file, 'document_front', 'identity');
                     if (frontInput.current) frontInput.current.value = '';
                   }}
-                  className="mt-1 block w-full text-[11px] text-slate-400 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-800 file:px-3 file:py-1.5 file:text-[11px] file:font-bold file:text-slate-200"
+                  className="mt-1 block w-full text-[11px] text-ink/70 file:mr-3 file:rounded-lg file:border-0 file:bg-page file:px-3 file:py-1.5 file:text-[11px] file:font-bold file:text-ink"
                 />
               </div>
               <div>
-                <label className="block text-[11px] font-semibold text-slate-300">Back of document (optional)</label>
+                <label className="block text-[11px] font-semibold text-ink/70">Back of document (optional)</label>
                 <input
                   ref={backInput}
                   type="file"
@@ -509,16 +509,16 @@ export const VerificationPanel: React.FC<{ scope: 'agent' | 'landlord'; classNam
                     if (file) void upload(file, 'document_back', 'identity');
                     if (backInput.current) backInput.current.value = '';
                   }}
-                  className="mt-1 block w-full text-[11px] text-slate-400 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-800 file:px-3 file:py-1.5 file:text-[11px] file:font-bold file:text-slate-200"
+                  className="mt-1 block w-full text-[11px] text-ink/70 file:mr-3 file:rounded-lg file:border-0 file:bg-page file:px-3 file:py-1.5 file:text-[11px] file:font-bold file:text-ink"
                 />
               </div>
             </div>
 
             {pendingDocs.length > 0 && (
-              <ul className="text-[11px] text-slate-400 space-y-1">
+              <ul className="text-[11px] text-ink/70 space-y-1">
                 {pendingDocs.map((doc) => (
                   <li key={doc.id} className="flex items-center gap-2">
-                    <Upload className="w-3 h-3 text-[#08D9D6]" />
+                    <Upload className="w-3 h-3 text-ink" />
                     {doc.kindLabel} uploaded — it will be attached when you submit.
                   </li>
                 ))}
@@ -528,7 +528,7 @@ export const VerificationPanel: React.FC<{ scope: 'agent' | 'landlord'; classNam
             <button
               type="submit"
               disabled={busy}
-              className="px-5 py-2.5 rounded-xl bg-[#08D9D6] text-[#252A34] font-extrabold text-xs disabled:opacity-60"
+              className="gl-btn gl-btn-primary px-5 py-2.5 text-xs"
             >
               {busy ? 'Submitting…' : 'Submit for review'}
             </button>
@@ -536,7 +536,7 @@ export const VerificationPanel: React.FC<{ scope: 'agent' | 'landlord'; classNam
         )}
 
         {identityLocked && (
-          <p className="text-[11px] text-emerald-300 flex items-center gap-1.5">
+          <p className="text-[11px] text-emerald-700 flex items-center gap-1.5">
             <Clock3 className="w-3.5 h-3.5" /> Verified. Contact Goodlucks if you need to change these details.
           </p>
         )}
@@ -544,14 +544,14 @@ export const VerificationPanel: React.FC<{ scope: 'agent' | 'landlord'; classNam
 
       {/* ---------------------------- Professional ---------------------------- */}
       {scope === 'agent' && professional && (
-        <div className="bg-[#252A34]/70 border border-white/10 rounded-3xl p-6 space-y-4">
+        <div className="bg-surface border border-line rounded-2xl p-6 space-y-4">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <h2 className="text-sm font-bold text-white flex items-center gap-2">
-                <FileText className="w-4 h-4 text-[#08D9D6]" />
+              <h2 className="text-sm font-bold text-ink flex items-center gap-2">
+                <FileText className="w-4 h-4 text-ink" />
                 Professional authorisation
               </h2>
-              <p className="text-[11px] text-slate-400 mt-1 max-w-xl">
+              <p className="text-[11px] text-ink/70 mt-1 max-w-xl">
                 Separate from identity. Submitting a number does not make you licensed: Goodlucks does not check any
                 regulator's register, and a reviewer decides from the documents you provide.
               </p>
@@ -560,28 +560,28 @@ export const VerificationPanel: React.FC<{ scope: 'agent' | 'landlord'; classNam
           </div>
 
           {professional.decisionNote && (
-            <p className="text-[11px] text-slate-300 bg-slate-900/60 border border-white/10 rounded-xl p-3">
-              <span className="font-bold text-slate-200">Reviewer note: </span>
+            <p className="text-[11px] text-ink/70 bg-surface border border-line rounded-xl p-3">
+              <span className="font-bold text-ink">Reviewer note: </span>
               {professional.decisionNote}
             </p>
           )}
 
           {professional.status !== 'not_submitted' && (
-            <dl className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] text-slate-400">
+            <dl className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] text-ink/70">
               <div>
-                <dt className="font-semibold text-slate-300">Licence / registration number</dt>
+                <dt className="font-semibold text-ink/70">Licence / registration number</dt>
                 <dd>{professional.licenceNumber || professional.licenceNumberMasked || '—'}</dd>
               </div>
               <div>
-                <dt className="font-semibold text-slate-300">Issuing authority</dt>
+                <dt className="font-semibold text-ink/70">Issuing authority</dt>
                 <dd>{professional.issuingAuthority || '—'}</dd>
               </div>
               <div>
-                <dt className="font-semibold text-slate-300">Category</dt>
+                <dt className="font-semibold text-ink/70">Category</dt>
                 <dd>{professional.licenceCategory || '—'}</dd>
               </div>
               <div>
-                <dt className="font-semibold text-slate-300">Valid until</dt>
+                <dt className="font-semibold text-ink/70">Valid until</dt>
                 <dd>{professional.expiryDate || 'Not stated'}</dd>
               </div>
             </dl>
@@ -590,14 +590,14 @@ export const VerificationPanel: React.FC<{ scope: 'agent' | 'landlord'; classNam
           {(professional.documents?.length ?? 0) > 0 && (
             <ul className="space-y-1.5">
               {professional.documents.map((doc) => (
-                <li key={doc.id} className="flex items-center justify-between gap-2 text-[11px] bg-slate-900/50 border border-white/10 rounded-lg px-3 py-2">
-                  <span className="flex items-center gap-2 text-slate-300">
-                    <FileText className="w-3.5 h-3.5 text-slate-400" />
+                <li key={doc.id} className="flex items-center justify-between gap-2 text-[11px] bg-surface border border-line rounded-lg px-3 py-2">
+                  <span className="flex items-center gap-2 text-ink/70">
+                    <FileText className="w-3.5 h-3.5 text-ink/70" />
                     {doc.kindLabel}
                   </span>
                   <span className="flex items-center gap-3">
                     {doc.downloadUrl && (
-                      <a href={doc.downloadUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-[#08D9D6] font-bold">
+                      <a href={doc.downloadUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-ink font-bold">
                         <Download className="w-3.5 h-3.5" /> Open
                       </a>
                     )}
@@ -606,7 +606,7 @@ export const VerificationPanel: React.FC<{ scope: 'agent' | 'landlord'; classNam
                         type="button"
                         onClick={() => void removeUploaded(doc, 'professional')}
                         disabled={busy}
-                        className="flex items-center gap-1 text-slate-400 hover:text-[#FF8FA8] disabled:opacity-50"
+                        className="flex items-center gap-1 text-ink/70 hover:text-ink disabled:opacity-50"
                       >
                         <Trash2 className="w-3.5 h-3.5" /> Remove
                       </button>
@@ -618,20 +618,20 @@ export const VerificationPanel: React.FC<{ scope: 'agent' | 'landlord'; classNam
           )}
 
           {professionalCanSubmit && (
-            <form onSubmit={submitProfessional} className="space-y-3 border-t border-white/10 pt-4">
+            <form onSubmit={submitProfessional} className="space-y-3 border-t border-line pt-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <label className="block text-[11px] font-semibold text-slate-300">
+                <label className="block text-[11px] font-semibold text-ink/70">
                   Licence / registration number
                   <input
                     type="text"
                     required
                     value={licenceNumber}
                     onChange={(event) => setLicenceNumber(event.target.value)}
-                    className="mt-1 w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#08D9D6]"
+                    className="mt-1 w-full bg-page border border-line rounded-xl px-3 py-2 text-xs text-ink focus:outline-none focus:border-interactive"
                   />
-                  {fieldErrors.licenceNumber && <span className="text-[10px] text-[#FF8FA8]">{fieldErrors.licenceNumber}</span>}
+                  {fieldErrors.licenceNumber && <span className="text-[10px] text-ink">{fieldErrors.licenceNumber}</span>}
                 </label>
-                <label className="block text-[11px] font-semibold text-slate-300">
+                <label className="block text-[11px] font-semibold text-ink/70">
                   Issuing authority
                   <input
                     type="text"
@@ -639,40 +639,40 @@ export const VerificationPanel: React.FC<{ scope: 'agent' | 'landlord'; classNam
                     value={issuingAuthority}
                     onChange={(event) => setIssuingAuthority(event.target.value)}
                     placeholder="The body that issued it"
-                    className="mt-1 w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-[#08D9D6]"
+                    className="mt-1 w-full bg-page border border-line rounded-xl px-3 py-2 text-xs text-ink placeholder-ink/50 focus:outline-none focus:border-interactive"
                   />
-                  {fieldErrors.issuingAuthority && <span className="text-[10px] text-[#FF8FA8]">{fieldErrors.issuingAuthority}</span>}
+                  {fieldErrors.issuingAuthority && <span className="text-[10px] text-ink">{fieldErrors.issuingAuthority}</span>}
                 </label>
-                <label className="block text-[11px] font-semibold text-slate-300">
+                <label className="block text-[11px] font-semibold text-ink/70">
                   Category (optional)
                   <input
                     type="text"
                     value={licenceCategory}
                     onChange={(event) => setLicenceCategory(event.target.value)}
-                    className="mt-1 w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#08D9D6]"
+                    className="mt-1 w-full bg-page border border-line rounded-xl px-3 py-2 text-xs text-ink focus:outline-none focus:border-interactive"
                   />
                 </label>
-                <label className="block text-[11px] font-semibold text-slate-300">
+                <label className="block text-[11px] font-semibold text-ink/70">
                   Issue date (optional)
                   <input
                     type="date"
                     value={issueDate}
                     onChange={(event) => setIssueDate(event.target.value)}
-                    className="mt-1 w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#08D9D6]"
+                    className="mt-1 w-full bg-page border border-line rounded-xl px-3 py-2 text-xs text-ink focus:outline-none focus:border-interactive"
                   />
                 </label>
-                <label className="block text-[11px] font-semibold text-slate-300">
+                <label className="block text-[11px] font-semibold text-ink/70">
                   Expiry date (optional)
                   <input
                     type="date"
                     value={expiryDate}
                     onChange={(event) => setExpiryDate(event.target.value)}
-                    className="mt-1 w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#08D9D6]"
+                    className="mt-1 w-full bg-page border border-line rounded-xl px-3 py-2 text-xs text-ink focus:outline-none focus:border-interactive"
                   />
-                  {fieldErrors.expiryDate && <span className="text-[10px] text-[#FF8FA8]">{fieldErrors.expiryDate}</span>}
+                  {fieldErrors.expiryDate && <span className="text-[10px] text-ink">{fieldErrors.expiryDate}</span>}
                 </label>
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-300">Certificate (PDF/JPG/PNG)</label>
+                  <label className="block text-[11px] font-semibold text-ink/70">Certificate (PDF/JPG/PNG)</label>
                   <input
                     ref={licenceInput}
                     type="file"
@@ -682,7 +682,7 @@ export const VerificationPanel: React.FC<{ scope: 'agent' | 'landlord'; classNam
                       if (file) void upload(file, 'licence', 'professional');
                       if (licenceInput.current) licenceInput.current.value = '';
                     }}
-                    className="mt-1 block w-full text-[11px] text-slate-400 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-800 file:px-3 file:py-1.5 file:text-[11px] file:font-bold file:text-slate-200"
+                    className="mt-1 block w-full text-[11px] text-ink/70 file:mr-3 file:rounded-lg file:border-0 file:bg-page file:px-3 file:py-1.5 file:text-[11px] file:font-bold file:text-ink"
                   />
                 </div>
               </div>
@@ -690,7 +690,7 @@ export const VerificationPanel: React.FC<{ scope: 'agent' | 'landlord'; classNam
               <button
                 type="submit"
                 disabled={busy}
-                className="px-5 py-2.5 rounded-xl bg-[#08D9D6] text-[#252A34] font-extrabold text-xs disabled:opacity-60"
+                className="gl-btn gl-btn-primary px-5 py-2.5 text-xs"
               >
                 {busy ? 'Submitting…' : 'Submit authorisation'}
               </button>
