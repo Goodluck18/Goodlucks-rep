@@ -24,20 +24,42 @@ declare(strict_types=1);
  * Social profile URLs and the logo image are optional deployment settings.
  * When an image URL is unavailable, the accessible text wordmark is used.
  */
-function email_social_icon(string $label, string $mark, string $url, string $background): string
+function email_social_icon(string $label, string $url, string $asset): string
 {
-    $icon = '<span style="display:inline-block;width:30px;height:30px;line-height:30px;'
-        . 'border-radius:50%;background:' . e($background) . ';color:#FFFFFF;'
-        . 'font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:bold;'
-        . 'text-align:center;">' . e($mark) . '</span>';
-
-    if ($url === '') {
-        return '<span aria-label="' . e($label) . '" title="' . e($label) . '" '
-            . 'style="display:inline-block;margin:0 5px;">' . $icon . '</span>';
+    // Use real PNG logo files from the established Icons8 image CDN. PNG images
+    // are much more consistently supported by email clients than icon fonts,
+    // Unicode glyphs, CSS drawings or inline SVG.
+    $iconUrls = [
+        'facebook' => 'https://img.icons8.com/ios-filled/50/FFFFFF/facebook-new.png',
+        'instagram' => 'https://img.icons8.com/ios-filled/50/FFFFFF/instagram-new.png',
+        'tiktok' => 'https://img.icons8.com/ios-filled/50/FFFFFF/tiktok.png',
+        'x' => 'https://img.icons8.com/ios-filled/50/FFFFFF/x.png',
+        'linkedin' => 'https://img.icons8.com/ios-filled/50/FFFFFF/linkedin.png',
+    ];
+    $src = $iconUrls[$asset] ?? '';
+    if ($src === '') {
+        return '';
     }
 
-    return '<a href="' . e($url) . '" aria-label="' . e($label) . '" title="' . e($label) . '" '
-        . 'style="display:inline-block;margin:0 5px;text-decoration:none;">' . $icon . '</a>';
+    $image = '<img src="' . e($src) . '" alt="' . e($label) . '" width="22" height="22" '
+        . 'style="display:inline-block;width:22px;height:22px;border:0;outline:none;'
+        . 'text-decoration:none;vertical-align:middle;" />';
+
+    // Keep the icon centred in a fixed-size circular target. Table cells and
+    // inline styles are intentionally used for Gmail/Outlook compatibility.
+    $content = '<table role="presentation" cellpadding="0" cellspacing="0" border="0" '
+        . 'width="38" height="38" style="width:38px;height:38px;border-collapse:collapse;'
+        . 'background-color:#252A34;border-radius:50%;"><tr><td width="38" height="38" '
+        . 'align="center" valign="middle" style="width:38px;height:38px;text-align:center;'
+        . 'vertical-align:middle;">' . $image . '</td></tr></table>';
+
+    if ($url === '') {
+        return '<td align="center" valign="middle" style="padding:0 5px;">' . $content . '</td>';
+    }
+
+    return '<td align="center" valign="middle" style="padding:0 5px;">'
+        . '<a href="' . e($url) . '" aria-label="' . e($label) . '" title="' . e($label) . '" '
+        . 'style="display:block;text-decoration:none;border:0;">' . $content . '</a></td>';
 }
 
 function email_html_template(string $title, string $bodyHtml, string $reference = ''): string
@@ -69,11 +91,14 @@ function email_html_template(string $title, string $bodyHtml, string $reference 
             . 'font-weight:bold;text-align:center;color:#252A34;">Goodlucks'
             . '<span style="color:#FF2E63;"> Homes</span></div>';
 
-    $socialHtml = email_social_icon('Facebook', 'f', trim((string)cfg('SOCIAL_FACEBOOK_URL', '')), '#252A34')
-        . email_social_icon('Instagram', '◎', trim((string)cfg('SOCIAL_INSTAGRAM_URL', '')), '#FF2E63')
-        . email_social_icon('TikTok', '♪', trim((string)cfg('SOCIAL_TIKTOK_URL', '')), '#252A34')
-        . email_social_icon('X', 'X', trim((string)cfg('SOCIAL_X_URL', '')), '#252A34')
-        . email_social_icon('LinkedIn', 'in', trim((string)cfg('SOCIAL_LINKEDIN_URL', '')), '#252A34');
+    $socialHtml = '<table role="presentation" align="center" cellpadding="0" cellspacing="0" border="0" '
+        . 'style="margin:0 auto;border-collapse:collapse;"><tr>'
+        . email_social_icon('Facebook', trim((string)cfg('SOCIAL_FACEBOOK_URL', '')), 'facebook')
+        . email_social_icon('Instagram', trim((string)cfg('SOCIAL_INSTAGRAM_URL', '')), 'instagram')
+        . email_social_icon('TikTok', trim((string)cfg('SOCIAL_TIKTOK_URL', '')), 'tiktok')
+        . email_social_icon('X', trim((string)cfg('SOCIAL_X_URL', '')), 'x')
+        . email_social_icon('LinkedIn', trim((string)cfg('SOCIAL_LINKEDIN_URL', '')), 'linkedin')
+        . '</tr></table>';
 
     $phone = trim((string)OFFICIAL_PHONE);
     $displayPhone = preg_match('/^\\+233(\\d{2})(\\d{3})(\\d{4})$/', $phone, $phoneParts)
