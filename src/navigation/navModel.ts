@@ -154,8 +154,13 @@ export function activeItemId<T extends { id: string; path: string; activeFor?: s
 /**
  * Visitors keep every useful public page. The bottom bar carries the three
  * things a visitor actually does (home, browse, find a home) plus sign-in; the
- * hamburger carries the pages *behind* those (list a property, receipt check,
- * about, contact) so the two surfaces never repeat one another.
+ * hamburger carries the pages *behind* those (list a property, about, contact)
+ * so the two surfaces never repeat one another.
+ *
+ * Receipts are deliberately absent (Correction 2): payment records are private
+ * account business, reachable only from a signed-in member's own dashboard. A
+ * visitor cannot discover them here and cannot open `/receipts` either — the
+ * route guard sends a guest to sign in, and `/api/receipts` answers 401.
  */
 const GUEST_NAV: RoleNav = {
   desktop: [
@@ -163,7 +168,6 @@ const GUEST_NAV: RoleNav = {
     { id: 'browse', label: 'Browse Properties', path: PUBLIC.browse, activeFor: [PUBLIC.browse, '/property/'], icon: Search },
     { id: 'find-home', label: 'Find a Home', path: PUBLIC.findHome, icon: Compass },
     { id: 'list-property', label: 'List Property', path: PUBLIC.listProperty, icon: PlusCircle },
-    { id: 'receipts', label: 'Receipts', path: PUBLIC.receipts, icon: ReceiptText },
     { id: 'about', label: 'About', path: PUBLIC.about, icon: Info },
     { id: 'blog', label: 'Learning Centre', path: PUBLIC.blog, icon: BookOpen },
     { id: 'contact', label: 'Contact', path: PUBLIC.contact, icon: Mail },
@@ -176,7 +180,6 @@ const GUEST_NAV: RoleNav = {
   ],
   menu: [
     { id: 'list-property', label: 'List Property', path: PUBLIC.listProperty, icon: PlusCircle },
-    { id: 'receipts', label: 'Receipts', path: PUBLIC.receipts, icon: ReceiptText },
     { id: 'blog', label: 'Learning Centre', path: PUBLIC.blog, icon: BookOpen },
     { id: 'about', label: 'About', path: PUBLIC.about, icon: Info },
     { id: 'contact', label: 'Contact', path: PUBLIC.contact, icon: Mail },

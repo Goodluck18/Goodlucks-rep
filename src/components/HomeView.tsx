@@ -4,6 +4,7 @@ import { PropertyCard } from './PropertyCard';
 import { ViewingRequestModal } from './ViewingRequestModal';
 import { GetNotifiedModal } from './GetNotifiedModal';
 import { SEOHead } from './SEOHead';
+import { SITE_ORIGIN } from '../config/site';
 import { Property } from '../types';
 import { 
   Search, 
@@ -35,7 +36,7 @@ export const HomeView: React.FC = () => {
     "@context": "https://schema.org",
     "@type": "Organization",
     "name": "Goodlucks Homes",
-    "url": typeof window !== 'undefined' ? window.location.origin : "https://rent.goodlucks.co",
+    "url": `${SITE_ORIGIN}/`,
     "logo": "https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=800&q=80",
     "description": "Property discovery and rental intermediary connecting tenants with landlords and agents in Greater Accra, Ghana.",
     "address": {

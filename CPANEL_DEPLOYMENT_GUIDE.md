@@ -145,6 +145,35 @@ used for local/Node hosting and is **not** uploaded to cPanel. Upload:
 Keep `index.html` and `assets/` at the same level; the HTML requests
 `/assets/…` with a hashed name, so it is safe to cache them for a year.
 
+### 5.1 Property pages and link previews
+
+`dist/.htaccess` already routes `/property/<slug>` to `api/property_page.php`
+(the same file ships inside `php-backend/`, so nothing extra to upload). That
+script reads the listing, puts its title, price, location, first photo and
+canonical URL into the **initial HTML response**, and then lets the React app
+render the page for human visitors — so WhatsApp, Facebook, X, LinkedIn, Slack
+and search crawlers see the real listing instead of the generic site card.
+
+Every URL in that output is built from `APP_URL` in `api/.env`:
+
+* testing domain → `APP_URL=https://goodlucks.net`
+* permanent domain → `APP_URL=https://rent.goodlucks.co`
+
+Change that one value (and `VITE_SITE_URL` only if you rebuild the frontend for
+a different domain) and the property URLs, share cards, canonical tags and
+`sitemap.xml` all follow it. Nothing about the domain strategy is hardcoded.
+
+Check it after deploying (no JavaScript needed — `curl` shows what a crawler
+sees):
+
+```bash
+curl -s https://<site>/api/properties?limit=1 | jq -r '.properties[0].path'   # /property/<title>-<location>-<id>
+curl -s -o /dev/null -w "%{http_code} %{redirect_url}\n" https://<site>/property/prop-1   # 301 -> canonical slug
+curl -s "https://<site>$(curl -s https://<site>/api/properties?limit=1 | jq -r '.properties[0].path')" \
+  | grep -E 'og:(title|image|url)|rel="canonical"'                          # listing's own values
+curl -s https://<site>/sitemap.xml | grep -c '<loc>'                        # canonical URLs only
+```
+
 ---
 
 ## 6. Step 4 — Upload the API
@@ -289,6 +318,9 @@ Local data lives in `.data/dev.sqlite` (git-ignored) and is seeded from
 
 | Symptom | Cause / fix |
 | --- | --- |
+| `/property/<slug>` shows the generic site card when shared | `public_html/.htaccess` is missing rule `2c` (or `mod_rewrite` is off), so Apache served `index.html` directly. Re-upload `public/.htaccess`. |
+| Property share card points at the wrong domain | `APP_URL` in `api/.env` still names the other domain. Fix it; no rebuild is needed for server-rendered pages. |
+| `/property/…` returns 404 for a listing that exists | The listing is not `published` (or was removed) — that is deliberate, and the response carries `noindex` so it cannot be indexed. |
 | `/api/health` returns HTML | `public_html/api/.htaccess` missing or `mod_rewrite` off — the SPA fallback caught the request. |
 | `500` on every API call | PHP 8.0 or missing `pdo_mysql`; check `api/logs/php-error.log`. |
 | `500` mentioning `php_flag` | Host runs PHP-FPM; the shipped `.htaccess` already wraps `php_flag` in `<IfModule mod_php.c>`. |

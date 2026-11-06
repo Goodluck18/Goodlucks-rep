@@ -94,8 +94,26 @@ test('/property/:id exposes the id and keeps its canonical path', () => {
   assert.equal(route.path, '/property/abc-123');
 });
 
-test('unusable property ids fall through to not-found instead of a broken page', () => {
-  for (const url of ['/property/', '/property/abc/extra', '/property/' + 'x'.repeat(80), '/property/a b']) {
+test('a descriptive property URL parses as the same route as its bare id', () => {
+  // Correction 4: the id stays the identifier; the words in front are decoration.
+  const slugRoute = parseLocation('/property/3-bedroom-apartment-east-legon-prop-1');
+  assert.equal(slugRoute.name, 'property-detail');
+  assert.equal(slugRoute.params.id, '3-bedroom-apartment-east-legon-prop-1');
+  assert.equal(slugRoute.isKnown, true);
+  assert.equal(slugRoute.path, '/property/3-bedroom-apartment-east-legon-prop-1');
+
+  // Query parameters survive on both forms.
+  const withQuery = parseLocation('/property/prop-1?utm_source=whatsapp');
+  assert.equal(withQuery.name, 'property-detail');
+  assert.equal(withQuery.query.utm_source, 'whatsapp');
+  assert.equal(parseLocation('/property/east-legon-prop-1?ref=x').query.ref, 'x');
+});
+
+test('unusable property segments fall through to not-found instead of a broken page', () => {
+  // Correction 4: the segment may now be a descriptive slug, so the length limit
+  // is the one that fits `{title}-{location}-{id}`; spaces, extra segments and
+  // absurd lengths are still refused.
+  for (const url of ['/property/', '/property/abc/extra', '/property/' + 'x'.repeat(260), '/property/a b', '/property/-abc']) {
     const route = parseLocation(url);
     assert.equal(route.isKnown, false, `${url} should not be a known route`);
     assert.equal(route.name, 'not-found');
@@ -316,11 +334,27 @@ test('guests are sent to the login page with the intended destination', () => {
 });
 
 test('public pages stay public for every role', () => {
-  for (const path of ['/', '/properties', '/find-a-home', '/about', '/contact', '/receipts', '/list-property']) {
+  // Correction 2 removed /receipts from this list: payment records are private
+  // account business now, so a guest is sent to sign in instead (tested below).
+  for (const path of ['/', '/properties', '/find-a-home', '/about', '/contact', '/list-property']) {
     const route = parseLocation(path);
     for (const role of ROLES) {
       assert.equal(accessDecision(route, role, route.path).action, 'allow', `${role} → ${path}`);
     }
+  }
+});
+
+test('receipts are account business: a guest is sent to sign in, members are allowed', () => {
+  const route = parseLocation('/receipts');
+  assert.equal(route.name, 'receipts');
+
+  const guest = accessDecision(route, 'guest', route.path);
+  assert.equal(guest.action, 'login');
+  assert.equal((guest as { next: string }).next, '/receipts');
+  assert.equal((guest as { to: string }).to, '/login?next=%2Freceipts');
+
+  for (const role of ['tenant', 'landlord', 'agent', 'admin'] as UserRole[]) {
+    assert.equal(accessDecision(route, role, route.path).action, 'allow', `${role} keeps access`);
   }
 });
 

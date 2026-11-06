@@ -109,6 +109,9 @@ before(async () => {
     // Increment E books several viewings to get distinct fee records; the
     // production default (12/hour) is unchanged.
     VIEWING_RATE_LIMIT_PER_HOUR: '200',
+    // Correction 1: the role matrix below submits (and is refused) from one
+    // loopback address, so the per-IP rent-request budget is raised for this run.
+    TENANT_REQUEST_RATE_LIMIT_PER_HOUR: '200',
     VIEWING_ACTION_RATE_LIMIT_PER_HOUR: '2000',
     // Increment D: a *test-only* key so the encryption path is exercised. It is
     // generated per run and exists only in this process environment — never in
@@ -3090,10 +3093,23 @@ describe('Duplicate submission guards', () => {
   });
 
   test('re-posting the same rental request returns the original request', async () => {
+    // Correction 1: a rent request needs a signed-in tenant, so this uses a
+    // tenant session rather than a guest.
+    const client = new ApiClient(baseUrl);
+    const email = uniqueEmail('dedupe-tenant');
+    const registered = await client.post('/api/auth/register', {
+      email,
+      password: 'Dedupe-Password-123',
+      name: 'Dedupe Tenant',
+      phone: '+233 24 444 5555',
+      role: 'tenant',
+    });
+    assert.equal(registered.status, 201);
+
     const payload = {
       tenantName: 'Dedupe Tenant',
       tenantPhone: '+233 24 444 5555',
-      tenantEmail: uniqueEmail('dedupe-tenant'),
+      tenantEmail: email,
       preferredLocations: ['Osu'],
       budgetMin: 2500,
       budgetMax: 6000,
@@ -3102,9 +3118,9 @@ describe('Duplicate submission guards', () => {
       notes: 'Double click test request.',
     };
 
-    const first = await guest.post('/api/tenant-requests', payload);
+    const first = await client.post('/api/tenant-requests', payload);
     assert.equal(first.status, 201);
-    const second = await guest.post('/api/tenant-requests', payload);
+    const second = await client.post('/api/tenant-requests', payload);
     assert.equal(second.status, 200);
     assert.equal(second.body.duplicate, true);
     assert.equal(second.body.requestId, first.body.requestId);
@@ -3403,7 +3419,14 @@ describe('Match scoring, notifications & SEO', () => {
     assert.ok(xml.includes('/find-a-home'));
     assert.ok(!xml.includes('/browse'), 'the sitemap must not advertise a route the app does not serve');
     assert.ok(!xml.includes('/find-home'), 'the sitemap must not advertise a route the app does not serve');
-    assert.ok(xml.includes(`/property/${state.seededPropertyId}`));
+    // Correction 7: the sitemap advertises the canonical descriptive URL
+    // (/property/{title}-{location}-{id}) — never the bare id form, which would
+    // be a second URL for the same page.
+    const seeded = await guest.get(`/api/properties/${state.seededPropertyId}`);
+    const seededPath = seeded.body.property.path;
+    assert.match(seededPath, /^\/property\/[a-z0-9-]+-[a-z0-9-]+$/i);
+    assert.ok(xml.includes(seededPath), 'the published listing appears in its canonical form');
+    assert.ok(!xml.includes(`/property/${state.seededPropertyId}</loc>`), 'the bare id URL is never listed');
 
     // Landlord submissions start pending, so they are the honest negative case.
     const created = await landlord.post('/api/properties', {
@@ -3422,11 +3445,14 @@ describe('Match scoring, notifications & SEO', () => {
     const propertyId = created.body.property.id;
 
     const whilePending = await guest.get('/api/sitemap.xml');
-    assert.ok(!whilePending.body.raw.includes(`/property/${propertyId}`), 'pending listings must stay out of the sitemap');
+    assert.ok(!whilePending.body.raw.includes(`${propertyId}</loc>`), 'pending listings must stay out of the sitemap');
 
     await admin.post(`/api/properties/${propertyId}/status`, { status: 'active' });
     const whenLive = await guest.get('/api/sitemap.xml');
-    assert.ok(whenLive.body.raw.includes(`/property/${propertyId}`), 'published listings must appear');
+    assert.ok(whenLive.body.raw.includes(`${propertyId}</loc>`), 'published listings must appear');
+    // Exactly one entry, in the canonical form.
+    const occurrences = whenLive.body.raw.split(`${propertyId}</loc>`).length - 1;
+    assert.equal(occurrences, 1, 'one URL per listing, no duplicate old/new pair');
 
     await admin.delete(`/api/properties/${propertyId}`);
   });

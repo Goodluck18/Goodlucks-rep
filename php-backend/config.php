@@ -196,6 +196,16 @@ define('REGISTER_RATE_LIMIT_PER_HOUR', (int)cfg('REGISTER_RATE_LIMIT_PER_HOUR', 
  * the previous default of 12.
  */
 define('VIEWING_RATE_LIMIT_PER_HOUR', (int)cfg('VIEWING_RATE_LIMIT_PER_HOUR', 12));
+/**
+ * Rent (tenant matching) requests accepted from one IP per hour.
+ *
+ * Correction 1 made this a tenant-only action, and the automated suite now
+ * exercises the whole role matrix (tenant, landlord, agent, administrator,
+ * visitor) from one loopback address — every attempt counts, including the
+ * refused ones. Production keeps the previous default of 10.
+ */
+define('TENANT_REQUEST_RATE_LIMIT_PER_HOUR', (int)cfg('TENANT_REQUEST_RATE_LIMIT_PER_HOUR', 10));
+
 // Increment F: lifecycle actions (propose/confirm/reschedule/cancel/complete…).
 // Separate from request creation so an agent working a queue is not throttled
 // by the public booking limit, and high enough for an office using the console.
@@ -254,6 +264,9 @@ require_once GL_ROOT . '/lib/audit.php';
 require_once GL_ROOT . '/lib/mailer.php';
 require_once GL_ROOT . '/lib/outbox.php';
 require_once GL_ROOT . '/lib/repository.php';
+// Property slugs, share metadata and canonical property URLs (one source of
+// truth for the sitemap, the property page shell and the API payload).
+require_once GL_ROOT . '/lib/property_url.php';
 require_once GL_ROOT . '/lib/viewing_terms.php';
 require_once GL_ROOT . '/lib/landlord_policy.php';
 require_once GL_ROOT . '/lib/private_storage.php';

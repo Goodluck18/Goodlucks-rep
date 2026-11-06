@@ -1,5 +1,6 @@
 import React from 'react';
 import { Helmet } from 'react-helmet-async';
+import { SITE_ORIGIN } from '../config/site';
 
 export interface SEOHeadProps {
   title: string;
@@ -24,8 +25,16 @@ export const SEOHead: React.FC<SEOHeadProps> = ({
   priceGhs,
   jsonLd
 }) => {
-  const currentUrl = canonicalUrl || (typeof window !== 'undefined' ? window.location.href : 'https://rent.goodlucks.co');
-  const defaultImage = ogImage || 'https://rent.goodlucks.co/og-image.jpg';
+  // The canonical origin is the configured site URL, never `location.href`: a
+  // page opened with ?utm_… or over http must not advertise a different URL than
+  // the one the server sends. Pages that know their own canonical (a property, an
+  // article) pass it in.
+  const currentUrl =
+    canonicalUrl ||
+    (typeof window !== 'undefined' && window.location?.pathname
+      ? `${SITE_ORIGIN}${window.location.pathname}`
+      : `${SITE_ORIGIN}/`);
+  const defaultImage = ogImage || `${SITE_ORIGIN}/og-image.jpg`;
 
   return (
     <Helmet>

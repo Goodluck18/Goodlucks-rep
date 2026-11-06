@@ -12,13 +12,15 @@
     "lint": "tsc --noEmit",
     "dev:web": "tsx server.ts",
     "api:dev": "node scripts/api-dev.mjs",
-    "test:api": "node --test --test-concurrency=1 tests/api.test.mjs tests/account-settings.test.mjs tests/task03.test.mjs tests/migration.test.mjs tests/concurrency.test.mjs",
+    "test:api": "node --test --test-concurrency=1 tests/api.test.mjs tests/account-settings.test.mjs tests/task03.test.mjs tests/migration.test.mjs tests/concurrency.test.mjs tests/access-control.test.mjs",
     "test:routing": "node --import tsx --test tests/routing.test.mts",
     "test:navigation": "node --import tsx --test tests/app-navigation.test.mts",
     "test:content": "node --test tests/content.test.mjs",
     "test:blog": "node --test --test-concurrency=1 tests/blog.test.mjs",
     "test:design": "node --test tests/design-tokens.test.mjs",
-    "test:email-footer": "node --test tests/email-footer.test.mjs"
+    "test:email-footer": "node --test tests/email-footer.test.mjs",
+    "test:property": "node --import tsx --test tests/property-seo.test.mts",
+    "test:access": "node --test tests/access-control.test.mjs"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

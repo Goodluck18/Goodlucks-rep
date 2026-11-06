@@ -4,6 +4,7 @@ import { PropertyCard } from './PropertyCard';
 import { ViewingRequestModal } from './ViewingRequestModal';
 import { GetNotifiedModal } from './GetNotifiedModal';
 import { SEOHead } from './SEOHead';
+import { propertyCanonicalUrl } from '../routing/propertyUrl';
 import { Property, PropertyType } from '../types';
 import { buildQuery, parseQuery } from '../routing/routes';
 import { 
@@ -113,7 +114,7 @@ export const BrowseView: React.FC = () => {
         "@type": "RealEstateListing",
         "name": p.title,
         "description": p.description,
-        "url": typeof window !== 'undefined' ? `${window.location.origin}/property/${p.id}` : `https://rent.goodlucks.co/property/${p.id}`,
+        "url": propertyCanonicalUrl(p),
         "offers": {
           "@type": "Offer",
           "price": p.rentGhs,

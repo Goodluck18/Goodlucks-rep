@@ -36,6 +36,13 @@ function shape_property(array $row): array
 
     return [
         'id'                      => (string)$row['id'],
+        // The public URL of this listing, in its canonical descriptive form
+        // (/property/{title}-{location}-{id}). Built here so the browser never
+        // has to guess, and so the client, the sitemap and the share card all
+        // point at exactly the same address.
+        'slug'                    => property_slug($row),
+        'path'                    => property_path($row),
+        'url'                     => property_canonical_url($row),
         'landlordId'              => $exposeLandlordId ? $landlordId : '',
         // Staff-only: the landlord contact an agent supplied when no account
         // was matched. Never returned to tenants, agents or the public.

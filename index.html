@@ -9,6 +9,17 @@
     <meta name="theme-color" content="#FFFFFF" />
     <meta name="color-scheme" content="light" />
     <meta name="robots" content="index, follow, max-image-preview:large" />
+    <!--
+      Canonical, og:url and og:image below name the intended permanent domain.
+
+      They are the *fallback* for pages that do not compute their own metadata:
+      property pages are rendered by PHP (api/property_page.php) and the sitemap
+      by the API, and both build every URL from the configured base URL
+      (APP_URL → SITE_URL). So the testing deployment only has to set APP_URL in
+      api/.env to advertise its own domain; the permanent domain strategy is
+      unchanged and needs no code edit. The React app uses the same rule
+      (src/config/site.ts).
+    -->
     <link rel="canonical" href="https://rent.goodlucks.co/" />
 
     <!-- Icons -->

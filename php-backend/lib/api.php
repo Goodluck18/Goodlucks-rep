@@ -1443,7 +1443,12 @@ function handle_get_property(array $params): void
         error_response('Property id is required.', 400);
     }
 
-    $row = find_property($id);
+    // Property URLs carry a descriptive slug that ends in the stable id
+    // (/property/3-bedroom-apartment-east-legon-prop-1). Both the slug and the
+    // bare id resolve to the same row, so a deep link, a share card and an API
+    // call all identify the listing the same way — by its id, never by the
+    // words in front of it.
+    $row = find_property($id) ?? property_resolve_segment($id);
     if (!$row) {
         error_response('Property not found.', 404);
     }
@@ -2543,9 +2548,14 @@ function handle_admin_enquiries(): void
 // ===========================================================================
 function handle_create_tenant_request(): void
 {
-    enforce_rate_limit('tenant-request', 10, 3600);
+    enforce_rate_limit('tenant-request', TENANT_REQUEST_RATE_LIMIT_PER_HOUR, 3600);
     $input = request_json();
-    $user = auth_user();
+
+    // Correction 1: a rent request is a tenant action. The role is read from
+    // the session on the server — never from the request body — so an agent, a
+    // landlord or a visitor cannot submit one by calling the API directly.
+    // Guests get 401, the wrong role gets 403, and no record is written.
+    $user = require_auth(['tenant']);
 
     // Same form submitted twice in a row = one rental request.
     $fingerprint = submission_fingerprint('tenant_request', $input);
@@ -2590,7 +2600,8 @@ function handle_create_tenant_request(): void
     }
 
     $requestId = create_tenant_request([
-        'tenant_id'         => $user['id'] ?? null,
+        // The account that submitted it, taken from the session (Correction 1).
+        'tenant_id'         => (string)$user['id'],
         'tenant_name'       => clean_string($input['tenantName'], 120),
         'tenant_phone'      => (string)valid_phone($input['tenantPhone']),
         'tenant_email'      => (string)valid_email($input['tenantEmail']),
@@ -2622,9 +2633,7 @@ function handle_create_tenant_request(): void
         'Rental matching request received'
     );
 
-    if ($user) {
-        create_notification((string)$user['id'], 'Rental request submitted', 'We are matching live listings against your request.', 'info');
-    }
+    create_notification((string)$user['id'], 'Rental request submitted', 'We are matching live listings against your request.', 'info');
 
     remember_submission($fingerprint, 'tenant_request', $requestId);
 
@@ -4304,8 +4313,12 @@ function handle_sitemap(): void
     foreach ($result['items'] as $property) {
         $updated = (string)($property['updatedAt'] ?? '');
         $timestamp = $updated !== '' ? strtotime($updated) : false;
+        // One URL per listing, in the canonical descriptive form
+        // (/property/{title}-{location}-{id}) that the property page redirects
+        // to. Listing the bare id here as well would advertise two URLs for one
+        // page, so it is deliberately not added.
         $entries[] = [
-            'loc'        => SITE_URL . '/property/' . rawurlencode((string)$property['id']),
+            'loc'        => property_canonical_url($property),
             'lastmod'    => gmdate('Y-m-d', $timestamp !== false ? $timestamp : time()),
             'changefreq' => 'weekly',
             'priority'   => '0.8',

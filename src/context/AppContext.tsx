@@ -28,6 +28,7 @@ import {
   tabPath,
   viewForRoute,
 } from '../routing/routes';
+import { propertyForSegment, propertyIdFromSegment, propertyPath } from '../routing/propertyUrl';
 import {
   AdminStats,
   PropertyInput,
@@ -311,7 +312,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Derived, never stored: both values come from the URL.
   const currentView = viewForRoute(route);
-  const selectedPropertyId = route.name === 'property-detail' ? (route.params.id ?? null) : null;
+  /**
+   * The URL segment (`prop-1` or `3-bedroom-apartment-east-legon-prop-1`) and
+   * the stable id behind it. The id is what the API is asked for; the segment
+   * only ever describes the listing.
+   */
+  const propertySegment = route.name === 'property-detail' ? (route.params.id ?? null) : null;
+  const selectedPropertyId = propertySegment
+    ? propertyIdFromSegment(propertySegment, properties.map((p) => p.id))
+    : null;
   /** Tab id of the dashboard section in the URL (dashboards read this). */
   const sectionTab = tabForRoute(route);
 
@@ -526,7 +535,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setSelectedProperty(null);
       return;
     }
-    const local = properties.find((p) => p.id === selectedPropertyId);
+    // A descriptive slug resolves to its listing without a round trip; a bare
+    // id (or a slug for a listing not in the loaded catalogue) goes to the API.
+    const local =
+      propertyForSegment(propertySegment ?? '', properties) ??
+      properties.find((p) => p.id === selectedPropertyId);
     if (local) {
       setSelectedProperty(local);
       return;
@@ -545,7 +558,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return () => {
       cancelled = true;
     };
-  }, [selectedPropertyId, properties]);
+  }, [selectedPropertyId, propertySegment, properties]);
 
   // -------------------------------------------------------------------------
   // Navigation — one function, one source of truth (the address bar)
@@ -600,7 +613,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     (propertyId: string) => {
       const local = properties.find((p) => p.id === propertyId);
       if (local) setSelectedProperty(local);
-      navigate(`/property/${encodeURIComponent(propertyId)}`);
+      // Correction 4: link to the descriptive canonical URL when the listing is
+      // known; fall back to the id form (the server redirects it) when it is not.
+      navigate(local ? propertyPath(local) : `/property/${encodeURIComponent(propertyId)}`);
     },
     [properties, navigate]
   );

@@ -214,7 +214,17 @@ const PUBLIC_PATHS: Record<string, RouteName> = {
 
 const ROLE_ROOTS = new Set(['tenant', 'landlord', 'agent', 'admin']);
 
-const PROPERTY_ID = /^[A-Za-z0-9_-]{1,64}$/;
+/**
+ * A property URL segment.
+ *
+ * It is either the stable id (`prop-1`) or the descriptive slug that ends in it
+ * (`3-bedroom-apartment-east-legon-prop-1`), so the id is still what identifies
+ * the listing — see `propertyIdFromSegment()` in `propertyUrl.ts`. Titles are
+ * capped at 200 characters and locations at 200, so the generous upper bound is
+ * there to fit the slug, not to allow arbitrary junk: no spaces, no slashes and
+ * no leading or trailing hyphen are accepted.
+ */
+const PROPERTY_SEGMENT = /^[A-Za-z0-9_][A-Za-z0-9_-]{0,219}$/;
 
 /**
  * An article slug: lowercase words joined by single hyphens.
@@ -337,7 +347,7 @@ export function parseLocation(rawUrl: string): RouteState {
   // /property/<id> — the individual listing page.
   if (segments[0] === 'property' && segments.length === 2) {
     const id = segments[1];
-    if (PROPERTY_ID.test(id)) {
+    if (PROPERTY_SEGMENT.test(id) && !id.endsWith('-')) {
       return {
         name: 'property-detail',
         path: `/property/${id}`,
@@ -416,16 +426,16 @@ export function legacyRedirect(rawUrl: string): string | null {
   const { pathname, search, hash } = splitUrl(rawUrl);
   const query = parseQuery(search);
 
-  const hashProperty = /#\/?property\/([A-Za-z0-9_-]{1,64})/.exec(hash);
-  if (hashProperty) return `/property/${hashProperty[1]}`;
+  const hashProperty = /#\/?property\/((?:[A-Za-z0-9_][A-Za-z0-9_-]{0,219}?))(?![A-Za-z0-9_-])/.exec(hash);
+  if (hashProperty && PROPERTY_SEGMENT.test(hashProperty[1])) return `/property/${hashProperty[1]}`;
 
-  if (query.property && PROPERTY_ID.test(query.property)) {
+  if (query.property && PROPERTY_SEGMENT.test(query.property)) {
     const rest = { ...query };
     delete rest.property;
     delete rest.p;
     return `/property/${query.property}${buildQuery(rest)}`;
   }
-  if (query.p && PROPERTY_ID.test(query.p)) {
+  if (query.p && PROPERTY_SEGMENT.test(query.p)) {
     const rest = { ...query };
     delete rest.p;
     delete rest.property;
@@ -480,6 +490,14 @@ export function accessDecision(route: RouteState, role: UserRole, currentPath: s
   // instead of letting them open a second, conflicting session flow.
   if ((route.name === 'login' || route.name === 'register') && role !== 'guest') {
     return { action: 'redirect', to: dashboardPath(role) };
+  }
+
+  // Correction 2: payment records and receipts are private account business.
+  // They are no longer in the public navigation, and opening the URL directly
+  // sends a signed-out visitor to sign in first — the page is never rendered
+  // for a guest. The API enforces the same thing (`GET /api/receipts` → 401).
+  if (route.name === 'receipts' && role === 'guest') {
+    return { action: 'login', to: `/login${buildQuery({ next: route.path })}`, next: route.path };
   }
 
   if (route.name === 'admin-login') {
