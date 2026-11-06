@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useState } from 'react';
 import {
   Bell,
   BellRing,
@@ -9,13 +9,11 @@ import {
   Heart,
   LayoutDashboard,
   LogOut,
-  Menu,
   ReceiptText,
   Settings,
   ShieldCheck,
   Sparkles,
   UserRound,
-  X,
   type LucideIcon,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
@@ -174,30 +172,17 @@ export const SectionLoading: React.FC<{ label?: string }> = ({ label = 'Loadingâ
 /**
  * The account shell shared by the tenant, landlord and agent dashboards.
  *
- * One layout, three role-specific navigation sets: a sidebar on desktop, a
- * drawer on mobile, the signed-in account always on screen, and the active
- * section taken from the URL (never from local state, so refresh and Back keep
- * working).
+ * One layout, three role-specific navigation sets: a sidebar on desktop, the
+ * signed-in account always on screen, and the active section taken from the URL
+ * (never from local state, so refresh and Back keep working).
+ *
+ * The section list is the desktop sidebar's. On a phone the same destinations
+ * are reached through the site's own navigation (the bottom bar plus the single
+ * hamburger in the header), so this shell no longer opens a second, competing
+ * menu â€” Task 04 removed that duplicate drawer.
  */
 export const DashboardShell: React.FC<DashboardShellProps> = ({ role, active, items, children }) => {
-  const { currentUser, currentRole, logout, navigate } = useApp();
-  const [menuOpen, setMenuOpen] = useState(false);
-  const drawerRef = useRef<HTMLDivElement>(null);
-
-  // Closing the drawer on navigation keeps mobile behaviour predictable.
-  useEffect(() => {
-    setMenuOpen(false);
-  }, [active]);
-
-  useEffect(() => {
-    if (!menuOpen) return;
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setMenuOpen(false);
-    };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [menuOpen]);
-
+  const { currentUser, logout, navigate } = useApp();
   const activeItem = items.find((item) => item.key === active) ?? items[0];
 
   const navList = (
@@ -257,64 +242,12 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({ role, active, it
               <p className="text-xs font-bold text-white truncate">{currentUser?.name || 'Your account'}</p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={() => setMenuOpen(true)}
-            aria-label="Open account menu"
-            aria-expanded={menuOpen}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-xs font-bold text-slate-200 hover:text-white min-h-[44px]"
-          >
-            <Menu className="w-4 h-4" />
-            Menu
-          </button>
         </div>
         {/* The section you are on stays visible on small screens */}
         <div className="px-4 pb-2 -mt-0.5">
           <p className="text-[11px] text-[#08D9D6] font-bold uppercase tracking-wider">{activeItem?.label}</p>
         </div>
       </div>
-
-      {/* Mobile drawer */}
-      {menuOpen && (
-        <div className="lg:hidden fixed inset-0 z-50 flex">
-          <button
-            type="button"
-            aria-label="Close account menu"
-            onClick={() => setMenuOpen(false)}
-            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-          />
-          <div
-            ref={drawerRef}
-            role="dialog"
-            aria-modal="true"
-            aria-label="Account navigation"
-            className="relative ml-auto w-[86%] max-w-xs h-full bg-[#252A34] border-l border-white/10 shadow-2xl flex flex-col"
-          >
-            <div className="p-4 border-b border-white/10 flex items-start justify-between gap-3">
-              {accountCard}
-              <button
-                type="button"
-                onClick={() => setMenuOpen(false)}
-                aria-label="Close menu"
-                className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 shrink-0"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="flex-1 overflow-y-auto p-3">{navList}</div>
-            <div className="p-3 border-t border-white/10">
-              <button
-                type="button"
-                onClick={() => void logout()}
-                className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-xs font-bold text-slate-300 hover:text-[#FF8FA8] hover:bg-white/5 min-h-[44px]"
-              >
-                <LogOut className="w-4 h-4" />
-                Sign out
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-8 flex gap-6 lg:gap-8">
         {/* Desktop sidebar */}
@@ -334,7 +267,9 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({ role, active, it
         </aside>
 
         {/* Section content */}
-        <main className="flex-1 min-w-0 space-y-5 pb-16 lg:pb-0">{children}</main>
+        {/* The page reserves room for the fixed mobile bottom bar; this only
+            keeps the last card off the very edge. */}
+        <main className="flex-1 min-w-0 space-y-5 pb-4 lg:pb-0">{children}</main>
       </div>
     </div>
   );
