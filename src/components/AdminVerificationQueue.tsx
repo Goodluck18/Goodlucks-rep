@@ -127,6 +127,28 @@ export const AdminVerificationQueue: React.FC = () => {
     }
   };
 
+  // Task 03: record one document's outcome. This never decides the overall
+  // verification; it records which certificate is fine and which is not.
+  const reviewDocument = async (documentId: string, decision: 'accept' | 'reject') => {
+    if (!selected) return;
+    if (decision === 'reject' && note.trim() === '') {
+      showErrorToast('A reason is required', 'Say what is wrong with this document.');
+      return;
+    }
+    setBusy(true);
+    try {
+      await api.reviewVerificationDocument(documentId, decision, note.trim());
+      showSuccessToast('Document recorded', 'The document outcome is saved on the record.');
+      setNote('');
+      const refreshed = await api.getVerificationDetail(selected);
+      setDetail(refreshed.verification);
+    } catch (err) {
+      showErrorToast('Document not recorded', messageForError(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   if (!capabilities?.verificationReviewer) {
     return (
       <div className="bg-[#252A34]/70 border border-white/10 rounded-3xl p-6 space-y-3">
@@ -319,17 +341,43 @@ export const AdminVerificationQueue: React.FC = () => {
                   {detail.identity.documents.length > 0 ? (
                     <ul className="space-y-1.5">
                       {detail.identity.documents.map((doc) => (
-                        <li key={doc.id} className="flex items-center justify-between text-[11px] bg-slate-900/50 border border-white/10 rounded-lg px-3 py-2">
+                        <li key={doc.id} className="flex flex-wrap items-center justify-between gap-2 text-[11px] bg-slate-900/50 border border-white/10 rounded-lg px-3 py-2">
                           <span className="flex items-center gap-2 text-slate-300">
                             <FileText className="w-3.5 h-3.5 text-slate-400" /> {doc.kindLabel}
+                            <span className={`px-1.5 py-0.5 rounded border ${statusTone(doc.reviewStatus === 'accepted' ? 'approved' : doc.reviewStatus === 'rejected' ? 'rejected' : 'pending_review')}`}>
+                              {doc.reviewStatus === 'accepted' ? 'accepted' : doc.reviewStatus === 'rejected' ? 'rejected' : 'not reviewed'}
+                            </span>
                           </span>
-                          {doc.downloadUrl ? (
-                            <a href={doc.downloadUrl} target="_blank" rel="noopener noreferrer" className="text-[#08D9D6] font-bold">
-                              Open document
-                            </a>
-                          ) : (
-                            <span className="text-slate-500">Access restricted</span>
-                          )}
+                          <span className="flex items-center gap-2">
+                            {doc.downloadUrl ? (
+                              <a href={doc.downloadUrl} target="_blank" rel="noopener noreferrer" className="text-[#08D9D6] font-bold">
+                                Open document
+                              </a>
+                            ) : (
+                              <span className="text-slate-500">Access restricted</span>
+                            )}
+                            {doc.downloadUrl && (
+                              <>
+                                <button
+                                  type="button"
+                                  disabled={busy}
+                                  onClick={() => void reviewDocument(doc.id, 'accept')}
+                                  className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-200 font-bold disabled:opacity-50"
+                                >
+                                  Accept
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={busy}
+                                  onClick={() => void reviewDocument(doc.id, 'reject')}
+                                  className="px-2 py-0.5 rounded bg-[#FF2E63]/20 text-[#FF8FA8] font-bold disabled:opacity-50"
+                                >
+                                  Reject
+                                </button>
+                              </>
+                            )}
+                          </span>
+                          {doc.reviewNote && <span className="w-full text-[10px] text-slate-500">{doc.reviewNote}</span>}
                         </li>
                       ))}
                     </ul>
@@ -411,17 +459,43 @@ export const AdminVerificationQueue: React.FC = () => {
                     {detail.professional.documents.length > 0 && (
                       <ul className="space-y-1.5">
                         {detail.professional.documents.map((doc) => (
-                          <li key={doc.id} className="flex items-center justify-between text-[11px] bg-slate-900/50 border border-white/10 rounded-lg px-3 py-2">
+                          <li key={doc.id} className="flex flex-wrap items-center justify-between gap-2 text-[11px] bg-slate-900/50 border border-white/10 rounded-lg px-3 py-2">
                             <span className="flex items-center gap-2 text-slate-300">
                               <FileText className="w-3.5 h-3.5 text-slate-400" /> {doc.kindLabel}
+                              <span className={`px-1.5 py-0.5 rounded border ${statusTone(doc.reviewStatus === 'accepted' ? 'approved' : doc.reviewStatus === 'rejected' ? 'rejected' : 'pending_review')}`}>
+                                {doc.reviewStatus === 'accepted' ? 'accepted' : doc.reviewStatus === 'rejected' ? 'rejected' : 'not reviewed'}
+                              </span>
                             </span>
-                            {doc.downloadUrl ? (
-                              <a href={doc.downloadUrl} target="_blank" rel="noopener noreferrer" className="text-[#08D9D6] font-bold">
-                                Open document
-                              </a>
-                            ) : (
-                              <span className="text-slate-500">Access restricted</span>
-                            )}
+                            <span className="flex items-center gap-2">
+                              {doc.downloadUrl ? (
+                                <a href={doc.downloadUrl} target="_blank" rel="noopener noreferrer" className="text-[#08D9D6] font-bold">
+                                  Open document
+                                </a>
+                              ) : (
+                                <span className="text-slate-500">Access restricted</span>
+                              )}
+                              {doc.downloadUrl && (
+                                <>
+                                  <button
+                                    type="button"
+                                    disabled={busy}
+                                    onClick={() => void reviewDocument(doc.id, 'accept')}
+                                    className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-200 font-bold disabled:opacity-50"
+                                  >
+                                    Accept
+                                  </button>
+                                  <button
+                                    type="button"
+                                    disabled={busy}
+                                    onClick={() => void reviewDocument(doc.id, 'reject')}
+                                    className="px-2 py-0.5 rounded bg-[#FF2E63]/20 text-[#FF8FA8] font-bold disabled:opacity-50"
+                                  >
+                                    Reject
+                                  </button>
+                                </>
+                              )}
+                            </span>
+                            {doc.reviewNote && <span className="w-full text-[10px] text-slate-500">{doc.reviewNote}</span>}
                           </li>
                         ))}
                       </ul>

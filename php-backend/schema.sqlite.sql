@@ -9,6 +9,9 @@ CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,
   email TEXT NOT NULL UNIQUE,
   name TEXT NOT NULL,
+  -- Task 03: the official Ghana Card name supplied at registration (a claim,
+  -- never a verification). NULL for existing accounts, which are not locked out.
+  official_name TEXT,
   role TEXT NOT NULL DEFAULT 'tenant',
   phone TEXT NOT NULL DEFAULT '',
   password_hash TEXT,
@@ -75,6 +78,13 @@ CREATE TABLE IF NOT EXISTS properties (
   nearby_places TEXT,
   availability TEXT DEFAULT 'Available Now',
   featured INTEGER NOT NULL DEFAULT 0,
+  -- Task 03: this property's OWN approved viewing fee and viewing terms. NULL
+  -- means no approved viewing fee — there is no platform-wide default.
+  viewing_fee_ghs REAL,
+  viewing_terms_json TEXT,
+  viewing_terms_state TEXT NOT NULL DEFAULT 'not_set',
+  viewing_terms_updated_at TEXT,
+  viewing_terms_approved_by TEXT,
   views_count INTEGER NOT NULL DEFAULT 0,
   enquiries_count INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -84,6 +94,31 @@ CREATE INDEX IF NOT EXISTS idx_prop_status ON properties (status);
 CREATE INDEX IF NOT EXISTS idx_prop_landlord ON properties (landlord_id);
 CREATE INDEX IF NOT EXISTS idx_prop_submitted_by ON properties (submitted_by_user_id);
 CREATE INDEX IF NOT EXISTS idx_prop_created ON properties (created_at);
+
+-- ---------------------------------------------------------------------------
+-- Task 03: property-specific viewing fee / terms change requests
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS property_viewing_fee_changes (
+  id TEXT PRIMARY KEY,
+  property_id TEXT NOT NULL,
+  requested_by TEXT NOT NULL,
+  requested_by_role TEXT NOT NULL DEFAULT '',
+  proposed_fee_ghs REAL NOT NULL,
+  proposed_terms_json TEXT,
+  previous_fee_ghs REAL,
+  previous_terms_json TEXT,
+  -- pending_review | approved | rejected
+  status TEXT NOT NULL DEFAULT 'pending_review',
+  note TEXT,
+  decision_note TEXT,
+  reviewed_by TEXT,
+  reviewed_at TEXT,
+  applied_at TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_vfc_property ON property_viewing_fee_changes (property_id, status);
+CREATE INDEX IF NOT EXISTS idx_vfc_status ON property_viewing_fee_changes (status, created_at);
 
 CREATE TABLE IF NOT EXISTS tenant_requests (
   id TEXT PRIMARY KEY,
@@ -119,7 +154,10 @@ CREATE TABLE IF NOT EXISTS viewing_schedules (
   assigned_agent TEXT DEFAULT '',
   status TEXT NOT NULL DEFAULT 'scheduled',
   viewing_fee_paid INTEGER NOT NULL DEFAULT 0,
-  fee_amount_ghs REAL NOT NULL DEFAULT 100.0,
+  -- Task 03: copied from the property's approved viewing fee at request time.
+  -- 0 means no viewing fee applies; there is no universal default.
+  fee_amount_ghs REAL NOT NULL DEFAULT 0.0,
+  viewing_terms_snapshot_json TEXT,
   outcome_notes TEXT,
   -- Increment F: a row is a request first and an appointment only once a slot
   -- is agreed (confirmed_at). See docs/INCREMENT_F_REPORT.md.
@@ -575,6 +613,11 @@ CREATE TABLE IF NOT EXISTS verification_documents (
   bytes INTEGER NOT NULL DEFAULT 0,
   checksum_sha256 TEXT NOT NULL DEFAULT '',
   uploaded_by TEXT,
+  -- Task 03: per-document reviewer outcome (pending | accepted | rejected).
+  review_status TEXT NOT NULL DEFAULT 'pending',
+  review_note TEXT,
+  reviewed_by TEXT,
+  reviewed_at TEXT,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   deleted_at TEXT
 );
@@ -726,6 +769,15 @@ CREATE TABLE IF NOT EXISTS rental_commissions (
   policy_id TEXT,
   policy_snapshot_json TEXT,
   policy_snapshot_hash TEXT,
+  -- Task 03: tier split frozen when the commission was priced.
+  agent_tier TEXT,
+  agent_share_percent REAL,
+  goodlucks_share_percent REAL,
+  agent_share_ghs REAL,
+  goodlucks_share_ghs REAL,
+  split_snapshot_json TEXT,
+  split_snapshot_hash TEXT,
+  split_frozen_at TEXT,
   due_date TEXT,
   -- draft | awaiting_agreement | agreed | due | partially_paid | paid |
   -- disputed | cancelled | corrected

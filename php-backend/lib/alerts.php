@@ -113,7 +113,7 @@ function dispatch_price_drop_alerts(array $propertyRow, float $oldRent, float $n
             . ($target !== null ? '<br><span style="color:#38BDF8;font-size:13px;">Your target: below ' . e(alert_money($target)) . '</span>' : '')
             . '</div>'
             . '<p style="color:#CBD5E1;font-size:14px;">Viewings are arranged and supervised by a Goodlucks agent. '
-            . 'The GH₵ ' . number_format(VIEWING_FEE_GHS, 0) . ' viewing fee is paid in cash on site, never online.</p>'
+            . 'Any viewing fee is this property\'s own fee, shown on its listing, and is paid in cash on site, never online.</p>'
             . '<p style="color:#94A3B8;font-size:12px;">Open the listing: ' . e(SITE_URL) . '/property/' . rawurlencode((string)$propertyId) . '</p>';
 
         send_email(

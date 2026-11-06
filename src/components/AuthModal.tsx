@@ -35,6 +35,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({ initialMode = 'login', ini
   const [city, setCity] = useState('');
   // Agent only: agency/business name (optional) — basic registration detail.
   const [agencyName, setAgencyName] = useState('');
+  // Task 03: the official name on the Ghana Card. It is recorded as a claim;
+  // it never counts as a verification check.
+  const [officialName, setOfficialName] = useState('');
 
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -74,6 +77,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({ initialMode = 'login', ini
             agencyName: selectedRole === 'agent' ? agencyName.trim() : undefined,
             password,
             role: selectedRole,
+            // The group the visitor picked (Tenant, or a property provider).
+            // The server refuses a category that disagrees with the role.
+            providerCategory: selectedRole,
+            officialName: selectedRole === 'tenant' ? undefined : officialName.trim() || undefined,
           });
 
     setIsSubmitting(false);
@@ -121,10 +128,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({ initialMode = 'login', ini
             </p>
           </div>
 
-          {/* Role Selector Tabs */}
-          <div className={`space-y-1.5 ${mode === 'forgot' ? 'hidden' : ''}`}>
-            <label className="block text-xs font-semibold text-slate-300">Select Account Role:</label>
-            <div className="grid grid-cols-3 gap-1.5 bg-slate-900/80 p-1 rounded-2xl border border-white/10 text-xs">
+          {/* Role Selector — Task 03: two groups only. A property provider must
+              then say whether they are a Landlord or an Agent; that choice is
+              final for the account and cannot be swapped by registering again. */}
+          <div className={`space-y-2 ${mode === 'forgot' ? 'hidden' : ''}`}>
+            <label className="block text-xs font-semibold text-slate-300">Account group:</label>
+            <div className="grid grid-cols-2 gap-1.5 bg-slate-900/80 p-1 rounded-2xl border border-white/10 text-xs">
               <button
                 type="button"
                 onClick={() => setSelectedRole('tenant')}
@@ -134,27 +143,53 @@ export const AuthModal: React.FC<AuthModalProps> = ({ initialMode = 'login', ini
               >
                 Tenant
               </button>
-
               <button
                 type="button"
-                onClick={() => setSelectedRole('landlord')}
+                onClick={() => setSelectedRole(selectedRole === 'tenant' ? 'landlord' : selectedRole)}
                 className={`py-2 rounded-xl font-bold transition-all ${
-                  selectedRole === 'landlord' ? 'bg-[#08D9D6] text-[#252A34] shadow-md' : 'text-slate-400 hover:text-white'
+                  selectedRole !== 'tenant' ? 'bg-[#08D9D6] text-[#252A34] shadow-md' : 'text-slate-400 hover:text-white'
                 }`}
               >
-                Landlord
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setSelectedRole('agent')}
-                className={`py-2 rounded-xl font-bold transition-all ${
-                  selectedRole === 'agent' ? 'bg-[#08D9D6] text-[#252A34] shadow-md' : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                Agent
+                Agent / Landlord
               </button>
             </div>
+
+            {selectedRole !== 'tenant' && (
+              <div className="space-y-1.5">
+                <label className="block text-[11px] font-semibold text-slate-300">
+                  Property provider type <span className="text-[#FF8FA8]">*</span>
+                </label>
+                <div className="grid grid-cols-2 gap-1.5 bg-slate-900/60 p-1 rounded-2xl border border-white/10 text-[11px]">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedRole('landlord')}
+                    className={`py-1.5 rounded-xl font-bold transition-all ${
+                      selectedRole === 'landlord' ? 'bg-white/15 text-white' : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    Landlord (I own property)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedRole('agent')}
+                    className={`py-1.5 rounded-xl font-bold transition-all ${
+                      selectedRole === 'agent' ? 'bg-white/15 text-white' : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    Agent (I act for landlords)
+                  </button>
+                </div>
+                <p className="text-[10px] text-slate-500">
+                  This choice is fixed for the account. Goodlucks keeps landlord and agent accounts separate, and moving
+                  between them is a staff-reviewed change, not a second sign-up.
+                </p>
+                {(fieldErrors.providerCategory || fieldErrors.role) && (
+                  <p className="text-[11px] text-[#FF8FA8]">
+                    {fieldErrors.providerCategory || fieldErrors.role}
+                  </p>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Secure access notice */}
@@ -212,6 +247,32 @@ export const AuthModal: React.FC<AuthModalProps> = ({ initialMode = 'login', ini
                   </div>
                   {fieldErrors.name && <p className="text-[11px] text-[#FF8FA8] mt-1">{fieldErrors.name}</p>}
                 </div>
+
+                {selectedRole !== 'tenant' && (
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">
+                      Official name on your Ghana Card{' '}
+                      <span className="text-slate-500 font-normal">(as printed)</span>
+                    </label>
+                    <div className="relative">
+                      <ShieldCheck className="w-4 h-4 absolute left-3 top-3 text-slate-400" />
+                      <input
+                        type="text"
+                        value={officialName}
+                        onChange={(e) => setOfficialName(e.target.value)}
+                        placeholder="e.g. Abena Mensah Boateng"
+                        className="w-full bg-slate-900 border border-white/10 rounded-xl pl-9 pr-3 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-[#08D9D6]"
+                      />
+                    </div>
+                    {fieldErrors.officialName && (
+                      <p className="text-[11px] text-[#FF8FA8] mt-1">{fieldErrors.officialName}</p>
+                    )}
+                    <p className="text-[10px] text-slate-500 mt-1">
+                      This is recorded but never treated as a verification. Only a reviewer who checks both sides of the
+                      card can mark your identity verified.
+                    </p>
+                  </div>
+                )}
 
                 <div>
                   <label className="block text-xs font-semibold text-slate-300 mb-1">Phone Number</label>

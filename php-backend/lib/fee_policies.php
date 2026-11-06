@@ -43,6 +43,42 @@ const AGENT_TIERS = [
 ];
 
 /**
+ * Task 03: the share of an agreed commission that belongs to the agent.
+ *
+ * These percentages are a share OF THE COMMISSION ALREADY AGREED for the
+ * transaction — they are not the platform's total commission rate, and nothing
+ * here invents one. The remainder of the commission is Goodlucks' share.
+ *
+ *   Tier A (Basic)       Ghana Card identity approved ............ 60%
+ *   Higher tier          identity + professional approved ....... 70%
+ *
+ * An agent without an approved identity verification has no entitlement yet
+ * (0%), so no share is ever created from an unverified claim.
+ *
+ * A VIEWING FEE IS NOT A COMMISSION: no tier percentage is ever applied to a
+ * viewing fee.
+ */
+const AGENT_TIER_COMMISSION = [
+    'standard' => [
+        'tierCode'    => 'tier_a',
+        'shortLabel'  => 'Tier A — Basic',
+        'percent'     => 60.0,
+        'requires'    => 'an approved Ghana Card identity verification',
+        'description' => 'Identity verified. The agent receives 60% of the agreed commission; Goodlucks receives the remaining 40%.',
+    ],
+    'professional' => [
+        'tierCode'    => 'higher',
+        'shortLabel'  => 'Higher tier',
+        'percent'     => 70.0,
+        'requires'    => 'an approved identity verification AND at least one approved professional authorisation',
+        'description' => 'Identity and professional authorisation both approved. The agent receives 70% of the agreed commission; Goodlucks receives the remaining 30%.',
+    ],
+];
+
+/** The share that applies when no tier has been earned yet. */
+const AGENT_NO_TIER_PERCENT = 0.0;
+
+/**
  * What each tier requires. Read by `agent_tier_state()` only.
  *
  * `requires` checks the *effective* verification status (so a licence that has
@@ -223,14 +259,41 @@ function agent_tier_state(string $userId): array
     $eligibleStandard = true;
     $tier = $eligibleProfessional ? 'professional' : 'standard';
 
+    // Task 03: the tier only earns a commission share once the identity check
+    // is approved. `tier` stays the same label it always was (it describes
+    // account standing); `commissionTier` is what money is derived from.
+    $identityApproved = $identityStatus === 'approved';
+    if ($tier === 'professional') {
+        $commissionKey = 'professional';
+    } elseif ($identityApproved) {
+        $commissionKey = 'standard';
+    } else {
+        $commissionKey = null;
+    }
+    $commission = $commissionKey !== null ? AGENT_TIER_COMMISSION[$commissionKey] : null;
+    $commissionPercent = $commission !== null ? (float)$commission['percent'] : AGENT_NO_TIER_PERCENT;
+
     return [
         'userId'                => $userId,
         'tier'                  => $tier,
         'tierLabel'             => AGENT_TIERS[$tier],
         'eligibleStandard'      => $eligibleStandard,
         'eligibleProfessional'  => $eligibleProfessional,
+        // Task 03 commission tier, derived from the verified records above.
+        'commissionTier'        => $commission['tierCode'] ?? 'none',
+        'commissionTierLabel'   => $commission['shortLabel'] ?? 'No commission tier yet',
+        'commissionPercent'     => $commissionPercent,
+        'goodlucksPercent'      => $commission !== null ? round(100 - $commissionPercent, 2) : 100.0,
+        'commissionEligible'    => $commission !== null,
+        'commissionBasis'       => $commission !== null
+            ? $commission['description']
+            : 'No commission share applies until a Ghana Card identity verification has been approved.',
+        'higherTierPercent'     => (float)AGENT_TIER_COMMISSION['professional']['percent'],
+        'higherTierRequires'    => AGENT_TIER_COMMISSION['professional']['requires'],
+        'basicTierPercent'      => (float)AGENT_TIER_COMMISSION['standard']['percent'],
+        'basicTierRequires'     => AGENT_TIER_COMMISSION['standard']['requires'],
         'identityStatus'        => $identityStatus,
-        'identityApproved'      => $identityStatus === 'approved',
+        'identityApproved'      => $identityApproved,
         'professionalStoredStatus' => $professionalStored,
         'professionalStatus'    => $professionalEffective,
         'professionalSubmitted' => in_array($professionalStored, ['pending_review', 'under_review', 'approved', 'rejected', 'resubmission_required'], true),
@@ -248,6 +311,43 @@ function agent_tier_state(string $userId): array
 function agent_tier_label(string $userId): string
 {
     return AGENT_TIERS[agent_tier_state($userId)['tier']];
+}
+
+/**
+ * Task 03: split an agreed commission between the agent and Goodlucks.
+ *
+ * The tier is read from the agent's verified records here — never from a
+ * request — and the percentage comes from AGENT_TIER_COMMISSION. The amount
+ * passed in is the commission that has already been agreed for the
+ * transaction; these percentages do not set that amount.
+ *
+ * @return array{tier: string, tierLabel: string, agentPercent: float,
+ *               goodlucksPercent: float, agentShareGhs: float,
+ *               goodlucksShareGhs: float, eligible: bool, note: string}
+ */
+function agent_commission_split(string $agentUserId, float $commissionAmount): array
+{
+    $state = agent_tier_state($agentUserId);
+    $agentPercent = (float)$state['commissionPercent'];
+    $goodlucksPercent = round(100.0 - $agentPercent, 2);
+    $total = round($commissionAmount, 2);
+    $agentShare = round($total * $agentPercent / 100, 2);
+    $goodlucksShare = round($total - $agentShare, 2);
+
+    return [
+        'tier'              => (string)$state['tier'],
+        'tierCode'          => (string)$state['commissionTier'],
+        'tierLabel'         => (string)$state['commissionTierLabel'],
+        'agentPercent'      => $agentPercent,
+        'goodlucksPercent'  => $goodlucksPercent,
+        'commissionAmountGhs' => $total,
+        'agentShareGhs'     => $agentShare,
+        'goodlucksShareGhs' => $goodlucksShare,
+        'eligible'          => (bool)$state['commissionEligible'],
+        'identityStatus'    => (string)$state['identityStatus'],
+        'professionalStatus'=> (string)$state['professionalStatus'],
+        'note'              => (string)$state['commissionBasis'],
+    ];
 }
 
 // ---------------------------------------------------------------------------

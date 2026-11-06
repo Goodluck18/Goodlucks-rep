@@ -20,6 +20,11 @@ CREATE TABLE IF NOT EXISTS `users` (
   `id` VARCHAR(64) NOT NULL,
   `email` VARCHAR(255) NOT NULL,
   `name` VARCHAR(255) NOT NULL,
+  -- Task 03: the name the account holder entered as their official Ghana Card
+  -- name at registration. It is a claim, never a verification: only an approved
+  -- identity check makes an account identity-verified. Existing accounts keep
+  -- NULL until they supply it, so nobody is locked out.
+  `official_name` VARCHAR(200) DEFAULT NULL,
   `role` VARCHAR(32) NOT NULL DEFAULT 'tenant',
   `phone` VARCHAR(64) NOT NULL DEFAULT '',
   `password_hash` VARCHAR(255) DEFAULT NULL,
@@ -103,6 +108,16 @@ CREATE TABLE IF NOT EXISTS `properties` (
   `nearby_places` LONGTEXT DEFAULT NULL,
   `availability` VARCHAR(100) DEFAULT 'Available Now',
   `featured` TINYINT(1) NOT NULL DEFAULT 0,
+  -- Task 03: the property's OWN viewing fee and viewing terms. The values here
+  -- are the APPROVED, publicly visible ones; a change to an already-approved
+  -- listing lives in `property_viewing_fee_changes` until staff approve it.
+  -- NULL means "no viewing fee has been approved for this property" — there is
+  -- deliberately no platform-wide default.
+  `viewing_fee_ghs` DECIMAL(10,2) DEFAULT NULL,
+  `viewing_terms_json` LONGTEXT DEFAULT NULL,
+  `viewing_terms_state` VARCHAR(24) NOT NULL DEFAULT 'not_set',
+  `viewing_terms_updated_at` DATETIME DEFAULT NULL,
+  `viewing_terms_approved_by` VARCHAR(64) DEFAULT NULL,
   `views_count` INT NOT NULL DEFAULT 0,
   `enquiries_count` INT NOT NULL DEFAULT 0,
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -114,6 +129,40 @@ CREATE TABLE IF NOT EXISTS `properties` (
   KEY `idx_prop_city` (`city`),
   KEY `idx_prop_rent` (`rent_ghs`),
   KEY `idx_prop_created` (`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ------------------------------------------------------------
+-- 3b. Property-specific viewing fee / terms change requests (Task 03)
+-- ------------------------------------------------------------
+-- A property carries exactly one APPROVED viewing fee and set of viewing terms
+-- (see `properties.viewing_fee_ghs` / `viewing_terms_json`). Every proposal to
+-- change them is a row here, so the previous approved values keep applying
+-- until staff approve the replacement, and the whole history is kept.
+-- Rows are append-only apart from the decision fields.
+CREATE TABLE IF NOT EXISTS `property_viewing_fee_changes` (
+  `id` VARCHAR(64) NOT NULL,
+  `property_id` VARCHAR(64) NOT NULL,
+  `requested_by` VARCHAR(64) NOT NULL,
+  `requested_by_role` VARCHAR(32) NOT NULL DEFAULT '',
+  -- The values being proposed.
+  `proposed_fee_ghs` DECIMAL(10,2) NOT NULL,
+  `proposed_terms_json` LONGTEXT DEFAULT NULL,
+  -- What was in force when the proposal was made, so the decision is readable
+  -- on its own even if the property row changes later.
+  `previous_fee_ghs` DECIMAL(10,2) DEFAULT NULL,
+  `previous_terms_json` LONGTEXT DEFAULT NULL,
+  -- pending_review | approved | rejected
+  `status` VARCHAR(24) NOT NULL DEFAULT 'pending_review',
+  `note` TEXT DEFAULT NULL,
+  `decision_note` TEXT DEFAULT NULL,
+  `reviewed_by` VARCHAR(64) DEFAULT NULL,
+  `reviewed_at` DATETIME DEFAULT NULL,
+  `applied_at` DATETIME DEFAULT NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` DATETIME DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_vfc_property` (`property_id`, `status`),
+  KEY `idx_vfc_status` (`status`, `created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ------------------------------------------------------------
@@ -159,7 +208,10 @@ CREATE TABLE IF NOT EXISTS `viewing_schedules` (
   `assigned_agent` VARCHAR(255) DEFAULT '',
   `status` VARCHAR(32) NOT NULL DEFAULT 'scheduled',
   `viewing_fee_paid` TINYINT(1) NOT NULL DEFAULT 0,
-  `fee_amount_ghs` DECIMAL(10,2) NOT NULL DEFAULT 100.00,
+  -- Task 03: copied from the property's APPROVED viewing fee when the request is
+  -- made. No platform-wide default exists any more; 0 means "no fee applies".
+  `fee_amount_ghs` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  `viewing_terms_snapshot_json` LONGTEXT DEFAULT NULL,
   `outcome_notes` TEXT DEFAULT NULL,
   -- Increment F: the agent-led viewing lifecycle. A row is a REQUEST first and
   -- becomes an appointment only when a slot is agreed (confirmed_at).
@@ -759,6 +811,12 @@ CREATE TABLE IF NOT EXISTS `verification_documents` (
   `bytes` INT NOT NULL DEFAULT 0,
   `checksum_sha256` VARCHAR(64) NOT NULL DEFAULT '',
   `uploaded_by` VARCHAR(64) DEFAULT NULL,
+  -- Task 03: the reviewer's per-document outcome. 'pending' until a reviewer
+  -- records it; it never changes a verification status by itself.
+  `review_status` VARCHAR(24) NOT NULL DEFAULT 'pending',
+  `review_note` VARCHAR(500) DEFAULT NULL,
+  `reviewed_by` VARCHAR(64) DEFAULT NULL,
+  `reviewed_at` DATETIME DEFAULT NULL,
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `deleted_at` DATETIME DEFAULT NULL,
   PRIMARY KEY (`id`),
@@ -924,6 +982,16 @@ CREATE TABLE IF NOT EXISTS `rental_commissions` (
   `policy_id` VARCHAR(64) DEFAULT NULL,
   `policy_snapshot_json` LONGTEXT DEFAULT NULL,
   `policy_snapshot_hash` VARCHAR(64) DEFAULT NULL,
+  -- Task 03: the tier split that applied when this commission was priced. These
+  -- are frozen at that moment; a later verification change never rewrites them.
+  `agent_tier` VARCHAR(32) DEFAULT NULL,
+  `agent_share_percent` DECIMAL(5,2) DEFAULT NULL,
+  `goodlucks_share_percent` DECIMAL(5,2) DEFAULT NULL,
+  `agent_share_ghs` DECIMAL(12,2) DEFAULT NULL,
+  `goodlucks_share_ghs` DECIMAL(12,2) DEFAULT NULL,
+  `split_snapshot_json` LONGTEXT DEFAULT NULL,
+  `split_snapshot_hash` VARCHAR(64) DEFAULT NULL,
+  `split_frozen_at` DATETIME DEFAULT NULL,
   `due_date` DATE DEFAULT NULL,
   `status` VARCHAR(24) NOT NULL DEFAULT 'draft',
   `notes` TEXT DEFAULT NULL,

@@ -172,7 +172,13 @@ define('IDENTITY_DATA_KEY', (string)cfg('IDENTITY_DATA_KEY', ''));
 
 define('SESSION_COOKIE', 'gl_session');
 define('SESSION_TTL_SECONDS', (int)cfg('SESSION_TTL_SECONDS', 60 * 60 * 24 * 7)); // 7 days
-define('VIEWING_FEE_GHS', (float)cfg('VIEWING_FEE_GHS', 100));
+// Task 03: there is NO platform-wide viewing fee. Each property carries its own
+// approved fee (`properties.viewing_fee_ghs`), and a property with none approved
+// has no fee. The old `VIEWING_FEE_GHS` default of 100 was a figure no property
+// had agreed to and has been removed; the constant is kept only as an explicitly
+// configured, non-default escape hatch for legacy imports and reads as 0 unless
+// somebody sets it on purpose.
+define('VIEWING_FEE_GHS', (float)cfg('VIEWING_FEE_GHS', 0));
 
 /**
  * Registrations accepted from one IP per hour. Kept as a config value so the
@@ -246,6 +252,7 @@ require_once GL_ROOT . '/lib/audit.php';
 require_once GL_ROOT . '/lib/mailer.php';
 require_once GL_ROOT . '/lib/outbox.php';
 require_once GL_ROOT . '/lib/repository.php';
+require_once GL_ROOT . '/lib/viewing_terms.php';
 require_once GL_ROOT . '/lib/private_storage.php';
 require_once GL_ROOT . '/lib/verification.php';
 require_once GL_ROOT . '/lib/fee_policies.php';

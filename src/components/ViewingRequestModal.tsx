@@ -137,13 +137,47 @@ export const ViewingRequestModal: React.FC<ViewingRequestModalProps> = ({ proper
               </p>
             </div>
 
-            {/* Physical Fee Intermediary Alert */}
+            {/* Task 03: this property's own fee and viewing terms, exactly as
+                approved for it. Nothing is assumed and nothing is defaulted. */}
             <div className="bg-[#08D9D6]/10 border border-[#08D9D6]/30 rounded-2xl p-3.5 flex items-start gap-3">
               <AlertCircle className="w-5 h-5 text-[#08D9D6] shrink-0 mt-0.5" />
-              <div className="text-xs text-slate-200 leading-relaxed">
-                <span className="font-bold text-[#08D9D6]">Viewing fee notice:</span> any viewing fee is agreed with the agent and paid{' '}
-                <span className="underline font-semibold">directly to the agent on site</span>. Goodlucks never asks for a viewing fee
-                online, and no payment is taken or confirmed by this form.
+              <div className="text-xs text-slate-200 leading-relaxed space-y-1.5">
+                <div>
+                  <span className="font-bold text-[#08D9D6]">Viewing fee for this property:</span>{' '}
+                  {property.viewingTerms?.isApproved && property.viewingTerms.feeGhs ? (
+                    <span className="font-semibold text-white">GH₵ {property.viewingTerms.feeGhs.toLocaleString()}</span>
+                  ) : (
+                    <span className="font-semibold text-white">none approved — the agent will tell you before you travel</span>
+                  )}
+                  . It is paid <span className="underline font-semibold">directly to the agent on site</span>; Goodlucks
+                  never asks for a viewing fee online, and no payment is taken or confirmed by this form.
+                </div>
+                {property.viewingTerms?.isApproved && property.viewingTerms.terms && (
+                  <div className="text-[11px] text-slate-300 space-y-1 border-t border-white/10 pt-1.5">
+                    <div>
+                      <span className="font-semibold text-white">
+                        {property.viewingTerms.terms.appointmentRequired ? 'Appointment required:' : 'No appointment needed:'}
+                      </span>{' '}
+                      {property.viewingTerms.terms.howToArrange}
+                    </div>
+                    {property.viewingTerms.terms.conditions && (
+                      <div>
+                        <span className="font-semibold text-white">Conditions:</span>{' '}
+                        {property.viewingTerms.terms.conditions}
+                      </div>
+                    )}
+                    <div>
+                      <span className="font-semibold text-white">Paying the fee:</span>{' '}
+                      {property.viewingTerms.terms.paymentInstructions}
+                    </div>
+                    {property.viewingTerms.terms.restrictions && (
+                      <div>
+                        <span className="font-semibold text-white">Restrictions:</span>{' '}
+                        {property.viewingTerms.terms.restrictions}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
 

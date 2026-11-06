@@ -475,10 +475,48 @@ export const PropertyDetailView: React.FC = () => {
               </div>
 
               <div className="pt-4 border-t border-white/10 space-y-2 text-[11px] text-slate-400">
-                <div className="flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#08D9D6]" />
-                  <span>Viewing Fee: <strong className="text-white">GH₵ 100</strong> (Paid physically on site)</span>
+                {/* Task 03: the fee belongs to THIS property and is the approved
+                    one. There is no platform-wide fee any more, so a property
+                    without an approved fee says so instead of inventing GH₵ 100. */}
+                <div className="flex items-start gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#08D9D6] mt-1.5" />
+                  {property.viewingTerms?.isApproved && property.viewingTerms.feeGhs ? (
+                    <span>
+                      Viewing Fee for this property:{' '}
+                      <strong className="text-white">GH₵ {property.viewingTerms.feeGhs.toLocaleString()}</strong>{' '}
+                      (paid on site, never online)
+                    </span>
+                  ) : (
+                    <span>No viewing fee has been approved for this property. Ask the agent before you travel.</span>
+                  )}
                 </div>
+                {property.viewingTerms?.isApproved && property.viewingTerms.terms && (
+                  <div className="rounded-xl border border-white/10 bg-slate-900/40 p-3 space-y-1.5">
+                    <p className="text-[11px] font-bold text-white">Viewing terms for this property</p>
+                    <p className="text-[11px] text-slate-300">
+                      {property.viewingTerms.terms.appointmentRequired
+                        ? 'An appointment is required.'
+                        : 'No appointment is required.'}{' '}
+                      {property.viewingTerms.terms.howToArrange}
+                    </p>
+                    {property.viewingTerms.terms.conditions && (
+                      <p className="text-[11px] text-slate-400">
+                        <span className="font-semibold text-slate-300">Conditions:</span>{' '}
+                        {property.viewingTerms.terms.conditions}
+                      </p>
+                    )}
+                    <p className="text-[11px] text-slate-400">
+                      <span className="font-semibold text-slate-300">Paying the fee:</span>{' '}
+                      {property.viewingTerms.terms.paymentInstructions}
+                    </p>
+                    {property.viewingTerms.terms.restrictions && (
+                      <p className="text-[11px] text-slate-400">
+                        <span className="font-semibold text-slate-300">Restrictions:</span>{' '}
+                        {property.viewingTerms.terms.restrictions}
+                      </p>
+                    )}
+                  </div>
+                )}
                 <div className="flex items-center gap-2">
                   <span className="w-1.5 h-1.5 rounded-full bg-[#08D9D6]" />
                   <span>Zero Direct Landlord Solicitations</span>
