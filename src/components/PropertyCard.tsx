@@ -128,6 +128,22 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({ property, onRequestV
           </div>
         </div>
 
+        {/* Task 03 update: the viewing fee that actually applies to this listing.
+            A landlord listing's fee is set by Goodlucks Homes and paid to
+            Goodlucks after the viewing; an agent listing's fee is the agent's own.
+            Nothing is shown when no fee has been approved — no default is invented. */}
+        {property.viewingTerms?.feeGhs ? (
+          <div className="text-[9px] sm:text-[10px] font-medium text-slate-300 flex items-center gap-1">
+            <span>Viewing fee</span>
+            <strong className="text-white">GH₵ {property.viewingTerms.feeGhs.toLocaleString()}</strong>
+            <span className="text-slate-400 truncate">
+              {property.viewingTerms.source === 'platform_policy'
+                ? '· to Goodlucks after viewing'
+                : '· paid on site'}
+            </span>
+          </div>
+        ) : null}
+
         {/* Intermediary Guarantee Notice */}
         {property.isLandlordVerified ? (
           <div className="text-[9px] sm:text-[10px] text-emerald-300 bg-emerald-500/10 px-2 py-1 rounded-md text-center border border-emerald-500/20 font-semibold flex items-center justify-center gap-1">

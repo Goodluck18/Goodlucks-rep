@@ -130,9 +130,13 @@ const TenantViewingCard: React.FC<{ viewing: ViewingSchedule; onOpenProperty: (i
         <p className="text-[11px] text-[#FF8FA8]">Cancellation reason: {viewing.cancelReason}</p>
       )}
       <p className="text-[11px] text-slate-500">
-        {viewing.viewingFeePaid
-          ? 'Staff have recorded a viewing fee collected by the agent on site. Goodlucks did not take this payment.'
-          : 'No viewing fee has been recorded. Any fee is agreed with the agent and paid on site.'}
+        {viewing.feeSource === 'platform_policy'
+          ? viewing.viewingFeePaid
+            ? 'Goodlucks Homes has recorded the viewing fee for this viewing as received. Goodlucks does not ask for a viewing fee online.'
+            : `The viewing fee for this listing is GH₵ ${viewing.feeAmountGhs.toLocaleString()}, payable to Goodlucks Homes after the viewing. Goodlucks does not ask for it online.`
+          : viewing.viewingFeePaid
+            ? 'Staff have recorded a viewing fee collected by the agent on site. Goodlucks did not take this payment.'
+            : 'No viewing fee has been recorded. Any fee is agreed with the agent and paid on site.'}
       </p>
 
       <div className="flex flex-wrap items-center gap-2 pt-1">

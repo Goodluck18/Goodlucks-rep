@@ -26,7 +26,7 @@ const FAQ_DATA: FAQItem[] = [
     id: 'faq-3',
     category: 'General',
     question: 'What is the physical viewing fee and what does it cover?',
-    answer: 'Each property sets its own viewing fee, which is shown on the listing together with that property\'s viewing terms. The fee covers physical transport, property access setup and on-site guidance with the agent responsible for the listing, and it is paid on site — never online. Goodlucks does not have a standard viewing fee.'
+    answer: 'The viewing fee that applies is always shown on the listing before you request a viewing, and it is never paid online. For a listing submitted by an agent, the agent sets that property\'s fee and viewing terms and it is paid on site after the viewing. For a listing submitted by a landlord, Goodlucks Homes sets one general landlord viewing fee, the tenant pays it to Goodlucks Homes after the viewing, and the landlord does not receive it.'
   },
   {
     id: 'faq-4',

@@ -950,6 +950,19 @@ function shape_rental_commission(array $row): array
         'goodlucksShareGhs'  => $row['goodlucks_share_ghs'] === null ? null : round((float)$row['goodlucks_share_ghs'], 2),
         'splitSnapshot'      => $splitSnapshot,
         'splitFrozenAt'      => to_iso($row['split_frozen_at'] ?? null),
+        // Task 03 update: which policy priced this row. A landlord platform fee
+        // is 8% of rent actually paid and belongs entirely to Goodlucks; it is
+        // never an agent commission and never carries a tier split.
+        'policyType'         => (string)($row['policy_type'] ?? COMMISSION_POLICY_AGENT),
+        'policyTypeLabel'    => COMMISSION_POLICY_LABELS[(string)($row['policy_type'] ?? COMMISSION_POLICY_AGENT)]
+            ?? COMMISSION_POLICY_LABELS[COMMISSION_POLICY_AGENT],
+        'isLandlordPlatformFee' => (string)($row['policy_type'] ?? COMMISSION_POLICY_AGENT) === COMMISSION_POLICY_LANDLORD,
+        // The calculation basis (total rent actually paid) and the percentage
+        // applied, both as stored at the time. NULL for agent commissions.
+        'rentAmountGhs'      => $row['rent_amount_ghs'] === null ? null : round((float)$row['rent_amount_ghs'], 2),
+        'platformFeePercent' => $row['platform_fee_percent'] === null ? null : (float)$row['platform_fee_percent'],
+        // The landlord receives no commission and no share of the platform fee.
+        'landlordShareGhs'   => (string)($row['policy_type'] ?? '') === COMMISSION_POLICY_LANDLORD ? 0.0 : null,
     ];
 }
 
@@ -1077,6 +1090,19 @@ function create_rental_commission(array $input, array $actor): array
         }
     }
 
+    // Task 03 update: a landlord listing is priced by the 8% platform-fee policy,
+    // never by the agent commission workflow. Refusing here (rather than quietly
+    // creating an agent-style row) is what keeps the two policies from ever
+    // sharing a transaction.
+    if (is_landlord_listing($property)) {
+        error_response(
+            'This property was submitted by a landlord, so it does not use the agent commission workflow. '
+            . 'Record the 8% platform fee on the rent actually paid from the landlord fee section instead.',
+            422,
+            ['propertyId' => 'Landlord listings use the platform-fee policy.']
+        );
+    }
+
     $agentUserId = clean_string($input['agentUserId'] ?? ($property['submitted_by_user_id'] ?? ''), 64);
     if ($agentUserId !== '') {
         $agentUser = find_user_by_id($agentUserId);
@@ -1184,6 +1210,382 @@ function create_rental_commission(array $input, array $actor): array
     return shape_rental_commission($created);
 }
 
+/**
+ * Task 03 update: record the landlord platform fee for one rent payment.
+ *
+ * The fee is 8% of the total rent the tenant actually paid. Both the basis (the
+ * rent) and the percentage are stored on the row, so a future change of policy
+ * never rewrites this transaction. The rent amount is the recorded payment staff
+ * are entering; the FEE is never accepted from a client, and the landlord is
+ * never given a commission or a share of it.
+ *
+ * Duplicate protection is two-layered: a dedupe key per (property, rent payment
+ * reference) checked here, plus the UNIQUE index on `dedupe_key` so a race
+ * cannot write two fees for one payment.
+ */
+function create_landlord_platform_fee(array $input, array $actor): array
+{
+    $propertyId = clean_string($input['propertyId'] ?? '', 64);
+    $property = $propertyId !== '' ? find_property($propertyId) : null;
+    if ($property === null) {
+        error_response('Choose the landlord property this platform fee relates to.', 422, [
+            'propertyId' => 'A platform fee must name a real property.',
+        ]);
+    }
+    if (!is_landlord_listing($property)) {
+        error_response(
+            'This property was submitted by an agent, so its rental commission uses the agent tier workflow, '
+            . 'not the landlord platform fee.',
+            422,
+            ['propertyId' => 'The 8% platform fee applies to landlord-submitted listings only.']
+        );
+    }
+
+    // The basis: the total rent the tenant actually paid, as recorded by staff.
+    $rent = finance_money($input['rentAmountGhs'] ?? null);
+    if ($rent === null || $rent <= 0) {
+        error_response('Enter the total rent the tenant actually paid.', 422, [
+            'rentAmountGhs' => 'Enter the rent amount that was actually paid, above zero.',
+        ]);
+    }
+
+    $rentReference = clean_string($input['rentPaymentReference'] ?? $input['rentalReference'] ?? '', 128);
+    if ($rentReference === '') {
+        error_response('Record the reference of the rent payment this fee is calculated from.', 422, [
+            'rentPaymentReference' => 'A bank, MoMo or receipt reference identifies the rent payment.',
+        ]);
+    }
+
+    $dedupeKey = landlord_platform_fee_dedupe_key($propertyId, $rentReference);
+    $existing = db_one('SELECT * FROM rental_commissions WHERE dedupe_key = :key LIMIT 1', [':key' => $dedupeKey]);
+    if ($existing !== null) {
+        error_response(
+            'The platform fee for this rent payment has already been recorded (' . (string)$existing['reference'] . ').',
+            409,
+            ['rentPaymentReference' => 'This rent payment already has a platform fee.']
+        );
+    }
+
+    $split = landlord_platform_fee_split((float)$rent);
+    $dueDate = null;
+    if (isset($input['dueDate']) && $input['dueDate'] !== '') {
+        $dueDate = valid_date_iso($input['dueDate']);
+        if ($dueDate === null) {
+            error_response('Use a real calendar date for the due date.', 422, ['dueDate' => 'Use a real date.']);
+        }
+    }
+
+    $snapshot = [
+        'snapshotKind'        => 'landlord_platform_fee',
+        'policyType'          => COMMISSION_POLICY_LANDLORD,
+        'propertyId'          => $propertyId,
+        'propertyTitle'       => (string)($property['title'] ?? ''),
+        // Decided from the submission attribution, not from ownership.
+        'submittedByRole'     => (string)($property['submitted_by_role'] ?? ''),
+        'submittedByUserId'   => (string)($property['submitted_by_user_id'] ?? ''),
+        'rentPaymentReference'=> $rentReference,
+        'rentAmountGhs'       => $split['rentAmountGhs'],
+        'platformFeePercent'  => $split['percent'],
+        'platformFeeGhs'      => $split['platformFeeGhs'],
+        'goodlucksShareGhs'   => $split['goodlucksShareGhs'],
+        'landlordShareGhs'    => $split['landlordShareGhs'],
+        'agentShareGhs'       => $split['agentShareGhs'],
+        'agentTierApplied'    => false,
+        'frozenAt'            => db_now(),
+    ];
+    $snapshot['snapshotHash'] = fee_snapshot_hash($snapshot);
+
+    $id = new_id('com');
+    $reference = finance_reference('COM');
+
+    try {
+        db_exec(
+            'INSERT INTO rental_commissions
+                (id, reference, property_id, property_title, tenant_user_id, tenant_name,
+                 landlord_user_id, landlord_name, agent_user_id, agent_name, rental_reference,
+                 commission_amount_ghs, currency, basis, policy_type, rent_amount_ghs,
+                 platform_fee_percent, dedupe_key, policy_id, policy_snapshot_json,
+                 policy_snapshot_hash, agent_tier, agent_share_percent, goodlucks_share_percent,
+                 agent_share_ghs, goodlucks_share_ghs, split_snapshot_json, split_snapshot_hash,
+                 split_frozen_at, due_date, status, notes, created_by, created_at)
+             VALUES
+                (:id, :reference, :property, :title, :tenant, :tenant_name,
+                 :landlord, :landlord_name, NULL, :agent_name, :rental_ref,
+                 :amount, :currency, :basis, :policy_type, :rent_amount,
+                 :percent, :dedupe, NULL, :snapshot,
+                 :hash, NULL, :agent_pct, :gl_pct,
+                 :agent_share, :gl_share, :split_json, :split_hash,
+                 :split_at, :due, :status, :notes, :by, :now)',
+            [
+                ':id'          => $id,
+                ':reference'   => $reference,
+                ':property'    => $propertyId,
+                ':title'       => (string)($property['title'] ?? ''),
+                ':tenant'      => clean_string($input['tenantUserId'] ?? '', 64),
+                ':tenant_name' => clean_string($input['tenantName'] ?? '', 255),
+                ':landlord'    => (string)($property['landlord_id'] ?? ''),
+                ':landlord_name' => (string)($property['landlord_name'] ?? ''),
+                ':agent_name'  => 'Goodlucks Homes (landlord listing)',
+                ':rental_ref'  => $rentReference,
+                ':amount'      => $split['platformFeeGhs'],
+                ':currency'    => 'GHS',
+                ':basis'       => 'policy_snapshot',
+                ':policy_type' => COMMISSION_POLICY_LANDLORD,
+                ':rent_amount' => $split['rentAmountGhs'],
+                ':percent'     => $split['percent'],
+                ':dedupe'      => $dedupeKey,
+                ':snapshot'    => json_encode($snapshot, JSON_UNESCAPED_SLASHES),
+                ':hash'        => $snapshot['snapshotHash'],
+                ':agent_pct'   => 0.0,
+                ':gl_pct'      => 100.0,
+                ':agent_share' => 0.0,
+                ':gl_share'    => $split['goodlucksShareGhs'],
+                ':split_json'  => json_encode($snapshot, JSON_UNESCAPED_SLASHES),
+                ':split_hash'  => $snapshot['snapshotHash'],
+                ':split_at'    => $snapshot['frozenAt'],
+                ':due'         => $dueDate,
+                // The fee follows from the policy as soon as the rent payment is
+                // recorded, so there is nothing to negotiate: it starts agreed.
+                ':status'      => 'agreed',
+                ':notes'       => clean_text($input['notes'] ?? '', 2000) ?: null,
+                ':by'          => (string)($actor['id'] ?? ''),
+                ':now'         => db_now(),
+            ]
+        );
+    } catch (Throwable $e) {
+        if (db_is_unique_violation($e)) {
+            error_response('The platform fee for this rent payment has already been recorded.', 409);
+        }
+        throw $e;
+    }
+
+    audit_log('finance.landlord_platform_fee_created', 'commission', $id, [
+        'propertyId'        => $propertyId,
+        'rentAmountGhs'     => $split['rentAmountGhs'],
+        'platformFeePercent'=> $split['percent'],
+        'platformFeeGhs'    => $split['platformFeeGhs'],
+        'landlordShareGhs'  => 0.0,
+        'agentTierApplied'  => false,
+    ], $actor);
+
+    $created = find_rental_commission($id);
+    if ($created === null) {
+        error_response('The platform fee could not be read back.', 500);
+    }
+    return shape_rental_commission($created);
+}
+
+/**
+ * Task 03 update: record that Goodlucks received the viewing fee for one
+ * completed viewing of a LANDLORD listing.
+ *
+ * The amount is NOT typed in: it is the fee already snapshotted on the viewing
+ * when the tenant requested it, so a later change to the general fee cannot
+ * alter what this viewing was charged. The whole amount belongs to Goodlucks
+ * Homes — there is no agent share and no landlord share — and the remittance row
+ * is what makes it revenue.
+ *
+ * Idempotent per viewing: the ledger row is unique per viewing, and an existing
+ * row is refused rather than silently overwritten.
+ */
+function record_landlord_viewing_fee_payment(array $input, array $actor): array
+{
+    $viewingId = clean_string($input['viewingId'] ?? '', 64);
+    $viewing = $viewingId !== '' ? find_viewing($viewingId) : null;
+    if ($viewing === null) {
+        error_response('Choose the viewing this viewing fee belongs to.', 422, [
+            'viewingId' => 'A viewing fee payment must name a real viewing.',
+        ]);
+    }
+
+    $property = (string)($viewing['propertyId'] ?? '') !== '' ? find_property((string)$viewing['propertyId']) : null;
+    if ($property === null) {
+        error_response('The property for this viewing no longer exists.', 404);
+    }
+    if (!is_landlord_listing($property)) {
+        error_response(
+            'This viewing is for an agent-submitted property. Agent viewing fees are handled in the agent fee ledger, '
+            . 'not as a landlord platform fee.',
+            422,
+            ['viewingId' => 'The landlord viewing fee applies to landlord-submitted listings only.']
+        );
+    }
+
+    // The fee is only payable after the viewing actually took place.
+    $status = viewing_normalise_status((string)($viewing['status'] ?? ''));
+    if ($status !== 'completed') {
+        error_response(
+            'The viewing fee can only be recorded after the viewing has been completed.',
+            409,
+            ['viewingId' => 'Complete the viewing first; the fee is payable after the viewing.']
+        );
+    }
+
+    $existingRecord = find_viewing_fee_record_by_viewing($viewingId);
+    if ($existingRecord !== null) {
+        error_response(
+            'A viewing fee is already recorded for this viewing (' . (string)$existingRecord['reference'] . ').',
+            409,
+            ['viewingId' => 'This viewing already has a fee record.']
+        );
+    }
+
+    $amount = round((float)($viewing['feeAmountGhs'] ?? 0), 2);
+    if ($amount <= 0) {
+        error_response(
+            'No viewing fee was recorded for this viewing, so there is nothing to collect.',
+            422,
+            ['viewingId' => 'This viewing has no fee attached.']
+        );
+    }
+
+    $method = clean_string($input['method'] ?? 'unknown', 60);
+    $reference = clean_string($input['reference'] ?? '', 128);
+    $receivedAt = valid_date_iso($input['receivedAt'] ?? null) ?? gmdate('Y-m-d');
+
+    $record = ensure_viewing_fee_record($viewing, $actor, $amount, 'landlord_platform_fee');
+    if ($record === null) {
+        error_response('The viewing fee record could not be created.', 500);
+    }
+    $recordId = (string)$record['id'];
+
+    // 100% to Goodlucks, frozen with a snapshot so the split is never guessed.
+    $snapshot = [
+        'basis'              => 'platform_policy',
+        'policyType'         => COMMISSION_POLICY_LANDLORD,
+        'settingKey'         => LANDLORD_VIEWING_FEE_KEY,
+        'feeTotalGhs'        => $amount,
+        'goodlucksShareGhs'  => $amount,
+        'agentShareGhs'      => 0.0,
+        'landlordShareGhs'   => 0.0,
+        'propertyId'         => (string)($viewing['propertyId'] ?? ''),
+        'viewingId'          => $viewingId,
+        'recordedBy'         => (string)($actor['id'] ?? ''),
+        'recordedAt'         => db_now(),
+        'note'               => 'Landlord viewing fee: paid by the tenant to Goodlucks Homes after the viewing.',
+    ];
+
+    db_exec(
+        "UPDATE viewing_fee_records
+            SET goodlucks_share_ghs = :share, agent_share_ghs = 0,
+                share_basis = 'platform_policy', policy_snapshot_json = :snapshot,
+                fee_source = 'landlord_platform_fee', updated_at = :updated
+          WHERE id = :id",
+        [
+            ':share'    => $amount,
+            ':snapshot' => json_encode($snapshot, JSON_UNESCAPED_SLASHES),
+            ':updated'  => db_now(),
+            ':id'       => $recordId,
+        ]
+    );
+
+    try {
+        add_fee_remittance($recordId, [
+            'amount_ghs'  => $amount,
+            'method'      => $method,
+            'reference'   => $reference,
+            'received_at' => $receivedAt,
+            'recorded_by' => (string)($actor['id'] ?? ''),
+            'notes'       => clean_string($input['notes'] ?? 'Landlord viewing fee received by Goodlucks Homes', 300),
+        ]);
+    } catch (InvalidArgumentException $e) {
+        error_response($e->getMessage(), 422);
+    }
+
+    // The viewing now shows its fee as paid; nothing else about the viewing moves.
+    update_viewing($viewingId, ['viewing_fee_paid' => true]);
+
+    audit_log('landlord_policy.viewing_fee_payment_recorded', 'viewing_fee', $recordId, [
+        'viewingId'        => $viewingId,
+        'propertyId'       => (string)($viewing['propertyId'] ?? ''),
+        'amountGhs'        => $amount,
+        'paidTo'           => 'Goodlucks Homes',
+        'agentShareGhs'    => 0.0,
+        'landlordShareGhs' => 0.0,
+        'method'           => $method,
+    ], $actor);
+
+    $fresh = find_viewing_fee_record($recordId);
+    return $fresh !== null ? shape_viewing_fee_record($fresh) : [];
+}
+
+/** Landlord viewing-fee ledger rows only (never agent collections). */
+function list_landlord_viewing_fees(int $limit = 200): array
+{
+    $rows = db_all(
+        "SELECT * FROM viewing_fee_records WHERE fee_source = 'landlord_platform_fee'
+          ORDER BY recorded_at DESC" . db_limit_clause($limit, 0)
+    );
+    return array_map('shape_viewing_fee_record', $rows);
+}
+
+/** Totals for the landlord viewing-fee section. */
+function landlord_viewing_fee_payment_summary(): array
+{
+    $rows = list_landlord_viewing_fees(5000);
+    $fees = 0.0;
+    $received = 0.0;
+    foreach ($rows as $row) {
+        if (($row['collectionState'] ?? '') === 'void') {
+            continue;
+        }
+        $fees += (float)($row['feeTotalGhs'] ?? 0);
+        $received += (float)($row['remittedGhs'] ?? 0);
+    }
+    return [
+        'records'      => count($rows),
+        'feesGhs'      => round($fees, 2),
+        'receivedGhs'  => round($received, 2),
+        'outstandingGhs' => round(max(0.0, $fees - $received), 2),
+        // Explicit: the landlord is not paid any part of a viewing fee.
+        'landlordShareGhs' => 0.0,
+        'agentShareGhs'    => 0.0,
+    ];
+}
+
+/** Landlord platform-fee transactions, newest first. */
+function list_landlord_platform_fees(int $limit = 200): array
+{
+    $rows = db_all(
+        'SELECT * FROM rental_commissions WHERE policy_type = :type ORDER BY created_at DESC'
+        . db_limit_clause($limit, 0),
+        [':type' => COMMISSION_POLICY_LANDLORD]
+    );
+    return array_map('shape_rental_commission', $rows);
+}
+
+/** Totals for the landlord platform-fee section (all derived from stored rows). */
+function landlord_platform_fee_summary(): array
+{
+    $rows = list_landlord_platform_fees(5000);
+    $rent = 0.0;
+    $fees = 0.0;
+    $received = 0.0;
+    $landlordShare = 0.0;
+
+    foreach ($rows as $row) {
+        if (($row['status'] ?? '') === 'cancelled') {
+            continue;
+        }
+        $rent += (float)($row['rentAmountGhs'] ?? 0);
+        $fees += (float)($row['amountGhs'] ?? 0);
+        $received += (float)($row['receivedGhs'] ?? 0);
+        $landlordShare += (float)($row['landlordShareGhs'] ?? 0);
+    }
+
+    return [
+        'records'            => count($rows),
+        'rentBasisGhs'       => round($rent, 2),
+        'platformFeesGhs'    => round($fees, 2),
+        // Money actually recorded as received — never an expectation.
+        'receivedGhs'        => round($received, 2),
+        'outstandingGhs'     => round(max(0.0, $fees - $received), 2),
+        // Stated explicitly: landlords are not paid a commission.
+        'landlordCommissionGhs' => round($landlordShare, 2),
+        'percent'            => LANDLORD_PLATFORM_FEE_PERCENT,
+    ];
+}
+
 function find_rental_commission(string $id): ?array
 {
     if ($id === '') {
@@ -1196,7 +1598,14 @@ function list_rental_commissions(array $filters = [], int $limit = 200): array
 {
     $where = [];
     $params = [];
-    foreach (['status' => 'status', 'agentUserId' => 'agent_user_id', 'propertyId' => 'property_id'] as $key => $column) {
+    foreach ([
+        'status' => 'status',
+        'agentUserId' => 'agent_user_id',
+        'propertyId' => 'property_id',
+        // Task 03 update: keeps the landlord platform fee and the agent
+        // commission apart in every listing and every total.
+        'policyType' => 'policy_type',
+    ] as $key => $column) {
         if (!empty($filters[$key])) {
             $where[] = $column . ' = :' . $key;
             $params[':' . $key] = (string)$filters[$key];
@@ -1883,7 +2292,11 @@ function finance_reconciliation_summary(): array
         }
     }
 
-    $commissions = list_rental_commissions([], 5000);
+    // Task 03 update: the agent commission totals cover AGENT commissions only.
+    // Landlord platform fees are a different policy and are reported on their own
+    // line, so the two can never be read as one figure.
+    $commissions = list_rental_commissions(['policyType' => COMMISSION_POLICY_AGENT], 5000);
+    $landlordPlatformFees = landlord_platform_fee_summary();
     $commissionAgreed = 0.0;
     $commissionDue = 0.0;
     $commissionReceived = 0.0;
@@ -1946,6 +2359,17 @@ function finance_reconciliation_summary(): array
             'disputedCount'  => $commissionDisputed,
             'byStatus'       => $commissionByStatus,
             'records'        => count($commissions),
+        ],
+        // Task 03 update: the 8% landlord platform fee, kept apart from the
+        // agent tier commissions above. The landlord receives no commission.
+        'landlordPlatformFees' => [
+            'percent'        => $landlordPlatformFees['percent'],
+            'rentBasisGhs'   => $landlordPlatformFees['rentBasisGhs'],
+            'feesGhs'        => $landlordPlatformFees['platformFeesGhs'],
+            'receivedGhs'    => $landlordPlatformFees['receivedGhs'],
+            'outstandingGhs' => $landlordPlatformFees['outstandingGhs'],
+            'landlordCommissionGhs' => $landlordPlatformFees['landlordCommissionGhs'],
+            'records'        => $landlordPlatformFees['records'],
         ],
         'adjustments' => [
             'count'    => count($adjustments),

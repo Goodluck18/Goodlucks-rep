@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { api, messageForError } from '../services/apiService';
+import { AdminLandlordFinance } from './AdminLandlordFinance';
 import type {
   FinanceReconciliationSummary,
   RentalCommission,
@@ -62,7 +63,7 @@ const commissionStyles: Record<RentalCommissionStatus, string> = {
   corrected: 'bg-purple-500/15 text-purple-300 border-purple-500/30',
 };
 
-type Tab = 'remittances' | 'commissions' | 'adjustments';
+type Tab = 'remittances' | 'commissions' | 'landlord' | 'adjustments';
 
 export const AdminFinancePanel: React.FC = () => {
   const { currentUser, showSuccessToast, showErrorToast, properties } = useApp();
@@ -281,6 +282,9 @@ export const AdminFinancePanel: React.FC = () => {
           [
             ['remittances', 'Remittances'],
             ['commissions', 'Rental commissions'],
+            // Task 03 update: landlord money is its own screen — the 8% platform
+            // fee on rent paid and the landlord viewing fees paid to Goodlucks.
+            ['landlord', 'Landlord fees'],
             ['adjustments', 'Adjustments & reversals'],
           ] as [Tab, string][]
         ).map(([key, label]) => (
@@ -653,6 +657,8 @@ export const AdminFinancePanel: React.FC = () => {
           )}
         </div>
       )}
+
+      {tab === 'landlord' && <AdminLandlordFinance />}
 
       {tab === 'adjustments' && (
         <div className="bg-[#252A34]/70 border border-white/10 rounded-3xl p-6 space-y-4">

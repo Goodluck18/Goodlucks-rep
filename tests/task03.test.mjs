@@ -965,10 +965,10 @@ describe('Per-property viewing fees and viewing terms', () => {
     assert.equal(fresh.body.property.viewingTerms.feeGhs, 250);
   });
 
-  test('a property with nothing approved has no viewing fee rather than a default', async () => {
+  test('an unconfigured landlord viewing fee is never invented, and blocks publication', async () => {
     const landlord = await registerLandlord('no-fee');
-    // A landlord listing may omit the fee: no landlord viewing-fee policy exists
-    // yet, so none is invented for them.
+    // A landlord cannot set a fee. With no administrator-configured general
+    // landlord viewing fee the listing genuinely has none — nothing is invented.
     const created = await landlord.client.post('/api/properties', {
       title: 'Landlord listing without a viewing fee',
       location: 'Tema',
@@ -982,19 +982,36 @@ describe('Per-property viewing fees and viewing terms', () => {
     });
     assert.equal(created.status, 201, JSON.stringify(created.body));
     assert.equal(created.body.property.viewingTerms.feeGhs, null);
+    assert.equal(created.body.property.viewingTerms.source, 'platform_policy');
+    assert.equal(created.body.property.viewingTerms.platformFeeConfigured, false);
 
-    await state.admin.client.post(`/api/properties/${created.body.property.id}/status`, { status: 'active' });
+    // Nothing is invented, and the administrator is told configuration is
+    // required. The listing itself can still be published — it simply carries no
+    // viewing fee until the fee is set.
+    const policy = await state.admin.client.get('/api/admin/landlord-policy');
+    assert.equal(policy.body.policy.viewingFee.configured, false);
+    assert.equal(policy.body.policy.viewingFee.amountGhs, null);
+
+    const approval = await state.admin.client.post(`/api/properties/${created.body.property.id}/status`, {
+      status: 'active',
+    });
+    assert.equal(approval.status, 200, JSON.stringify(approval.body));
+    assert.equal(approval.body.property.viewingTerms.feeGhs, null);
+    assert.equal(approval.body.property.viewingTerms.isApproved, false);
 
     const guest = new ApiClient(baseUrl);
     const publicView = await guest.get(`/api/properties/${created.body.property.id}`);
-    assert.equal(publicView.body.property.viewingTerms.feeGhs, null);
-    assert.equal(publicView.body.property.viewingTerms.isApproved, false);
+    assert.equal(publicView.status, 200, JSON.stringify(publicView.body));
+    assert.equal(publicView.body.property.viewingTerms.feeGhs, null, 'no amount is invented');
+    assert.equal(publicView.body.property.viewingTerms.paidTo, 'Goodlucks Homes');
+    assert.equal(publicView.body.property.viewingTerms.platformFeeConfigured, undefined, 'staff-only detail stays internal');
 
+    // A tenant asking to view is told there is no fee, not shown GH₵ 100.
     const requested = await guest.post('/api/viewing-requests', {
       propertyId: created.body.property.id,
       tenantName: 'No Fee Tenant',
       tenantPhone: '+233 24 555 8888',
-      tenantEmail: 'no-fee-tenant@example.com',
+      tenantEmail: `no-fee-${stamp}@example.com`,
       date: new Date(Date.now() + 4 * 86400000).toISOString().slice(0, 10),
       time: '11:30',
       requestType: 'viewing',
@@ -1002,7 +1019,8 @@ describe('Per-property viewing fees and viewing terms', () => {
     });
     assert.equal(requested.status, 201, JSON.stringify(requested.body));
     assert.equal(requested.body.feeAmountGhs, null);
-    assert.equal(requested.body.viewing.feeAmountGhs, 0, 'zero means no fee applies — never GHS 100');
+    assert.equal(requested.body.viewing.feeAmountGhs, 0, 'zero means no fee applies — never a default');
+    assert.equal(requested.body.viewing.feeSource, 'platform_policy');
   });
 
   test('only staff can list or decide viewing-terms changes', async () => {
@@ -1108,5 +1126,501 @@ describe('Ownership attribution is preserved', () => {
         assert.equal(item.viewingTerms?.feeGhs ?? null, null);
       }
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 7. Landlord viewing fee: one administrator-set fee, never the landlord's
+// ---------------------------------------------------------------------------
+
+/**
+ * Helper: drive a viewing request all the way to `completed`, because a
+ * landlord viewing fee is only payable after the viewing has happened.
+ */
+const completeViewing = async (admin, viewingId) => {
+  const proposed = await admin.client.post(`/api/viewings/${viewingId}/propose`, {
+    date: new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10),
+    time: '10:00',
+    note: 'Slot proposed for the landlord fee test.',
+  });
+  assert.equal(proposed.status, 200, JSON.stringify(proposed.body));
+
+  const confirmed = await admin.client.post(`/api/viewings/${viewingId}/confirm`, {
+    note: 'Confirmed for the landlord fee test.',
+  });
+  assert.equal(confirmed.status, 200, JSON.stringify(confirmed.body));
+
+  const completed = await admin.client.post(`/api/viewings/${viewingId}/complete`, {
+    note: 'Viewing took place; the fee is payable after it.',
+  });
+  assert.equal(completed.status, 200, JSON.stringify(completed.body));
+  return completed.body.viewing;
+};
+
+const landlordListing = (overrides = {}) => ({
+  title: 'Landlord policy listing',
+  location: 'Adenta',
+  city: 'Accra',
+  rentGhs: 12000,
+  bedrooms: 3,
+  bathrooms: 2,
+  propertyType: 'House',
+  description: 'A landlord-submitted listing used to exercise the administrator-set landlord viewing fee.',
+  images: ['https://example.com/landlord-policy.jpg'],
+  ...overrides,
+});
+
+describe('Landlord viewing fee: administrator-controlled, applied automatically', () => {
+  const state = {};
+
+  test('only an administrator can read or change the general landlord viewing fee', async () => {
+    // The capability-gated finance desk is separate; this setting is an
+    // ordinary administrator decision, so a plain administrator may make it.
+    const admin = await createAdmin('landlord-fee', { finance: true });
+    state.admin = admin;
+
+    const before = await admin.client.get('/api/admin/landlord-policy');
+    assert.equal(before.status, 200, JSON.stringify(before.body));
+
+    const landlord = await registerLandlord('fee-setting');
+    const agent = await registerAgent('fee-setting');
+    const tenant = await registerTenant('fee-setting');
+    state.landlord = landlord;
+
+    for (const outsider of [landlord, agent, tenant]) {
+      assert.equal((await outsider.client.get('/api/admin/landlord-policy')).status, 403);
+      assert.equal(
+        (await outsider.client.put('/api/admin/landlord-policy/viewing-fee', { amountGhs: 10 })).status,
+        403,
+        'a landlord, an agent and a tenant can never set the platform-wide fee'
+      );
+    }
+    const guest = new ApiClient(baseUrl);
+    assert.equal((await guest.put('/api/admin/landlord-policy/viewing-fee', { amountGhs: 10 })).status, 401);
+  });
+
+  test('the amount is validated server-side and stored persistently', async () => {
+    const admin = state.admin;
+
+    for (const bad of [-5, 'abc', null, '', 99999999]) {
+      const res = await admin.client.put('/api/admin/landlord-policy/viewing-fee', { amountGhs: bad });
+      assert.equal(res.status, 422, `amount ${String(bad)} must be refused`);
+      assert.ok(res.body.fields?.amountGhs, 'the amount field explains the problem');
+    }
+
+    const set = await admin.client.put('/api/admin/landlord-policy/viewing-fee', { amountGhs: 45.5 });
+    assert.equal(set.status, 200, JSON.stringify(set.body));
+    assert.equal(set.body.policy.viewingFee.configured, true);
+    assert.equal(set.body.policy.viewingFee.amountGhs, 45.5);
+    assert.equal(set.body.policy.viewingFee.paidTo, 'Goodlucks Homes');
+    assert.equal(set.body.policy.viewingFee.landlordShare, 0);
+    assert.ok(set.body.policy.viewingFee.updatedAt, 'the change is timestamped');
+    assert.ok(set.body.policy.viewingFee.updatedByName, 'and attributed to the administrator');
+
+    // Read back in a separate request: the value is in the database, not in a
+    // frontend constant.
+    const readBack = await admin.client.get('/api/admin/landlord-policy');
+    assert.equal(readBack.body.policy.viewingFee.amountGhs, 45.5);
+    state.fee = 45.5;
+  });
+
+  test('a landlord listing automatically carries the fee, and a landlord cannot override it', async () => {
+    const landlord = state.landlord;
+
+    // The landlord tries to set their own fee; it is ignored, not applied.
+    const created = await landlord.client.post(
+      '/api/properties',
+      landlordListing({ title: 'Landlord listing with an attempted fee', viewingFeeGhs: 9999 })
+    );
+    assert.equal(created.status, 201, JSON.stringify(created.body));
+
+    const property = created.body.property;
+    state.property = property;
+    assert.equal(property.viewingTerms.feeGhs, state.fee, 'the administrator-set fee is applied');
+    assert.notEqual(property.viewingTerms.feeGhs, 9999, 'the landlord could not choose the amount');
+    assert.equal(property.viewingTerms.source, 'platform_policy');
+    assert.equal(property.viewingTerms.setBy, 'Goodlucks Homes');
+    assert.equal(property.viewingTerms.paidTo, 'Goodlucks Homes');
+    assert.equal(property.viewingTerms.landlordShareGhs, 0);
+    assert.equal(property.viewingTerms.payableAfterViewing, true);
+    assert.equal(property.submittedByRole, 'landlord');
+
+    // No landlord route can change it: not the listing edit, not the
+    // viewing-terms endpoint.
+    const edit = await landlord.client.put(`/api/properties/${property.id}`, {
+      viewingFeeGhs: 5,
+      viewingTerms: viewingTerms(),
+    });
+    assert.equal(edit.status, 403, JSON.stringify(edit.body));
+
+    const termsRoute = await landlord.client.post(`/api/properties/${property.id}/viewing-terms`, {
+      viewingFeeGhs: 5,
+      viewingTerms: viewingTerms(),
+    });
+    assert.equal(termsRoute.status, 403, JSON.stringify(termsRoute.body));
+
+    const still = await landlord.client.get(`/api/properties/${property.id}`);
+    assert.equal(still.body.property.viewingTerms.feeGhs, state.fee, 'the fee is unchanged');
+
+    // An agent cannot touch it either.
+    const agent = await registerAgent('landlord-fee-intruder');
+    const agentEdit = await agent.client.put(`/api/properties/${property.id}`, { viewingFeeGhs: 7 });
+    assert.equal(agentEdit.status, 403);
+
+    // The listing is published with the fee attached.
+    const approved = await state.admin.client.post(`/api/properties/${property.id}/status`, { status: 'active' });
+    assert.equal(approved.status, 200, JSON.stringify(approved.body));
+    assert.equal(approved.body.property.status, 'active');
+    assert.equal(approved.body.property.viewingTerms.feeGhs, state.fee);
+  });
+
+  test('a viewing records the fee in force, and a later change never rewrites it', async () => {
+    const propertyId = state.property.id;
+    const guest = new ApiClient(baseUrl);
+
+    const requested = await guest.post('/api/viewing-requests', {
+      propertyId,
+      tenantName: 'Landlord Fee Tenant',
+      tenantPhone: '+233 24 555 9001',
+      tenantEmail: `landlord-fee-${stamp}@example.com`,
+      date: new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10),
+      time: '10:00',
+      requestType: 'viewing',
+      message: 'Requesting a viewing of a landlord listing.',
+    });
+    assert.equal(requested.status, 201, JSON.stringify(requested.body));
+    assert.equal(requested.body.feeAmountGhs, state.fee);
+    assert.equal(requested.body.viewing.feeAmountGhs, state.fee, 'the viewing snapshots the fee');
+    assert.equal(requested.body.viewing.feeSource, 'platform_policy');
+    assert.equal(requested.body.viewing.feePaidTo, 'Goodlucks Homes');
+    assert.equal(requested.body.viewing.feePayableAfterViewing, true);
+    state.viewing = requested.body.viewing;
+    // The fee this viewing was quoted, kept separately from the live setting.
+    state.viewingFee = state.fee;
+
+    // The administrator raises the general fee. The listing follows; the
+    // recorded viewing does not.
+    const raised = await state.admin.client.put('/api/admin/landlord-policy/viewing-fee', { amountGhs: 60 });
+    assert.equal(raised.status, 200, JSON.stringify(raised.body));
+    assert.equal(raised.body.policy.viewingFee.amountGhs, 60);
+    assert.ok(raised.body.listingsUpdated >= 1, 'the live landlord listing took the new amount');
+
+    const listing = await guest.get(`/api/properties/${propertyId}`);
+    assert.equal(listing.body.property.viewingTerms.feeGhs, 60, 'future viewings are quoted the new amount');
+
+    const recorded = await state.admin.client.get(`/api/viewings/${state.viewing.id}`);
+    assert.equal(recorded.status, 200, JSON.stringify(recorded.body));
+    assert.equal(recorded.body.viewing.feeAmountGhs, state.fee, 'the recorded viewing keeps its fee');
+    state.fee = 60;
+
+    // A future viewing uses the new amount.
+    const second = await guest.post('/api/viewing-requests', {
+      propertyId,
+      tenantName: 'Second Landlord Fee Tenant',
+      tenantPhone: '+233 24 555 9002',
+      tenantEmail: `landlord-fee-2-${stamp}@example.com`,
+      date: new Date(Date.now() + 4 * 86400000).toISOString().slice(0, 10),
+      time: '11:00',
+      requestType: 'viewing',
+      message: 'A second viewing request.',
+    });
+    assert.equal(second.status, 201, JSON.stringify(second.body));
+    assert.equal(second.body.viewing.feeAmountGhs, 60);
+  });
+
+  test('the viewing fee is recorded as Goodlucks money, only after the viewing', async () => {
+    const admin = state.admin;
+    const viewingId = state.viewing.id;
+
+    // Not payable before the viewing has happened.
+    const early = await admin.client.post('/api/admin/finance/landlord-viewing-fees', { viewingId });
+    assert.equal(early.status, 409, JSON.stringify(early.body));
+
+    // An administrator without the finance capability cannot record money.
+    const plainAdmin = await createAdmin('landlord-fee-plain');
+    assert.equal(
+      (await plainAdmin.client.post('/api/admin/finance/landlord-viewing-fees', { viewingId })).status,
+      403
+    );
+    assert.equal((await plainAdmin.client.get('/api/admin/finance/landlord-viewing-fees')).status, 403);
+
+    await completeViewing(admin, viewingId);
+
+    const recorded = await admin.client.post('/api/admin/finance/landlord-viewing-fees', {
+      viewingId,
+      method: 'momo',
+      reference: `MOMO-LVF-${stamp}`,
+      receivedAt: new Date().toISOString().slice(0, 10),
+    });
+    assert.equal(recorded.status, 201, JSON.stringify(recorded.body));
+
+    const record = recorded.body.record;
+    assert.equal(record.feeSource, 'landlord_platform_fee');
+    assert.equal(record.feeTotalGhs, state.viewingFee, 'the recorded viewing fee, not the current setting');
+    assert.notEqual(state.viewingFee, state.fee, 'the live setting really did change');
+    // The whole fee belongs to Goodlucks; no agent or landlord share exists.
+    assert.equal(record.goodlucksShareGhs, state.viewingFee);
+    assert.equal(record.agentShareGhs, 0);
+    assert.equal(record.remittedGhs, state.viewingFee, 'the money is recorded as received by Goodlucks');
+    assert.equal(record.viewingId, viewingId);
+    assert.equal(record.propertyId, state.property.id);
+
+    // Duplicate protection: one fee record per viewing.
+    const again = await admin.client.post('/api/admin/finance/landlord-viewing-fees', { viewingId });
+    assert.equal(again.status, 409, JSON.stringify(again.body));
+
+    // It cannot be re-shared with an agent afterwards.
+    const reshare = await admin.client.post(`/api/admin/viewing-fees/${record.id}/share`, { amountGhs: 1 });
+    assert.equal(reshare.status, 422, JSON.stringify(reshare.body));
+
+    const ledger = await admin.client.get('/api/admin/finance/landlord-viewing-fees');
+    assert.equal(ledger.status, 200, JSON.stringify(ledger.body));
+    assert.equal(ledger.body.summary.landlordShareGhs, 0);
+    assert.ok(ledger.body.records.some((row) => row.id === record.id));
+
+    const view = await admin.client.get(`/api/viewings/${viewingId}`);
+    assert.equal(view.body.viewing.viewingFeePaid, true);
+
+    // The old "agent collected the fee on site" checkbox must not be usable to
+    // record a landlord fee as an agent collection.
+    const legacyCheckbox = await admin.client.patch(`/api/viewings/${viewingId}`, { viewingFeePaid: true });
+    assert.equal(legacyCheckbox.status, 422, JSON.stringify(legacyCheckbox.body));
+    assert.match(String(legacyCheckbox.body.fields?.viewingFeePaid ?? ''), /landlord fee/i);
+
+  });
+
+  test('agent listings keep their own per-property fee and terms', async () => {
+    const agent = await registerAgent('landlord-fee-agent');
+    const admin = await createAdmin('landlord-fee-agent-admin');
+    await activateAgent(admin, agent);
+
+    const created = await agent.client.post('/api/properties', newListing({
+      title: 'Agent listing beside the landlord policy',
+      viewingFeeGhs: 175,
+      landlordEmail: `landlord-${stamp}-agent@example.com`,
+    }));
+    assert.equal(created.status, 201, JSON.stringify(created.body));
+    const property = created.body.property;
+    assert.equal(property.submittedByRole, 'agent');
+
+    const approved = await state.admin.client.post(`/api/properties/${property.id}/status`, { status: 'active' });
+    assert.equal(approved.status, 200, JSON.stringify(approved.body));
+    assert.equal(approved.body.property.viewingTerms.feeGhs, 175, 'the agent fee survives the landlord setting');
+    assert.equal(approved.body.property.viewingTerms.source, 'property', 'the agent listing keeps its own policy');
+    assert.equal(approved.body.property.viewingTerms.setBy, 'The agent listing this property');
+
+    const guest = new ApiClient(baseUrl);
+    const requested = await guest.post('/api/viewing-requests', {
+      propertyId: property.id,
+      tenantName: 'Agent Fee Tenant',
+      tenantPhone: '+233 24 555 9003',
+      tenantEmail: `agent-fee-${stamp}@example.com`,
+      date: new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10),
+      time: '12:00',
+      requestType: 'viewing',
+      message: 'Agent listing viewing request.',
+    });
+    assert.equal(requested.status, 201, JSON.stringify(requested.body));
+    assert.equal(requested.body.viewing.feeAmountGhs, 175);
+    assert.equal(requested.body.viewing.feeSource, 'property');
+    assert.equal(requested.body.viewing.feePaidTo, 'The agent named on this listing');
+
+    // An agent listing's viewing fee is never recorded as a landlord fee.
+    const wrong = await state.admin.client.post('/api/admin/finance/landlord-viewing-fees', {
+      viewingId: requested.body.viewing.id,
+    });
+    assert.equal(wrong.status, 422, JSON.stringify(wrong.body));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 8. Landlord platform fee: 8% of rent actually paid, never an agent commission
+// ---------------------------------------------------------------------------
+
+describe('Landlord platform fee: 8% of rent paid, entirely Goodlucks', () => {
+  const state = {};
+
+  test('an administrator records the platform fee from the rent actually paid', async () => {
+    const admin = await createAdmin('landlord-platform', { finance: true });
+    state.admin = admin;
+
+    const policy = await admin.client.get('/api/admin/landlord-policy');
+    assert.equal(policy.status, 200, JSON.stringify(policy.body));
+    assert.equal(policy.body.policy.platformFee.percent, 8);
+    assert.equal(policy.body.policy.platformFee.landlordSharePercent, 0);
+    assert.equal(policy.body.policy.platformFee.agentSharePercent, 0);
+
+    // A landlord listing to price.
+    const landlord = await registerLandlord('platform-fee');
+    const created = await landlord.client.post(
+      '/api/properties',
+      landlordListing({ title: 'Landlord platform fee listing', rentGhs: 12000 })
+    );
+    assert.equal(created.status, 201, JSON.stringify(created.body));
+    state.property = created.body.property;
+    state.landlord = landlord;
+
+    const fee = await admin.client.post('/api/admin/finance/landlord-platform-fees', {
+      propertyId: state.property.id,
+      rentAmountGhs: 12000,
+      rentPaymentReference: `RENT-${stamp}-001`,
+      tenantName: 'Platform Fee Tenant',
+    });
+    assert.equal(fee.status, 201, JSON.stringify(fee.body));
+
+    const row = fee.body.fee;
+    state.fee = row;
+    assert.equal(row.rentAmountGhs, 12000, 'the basis is the rent actually paid');
+    assert.equal(row.platformFeePercent, 8);
+    assert.equal(row.amountGhs, 960);
+    assert.equal(row.goodlucksShareGhs, 960);
+    assert.equal(row.landlordShareGhs, 0, 'the landlord receives no commission');
+    assert.equal(row.agentShareGhs, 0, 'no agent share is created');
+    assert.equal(row.agentTier, '', 'no agent tier is applied');
+    assert.equal(row.policyType, 'landlord_platform_fee');
+    assert.equal(row.isLandlordPlatformFee, true);
+    assert.equal(row.status, 'agreed');
+    assert.equal(row.countsAsRevenue, false, 'a fee owed is not revenue until it is received');
+  });
+
+  test('the fee is computed on the server, so a client cannot send its own figure', async () => {
+    const admin = state.admin;
+
+    const manipulated = await admin.client.post('/api/admin/finance/landlord-platform-fees', {
+      propertyId: state.property.id,
+      rentAmountGhs: 12345.67,
+      rentPaymentReference: `RENT-${stamp}-002`,
+      // Everything below must be ignored.
+      amountGhs: 1,
+      platformFeeGhs: 1,
+      platformFeePercent: 1,
+      goodlucksShareGhs: 1,
+      agentSharePercent: 70,
+    });
+    assert.equal(manipulated.status, 201, JSON.stringify(manipulated.body));
+    const row = manipulated.body.fee;
+    assert.equal(row.platformFeePercent, 8, 'the percentage comes from the policy');
+    assert.equal(row.amountGhs, 987.65, '8% of 12,345.67, rounded to the cedi');
+    assert.notEqual(row.amountGhs, 1);
+
+    for (const bad of [0, -100, 'lots', null]) {
+      const res = await admin.client.post('/api/admin/finance/landlord-platform-fees', {
+        propertyId: state.property.id,
+        rentAmountGhs: bad,
+        rentPaymentReference: `RENT-${stamp}-bad-${String(bad)}`,
+      });
+      assert.equal(res.status, 422, `rent ${String(bad)} must be refused`);
+    }
+  });
+
+  test('the same rent payment is never charged twice', async () => {
+    const admin = state.admin;
+    const duplicate = await admin.client.post('/api/admin/finance/landlord-platform-fees', {
+      propertyId: state.property.id,
+      rentAmountGhs: 12000,
+      rentPaymentReference: `RENT-${stamp}-001`,
+    });
+    assert.equal(duplicate.status, 409, JSON.stringify(duplicate.body));
+
+    // The same reference typed differently is still the same payment.
+    const sameAgain = await admin.client.post('/api/admin/finance/landlord-platform-fees', {
+      propertyId: state.property.id,
+      rentAmountGhs: 12000,
+      rentPaymentReference: `rent ${stamp} 001`,
+    });
+    assert.equal(sameAgain.status, 409, JSON.stringify(sameAgain.body));
+
+    // A missing reference is refused: without it there is no duplicate guard.
+    const noReference = await admin.client.post('/api/admin/finance/landlord-platform-fees', {
+      propertyId: state.property.id,
+      rentAmountGhs: 12000,
+    });
+    assert.equal(noReference.status, 422, JSON.stringify(noReference.body));
+  });
+
+  test('the two commission policies can never be applied to the same listing', async () => {
+    const admin = state.admin;
+
+    // A landlord listing never enters the agent commission workflow…
+    const asAgentCommission = await admin.client.post('/api/admin/finance/commissions', {
+      propertyId: state.property.id,
+      amountGhs: 500,
+      rentalReference: `RENT-${stamp}-003`,
+    });
+    assert.equal(asAgentCommission.status, 422, JSON.stringify(asAgentCommission.body));
+
+    // …and an agent listing never enters the landlord platform-fee policy.
+    const agent = await registerAgent('platform-fee-agent');
+    const agentAdmin = await createAdmin('platform-fee-agent-admin');
+    await activateAgent(agentAdmin, agent);
+    const listing = await agent.client.post('/api/properties', newListing({
+      title: 'Agent listing for the policy separation test',
+      landlordEmail: `landlord-${stamp}-sep@example.com`,
+    }));
+    assert.equal(listing.status, 201, JSON.stringify(listing.body));
+    state.agentProperty = listing.body.property;
+
+    const wrongWay = await admin.client.post('/api/admin/finance/landlord-platform-fees', {
+      propertyId: state.agentProperty.id,
+      rentAmountGhs: 5000,
+      rentPaymentReference: `RENT-${stamp}-004`,
+    });
+    assert.equal(wrongWay.status, 422, JSON.stringify(wrongWay.body));
+
+    // The agent commission still works for the agent listing, with the tier
+    // split untouched by the landlord policy.
+    const commission = await admin.client.post('/api/admin/finance/commissions', {
+      propertyId: state.agentProperty.id,
+      amountGhs: 1000,
+      rentalReference: `RENT-${stamp}-005`,
+    });
+    assert.equal(commission.status, 201, JSON.stringify(commission.body));
+    assert.equal(commission.body.commission.policyType, 'agent_commission');
+    assert.notEqual(commission.body.commission.amountGhs, 80, 'the 8% platform fee is not applied here');
+  });
+
+  test('money received against the platform fee is recorded, and the landlord is paid nothing', async () => {
+    const admin = state.admin;
+    const feeId = state.fee.id;
+
+    const paid = await admin.client.post(`/api/admin/finance/commissions/${feeId}/payments`, {
+      amountGhs: 960,
+      method: 'bank_transfer',
+      reference: `GL-PF-${stamp}`,
+      receivedAt: new Date().toISOString().slice(0, 10),
+    });
+    assert.equal(paid.status, 201, JSON.stringify(paid.body));
+    assert.equal(paid.body.commission.receivedGhs, 960);
+
+    const listed = await admin.client.get('/api/admin/finance/landlord-platform-fees');
+    assert.equal(listed.status, 200, JSON.stringify(listed.body));
+    assert.equal(listed.body.summary.percent, 8);
+    assert.equal(listed.body.summary.landlordCommissionGhs, 0);
+    assert.ok(listed.body.summary.platformFeesGhs >= 960);
+    assert.ok(listed.body.summary.receivedGhs >= 960);
+
+    // The agent finance view never shows a landlord platform fee.
+    const agentFinance = await admin.client.get('/api/admin/finance/agents/' + state.agentProperty.submittedByUserId);
+    assert.equal(agentFinance.status, 200);
+    for (const row of agentFinance.body.commissions ?? []) {
+      assert.notEqual(row.policyType, 'landlord_platform_fee', 'landlord money never appears in an agent view');
+    }
+  });
+
+  test('a landlord cannot reach the platform-fee endpoints at all', async () => {
+    const landlord = state.landlord;
+    assert.equal((await landlord.client.get('/api/admin/finance/landlord-platform-fees')).status, 403);
+    assert.equal(
+      (await landlord.client.post('/api/admin/finance/landlord-platform-fees', {
+        propertyId: state.property.id,
+        rentAmountGhs: 100,
+        rentPaymentReference: 'LANDLORD-SELF',
+      })).status,
+      403
+    );
+    assert.equal(
+      (await landlord.client.put('/api/admin/landlord-policy/viewing-fee', { amountGhs: 1 })).status,
+      403
+    );
   });
 });

@@ -370,6 +370,20 @@ export interface PropertyViewingTerms {
   terms: ViewingTermsValues | null;
   isApproved: boolean;
   appliesToRole?: string;
+  /**
+   * Task 03 update: whose policy set the fee.
+   *  - `platform_policy`: the administrator's general landlord viewing fee
+   *  - `property`: the agent's own per-property fee
+   *  - `none`: nothing approved yet (no amount is invented)
+   */
+  source?: 'platform_policy' | 'property' | 'none';
+  setBy?: string;
+  payableAfterViewing?: boolean;
+  paidTo?: string;
+  /** A landlord never receives a viewing fee. */
+  landlordShareGhs?: number | null;
+  /** Staff/owner only: has the general landlord viewing fee been configured? */
+  platformFeeConfigured?: boolean;
   /** Owner/agent/staff only. */
   state?: 'not_set' | 'pending_review' | 'approved' | 'rejected' | string;
   stateLabel?: string;
@@ -480,6 +494,10 @@ export interface ViewingSchedule {
   agentNotes: string;
   viewingFeePaid: boolean;
   feeAmountGhs: number;
+  /** Task 03 update: where the recorded fee came from and who it is paid to. */
+  feeSource?: 'platform_policy' | 'property' | '';
+  feePaidTo?: string;
+  feePayableAfterViewing?: boolean;
   outcomeNotes?: string;
   createdAt: string;
   updatedAt: string;
@@ -671,9 +689,15 @@ export interface ViewingFeeRecord {
   /** Money the agent collected from the tenant. NOT Goodlucks revenue. */
   feeTotalGhs: number | null;
   collectionState: 'reported' | 'confirmed_by_staff' | 'disputed' | 'void';
-  shareBasis: 'not_set' | 'manual_agreement' | 'policy_snapshot';
+  shareBasis: 'not_set' | 'manual_agreement' | 'policy_snapshot' | 'platform_policy';
   /** How the fee was priced: by a person, by an approved policy, or not yet. */
-  snapshotKind: 'none' | 'manual_agreement' | 'policy';
+  snapshotKind: 'none' | 'manual_agreement' | 'policy' | 'platform_policy';
+  /**
+   * Task 03 update: an agent collection or a landlord viewing fee paid straight
+   * to Goodlucks. A landlord fee is never shared with an agent.
+   */
+  feeSource?: 'agent_collection' | 'landlord_platform_fee';
+  feeSourceLabel?: string;
   policyId: string;
   agentTierAtSnapshot: 'standard' | 'professional' | '';
   policySnapshot: FeePolicySnapshot | null;
@@ -859,6 +883,63 @@ export interface RentalCommission {
   goodlucksShareGhs?: number | null;
   splitSnapshot?: (Record<string, unknown> & { hashValid?: boolean }) | null;
   splitFrozenAt?: string | null;
+  /**
+   * Task 03 update: which policy priced this record.
+   *  - `agent_commission`: an agent listing's commission, split 60/70 by tier
+   *  - `landlord_platform_fee`: 8% of the rent a tenant actually paid on a
+   *    landlord listing, belonging entirely to Goodlucks Homes
+   */
+  policyType?: 'agent_commission' | 'landlord_platform_fee';
+  policyTypeLabel?: string;
+  isLandlordPlatformFee?: boolean;
+  /** Landlord platform fee only: the rent paid (basis) and the percentage used. */
+  rentAmountGhs?: number | null;
+  platformFeePercent?: number | null;
+  /** Landlords receive no commission and no share of the platform fee. */
+  landlordShareGhs?: number | null;
+}
+
+/** The administrator-controlled general landlord viewing fee (Task 03 update). */
+export interface LandlordViewingFeeSetting {
+  configured: boolean;
+  amountGhs: number | null;
+  updatedAt: string | null;
+  updatedBy: string;
+  updatedByName: string;
+  label: string;
+  payableBy: string;
+  paidTo: string;
+  landlordShare: number;
+  appliesTo: string;
+}
+
+export interface LandlordPlatformFeePolicy {
+  percent: number;
+  label: string;
+  basis: string;
+  paidTo: string;
+  landlordSharePercent: number;
+  agentSharePercent: number;
+  appliesTo: string;
+}
+
+export interface LandlordPolicy {
+  viewingFee: LandlordViewingFeeSetting;
+  platformFee: LandlordPlatformFeePolicy;
+  agentPolicy: { label: string; appliesTo: string; note: string };
+}
+
+export interface LandlordFeeSummary {
+  records: number;
+  rentBasisGhs?: number;
+  platformFeesGhs?: number;
+  feesGhs?: number;
+  receivedGhs: number;
+  outstandingGhs: number;
+  landlordCommissionGhs?: number;
+  landlordShareGhs?: number;
+  agentShareGhs?: number;
+  percent?: number;
 }
 
 export interface FinancialAdjustment {

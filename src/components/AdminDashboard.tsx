@@ -8,6 +8,7 @@ import { AdminFeePolicies } from './AdminFeePolicies';
 import { AdminFinancePanel } from './AdminFinancePanel';
 import { AdminViewingsPanel } from './AdminViewingsPanel';
 import { AdminViewingTermsQueue } from './AdminViewingTermsQueue';
+import { AdminLandlordFeePolicy } from './AdminLandlordFeePolicy';
 import { 
   ShieldCheck, 
   TrendingUp, 
@@ -615,10 +616,10 @@ export const AdminDashboard: React.FC = () => {
               </div>
 
               <div className="bg-slate-800/60 p-5 rounded-2xl border border-white/10">
-                <div className="text-xs text-slate-400 font-medium">Viewing Fees Collected by Agents</div>
+                <div className="text-xs text-slate-400 font-medium">Viewing Fees Recorded</div>
                 <div className="text-2xl font-extrabold text-[#08D9D6]">GH₵ {analytics.viewingFeesCollectedGhs.toLocaleString()}</div>
                 <div className="text-[10px] text-slate-400">
-                  Reconciled in the ledger below — never Goodlucks revenue
+                  Agent collections and landlord fees — reconciled in the ledger below
                 </div>
               </div>
 
@@ -846,7 +847,14 @@ export const AdminDashboard: React.FC = () => {
         {activeAdminTab === 'agents' && <AdminAgentAccounts />}
 
         {/* TAB: Fee policies & agent tiers (Increment E) */}
-        {activeAdminTab === 'fee-policies' && <AdminFeePolicies />}
+        {activeAdminTab === 'fee-policies' && (
+          <div className="space-y-4">
+            {/* Task 03 update: the ONE administrator-set viewing fee for every
+                landlord-submitted property. Landlords cannot change it. */}
+            <AdminLandlordFeePolicy />
+            <AdminFeePolicies />
+          </div>
+        )}
         {activeAdminTab === 'finance' && <AdminFinancePanel />}
 
         {activeAdminTab === 'enquiries' && (
