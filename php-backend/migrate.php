@@ -65,6 +65,10 @@ try {
 /** Columns that must exist, with their ALTER TABLE definitions. */
 $requiredColumns = [
     'users' => [
+        // Task 03: the official Ghana Card name supplied at registration. It is
+        // a claim, never a verification; NULL for every existing account so no
+        // one is locked out or given a verification they never submitted.
+        'official_name'       => "VARCHAR(200) DEFAULT NULL AFTER `name`",
         'password_hash'       => "VARCHAR(255) DEFAULT NULL AFTER `phone`",
         'bio'                 => "TEXT DEFAULT NULL AFTER `address`",
         // Increment D: least-privilege reviewer capabilities (default deny).
@@ -96,7 +100,36 @@ $requiredColumns = [
         // Increment F: the landlord contact an agent claimed when submitting a
         // listing. Staff-only; never used to reveal whether an account exists.
         'landlord_contact_claimed' => "VARCHAR(255) DEFAULT NULL AFTER `landlord_authority_state`",
+        // Task 03: per-property viewing fee + viewing terms. Existing listings
+        // keep NULL / 'not_set': no fee is invented for them, and nothing
+        // becomes public until staff approve a value.
+        'viewing_fee_ghs'      => "DECIMAL(10,2) DEFAULT NULL AFTER `featured`",
+        'viewing_terms_json'   => "LONGTEXT DEFAULT NULL AFTER `viewing_fee_ghs`",
+        'viewing_terms_state'  => "VARCHAR(24) NOT NULL DEFAULT 'not_set' AFTER `viewing_terms_json`",
+        'viewing_terms_updated_at' => "DATETIME DEFAULT NULL AFTER `viewing_terms_state`",
+        'viewing_terms_approved_by' => "VARCHAR(64) DEFAULT NULL AFTER `viewing_terms_updated_at`",
         'updated_at'           => "DATETIME DEFAULT NULL",
+    ],
+    'verification_documents' => [
+        // Task 03: per-document reviewer outcome. Existing documents keep
+        // 'pending' — no outcome is invented for a document nobody reviewed.
+        'review_status' => "VARCHAR(24) NOT NULL DEFAULT 'pending' AFTER `uploaded_by`",
+        'review_note'   => "VARCHAR(500) DEFAULT NULL AFTER `review_status`",
+        'reviewed_by'   => "VARCHAR(64) DEFAULT NULL AFTER `review_note`",
+        'reviewed_at'   => "DATETIME DEFAULT NULL AFTER `reviewed_by`",
+    ],
+    'rental_commissions' => [
+        // Task 03: the agent tier split frozen when the commission was priced.
+        // Existing rows keep NULL — historical commissions are never
+        // recalculated or back-filled with a percentage they never had.
+        'agent_tier'             => "VARCHAR(32) DEFAULT NULL AFTER `policy_snapshot_hash`",
+        'agent_share_percent'    => "DECIMAL(5,2) DEFAULT NULL AFTER `agent_tier`",
+        'goodlucks_share_percent'=> "DECIMAL(5,2) DEFAULT NULL AFTER `agent_share_percent`",
+        'agent_share_ghs'        => "DECIMAL(12,2) DEFAULT NULL AFTER `goodlucks_share_percent`",
+        'goodlucks_share_ghs'    => "DECIMAL(12,2) DEFAULT NULL AFTER `agent_share_ghs`",
+        'split_snapshot_json'    => "LONGTEXT DEFAULT NULL AFTER `goodlucks_share_ghs`",
+        'split_snapshot_hash'    => "VARCHAR(64) DEFAULT NULL AFTER `split_snapshot_json`",
+        'split_frozen_at'        => "DATETIME DEFAULT NULL AFTER `split_snapshot_hash`",
     ],
     'remittance_submissions' => [
         'requested_allocations_json' => "LONGTEXT DEFAULT NULL AFTER `confirmed_at`",
@@ -133,6 +166,9 @@ $requiredColumns = [
         'completed_at'    => "DATETIME DEFAULT NULL AFTER `cancelled_at`",
         'completed_by'    => "VARCHAR(64) DEFAULT NULL AFTER `completed_at`",
         'agent_notes'     => "TEXT DEFAULT NULL AFTER `completed_by`",
+        // Task 03: the approved viewing terms in force when the request was
+        // made, kept so a later property change cannot rewrite history.
+        'viewing_terms_snapshot_json' => "LONGTEXT DEFAULT NULL AFTER `fee_amount_ghs`",
         'updated_at'      => "DATETIME DEFAULT NULL AFTER `agent_notes`",
     ],
     'tenant_requests' => [
@@ -200,7 +236,9 @@ $requiredTables = ['auth_sessions', 'enquiries', 'search_alerts', 'saved_propert
     // fresh install but were missing from this list, so an EXISTING installation
     // upgrading through migrate.php never got them (audit finding R1).
     'remittance_submissions', 'remittance_allocations', 'rental_commissions',
-    'commission_payments', 'financial_adjustments'];
+    'commission_payments', 'financial_adjustments',
+    // Task 03: property viewing fee / terms change requests.
+    'property_viewing_fee_changes'];
 
 function existing_tables(PDO $pdo): array
 {

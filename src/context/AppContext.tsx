@@ -142,6 +142,13 @@ interface AppContextType {
     agencyName?: string;
     /** Agent only: the city the agent works from, not their home address. */
     operatingCity?: string;
+    /**
+     * Task 03: the registration group the account belongs to. It must agree with
+     * `role`; the server refuses a mismatch rather than converting an account.
+     */
+    providerCategory?: 'tenant' | 'landlord' | 'agent';
+    /** Task 03: the official name on the Ghana Card (a claim, not a check). */
+    officialName?: string;
   }) => Promise<SignInResult>;
   adminLogin: (email: string, password: string, accessKey: string) => Promise<SignInResult>;
   logout: () => Promise<void>;
@@ -681,6 +688,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       city?: string;
       agencyName?: string;
       operatingCity?: string;
+      providerCategory?: 'tenant' | 'landlord' | 'agent';
+      officialName?: string;
     }): Promise<SignInResult> => {
       try {
         const result = await api.register(data);

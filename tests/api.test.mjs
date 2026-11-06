@@ -29,6 +29,18 @@ const ADMIN_EMAIL = 'admin@test.local';
 const ADMIN_PASSWORD = 'Admin-Test-Password-123';
 const ADMIN_ACCESS_KEY = 'test-access-key';
 
+// Task 03: an agent listing must carry its own viewing fee and viewing terms.
+// There is no platform-wide default fee any more, so every agent submission in
+// this suite states both explicitly.
+const AGENT_VIEWING_TERMS = {
+  appointmentRequired: true,
+  howToArrange: 'Contact the agent through Goodlucks; the agent confirms a slot within a day.',
+  conditions: 'Bring a valid ID to the viewing.',
+  paymentInstructions: 'The viewing fee is paid in cash to the agent on site after the viewing.',
+  restrictions: 'No interior photography without the agent present.',
+};
+
+
 let server;
 let baseUrl;
 let admin;
@@ -108,6 +120,12 @@ before(async () => {
     PRIVATE_UPLOAD_DIR: privateDir,
   };
   server = await startApiServer({ port, env, quiet: true });
+
+  // Task 03: a viewing fee belongs to a property and must be approved for it.
+  // The seeded demo listings get an approved GH₵ 100 fee as fixture data, so the
+  // ledger tests below still book a viewing that carries a real, recorded fee.
+  const seedFee = runPhpScript('tests/set-viewing-fee.php', ['--all-active', '--fee=100'], env);
+  assert.equal(seedFee.status, 0, seedFee.stdout + seedFee.stderr);
   state.testEnv = env;
   baseUrl = server.baseUrl;
 
@@ -1370,6 +1388,8 @@ describe('Agent accounts (Increment C)', () => {
       propertyType: 'Townhouse',
       description: 'Submitted by an agent on behalf of a landlord, with authority unverified.',
       images: ['https://images.unsplash.com/photo-1502672260266-1c1ef2d93688'],
+      viewingFeeGhs: 150,
+      viewingTerms: AGENT_VIEWING_TERMS,
       landlordId: landlord.id,
       // Attempts to talk the server into stronger claims.
       isLandlordVerified: true,
@@ -1453,6 +1473,8 @@ describe('Agent accounts (Increment C)', () => {
       rentGhs: 2000,
       description: 'A tenant id is not a landlord. The submission is recorded as a claim and queued.',
       images: ['https://example.com/bad-landlord.jpg'],
+      viewingFeeGhs: 120,
+      viewingTerms: AGENT_VIEWING_TERMS,
       landlordId: agent.users.secondary.id,
     });
     assert.equal(unknown.status, 201, JSON.stringify(unknown.body));
@@ -1946,6 +1968,15 @@ describe('Identity verification & professional authorisation (Increment D)', () 
     });
     assert.equal(doc.status, 201, JSON.stringify(doc.body));
     d.docs.landlord = doc.body.document.id;
+    // Task 03: a Ghana Card needs both sides before it can be submitted.
+    const docBack = await uploadDocument(client, {
+      kind: 'document_back',
+      bytes: createPng(180, 120),
+      filename: 'landlord-id-back.png',
+      mime: 'image/png',
+    });
+    assert.equal(docBack.status, 201, JSON.stringify(docBack.body));
+    d.docs.landlordBack = docBack.body.document.id;
 
     // Landlords cannot submit a professional authorisation at all.
     assert.equal(
@@ -1956,11 +1987,22 @@ describe('Identity verification & professional authorisation (Increment D)', () 
       403
     );
 
-    const submitted = await client.post('/api/verification/identity', {
+    // A front-only Ghana Card submission is refused: the reviewer is never
+    // asked to verify half an identity.
+    const frontOnly = await client.post('/api/verification/identity', {
       legalName: 'Kofi Verification Landlord',
       documentType: 'ghana_card',
       documentNumber: 'GHA-987654321-2',
       documentIds: [d.docs.landlord],
+    });
+    assert.equal(frontOnly.status, 422);
+    assert.match(String(frontOnly.body.fields.documents), /BACK of your Ghana Card/i);
+
+    const submitted = await client.post('/api/verification/identity', {
+      legalName: 'Kofi Verification Landlord',
+      documentType: 'ghana_card',
+      documentNumber: 'GHA-987654321-2',
+      documentIds: [d.docs.landlord, d.docs.landlordBack],
     });
     assert.equal(submitted.status, 201, JSON.stringify(submitted.body));
     assert.equal(submitted.body.identity.status, 'pending_review');
@@ -3623,11 +3665,18 @@ describe('Fee policies & agent tiers (Increment E)', () => {
       const uploaded = await agent.client.request('POST', '/api/verification/documents', { body: doc });
       assert.equal(uploaded.status, 201, JSON.stringify(uploaded.body));
 
+      // Task 03: both sides of the Ghana Card.
+      const backDoc = new FormData();
+      backDoc.append('kind', 'document_back');
+      backDoc.append('file', new Blob([createPng(120, 80)], { type: 'image/png' }), 'id-back.png');
+      const uploadedBack = await agent.client.request('POST', '/api/verification/documents', { body: backDoc });
+      assert.equal(uploadedBack.status, 201, JSON.stringify(uploadedBack.body));
+
       const submitted = await agent.client.post('/api/verification/identity', {
         legalName: 'Tier Verification Agent',
         documentType: 'ghana_card',
         documentNumber: `GHA-${Math.floor(Math.random() * 900000000) + 100000000}-1`,
-        documentIds: [uploaded.body.document.id],
+        documentIds: [uploaded.body.document.id, uploadedBack.body.document.id],
       });
       assert.equal(submitted.status, 201, JSON.stringify(submitted.body));
 
@@ -4482,6 +4531,8 @@ describe('Agent-led viewing lifecycle (Increment F)', () => {
       propertyType: 'Apartment',
       description: `A property used by the Increment F viewing tests (${label}).`,
       images: ['https://images.unsplash.com/photo-1502672260266-1c1ef2d93688'],
+      viewingFeeGhs: 150,
+      viewingTerms: AGENT_VIEWING_TERMS,
       landlordId: landlord.id,
     });
     assert.equal(created.status, 201, JSON.stringify(created.body));
@@ -5034,6 +5085,8 @@ describe('Agent-led viewing lifecycle (Increment F)', () => {
       propertyType: 'Apartment',
       description: `Landlord-reference test listing: ${title}.`,
       images: ['https://example.com/landlord-reference.jpg'],
+      viewingFeeGhs: 130,
+      viewingTerms: AGENT_VIEWING_TERMS,
       landlordName: 'F Reference Landlord',
       ...extra,
     });

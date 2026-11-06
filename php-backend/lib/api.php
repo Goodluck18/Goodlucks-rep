@@ -76,6 +76,12 @@ function resolve_route(string $method, string $path): ?array
         ['POST', '#^/properties/([A-Za-z0-9\-_]+)/status$#', 'handle_property_status'],
         ['POST', '#^/properties/([A-Za-z0-9\-_]+)/feature$#', 'handle_property_feature'],
         ['POST', '#^/properties/([A-Za-z0-9\-_]+)/verify$#', 'handle_property_verify'],
+        // Task 03: a property's own viewing fee + viewing terms. Approving a
+        // change is a staff decision; proposing one is the owner's/agent's.
+        ['POST', '#^/properties/([A-Za-z0-9\-_]+)/viewing-terms$#', 'handle_request_viewing_terms'],
+        ['GET',  '#^/properties/([A-Za-z0-9\-_]+)/viewing-terms/history$#', 'handle_viewing_terms_history'],
+        ['GET',  '#^/admin/viewing-terms/changes$#', 'handle_admin_viewing_term_changes'],
+        ['POST', '#^/admin/viewing-terms/changes/([A-Za-z0-9\-_]+)/decision$#', 'handle_admin_decide_viewing_term_change'],
         ['GET',  '#^/admin/properties$#', 'handle_admin_properties'],
 
         // --- Agent accounts (Increment C) --------------------------------
@@ -105,6 +111,8 @@ function resolve_route(string $method, string $path): ?array
         ['GET',   '#^/admin/verifications/([A-Za-z0-9\-_]+)$#', 'handle_admin_verification_detail'],
         ['GET',   '#^/admin/verifications/([A-Za-z0-9\-_]+)/history$#', 'handle_admin_verification_history'],
         ['POST',  '#^/admin/verifications/([A-Za-z0-9\-_]+)/identity/decision$#', 'handle_admin_decide_identity'],
+        // Task 03: per-document outcomes (accept / reject one certificate).
+        ['POST',  '#^/admin/verifications/documents/([A-Za-z0-9\-_]+)/review$#', 'handle_admin_review_verification_document'],
         ['POST',  '#^/admin/verifications/([A-Za-z0-9\-_]+)/professional/decision$#', 'handle_admin_decide_professional'],
 
         // --- Uploads ----------------------------------------------------
@@ -297,6 +305,34 @@ function handle_register(): void
     }
     $role = in_array($requestedRole, $selfServiceRoles, true) ? $requestedRole : 'tenant';
 
+    // Task 03: registration offers exactly two groups — a Tenant, or a property
+    // provider (Landlord / Agent). The category a provider picks must agree with
+    // the role they asked for. A mismatch is refused rather than silently
+    // coerced: one account per person, and nobody gets a second role by
+    // registering again with a different label.
+    $providerCategory = is_string($input['providerCategory'] ?? $input['category'] ?? null)
+        ? strtolower(trim((string)($input['providerCategory'] ?? $input['category'])))
+        : '';
+    if ($providerCategory !== '') {
+        if (!in_array($providerCategory, ['tenant', 'landlord', 'agent'], true)) {
+            $validator->add('providerCategory', 'Choose Tenant, Landlord or Agent.');
+        } elseif ($providerCategory !== $requestedRole) {
+            $validator->add(
+                'providerCategory',
+                'The account category you chose does not match the account type. Pick Landlord or Agent once.'
+            );
+        }
+    }
+
+    // The official Ghana Card name is recorded when it is supplied. It is a
+    // CLAIM, never a verification: only an approved identity check makes an
+    // account identity-verified. Pre-task accounts (and API clients that do not
+    // send it) are not rejected, so nobody is locked out.
+    $officialName = clean_string($input['officialName'] ?? $input['ghanaCardName'] ?? '', 200);
+    if ($officialName !== '' && mb_strlen($officialName) < 3) {
+        $validator->add('officialName', 'Enter the full name exactly as it appears on the Ghana Card.');
+    }
+
     // An agent's operating base is part of the account, not an optional extra:
     // it is where they work, and it is distinct from any home address.
     $agencyName = clean_string($input['agencyName'] ?? $input['company'] ?? '', 200);
@@ -312,8 +348,10 @@ function handle_register(): void
 
     $email = valid_email($input['email']);
     if (find_user_by_email((string)$email)) {
+        // One account per person: a second registration never creates a second
+        // role, and it never silently upgrades or converts the existing one.
         error_response('An account with this email already exists. Please sign in instead.', 409, [
-            'email' => 'This email is already registered.',
+            'email' => 'This email is already registered. Use the account you already have — an account cannot be re-registered as another type.',
         ]);
     }
 
@@ -321,6 +359,7 @@ function handle_register(): void
         $user = create_user([
             'email'         => $email,
             'name'          => clean_string($input['name'], 120),
+            'official_name' => $officialName !== '' ? $officialName : null,
             'role'          => $role,
             'phone'         => (string)valid_phone($input['phone']),
             // City/town or general location. Ordinary contact information, not
@@ -1251,6 +1290,29 @@ function handle_admin_decide_identity(array $params): void
     ]);
 }
 
+/**
+ * Task 03: record the reviewer's outcome for ONE uploaded document.
+ *
+ * Requires the reviewer capability. A second capability is still needed to open
+ * the file itself, so an account that can mark a document accepted without being
+ * able to see it gains nothing.
+ */
+function handle_admin_review_verification_document(array $params): void
+{
+    $reviewer = require_verification_reviewer();
+    enforce_rate_limit('verification-decision', 200, 3600);
+    $input = request_json();
+
+    $document = review_verification_document(
+        (string)($params[0] ?? ''),
+        (string)($input['decision'] ?? ''),
+        (string)($input['note'] ?? ''),
+        $reviewer
+    );
+
+    json_response(['success' => true, 'document' => $document]);
+}
+
 function handle_admin_decide_professional(array $params): void
 {
     $reviewer = require_verification_reviewer();
@@ -1510,8 +1572,29 @@ function handle_create_property(): void
     }
 
     [$data, $validator] = property_payload($input, false);
-    if ($validator->fails()) {
-        error_response('Please correct the highlighted fields.', 422, $validator->errors());
+
+    // Task 03: an AGENT listing carries its own viewing fee and viewing terms,
+    // set here and validated here. There is no platform-wide default: without a
+    // fee the submission is refused, so no tenant is ever quoted a figure the
+    // property never agreed to. A LANDLORD listing may include them, but is not
+    // forced to: no landlord viewing-fee policy has been agreed (see
+    // docs/TASK_03_REPORT.md, which records that limitation rather than
+    // inventing one).
+    $hasViewingFeeInput = array_key_exists('viewingFeeGhs', $input) || array_key_exists('viewingTerms', $input);
+    $viewingTermsErrors = [];
+    $viewingFee = null;
+    if ($isAgentSubmission || $hasViewingFeeInput) {
+        $viewingFee = valid_viewing_fee($input['viewingFeeGhs'] ?? $input['feeGhs'] ?? null);
+        if ($viewingFee === null) {
+            $viewingTermsErrors['viewingFeeGhs'] = 'Enter this property\'s viewing fee in GHS, greater than zero. '
+                . 'Every property has its own fee — there is no standard amount.';
+        }
+        $normalisedTerms = normalise_viewing_terms($input['viewingTerms'] ?? null);
+        $viewingTermsErrors += $normalisedTerms['errors'];
+    }
+
+    if ($validator->fails() || $viewingTermsErrors) {
+        error_response('Please correct the highlighted fields.', 422, $validator->errors() + $viewingTermsErrors);
     }
 
     // Landlord and agent submissions always start in the moderation queue.
@@ -1564,6 +1647,21 @@ function handle_create_property(): void
 
     $id = create_property($data);
     $created = find_property($id);
+
+    // Task 03: the submitted fee and terms are a PROPOSAL. They become the
+    // property's public values only when staff approve the listing (or approve
+    // the change later), so `viewing_terms_state` starts at pending_review.
+    if ($created !== null && $viewingFee !== null) {
+        request_viewing_fee_change($created, [
+            'viewingFeeGhs' => $viewingFee,
+            'viewingTerms'  => $input['viewingTerms'] ?? null,
+        ], $user);
+        db_exec(
+            "UPDATE properties SET viewing_terms_state = 'pending_review', updated_at = :now WHERE id = :id",
+            [':now' => db_now(), ':id' => $id]
+        );
+        $created = find_property($id);
+    }
 
     if ($isAgentSubmission) {
         // Staff-only record of what the agent claimed. The contact itself is
@@ -1669,11 +1767,36 @@ function handle_update_property(array $params): void
     }
 
     [$data, $validator] = property_payload(request_json(), true);
+
+    // Task 03: the viewing fee and viewing terms are NOT ordinary fields. They
+    // never reach `properties` through this handler; a change is a proposal that
+    // staff decide on. The currently approved values keep applying until then.
+    $input = request_json();
+    $touchesViewingTerms = array_key_exists('viewingFeeGhs', $input) || array_key_exists('viewingTerms', $input);
+
     if ($validator->fails()) {
         error_response('Please correct the highlighted fields.', 422, $validator->errors());
     }
-    if (empty($data)) {
+    if (empty($data) && !$touchesViewingTerms) {
         error_response('No changes were provided.', 400);
+    }
+
+    $viewingChange = null;
+    if ($touchesViewingTerms) {
+        $viewingChange = request_viewing_fee_change($row, [
+            'viewingFeeGhs' => $input['viewingFeeGhs'] ?? $input['feeGhs'] ?? null,
+            'viewingTerms'  => $input['viewingTerms'] ?? null,
+            'note'          => $input['viewingNote'] ?? '',
+        ], $user);
+        if (empty($data)) {
+            $fresh = find_property($id);
+            json_response([
+                'success' => true,
+                'message' => 'Your viewing fee and terms change was sent for review. The current fee and terms stay in place until it is approved.',
+                'property' => $fresh ? shape_property($fresh) : null,
+                'viewingTermsChange' => $viewingChange,
+            ], 202);
+        }
     }
 
     if ($user['role'] !== 'admin') {
@@ -1700,7 +1823,11 @@ function handle_update_property(array $params): void
         }
     }
 
-    json_response(['success' => true, 'property' => $updated ? shape_property($updated) : null]);
+    json_response([
+        'success'  => true,
+        'property' => $updated ? shape_property($updated) : null,
+        'viewingTermsChange' => $viewingChange,
+    ]);
 }
 
 function handle_delete_property(array $params): void
@@ -1757,6 +1884,16 @@ function handle_property_status(array $params): void
         'to'   => $status,
     ]);
 
+    // Task 03: the listing's viewing fee and terms are approved (or refused)
+    // together with the listing itself — one review, not a second system. A
+    // pending proposal is the only thing that can be applied here; the approved
+    // values of a live listing are never rewritten by this call.
+    if ($status === 'active') {
+        apply_pending_change_on_property_approval($row, $user);
+    } elseif ($status === 'rejected') {
+        reject_pending_change_on_property_rejection($row, $user, clean_string($input['note'] ?? '', 500));
+    }
+
     // Going live is the moment saved searches should hear about it.
     if ($status === 'active' && !$wasActive) {
         $live = find_property($id);
@@ -1766,6 +1903,25 @@ function handle_property_status(array $params): void
             } catch (Throwable $e) {
                 gl_log('error', 'Search alert dispatch failed: ' . $e->getMessage(), ['property' => $id]);
             }
+        }
+    }
+
+    // Tell the submitting agent what happened to a listing they submitted. An
+    // agent submission often has no landlord account, so without this the only
+    // person who can act on a rejection would never hear about it.
+    $submitterId = (string)($row['submitted_by_user_id'] ?? '');
+    $submitterRole = (string)($row['submitted_by_role'] ?? '');
+    if ($submitterRole === 'agent' && $submitterId !== '' && $submitterId !== (string)($row['landlord_id'] ?? '')) {
+        if ($status === 'active') {
+            create_notification($submitterId, 'Listing approved', 'Your listing "' . $row['title'] . '" is now live, with the viewing fee and terms you submitted.', 'success');
+        } elseif ($status === 'rejected') {
+            $agentNote = clean_string($input['note'] ?? '', 500);
+            create_notification(
+                $submitterId,
+                'Listing needs changes',
+                $agentNote !== '' ? $agentNote : 'Your listing "' . $row['title'] . '" was not approved.',
+                'warning'
+            );
         }
     }
 
@@ -1842,6 +1998,121 @@ function handle_property_verify(array $params): void
         'success'  => true,
         'property' => $updated ? shape_property($updated) : null,
         'message'  => $verified ? 'Landlord marked as verified.' : 'Verification removed.',
+    ]);
+}
+
+/**
+ * Task 03: propose a new viewing fee / viewing terms for a property.
+ *
+ * Only the property's owner or the agent who submitted it may propose. The
+ * approved values are not touched here: they keep applying until staff decide,
+ * and a refusal leaves them exactly as they were.
+ */
+function handle_request_viewing_terms(array $params): void
+{
+    $id = (string)($params[0] ?? '');
+    $user = require_auth(['landlord', 'agent']);
+    $row = find_property($id);
+    if (!$row) {
+        error_response('Property not found.', 404);
+    }
+    if (!can_manage_property($user, $row)) {
+        // An agent may never re-price another agent's listing.
+        error_response('You can only set the viewing fee for a listing you own or submitted.', 403);
+    }
+    if ((string)($row['submitted_by_role'] ?? '') === 'agent' && (string)($row['submitted_by_user_id'] ?? '') !== (string)$user['id']) {
+        error_response('This listing belongs to another agent.', 403);
+    }
+
+    $input = request_json();
+    $change = request_viewing_fee_change($row, $input, $user);
+
+    // The property's review state moves to pending, but its APPROVED fee and
+    // terms — the ones the public sees — are untouched.
+    if ((string)($row['viewing_terms_state'] ?? 'not_set') === 'not_set') {
+        db_exec(
+            "UPDATE properties SET viewing_terms_state = 'pending_review', updated_at = :now WHERE id = :id",
+            [':now' => db_now(), ':id' => $id]
+        );
+    }
+
+    $fresh = find_property($id);
+    json_response([
+        'success'            => true,
+        'message'            => 'Sent for review. The current viewing fee and terms stay in place until a reviewer approves the change.',
+        'viewingTermsChange' => $change,
+        'property'           => $fresh ? shape_property($fresh) : null,
+    ], 202);
+}
+
+/** Task 03: the viewing fee / terms history for one property (owner, agent, staff). */
+function handle_viewing_terms_history(array $params): void
+{
+    $id = (string)($params[0] ?? '');
+    $user = require_auth();
+    $row = find_property($id);
+    if (!$row) {
+        error_response('Property not found.', 404);
+    }
+    if (!can_manage_property($user, $row)) {
+        error_response('You can only see the viewing-terms history for your own listings.', 403);
+    }
+
+    json_response([
+        'success' => true,
+        'propertyId' => $id,
+        'current' => shape_property_viewing_terms($row, $user, pending_viewing_fee_change($id)),
+        'changes' => list_viewing_fee_changes(['propertyId' => $id], 100),
+    ]);
+}
+
+/** Task 03: staff queue of viewing fee / terms changes. */
+function handle_admin_viewing_term_changes(): void
+{
+    require_admin();
+    $status = query_param('status', 'pending_review');
+    $filters = [];
+    if ($status !== '' && isset(VIEWING_FEE_CHANGE_STATUSES[$status])) {
+        $filters['status'] = $status;
+    }
+    $changes = list_viewing_fee_changes($filters, 200);
+
+    // The listing title is included so staff can judge the change in context;
+    // nothing about the owner's account is exposed here.
+    foreach ($changes as &$change) {
+        $property = find_property((string)$change['propertyId']);
+        $change['propertyTitle'] = (string)($property['title'] ?? '');
+        $change['propertyStatus'] = (string)($property['status'] ?? '');
+    }
+    unset($change);
+
+    json_response(['success' => true, 'changes' => $changes, 'count' => count($changes)]);
+}
+
+/** Task 03: approve or reject a viewing fee / terms change. */
+function handle_admin_decide_viewing_term_change(array $params): void
+{
+    $actor = require_admin();
+    $id = (string)($params[0] ?? '');
+    $input = request_json();
+    $decision = one_of(strtolower(trim((string)($input['decision'] ?? ''))), ['approve', 'reject'], null);
+    if ($decision === null) {
+        error_response('Choose approve or reject.', 422, ['decision' => 'Send decision=approve or decision=reject.']);
+    }
+    $note = clean_string($input['note'] ?? '', 500);
+
+    $change = $decision === 'approve'
+        ? approve_viewing_fee_change($id, $actor, $note)
+        : reject_viewing_fee_change($id, $actor, $note);
+
+    $property = find_property((string)$change['propertyId']);
+    json_response([
+        'success' => true,
+        'message' => $decision === 'approve'
+            ? 'Approved. The new viewing fee and terms now apply, and the previous values are kept in the history.'
+            : 'Rejected. The previously approved viewing fee and terms still apply.',
+        'viewingTermsChange' => $change,
+        'property' => $property ? shape_property($property) : null,
     ]);
 }
 
@@ -2353,7 +2624,8 @@ function handle_create_viewing(): void
             'duplicate'    => true,
             'message'      => 'This viewing request was already received.',
             'viewingId'    => (string)$recent['resource_id'],
-            'feeAmountGhs' => VIEWING_FEE_GHS,
+            // The fee recorded when the request was made, never a default.
+            'feeAmountGhs' => $existing['feeAmountGhs'] ?? null,
             'viewing'      => $existing,
         ]);
     }
@@ -2395,6 +2667,19 @@ function handle_create_viewing(): void
         error_response('That property is no longer available for viewing.', 404);
     }
 
+    // Task 03: the viewing fee and terms come from THIS property's approved
+    // values. There is no platform-wide fee; a property with nothing approved
+    // has no fee (0), and that is what the tenant is told.
+    $approvedFee = approved_viewing_fee($property);
+    $approvedTerms = approved_viewing_terms($property);
+    $viewingTermsSnapshot = [
+        'snapshotKind' => 'property_viewing_terms',
+        'propertyId'   => $propertyId,
+        'feeGhs'       => $approvedFee,
+        'terms'        => $approvedTerms,
+        'capturedAt'   => db_now(),
+    ];
+
     // The responsible agent is the agent who submitted the listing, when that
     // agent's account is active. Otherwise the request waits for the Goodlucks
     // viewing desk — it is never silently assigned to a landlord.
@@ -2427,7 +2712,8 @@ function handle_create_viewing(): void
         'assigned_agent'    => $agentName,
         'status'            => $status,
         'viewing_fee_paid'  => false, // Never assumed: paid on site, if at all.
-        'fee_amount_ghs'    => VIEWING_FEE_GHS,
+        'fee_amount_ghs'    => $approvedFee ?? 0,
+        'viewing_terms_snapshot_json' => json_encode($viewingTermsSnapshot, JSON_UNESCAPED_SLASHES),
         'outcome_notes'     => $message,
     ]);
 
@@ -2504,7 +2790,10 @@ function handle_create_viewing(): void
             ? 'Your enquiry has been sent to the agent responsible for this property.'
             : 'Your viewing request has been sent. It is not confirmed until the agent agrees a time with you.',
         'viewingId'    => $viewingId,
-        'feeAmountGhs' => VIEWING_FEE_GHS,
+        'feeAmountGhs' => $approvedFee,
+        // What this property's approved viewing terms say, exactly as recorded
+        // on the request.
+        'viewingTerms' => $approvedTerms,
         'awaitingAgent'=> true,
         'viewing'      => $viewing,
     ], 201);

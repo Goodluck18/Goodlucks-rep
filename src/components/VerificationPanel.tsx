@@ -255,11 +255,63 @@ export const VerificationPanel: React.FC<{ scope: 'agent' | 'landlord'; classNam
       )}
 
       {scope === 'agent' && summary.agentTier && (
-        <div className="bg-[#252A34]/70 border border-white/10 rounded-3xl p-5 space-y-2">
+        <div className="bg-[#252A34]/70 border border-white/10 rounded-3xl p-5 space-y-3">
           <h2 className="text-sm font-bold text-white flex items-center gap-2">
-            <BadgeCheck className="w-4 h-4 text-[#08D9D6]" /> Agent tier
+            <BadgeCheck className="w-4 h-4 text-[#08D9D6]" /> Your commission tier
           </h2>
-          <p className="text-sm text-[#08D9D6] font-bold">{summary.agentTier.tierLabel}</p>
+
+          {/* Task 03: the two tiers and the exact percentage each one earns.
+              Percentages are shares of an agreed commission — no approval is
+              promised here and none of this changes a viewing fee. */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <div
+              className={`rounded-2xl border p-3 space-y-1 ${
+                summary.agentTier.commissionTier === 'tier_a' || summary.agentTier.commissionTier === 'higher'
+                  ? 'bg-[#08D9D6]/10 border-[#08D9D6]/40'
+                  : 'bg-slate-900/60 border-white/10'
+              }`}
+            >
+              <p className="text-[11px] font-bold text-white">
+                Tier A — Basic · {summary.agentTier.basicTierPercent ?? 60}% of an agreed commission
+              </p>
+              <p className="text-[10px] text-slate-400">
+                Requires {summary.agentTier.basicTierRequires ?? 'an approved Ghana Card identity verification'}.
+              </p>
+              <p className="text-[10px] text-slate-400">
+                Identity: {summary.agentTier.identityStatus.replace(/_/g, ' ')}
+              </p>
+            </div>
+            <div
+              className={`rounded-2xl border p-3 space-y-1 ${
+                summary.agentTier.commissionTier === 'higher'
+                  ? 'bg-[#08D9D6]/10 border-[#08D9D6]/40'
+                  : 'bg-slate-900/60 border-white/10'
+              }`}
+            >
+              <p className="text-[11px] font-bold text-white">
+                Higher tier · {summary.agentTier.higherTierPercent ?? 70}% of an agreed commission
+              </p>
+              <p className="text-[10px] text-slate-400">
+                Requires {summary.agentTier.higherTierRequires ?? 'an approved identity AND an approved professional authorisation'}.
+              </p>
+              <p className="text-[10px] text-slate-400">
+                Professional authorisation: {summary.agentTier.professionalStatus.replace(/_/g, ' ')}
+              </p>
+            </div>
+          </div>
+
+          <p className="text-xs text-white">
+            Currently applied:{' '}
+            <span className="font-bold text-[#08D9D6]">
+              {summary.agentTier.commissionTierLabel ?? summary.agentTier.tierLabel}
+            </span>{' '}
+            ·{' '}
+            <span className="font-bold text-[#08D9D6]">
+              {summary.agentTier.commissionPercent ?? 0}% agent / {summary.agentTier.goodlucksPercent ?? 100}%
+              Goodlucks
+            </span>
+          </p>
+
           <ul className="text-[11px] text-slate-300 space-y-1">
             <li>
               Standard agent: {summary.agentTier.eligibleStandard ? 'eligible' : 'not yet eligible'} · identity{' '}
@@ -271,10 +323,13 @@ export const VerificationPanel: React.FC<{ scope: 'agent' | 'landlord'; classNam
               {summary.agentTier.professionalStatus.replace(/_/g, ' ')}
             </li>
           </ul>
+
           <p className="text-[10px] text-slate-500 max-w-xl">
-            The tier is worked out from the decisions on this page every time it is read. It is not something you can
-            set, an approved identity alone does not reach it, and it never changes a fee that was already priced.
-            {summary.agentTier.note ? ` ${summary.agentTier.note}` : ''}
+            The percentage is worked out from the decisions on this page every time it is read, and it applies only to
+            the agent&apos;s share of a commission that has been agreed for a transaction. Uploading a document never
+            changes it — only a reviewer&apos;s approval does. It never applies to a viewing fee, and a commission that
+            was already agreed keeps the percentage it was recorded with.
+            {summary.agentTier.commissionBasis ? ` ${summary.agentTier.commissionBasis}` : ''}
           </p>
         </div>
       )}

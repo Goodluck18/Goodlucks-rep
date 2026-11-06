@@ -7,6 +7,7 @@ import { AdminAgentAccounts } from './AdminAgentAccounts';
 import { AdminFeePolicies } from './AdminFeePolicies';
 import { AdminFinancePanel } from './AdminFinancePanel';
 import { AdminViewingsPanel } from './AdminViewingsPanel';
+import { AdminViewingTermsQueue } from './AdminViewingTermsQueue';
 import { 
   ShieldCheck, 
   TrendingUp, 
@@ -698,6 +699,11 @@ export const AdminDashboard: React.FC = () => {
         {/* TAB 2b: Manage all listings (edit / publish / archive / delete) */}
         {activeAdminTab === 'manage' && (
           <div className="space-y-4">
+            {/* Task 03: viewing fee / terms changes waiting on staff. Part of the
+                existing review area — approving a pending listing applies the
+                fee and terms submitted with it. */}
+            <AdminViewingTermsQueue />
+
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <div>
                 <h2 className="text-xl font-bold text-white">All Property Listings</h2>
@@ -759,6 +765,14 @@ export const AdminDashboard: React.FC = () => {
                       <p className="text-[11px] text-slate-400 truncate">
                         {property.location} • GH₵ {property.rentGhs.toLocaleString()}/mo • {property.bedrooms} Bed /{' '}
                         {property.bathrooms} Bath • {property.viewsCount} views
+                      </p>
+                      <p className="text-[11px] text-slate-500">
+                        Viewing fee:{' '}
+                        {property.viewingTerms?.isApproved && property.viewingTerms.feeGhs
+                          ? `GH₵ ${property.viewingTerms.feeGhs.toLocaleString()} (approved)`
+                          : property.viewingTerms?.pendingChange
+                            ? `GH₵ ${property.viewingTerms.pendingChange.proposedFeeGhs?.toLocaleString()} proposed — awaiting review`
+                            : 'none approved'}
                       </p>
                     </div>
                   </div>

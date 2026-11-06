@@ -66,6 +66,21 @@ function shape_property(array $row): array
         'enquiriesCount'          => (int)($row['enquiries_count'] ?? 0),
         'createdAt'               => to_iso($row['created_at'] ?? null),
         'updatedAt'               => to_iso($row['updated_at'] ?? null),
+        // Task 03: this property's own viewing fee and viewing terms. Only
+        // approved values are included for the public; review state and the
+        // pending proposal are visible to the owner, the submitting agent and
+        // staff. Never a storage path and never a reviewer's identity.
+        'viewingTerms'            => shape_property_viewing_terms(
+            $row,
+            $viewer,
+            // Only a reviewer, the owner or the submitting agent is shown the
+            // pending proposal — and only then is it read from the database.
+            ($viewerId !== '' && ($viewerId === (string)($row['landlord_id'] ?? '')
+                || $viewerId === (string)($row['submitted_by_user_id'] ?? '')))
+                || $viewerRole === 'admin'
+                ? pending_viewing_fee_change((string)$row['id'])
+                : null
+        ),
     ];
 }
 
@@ -134,7 +149,10 @@ function shape_viewing(array $row): array
         'completedAt'      => to_iso($row['completed_at'] ?? null),
         'agentNotes'       => (string)($row['agent_notes'] ?? ''),
         'viewingFeePaid'   => (bool)($row['viewing_fee_paid'] ?? false),
-        'feeAmountGhs'     => (float)($row['fee_amount_ghs'] ?? VIEWING_FEE_GHS),
+        // Task 03: the fee recorded for THIS request, copied from the property
+        // when it was made. 0 means no viewing fee applied — never a default.
+        'feeAmountGhs'     => (float)($row['fee_amount_ghs'] ?? 0),
+        'viewingTerms'     => json_column($row['viewing_terms_snapshot_json'] ?? null) ?: null,
         'outcomeNotes'     => (string)($row['outcome_notes'] ?? ''),
         'createdAt'        => to_iso($row['created_at'] ?? null),
         'updatedAt'        => to_iso($row['updated_at'] ?? null),
@@ -413,15 +431,18 @@ function create_user(array $data): array
 {
     $id = new_id('user');
     db_exec(
-        'INSERT INTO users (id, email, name, role, phone, password_hash, avatar, address, company, bio,
+        'INSERT INTO users (id, email, name, official_name, role, phone, password_hash, avatar, address, company, bio,
                             is_verified, preferred_locations, budget_min, budget_max, preferred_bedrooms,
                             additional_notes, created_at, updated_at)
-         VALUES (:id, :email, :name, :role, :phone, :password_hash, :avatar, :address, :company, :bio,
+         VALUES (:id, :email, :name, :official_name, :role, :phone, :password_hash, :avatar, :address, :company, :bio,
                  :verified, :locations, :budget_min, :budget_max, :bedrooms, :notes, :created, :updated)',
         [
             ':id'            => $id,
             ':email'         => $data['email'],
             ':name'          => $data['name'],
+            // Task 03: the official Ghana Card name given at registration. A
+            // claim only; it never sets `is_verified`.
+            ':official_name' => $data['official_name'] ?? null,
             ':role'          => $data['role'],
             ':phone'         => $data['phone'],
             ':password_hash' => $data['password_hash'],
@@ -798,14 +819,20 @@ function create_property(array $data): string
                                  is_landlord_verified,
                                  title, location, city, rent_ghs, bedrooms, bathrooms, property_type,
                                  status, images, description, amenities, nearby_places, availability,
-                                 featured, views_count, enquiries_count, created_at, updated_at)
+                                 featured, views_count, enquiries_count,
+                                 viewing_fee_ghs, viewing_terms_json, viewing_terms_state,
+                                 viewing_terms_updated_at, viewing_terms_approved_by,
+                                 created_at, updated_at)
          VALUES (:id, :landlord_id, :landlord_name, :landlord_company,
                  :submitted_by_user_id, :submitted_by_role, :landlord_authority_state,
                  :landlord_contact_claimed,
                  :verified,
                  :title, :location, :city, :rent_ghs, :bedrooms, :bathrooms, :property_type,
                  :status, :images, :description, :amenities, :nearby_places, :availability,
-                 :featured, 0, 0, :created, :updated)',
+                 :featured, 0, 0,
+                 :viewing_fee, :viewing_terms, :viewing_state,
+                 :viewing_updated, :viewing_by,
+                 :created, :updated)',
         [
             ':id'               => $id,
             ':landlord_id'      => $data['landlord_id'] ?? null,
@@ -830,6 +857,15 @@ function create_property(array $data): string
             ':nearby_places'    => json_encode($data['nearby_places'] ?? []),
             ':availability'     => $data['availability'] ?? 'Available Now',
             ':featured'         => !empty($data['featured']) ? 1 : 0,
+            // Task 03: a per-property viewing fee and terms. NULL means "none",
+            // never a platform default.
+            ':viewing_fee'      => $data['viewing_fee_ghs'] ?? null,
+            ':viewing_terms'    => isset($data['viewing_terms'])
+                ? json_encode($data['viewing_terms'], JSON_UNESCAPED_SLASHES)
+                : null,
+            ':viewing_state'    => $data['viewing_terms_state'] ?? 'not_set',
+            ':viewing_updated'  => $data['viewing_terms_updated_at'] ?? null,
+            ':viewing_by'       => $data['viewing_terms_approved_by'] ?? null,
             ':created'          => db_now(),
             ':updated'          => db_now(),
         ]
@@ -846,6 +882,10 @@ function update_property(string $id, array $data): void
         'title', 'location', 'city', 'rent_ghs', 'bedrooms', 'bathrooms', 'property_type',
         'status', 'images', 'description', 'amenities', 'nearby_places', 'availability',
         'featured', 'landlord_name', 'landlord_company', 'is_landlord_verified',
+        // Task 03: per-property viewing fee / terms. Written only by the
+        // viewing-terms helpers or by staff approval, never blindly by an edit.
+        'viewing_fee_ghs', 'viewing_terms_json', 'viewing_terms_state',
+        'viewing_terms_updated_at', 'viewing_terms_approved_by',
     ];
     $set = [];
     $params = [':id' => $id];
@@ -855,7 +895,7 @@ function update_property(string $id, array $data): void
             continue;
         }
         $value = $data[$column];
-        if (in_array($column, ['images', 'amenities', 'nearby_places'], true)) {
+        if (in_array($column, ['images', 'amenities', 'nearby_places', 'viewing_terms_json'], true)) {
             $value = json_encode($value);
         }
         if (in_array($column, ['featured', 'is_landlord_verified'], true)) {
@@ -1027,12 +1067,12 @@ function create_viewing(array $data): string
     db_exec(
         'INSERT INTO viewing_schedules (id, tenant_request_id, tenant_name, tenant_phone, tenant_email, property_id,
                                        property_title, property_location, date, time, assigned_agent, status,
-                                       viewing_fee_paid, fee_amount_ghs, outcome_notes,
+                                       viewing_fee_paid, fee_amount_ghs, viewing_terms_snapshot_json, outcome_notes,
                                        tenant_user_id, agent_user_id, landlord_user_id, request_type,
                                        preferred_date, preferred_time, agent_notes, created_at)
          VALUES (:id, :req_id, :name, :phone, :email, :property_id,
                  :title, :location, :date, :time, :agent, :status,
-                 :fee_paid, :fee_amount, :notes,
+                 :fee_paid, :fee_amount, :terms_snapshot, :notes,
                  :tenant_user_id, :agent_user_id, :landlord_user_id, :request_type,
                  :preferred_date, :preferred_time, :agent_notes, :created)',
         [
@@ -1050,7 +1090,13 @@ function create_viewing(array $data): string
             ':agent'       => $data['assigned_agent'] ?? '',
             ':status'      => $data['status'] ?? 'scheduled',
             ':fee_paid'    => !empty($data['viewing_fee_paid']) ? 1 : 0,
-            ':fee_amount'  => $data['fee_amount_ghs'] ?? VIEWING_FEE_GHS,
+            ':fee_amount'  => $data['fee_amount_ghs'] ?? 0,
+            // Task 03: the approved fee + terms in force at request time.
+            ':terms_snapshot' => isset($data['viewing_terms_snapshot_json'])
+                ? (is_string($data['viewing_terms_snapshot_json'])
+                    ? $data['viewing_terms_snapshot_json']
+                    : json_encode($data['viewing_terms_snapshot_json'], JSON_UNESCAPED_SLASHES))
+                : null,
             ':notes'       => $data['outcome_notes'] ?? '',
             ':tenant_user_id'  => ($data['tenant_user_id'] ?? '') !== '' ? $data['tenant_user_id'] : null,
             ':agent_user_id'   => ($data['agent_user_id'] ?? '') !== '' ? $data['agent_user_id'] : null,
@@ -1380,7 +1426,9 @@ function ensure_viewing_fee_record(array $viewing, ?array $actor, ?float $amount
             ':property_id'    => (string)($viewing['propertyId'] ?? ''),
             ':property_title' => clean_string($viewing['propertyTitle'] ?? '', 255),
             ':agent_name'     => clean_string($viewing['assignedAgent'] ?? 'Unassigned', 200),
-            ':fee_total'      => $amount ?? (float)($viewing['feeAmountGhs'] ?? VIEWING_FEE_GHS),
+            // Task 03: no universal fee. A viewing with no approved fee is
+            // recorded as 0 until a real amount is reported.
+            ':fee_total'      => $amount ?? (float)($viewing['feeAmountGhs'] ?? 0),
             ':state'          => 'reported',
             ':basis'          => 'not_set',
             ':recorded_by'    => (string)($actor['id'] ?? ''),

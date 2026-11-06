@@ -76,6 +76,13 @@ export interface VerificationDocument {
   uploadedAt: string;
   /** Present only when the caller may actually download the file. */
   downloadUrl: string | null;
+  /**
+   * Task 03: the reviewer's outcome for this document. It is recorded per
+   * document and never changes the verification status on its own.
+   */
+  reviewStatus?: 'pending' | 'accepted' | 'rejected' | string;
+  reviewNote?: string;
+  reviewedAt?: string | null;
 }
 
 /**
@@ -135,6 +142,9 @@ export interface VerificationSummary {
   professionallyAuthorised: boolean;
   /** Agents only (Increment E). Derived from the two decisions above — not a setting. */
   agentTier?: AgentTierState | null;
+  /** Task 03: the Ghana Card name given at registration (a claim, not a check). */
+  officialName?: string;
+  role?: string;
   encryptionActive: boolean;
   retentionDays: number;
   documentTypes: Array<{ value: string; label: string }>;
@@ -314,8 +324,57 @@ export interface Property {
   featured?: boolean;
   viewsCount: number;
   enquiriesCount: number;
+  /**
+   * Task 03: this property's own viewing fee and viewing terms.
+   * `feeGhs`/`terms` are the APPROVED values and are the only ones the public
+   * sees. `state`/`pendingChange` are returned only to the owner, the submitting
+   * agent and staff.
+   */
+  viewingTerms?: PropertyViewingTerms;
   createdAt: string;
   updatedAt: string;
+}
+
+/** The structured viewing terms an agent sets per property (Task 03). */
+export interface ViewingTermsValues {
+  appointmentRequired: boolean;
+  howToArrange: string;
+  conditions?: string;
+  paymentInstructions: string;
+  restrictions?: string;
+}
+
+export interface ViewingTermsChange {
+  id: string;
+  propertyId: string;
+  requestedBy: string;
+  requestedByRole: string;
+  proposedFeeGhs: number | null;
+  proposedTerms: ViewingTermsValues | Record<string, never>;
+  previousFeeGhs: number | null;
+  previousTerms: ViewingTermsValues | null;
+  status: 'pending_review' | 'approved' | 'rejected' | string;
+  statusLabel: string;
+  note: string;
+  decisionNote: string;
+  reviewedAt: string | null;
+  appliedAt: string | null;
+  createdAt: string | null;
+  propertyTitle?: string;
+  propertyStatus?: string;
+}
+
+export interface PropertyViewingTerms {
+  /** Approved viewing fee, or null when no fee is approved for this property. */
+  feeGhs: number | null;
+  terms: ViewingTermsValues | null;
+  isApproved: boolean;
+  appliesToRole?: string;
+  /** Owner/agent/staff only. */
+  state?: 'not_set' | 'pending_review' | 'approved' | 'rejected' | string;
+  stateLabel?: string;
+  updatedAt?: string | null;
+  pendingChange?: ViewingTermsChange | null;
 }
 
 export type RequestProgressStatus = 
@@ -788,6 +847,18 @@ export interface RentalCommission {
   updatedAt: string | null;
   payments: CommissionPayment[];
   countsAsRevenue: boolean;
+  /**
+   * Task 03: the tier split frozen when this commission was priced. Read from
+   * the stored record — an old commission keeps the percentages it was agreed
+   * under, even after the agent's verification changes.
+   */
+  agentTier?: string;
+  agentSharePercent?: number | null;
+  goodlucksSharePercent?: number | null;
+  agentShareGhs?: number | null;
+  goodlucksShareGhs?: number | null;
+  splitSnapshot?: (Record<string, unknown> & { hashValid?: boolean }) | null;
+  splitFrozenAt?: string | null;
 }
 
 export interface FinancialAdjustment {
@@ -887,6 +958,17 @@ export interface AgentTierState {
   tierLabel: string;
   eligibleStandard: boolean;
   eligibleProfessional: boolean;
+  /** Task 03: the commission tier derived from the verified records. */
+  commissionTier?: 'tier_a' | 'higher' | 'none' | string;
+  commissionTierLabel?: string;
+  commissionPercent?: number;
+  goodlucksPercent?: number;
+  commissionEligible?: boolean;
+  commissionBasis?: string;
+  basicTierPercent?: number;
+  basicTierRequires?: string;
+  higherTierPercent?: number;
+  higherTierRequires?: string;
   identityStatus: string;
   identityApproved: boolean;
   professionalStoredStatus: string;

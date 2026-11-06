@@ -17,6 +17,7 @@ import { useApp } from '../context/AppContext';
 import { VerificationPanel } from './VerificationPanel';
 import { AgentViewingsPanel } from './AgentViewingsPanel';
 import { AgentListingForm } from './AgentListingForm';
+import { AgentViewingTermsPanel } from './AgentViewingTermsPanel';
 import { AgentFinancePanel } from './AgentFinancePanel';
 import {
   Avatar,
@@ -60,6 +61,7 @@ export const AgentDashboard: React.FC = () => {
     navigate,
     notifications,
     viewingSchedules,
+    refreshProperties,
     showErrorToast,
     showSuccessToast,
   } = useApp();
@@ -299,6 +301,7 @@ export const AgentDashboard: React.FC = () => {
                           Your declaration only — landlord authority is unverified
                         </p>
                       )}
+                      <AgentViewingTermsPanel property={property} onUpdated={refreshProperties} />
                     </div>
                     <div className="flex items-center gap-2 text-[11px] flex-wrap">
                       <span className="px-2 py-0.5 rounded-md bg-slate-800 border border-white/10 text-slate-300 capitalize">

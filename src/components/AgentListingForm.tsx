@@ -2,6 +2,12 @@ import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { api, messageForError } from '../services/apiService';
 import { AlertTriangle, Building2, Info, Loader2, PlusCircle } from 'lucide-react';
+import {
+  ViewingTermsFields,
+  emptyViewingTermsForm,
+  viewingTermsPayload,
+  type ViewingTermsFormState,
+} from './ViewingTermsFields';
 
 /**
  * The agent-facing listing submission form (Increment F).
@@ -41,6 +47,9 @@ export const AgentListingForm: React.FC<{ canSubmit: boolean }> = ({ canSubmit }
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [submittedTitle, setSubmittedTitle] = useState<string | null>(null);
+  // Task 03: the property's own viewing fee and viewing terms. Deliberately
+  // blank — there is no default fee to pre-fill.
+  const [viewingTerms, setViewingTerms] = useState<ViewingTermsFormState>(emptyViewingTermsForm);
 
   const set = (key: keyof typeof emptyForm, value: string) => setForm((prev) => ({ ...prev, [key]: value }));
 
@@ -51,6 +60,16 @@ export const AgentListingForm: React.FC<{ canSubmit: boolean }> = ({ canSubmit }
 
     if (!form.landlordName.trim() || (!form.landlordEmail.trim() && !form.landlordPhone.trim())) {
       setError('Name the landlord and give at least one way to reach them (email or phone).');
+      return;
+    }
+
+    const fee = Number(viewingTerms.feeGhs);
+    if (!viewingTerms.feeGhs.trim() || !Number.isFinite(fee) || fee <= 0) {
+      setError('Set this property\'s viewing fee in GHS. Every property has its own fee — there is no standard amount.');
+      return;
+    }
+    if (viewingTerms.howToArrange.trim().length < 5 || viewingTerms.paymentInstructions.trim().length < 5) {
+      setError('Say how a tenant arranges the viewing and how the viewing fee is paid.');
       return;
     }
 
@@ -72,9 +91,12 @@ export const AgentListingForm: React.FC<{ canSubmit: boolean }> = ({ canSubmit }
         landlordName: form.landlordName.trim(),
         landlordEmail: form.landlordEmail.trim() || undefined,
         landlordPhone: form.landlordPhone.trim() || undefined,
+        viewingFeeGhs: fee,
+        viewingTerms: viewingTermsPayload(viewingTerms),
       });
       setSubmittedTitle(property.property.title);
       setForm(emptyForm);
+      setViewingTerms(emptyViewingTermsForm);
       showSuccessToast(
         'Listing submitted for review',
         'Goodlucks staff will review it before it goes live. Your declaration of authority is recorded as unverified.'
@@ -231,6 +253,13 @@ export const AgentListingForm: React.FC<{ canSubmit: boolean }> = ({ canSubmit }
           />
           {fields.description && <span className="text-[10px] text-[#FF8FA8]">{fields.description}</span>}
         </label>
+
+        <div className="border-t border-white/10 pt-3 space-y-3">
+          <p className="text-xs font-bold text-white flex items-center gap-2">
+            <Info className="w-3.5 h-3.5 text-[#08D9D6]" /> Viewing fee &amp; viewing terms for this property
+          </p>
+          <ViewingTermsFields form={viewingTerms} onChange={setViewingTerms} errors={fields} idPrefix="listing" />
+        </div>
 
         <div className="border-t border-white/10 pt-3 space-y-3">
           <p className="text-xs font-bold text-white flex items-center gap-2">

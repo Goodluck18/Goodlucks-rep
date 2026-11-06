@@ -32,6 +32,9 @@ import type {
   NotificationItem,
   Property,
   PropertyStatus,
+  PropertyViewingTerms,
+  ViewingTermsChange,
+  ViewingTermsValues,
   RentReceipt,
   SearchAlertSubscription,
   FeePolicyStatus,
@@ -193,6 +196,13 @@ export interface PropertyInput {
   landlordEmail?: string;
   landlordPhone?: string;
   landlordId?: string;
+  /**
+   * Task 03: the property's own viewing fee and viewing terms. Required for an
+   * agent submission — the server refuses a listing without them and there is no
+   * platform-wide default. A landlord listing may include them.
+   */
+  viewingFeeGhs?: number;
+  viewingTerms?: ViewingTermsValues;
 }
 
 export interface TenantRequestInput {
@@ -271,6 +281,10 @@ export const api = {
     agencyName?: string;
     /** Agent only: the city the agent works from, not a home address. */
     operatingCity?: string;
+    /** Task 03: Tenant, or Landlord / Agent. Must agree with `role`. */
+    providerCategory?: 'tenant' | 'landlord' | 'agent';
+    /** Task 03: the official name on the Ghana Card (a claim, not a check). */
+    officialName?: string;
   }) => request<{ user: User }>('/auth/register', { method: 'POST', body: data }),
 
   logout: () => request<{ success: boolean }>('/auth/logout', { method: 'POST' }),
@@ -357,6 +371,16 @@ export const api = {
 
   deleteVerificationDocument: (id: string) =>
     request<{ success: boolean }>(`/verification-documents/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+
+  /**
+   * Task 03: record one document's outcome (accept / reject). Requires the
+   * reviewer capability; it does not change the overall verification status.
+   */
+  reviewVerificationDocument: (id: string, decision: 'accept' | 'reject' | 'pending', note = '') =>
+    request<{ success: boolean; document: VerificationDocument }>(
+      `/admin/verifications/documents/${encodeURIComponent(id)}/review`,
+      { method: 'POST', body: { decision, note } }
+    ),
 
   // --- Staff: verification review (Increment D; capability-gated) -----------
   listVerifications: (params: { status?: string; scope?: string } = {}) => {
@@ -447,6 +471,38 @@ export const api = {
 
   deleteProperty: (id: string) =>
     request<{ success: boolean }>(`/properties/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+
+  /**
+   * Task 03: propose a viewing fee / viewing terms change. Staff decide; the
+   * approved fee keeps applying until they do.
+   */
+  requestViewingTerms: (id: string, data: { viewingFeeGhs: number; viewingTerms: ViewingTermsValues; note?: string }) =>
+    request<{ success: boolean; message: string; viewingTermsChange: ViewingTermsChange; property: Property | null }>(
+      `/properties/${encodeURIComponent(id)}/viewing-terms`,
+      { method: 'POST', body: data }
+    ),
+  viewingTermsHistory: (id: string) =>
+    request<{
+      success: boolean;
+      propertyId: string;
+      current: PropertyViewingTerms;
+      changes: ViewingTermsChange[];
+    }>(`/properties/${encodeURIComponent(id)}/viewing-terms/history`),
+  /** Staff: the viewing fee / terms change queue. */
+  adminViewingTermChanges: (status: 'pending_review' | 'approved' | 'rejected' | '' = 'pending_review') =>
+    request<{ success: boolean; changes: ViewingTermsChange[]; count: number }>(
+      `/admin/viewing-terms/changes${status ? `?status=${status}` : ''}`
+    ),
+  adminDecideViewingTermChange: (id: string, decision: 'approve' | 'reject', note = '') =>
+    request<{
+      success: boolean;
+      message: string;
+      viewingTermsChange: ViewingTermsChange;
+      property: Property | null;
+    }>(`/admin/viewing-terms/changes/${encodeURIComponent(id)}/decision`, {
+      method: 'POST',
+      body: { decision, note },
+    }),
 
   setPropertyStatus: (id: string, status: PropertyStatus) =>
     request<{ property: Property }>(`/properties/${encodeURIComponent(id)}/status`, {

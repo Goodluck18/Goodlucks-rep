@@ -897,6 +897,18 @@ function shape_rental_commission(array $row): array
         }
     }
 
+    $splitSnapshot = null;
+    if (!empty($row['split_snapshot_json'])) {
+        $decodedSplit = json_decode((string)$row['split_snapshot_json'], true);
+        if (is_array($decodedSplit)) {
+            $splitSnapshot = $decodedSplit;
+            $splitSnapshot['hashValid'] = hash_equals(
+                (string)($row['split_snapshot_hash'] ?? ''),
+                fee_snapshot_hash($decodedSplit)
+            );
+        }
+    }
+
     return [
         'id'               => $id,
         'reference'        => (string)$row['reference'],
@@ -928,7 +940,64 @@ function shape_rental_commission(array $row): array
         'payments'         => list_commission_payments($id),
         // A commission is an obligation, not revenue, until money is received.
         'countsAsRevenue'  => false,
+        // Task 03: the tier split frozen when this commission was priced. The
+        // percentages are read from the stored row, never recalculated here, so
+        // an old transaction keeps the terms it was agreed under.
+        'agentTier'          => (string)($row['agent_tier'] ?? ''),
+        'agentSharePercent'  => $row['agent_share_percent'] === null ? null : (float)$row['agent_share_percent'],
+        'goodlucksSharePercent' => $row['goodlucks_share_percent'] === null ? null : (float)$row['goodlucks_share_percent'],
+        'agentShareGhs'      => $row['agent_share_ghs'] === null ? null : round((float)$row['agent_share_ghs'], 2),
+        'goodlucksShareGhs'  => $row['goodlucks_share_ghs'] === null ? null : round((float)$row['goodlucks_share_ghs'], 2),
+        'splitSnapshot'      => $splitSnapshot,
+        'splitFrozenAt'      => to_iso($row['split_frozen_at'] ?? null),
     ];
+}
+
+/**
+ * Task 03: freeze the tier split that applies to a commission.
+ *
+ * Called only when a commission is priced (created, or its amount changed while
+ * it is still a draft). Once stored, nothing recalculates it: a later
+ * verification approval or licence expiry changes FUTURE commissions only.
+ *
+ * A policy-priced commission already carries an approved split from its policy
+ * snapshot, so this returns null for it — the two mechanisms never both claim
+ * the same money.
+ */
+function commission_tier_split_snapshot(?string $agentUserId, ?float $amount, string $basis): ?array
+{
+    if ($basis === 'policy_snapshot') {
+        return null;
+    }
+    if ($agentUserId === null || $agentUserId === '' || $amount === null || $amount <= 0) {
+        return null;
+    }
+    $agent = find_user_by_id($agentUserId);
+    if ($agent === null) {
+        return null;
+    }
+
+    $split = agent_commission_split($agentUserId, $amount);
+    $payload = [
+        'snapshotKind'          => 'rental_commission_tier_split',
+        'agentUserId'           => $agentUserId,
+        'agentName'             => (string)($agent['name'] ?? ''),
+        'tier'                  => $split['tier'],
+        'tierCode'              => $split['tierCode'],
+        'tierLabel'             => $split['tierLabel'],
+        'agentSharePercent'     => $split['agentPercent'],
+        'goodlucksSharePercent' => $split['goodlucksPercent'],
+        'commissionAmountGhs'   => $split['commissionAmountGhs'],
+        'agentShareGhs'         => $split['agentShareGhs'],
+        'goodlucksShareGhs'     => $split['goodlucksShareGhs'],
+        'identityStatusAtSplit' => $split['identityStatus'],
+        'professionalStatusAtSplit' => $split['professionalStatus'],
+        'eligible'              => $split['eligible'],
+        'note'                  => $split['note'],
+        'frozenAt'              => db_now(),
+    ];
+    $payload['snapshotHash'] = fee_snapshot_hash($payload);
+    return $payload;
 }
 
 /**
@@ -1037,6 +1106,14 @@ function create_rental_commission(array $input, array $actor): array
         $amount = (float)$snapshot['commissionGhs'];
     }
 
+    // Task 03: the tier split is derived from the agent's verified records and
+    // frozen onto the transaction. Nothing about it comes from the request.
+    $split = commission_tier_split_snapshot(
+        $agentUserId !== '' ? $agentUserId : null,
+        $amount === null ? null : (float)$amount,
+        $basis
+    );
+
     $id = new_id('com');
     $reference = finance_reference('COM');
     db_exec(
@@ -1044,12 +1121,16 @@ function create_rental_commission(array $input, array $actor): array
             (id, reference, property_id, property_title, tenant_user_id, tenant_name,
              landlord_user_id, landlord_name, agent_user_id, agent_name, rental_reference,
              commission_amount_ghs, currency, basis, policy_id, policy_snapshot_json,
-             policy_snapshot_hash, due_date, status, notes, created_by, created_at)
+             policy_snapshot_hash, agent_tier, agent_share_percent, goodlucks_share_percent,
+             agent_share_ghs, goodlucks_share_ghs, split_snapshot_json, split_snapshot_hash,
+             split_frozen_at, due_date, status, notes, created_by, created_at)
          VALUES
             (:id, :reference, :property, :title, :tenant, :tenant_name,
              :landlord, :landlord_name, :agent, :agent_name, :rental_ref,
              :amount, :currency, :basis, :policy, :snapshot,
-             :hash, :due, :status, :notes, :by, :now)',
+             :hash, :tier, :agent_pct, :gl_pct,
+             :agent_share, :gl_share, :split_json, :split_hash,
+             :split_at, :due, :status, :notes, :by, :now)',
         [
             ':id'          => $id,
             ':reference'   => $reference,
@@ -1068,6 +1149,14 @@ function create_rental_commission(array $input, array $actor): array
             ':policy'      => $policyId !== '' ? $policyId : null,
             ':snapshot'    => $snapshot === null ? null : json_encode($snapshot, JSON_UNESCAPED_SLASHES),
             ':hash'        => $snapshot['snapshotHash'] ?? null,
+            ':tier'        => $split['tier'] ?? null,
+            ':agent_pct'   => $split['agentSharePercent'] ?? null,
+            ':gl_pct'      => $split['goodlucksSharePercent'] ?? null,
+            ':agent_share' => $split['agentShareGhs'] ?? null,
+            ':gl_share'    => $split['goodlucksShareGhs'] ?? null,
+            ':split_json'  => $split === null ? null : json_encode($split, JSON_UNESCAPED_SLASHES),
+            ':split_hash'  => $split['snapshotHash'] ?? null,
+            ':split_at'    => $split['frozenAt'] ?? null,
             ':due'         => $dueDate,
             ':status'      => 'draft',
             ':notes'       => clean_text($input['notes'] ?? '', 2000) ?: null,
@@ -1083,6 +1172,9 @@ function create_rental_commission(array $input, array $actor): array
         'basis'      => $basis,
         'policyId'   => $policyId,
         'status'     => 'draft',
+        // Task 03: which tier split was frozen, if any.
+        'agentTier'  => $split['tier'] ?? null,
+        'agentSharePercent' => $split['agentSharePercent'] ?? null,
     ]);
 
     $created = find_rental_commission($id);
@@ -1255,16 +1347,40 @@ function update_rental_commission(string $id, array $input, array $actor): array
             $fields['tenant_name'] = clean_string($input['tenantName'], 255);
         }
 
+        // Task 03: while the commission is still a draft its tier split follows
+        // the amount. Both numbers are recomputed from the agent's verified
+        // records; a request can never supply a percentage.
+        $split = null;
+        if ($amount !== null && $amount > 0) {
+            $split = commission_tier_split_snapshot(
+                ((string)($commission['agent_user_id'] ?? '')) !== '' ? (string)$commission['agent_user_id'] : null,
+                (float)$amount,
+                (string)($commission['basis'] ?? 'manual_agreement')
+            );
+        }
+
         db_exec(
             'UPDATE rental_commissions
-                SET commission_amount_ghs = :amount, due_date = :due'
+                SET commission_amount_ghs = :amount, due_date = :due,
+                    agent_tier = :tier, agent_share_percent = :agent_pct,
+                    goodlucks_share_percent = :gl_pct, agent_share_ghs = :agent_share,
+                    goodlucks_share_ghs = :gl_share, split_snapshot_json = :split_json,
+                    split_snapshot_hash = :split_hash, split_frozen_at = :split_at'
             . ($fields === [] ? '' : ', ' . implode(', ', array_map(static fn($k) => $k . ' = :' . $k, array_keys($fields))))
             . ', updated_at = :now WHERE id = :id',
             array_merge([
-                ':amount' => $amount,
-                ':due'    => $dueDate,
-                ':now'    => db_now(),
-                ':id'     => $id,
+                ':amount'      => $amount,
+                ':due'         => $dueDate,
+                ':tier'        => $split['tier'] ?? null,
+                ':agent_pct'   => $split['agentSharePercent'] ?? null,
+                ':gl_pct'      => $split['goodlucksSharePercent'] ?? null,
+                ':agent_share' => $split['agentShareGhs'] ?? null,
+                ':gl_share'    => $split['goodlucksShareGhs'] ?? null,
+                ':split_json'  => $split === null ? null : json_encode($split, JSON_UNESCAPED_SLASHES),
+                ':split_hash'  => $split['snapshotHash'] ?? null,
+                ':split_at'    => $split['frozenAt'] ?? null,
+                ':now'         => db_now(),
+                ':id'          => $id,
             ], array_combine(array_map(static fn($k) => ':' . $k, array_keys($fields)), array_values($fields)))
         );
 

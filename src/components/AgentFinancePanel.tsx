@@ -443,6 +443,16 @@ export const AgentFinancePanel: React.FC<{ operational?: boolean }> = ({ operati
                   {commission.propertyTitle || 'Property'} · received {money(commission.receivedGhs)} ·
                   outstanding {money(commission.outstandingGhs)}
                 </p>
+                {commission.agentSharePercent !== null && commission.agentSharePercent !== undefined && (
+                  <p className="text-[11px] text-slate-300">
+                    Your share:{' '}
+                    <span className="font-bold text-[#08D9D6]">
+                      {commission.agentSharePercent}% · {money(commission.agentShareGhs ?? null)}
+                    </span>{' '}
+                    of the agreed commission (Goodlucks {commission.goodlucksSharePercent}%). Recorded when this
+                    commission was priced; a later tier change does not alter it.
+                  </p>
+                )}
               </li>
             ))}
           </ul>

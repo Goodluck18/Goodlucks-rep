@@ -327,6 +327,18 @@ function submit_identity_verification(array $user, array $input, array $document
     $owned = verification_documents_for_submission($user, 'identity', $documentIds, $errors);
     if (!$owned) {
         $errors['documents'] = 'Upload at least one identity document for the reviewer to check.';
+    } else {
+        // Task 03: a Ghana Card is checked from BOTH sides. A front-only upload
+        // is refused here rather than approved later, so the reviewer is never
+        // asked to verify half an identity.
+        $kinds = array_map(static fn(array $doc): string => (string)($doc['kind'] ?? ''), $owned);
+        if ($documentType === 'ghana_card') {
+            if (!in_array('document_front', $kinds, true)) {
+                $errors['documents'] = 'Upload the FRONT of your Ghana Card.';
+            } elseif (!in_array('document_back', $kinds, true)) {
+                $errors['documents'] = 'Upload the BACK of your Ghana Card as well as the front.';
+            }
+        }
     }
 
     if ($errors) {
@@ -399,6 +411,17 @@ function submit_identity_verification(array $user, array $input, array $document
         'encryptionActive' => identity_encryption_enabled(),
         'subjectRole'      => (string)$user['role'],
     ]);
+
+    // Task 03: submission itself notifies the owner (a receipt, not an approval)
+    // and the reviewers. Creating a notification adds one row per submission, so
+    // refreshing a page does not duplicate it.
+    create_notification(
+        (string)$user['id'],
+        'Identity verification submitted',
+        'Your Ghana Card details and documents are with Goodlucks staff. This is not an approval: your identity stays unverified until a reviewer approves it.',
+        'info'
+    );
+    notify_verification_staff('identity', (string)($user['name'] ?? ''), (string)$user['id']);
 
     return find_identity_verification((string)$user['id']) ?? [];
 }
@@ -482,6 +505,15 @@ function submit_professional_authorisation(array $user, array $input, array $doc
         'registryChecked'  => false,
     ]);
 
+    // Task 03: uploading is not approval, and the wording says so.
+    create_notification(
+        (string)$user['id'],
+        'Professional authorisation submitted',
+        'Your documents are with Goodlucks staff. Submitting them does not change your commission tier; that only happens if a reviewer approves this authorisation.',
+        'info'
+    );
+    notify_verification_staff('professional', (string)($user['name'] ?? ''), (string)$user['id']);
+
     return find_professional_authorisation((string)$user['id']) ?? [];
 }
 
@@ -536,6 +568,48 @@ const VERIFICATION_DECISIONS = [
     'request_resubmission'  => 'resubmission_required',
     'mark_expired'          => 'expired',
 ];
+
+/**
+ * Task 03: in-app notifications for the verification workflow.
+ *
+ * These are the platform's own notifications (the same table the dashboard
+ * bell reads); nothing here claims an email or SMS was delivered. A notification
+ * is created once per state change, so reloading a page never duplicates one.
+ */
+function notify_verification_staff(string $scope, string $userName, string $userId): void
+{
+    $label = $scope === 'identity' ? 'identity verification' : 'professional authorisation';
+    foreach (db_all("SELECT id FROM users WHERE role = 'admin' AND can_review_verifications = 1 ORDER BY created_at LIMIT 20") as $admin) {
+        create_notification(
+            (string)$admin['id'],
+            'New ' . $label . ' to review',
+            $userName . ' submitted ' . $label . '. Open the verification queue to review it.',
+            'info'
+        );
+    }
+    audit_log('verification.submitted_notice', $scope === 'identity' ? 'identity_verification' : 'professional_authorisation', $userId, [
+        'scope' => $scope,
+    ]);
+}
+
+function notify_verification_subject(string $userId, string $scope, string $decision, string $note): void
+{
+    $what = $scope === 'identity' ? 'Identity verification' : 'Professional authorisation';
+    $messages = [
+        'approve'              => ['approved', $what . ' approved.', 'success'],
+        'start_review'         => ['being reviewed', $what . ' is now being reviewed by Goodlucks staff.', 'info'],
+        'reject'               => ['rejected', $what . ' was not approved.', 'warning'],
+        'request_resubmission' => ['more information needed', 'Goodlucks needs more information for your ' . strtolower($what) . '.', 'warning'],
+        'mark_expired'         => ['expired', 'Your professional authorisation has been marked expired.', 'warning'],
+    ];
+    [$word, $title, $type] = $messages[$decision] ?? ['updated', $what . ' updated.', 'info'];
+
+    $message = $title . ($note !== '' ? ' Reason: ' . $note : '');
+    if ($decision === 'request_resubmission') {
+        $message .= ' Open your verification page to upload what is needed.';
+    }
+    create_notification($userId, $title . ' (' . $word . ')', $message, $type);
+}
 
 function record_verification_decision(
     string $userId,
@@ -681,6 +755,27 @@ function record_verification_decision(
         ]
     );
 
+    // Task 03: the account holder hears about every decision, with the reason.
+    try {
+        notify_verification_subject($userId, $scope, $decision, $note);
+        // Reaching the higher tier is its own event: it changes the share of
+        // FUTURE commissions, so it is announced rather than left implicit.
+        if ($scope === 'professional' && $targetStatus === 'approved') {
+            $tier = agent_tier_state($userId);
+            if (($tier['commissionTier'] ?? 'none') === 'higher') {
+                create_notification(
+                    $userId,
+                    'Higher commission tier granted',
+                    'Your identity and professional authorisation are both approved, so future commissions on this account use the higher tier ('
+                    . number_format((float)$tier['commissionPercent'], 0) . '% agent share). Transactions already recorded keep the terms they were agreed under.',
+                    'success'
+                );
+            }
+        }
+    } catch (Throwable $e) {
+        gl_log('error', 'Verification notification failed: ' . $e->getMessage(), ['userId' => $userId]);
+    }
+
     $fresh = $scope === 'identity'
         ? find_identity_verification($userId)
         : find_professional_authorisation($userId);
@@ -790,7 +885,67 @@ function shape_verification_document(array $row, bool $canDownload): array
         'uploadedAt'=> to_iso($row['created_at'] ?? null),
         // The original filename is deliberately not stored or echoed.
         'downloadUrl' => $canDownload ? '/api/verification-documents/' . (string)$row['id'] : null,
+        // Task 03: the reviewer's outcome for THIS document. Recorded per
+        // document so a reviewer can say which paper is fine and which is not.
+        // It never changes the verification status by itself.
+        'reviewStatus' => (string)($row['review_status'] ?? 'pending'),
+        'reviewNote'   => (string)($row['review_note'] ?? ''),
+        'reviewedAt'   => to_iso($row['reviewed_at'] ?? null),
     ];
+}
+
+/**
+ * Task 03: record one document's outcome.
+ *
+ * This is a reviewer action, not a subject action, and it does not decide the
+ * overall verification: that remains `record_verification_decision()`. It exists
+ * so "which of these three certificates is acceptable?" has an answer on the
+ * record instead of living in somebody's memory.
+ */
+function review_verification_document(string $documentId, string $decision, string $note, array $reviewer): array
+{
+    $row = find_verification_document($documentId);
+    if ($row === null || ($row['deleted_at'] ?? null) !== null) {
+        error_response('That document does not exist.', 404);
+    }
+    if ((string)$row['user_id'] === (string)$reviewer['id']) {
+        error_response('You cannot review your own document.', 403);
+    }
+
+    $decision = strtolower(trim($decision));
+    if (!in_array($decision, ['accept', 'reject', 'pending'], true)) {
+        error_response('Choose accept, reject or pending.', 422, ['decision' => 'Invalid document decision.']);
+    }
+    $note = clean_text($note, 500);
+    if ($decision === 'reject' && mb_strlen($note) < 5) {
+        error_response('Say why the document was not accepted.', 422, ['note' => 'A rejection needs a short reason.']);
+    }
+
+    $status = $decision === 'accept' ? 'accepted' : ($decision === 'reject' ? 'rejected' : 'pending');
+
+    db_exec(
+        'UPDATE verification_documents
+            SET review_status = :status, review_note = :note, reviewed_by = :by, reviewed_at = :now
+          WHERE id = :id',
+        [
+            ':status' => $status,
+            ':note'   => $note !== '' ? $note : null,
+            ':by'     => (string)$reviewer['id'],
+            ':now'    => db_now(),
+            ':id'     => $documentId,
+        ]
+    );
+
+    audit_log('verification.document_reviewed', 'verification_document', $documentId, [
+        'scope'    => (string)$row['scope'],
+        'kind'     => (string)$row['kind'],
+        'decision' => $status,
+        'note'     => $note,
+        // No file contents, path or checksum is logged.
+    ], $reviewer);
+
+    $fresh = find_verification_document($documentId);
+    return shape_verification_document($fresh ?? $row, true);
 }
 
 /** Everything a subject sees about their own verification. */
@@ -822,6 +977,11 @@ function verification_summary_for_user(array $user): array
     return [
         'identity'     => $identity,
         'professional' => $professional,
+        // Task 03: the official Ghana Card name supplied at registration. It is
+        // offered as a starting value for the identity form and is never treated
+        // as a check on its own.
+        'officialName' => (string)($user['official_name'] ?? ''),
+        'role'         => (string)($user['role'] ?? ''),
         // The two are independent by design; restated so the client cannot
         // collapse them into one "verified" flag.
         'identityVerified' => $identity['status'] === 'approved',

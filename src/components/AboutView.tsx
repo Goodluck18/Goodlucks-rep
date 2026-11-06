@@ -26,7 +26,7 @@ const FAQ_DATA: FAQItem[] = [
     id: 'faq-3',
     category: 'General',
     question: 'What is the physical viewing fee and what does it cover?',
-    answer: 'A nominal viewing fee (typically GH₵ 100) covers physical transport, property access setup, and on-site guidance with a certified Goodlucks agent. This protects tenants from fake listing scams and ensures landlords receive serious, pre-screened prospective tenants.'
+    answer: 'Each property sets its own viewing fee, which is shown on the listing together with that property\'s viewing terms. The fee covers physical transport, property access setup and on-site guidance with the agent responsible for the listing, and it is paid on site — never online. Goodlucks does not have a standard viewing fee.'
   },
   {
     id: 'faq-4',

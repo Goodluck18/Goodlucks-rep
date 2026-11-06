@@ -573,6 +573,27 @@ export const AdminFinancePanel: React.FC = () => {
                     Received {money(commission.receivedGhs)} · outstanding {money(commission.outstandingGhs)} ·
                     basis {commission.basis === 'policy_snapshot' ? 'approved policy snapshot' : 'recorded agreement'}
                   </p>
+                  {/* Task 03: the tier split recorded with this transaction. It is
+                      read from the stored record — an old commission keeps the
+                      percentages it was agreed under. */}
+                  {commission.agentSharePercent !== null && commission.agentSharePercent !== undefined ? (
+                    <p className="text-[11px] text-slate-300">
+                      Tier split:{' '}
+                      <span className="font-bold text-[#08D9D6]">
+                        {commission.agentSharePercent}% agent ({money(commission.agentShareGhs ?? null)}) /{' '}
+                        {commission.goodlucksSharePercent}% Goodlucks ({money(commission.goodlucksShareGhs ?? null)})
+                      </span>{' '}
+                      · tier {commission.agentTier || 'unknown'} · frozen{' '}
+                      {commission.splitFrozenAt ? commission.splitFrozenAt.slice(0, 10) : 'at pricing'}
+                    </p>
+                  ) : (
+                    <p className="text-[11px] text-slate-500">
+                      No tier split is recorded on this commission
+                      {commission.basis === 'policy_snapshot'
+                        ? ' — it was priced by an approved fee policy, whose own snapshot is authoritative.'
+                        : ' (it was recorded without an agent).'}
+                    </p>
+                  )}
                   {commission.payments.length > 0 && (
                     <ul className="text-[10px] text-slate-500 space-y-0.5">
                       {commission.payments.map((payment) => (
