@@ -171,7 +171,7 @@ PHP was executed through `@php-wasm/cli` with `DB_DRIVER=sqlite`. **MySQL was no
 1. **MySQL run** — the migrations and the new columns/indexes have only been exercised on SQLite. Run `migrate.php` against a MySQL copy and re-run the API suite with `DB_DRIVER=mysql`.
 2. **Browser pass** — registration (both groups), Ghana Card upload on a phone, admin document review, agent fee/terms submission and admin approval, notification links, finance split display. Not run here.
 3. **Real upload limits** — confirm the host's `upload_max_filesize`/`post_max_size` against the app's own limit.
-4. **Landlord viewing-fee policy — deliberately unresolved.** The brief does not say whether landlords should carry a per-property viewing fee and terms at all. Landlord listings keep their existing submission and viewing flow, are exempt from agent fee/commission/professional rules, and no landlord fee policy was invented. **This needs a product decision before landlord listings display a viewing fee.**
+4. **Landlord viewing-fee policy — RESOLVED in the Task 03 update.** Landlords do not set their own fee. An administrator configures one general landlord viewing fee, which the platform applies to every landlord listing, and the tenant pays it to Goodlucks Homes after the viewing. See `docs/TASK_03_LANDLORD_POLICY_UPDATE.md`. (The original Task 03 report left this open on purpose; the update implements the decided policy.)
 5. Release remains explicitly **not launch-ready**.
 
 ## 20. Confirmation that Numbers 4–8 were not implemented

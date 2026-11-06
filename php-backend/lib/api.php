@@ -80,6 +80,10 @@ function resolve_route(string $method, string $path): ?array
         // change is a staff decision; proposing one is the owner's/agent's.
         ['POST', '#^/properties/([A-Za-z0-9\-_]+)/viewing-terms$#', 'handle_request_viewing_terms'],
         ['GET',  '#^/properties/([A-Za-z0-9\-_]+)/viewing-terms/history$#', 'handle_viewing_terms_history'],
+        // Task 03 update: the ONE general landlord viewing fee, controlled by an
+        // administrator. Landlords never set or change it.
+        ['GET',  '#^/admin/landlord-policy$#', 'handle_admin_landlord_policy'],
+        ['PUT',  '#^/admin/landlord-policy/viewing-fee$#', 'handle_admin_set_landlord_viewing_fee'],
         ['GET',  '#^/admin/viewing-terms/changes$#', 'handle_admin_viewing_term_changes'],
         ['POST', '#^/admin/viewing-terms/changes/([A-Za-z0-9\-_]+)/decision$#', 'handle_admin_decide_viewing_term_change'],
         ['GET',  '#^/admin/properties$#', 'handle_admin_properties'],
@@ -208,6 +212,12 @@ function resolve_route(string $method, string $path): ?array
         ['POST', '#^/admin/finance/receipts/([A-Za-z0-9\-_]+)/reverse$#', 'handle_admin_reverse_receipt'],
         ['GET',  '#^/admin/finance/agents/([A-Za-z0-9\-_]+)$#', 'handle_admin_finance_agent'],
         ['GET',  '#^/admin/finance/adjustments$#', 'handle_admin_finance_adjustments'],
+        // Task 03 update: landlord money is recorded and read separately from
+        // agent money, and never mixed into the same transaction.
+        ['GET',  '#^/admin/finance/landlord-platform-fees$#', 'handle_admin_landlord_platform_fees'],
+        ['POST', '#^/admin/finance/landlord-platform-fees$#', 'handle_admin_create_landlord_platform_fee'],
+        ['GET',  '#^/admin/finance/landlord-viewing-fees$#', 'handle_admin_landlord_viewing_fees'],
+        ['POST', '#^/admin/finance/landlord-viewing-fees$#', 'handle_admin_record_landlord_viewing_fee'],
         ['GET',  '#^/admin/finance/commissions$#', 'handle_admin_commissions'],
         ['POST', '#^/admin/finance/commissions$#', 'handle_admin_create_commission'],
         ['GET',  '#^/admin/finance/commissions/([A-Za-z0-9\-_]+)$#', 'handle_admin_commission_show'],
@@ -1576,14 +1586,27 @@ function handle_create_property(): void
     // Task 03: an AGENT listing carries its own viewing fee and viewing terms,
     // set here and validated here. There is no platform-wide default: without a
     // fee the submission is refused, so no tenant is ever quoted a figure the
-    // property never agreed to. A LANDLORD listing may include them, but is not
-    // forced to: no landlord viewing-fee policy has been agreed (see
-    // docs/TASK_03_REPORT.md, which records that limitation rather than
-    // inventing one).
+    // property never agreed to.
+    //
+    // Task 03 update: a LANDLORD listing does NOT. A landlord cannot set, change
+    // or omit the viewing fee: the administrator's general landlord viewing fee
+    // is applied to the listing server-side after it is created. Any fee or
+    // terms sent by a landlord are ignored (and audited), never applied.
+    $isLandlordSubmission = ($user['role'] ?? '') === 'landlord';
     $hasViewingFeeInput = array_key_exists('viewingFeeGhs', $input) || array_key_exists('viewingTerms', $input);
     $viewingTermsErrors = [];
     $viewingFee = null;
-    if ($isAgentSubmission || $hasViewingFeeInput) {
+    if ($isAgentSubmission) {
+        $viewingFee = valid_viewing_fee($input['viewingFeeGhs'] ?? $input['feeGhs'] ?? null);
+        if ($viewingFee === null) {
+            $viewingTermsErrors['viewingFeeGhs'] = 'Enter this property\'s viewing fee in GHS, greater than zero. '
+                . 'Every property has its own fee — there is no standard amount.';
+        }
+        $normalisedTerms = normalise_viewing_terms($input['viewingTerms'] ?? null);
+        $viewingTermsErrors += $normalisedTerms['errors'];
+    } elseif (!$isLandlordSubmission && $hasViewingFeeInput) {
+        // Staff-created listings keep the Task 03 behaviour: a fee/terms pair is
+        // recorded as a proposal for review.
         $viewingFee = valid_viewing_fee($input['viewingFeeGhs'] ?? $input['feeGhs'] ?? null);
         if ($viewingFee === null) {
             $viewingTermsErrors['viewingFeeGhs'] = 'Enter this property\'s viewing fee in GHS, greater than zero. '
@@ -1647,6 +1670,31 @@ function handle_create_property(): void
 
     $id = create_property($data);
     $created = find_property($id);
+
+    // Task 03 update: the administrator's general landlord viewing fee is
+    // applied to a landlord listing by the server, from the configured setting.
+    // A landlord's own fee/terms input is never used, and none is invented when
+    // no fee has been configured.
+    if ($created !== null && $isLandlordSubmission) {
+        if ($hasViewingFeeInput) {
+            audit_log('landlord_policy.landlord_fee_input_ignored', 'property', $id, [
+                'reason' => 'A landlord cannot set the viewing fee; the platform fee is configured by an administrator.',
+            ], $user);
+        }
+        apply_landlord_viewing_fee_to_property($created, $user);
+        $created = find_property($id);
+        if (!landlord_viewing_fee_is_configured()) {
+            foreach (db_all("SELECT id FROM users WHERE role = 'admin' LIMIT 20") as $adminRow) {
+                create_notification(
+                    (string)$adminRow['id'],
+                    'Landlord viewing fee is not configured',
+                    'A landlord submitted a listing, but no general landlord viewing fee is set, so it has no viewing fee. '
+                        . 'Set it in Fee Policies before the listing is published.',
+                    'warning'
+                );
+            }
+        }
+    }
 
     // Task 03: the submitted fee and terms are a PROPOSAL. They become the
     // property's public values only when staff approve the listing (or approve
@@ -1781,6 +1829,18 @@ function handle_update_property(array $params): void
         error_response('No changes were provided.', 400);
     }
 
+    // Task 03 update: a landlord cannot set or change the viewing fee — it is
+    // the administrator's general landlord fee. Refused here as well as in the
+    // dedicated endpoint, so neither route can be used to bypass it.
+    if ($touchesViewingTerms && is_landlord_listing($row)) {
+        error_response(
+            'The viewing fee for landlord listings is set by Goodlucks Homes and cannot be changed from a listing. '
+            . 'Contact the Goodlucks team if you believe it is wrong.',
+            403,
+            ['viewingFeeGhs' => 'Only Goodlucks Homes sets this fee.']
+        );
+    }
+
     $viewingChange = null;
     if ($touchesViewingTerms) {
         $viewingChange = request_viewing_fee_change($row, [
@@ -1876,6 +1936,16 @@ function handle_property_status(array $params): void
     }
 
     $wasActive = ((string)($row['status'] ?? '')) === 'active';
+
+    // Task 03 update: a landlord listing is published with the administrator's
+    // general viewing fee attached. The fee is applied here too, so a listing
+    // that was submitted before the fee was configured still gets it. When no
+    // fee has been configured the listing is still published — it simply has no
+    // viewing fee, because printing an amount nobody set would be worse — and
+    // the audit trail records that configuration is still required.
+    if ($status === 'active' && is_landlord_listing($row)) {
+        apply_landlord_viewing_fee_to_property($row, $user);
+    }
 
     update_property($id, ['status' => $status]);
 
@@ -2022,6 +2092,16 @@ function handle_request_viewing_terms(array $params): void
     }
     if ((string)($row['submitted_by_role'] ?? '') === 'agent' && (string)($row['submitted_by_user_id'] ?? '') !== (string)$user['id']) {
         error_response('This listing belongs to another agent.', 403);
+    }
+    // Task 03 update: the fee on a landlord listing is the administrator's
+    // general landlord viewing fee, so a landlord cannot propose a change to it.
+    if (is_landlord_listing($row)) {
+        error_response(
+            'The viewing fee for landlord listings is set by Goodlucks Homes and cannot be changed from a listing. '
+            . 'Contact the Goodlucks team if you believe it is wrong.',
+            403,
+            ['viewingFeeGhs' => 'Only Goodlucks Homes sets this fee.']
+        );
     }
 
     $input = request_json();
@@ -2670,15 +2750,30 @@ function handle_create_viewing(): void
     // Task 03: the viewing fee and terms come from THIS property's approved
     // values. There is no platform-wide fee; a property with nothing approved
     // has no fee (0), and that is what the tenant is told.
+    //
+    // Task 03 update: a landlord listing approved before the general landlord
+    // viewing fee existed has no fee on the row yet. The configured fee is
+    // applied here, once, BEFORE the viewing is snapshotted — never on a
+    // recorded viewing, and never as an invented amount.
+    if (is_landlord_listing($property)
+        && approved_viewing_fee($property) === null
+        && landlord_viewing_fee_is_configured()
+    ) {
+        apply_landlord_viewing_fee_to_property($property, $user ?? ['id' => '', 'role' => 'system']);
+        $property = find_property($propertyId) ?? $property;
+    }
+
     $approvedFee = approved_viewing_fee($property);
     $approvedTerms = approved_viewing_terms($property);
+    // Where the fee came from and who it is paid to, frozen with the request.
+    $feePolicy = viewing_fee_policy_payload($property);
     $viewingTermsSnapshot = [
         'snapshotKind' => 'property_viewing_terms',
         'propertyId'   => $propertyId,
         'feeGhs'       => $approvedFee,
         'terms'        => $approvedTerms,
         'capturedAt'   => db_now(),
-    ];
+    ] + $feePolicy;
 
     // The responsible agent is the agent who submitted the listing, when that
     // agent's account is active. Otherwise the request waits for the Goodlucks
@@ -2754,7 +2849,11 @@ function handle_create_viewing(): void
                 . '<span style="color:#94A3B8;font-size:13px;">Your preferred slot</span><br>'
                 . '<span style="color:#38BDF8;font-weight:bold;">' . e($date) . ' at ' . e($time) . '</span><br>'
                 . '<span style="color:#E2E8F0;font-size:13px;">The agent may propose a different time.</span></div>' : '')
-            . '<p style="color:#94A3B8;font-size:12px;">A viewing fee, if one applies, is paid on site after meeting the agent. Goodlucks never asks for a viewing fee online, and no payment has been recorded for this request.</p>'
+            . '<p style="color:#94A3B8;font-size:12px;">'
+                . ($feePolicy['source'] === 'platform_policy'
+                    ? 'A viewing fee, if one applies, is paid to Goodlucks Homes after the viewing — never online and never to the landlord.'
+                    : 'A viewing fee, if one applies, is paid on site after meeting the agent.')
+                . ' Goodlucks never asks for a viewing fee online, and no payment has been recorded for this request.</p>'
         ),
         $isEnquiry ? 'enquiry_received' : 'viewing_requested',
         'Request received'
@@ -3202,6 +3301,24 @@ function handle_update_viewing(array $params): void
 
     $fields = [];
     $existingFeeRecord = find_viewing_fee_record_by_viewing($id);
+
+    // Task 03 update: on a landlord listing the viewing fee is Goodlucks money,
+    // recorded as received through the landlord fee section (which needs the
+    // viewing to be complete and writes the receipt). This legacy checkbox
+    // records an AGENT collection, so it is refused here rather than creating a
+    // ledger row that says an agent collected a fee Goodlucks took itself.
+    if (array_key_exists('viewingFeePaid', $input) && $role === 'admin') {
+        $policyProperty = (string)($viewing['propertyId'] ?? '') !== '' ? find_property((string)$viewing['propertyId']) : null;
+        if ($policyProperty !== null && is_landlord_listing($policyProperty)) {
+            error_response(
+                'This viewing is for a landlord listing. Record the viewing fee from Admin → Finance → Landlord fees; '
+                . 'it is paid to Goodlucks Homes, not collected by an agent.',
+                422,
+                ['viewingFeePaid' => 'Landlord viewing fees are recorded in the landlord fee section.']
+            );
+        }
+    }
+
     if (array_key_exists('viewingFeePaid', $input) && $role === 'admin') {
         $markingUnpaid = !(bool)$input['viewingFeePaid'];
         // Money already remitted must never disappear from the ledger because a
@@ -4414,3 +4531,48 @@ function handle_send_email(): void
     $queued = send_email($to, clean_string($input['recipientName'] ?? '', 120), $subject, $html, clean_string($input['type'] ?? 'notification', 64));
     json_response(['success' => true, 'queued' => $queued, 'delivered' => false]);
 }
+
+// ===========================================================================
+// Landlord fee policy (Task 03 update)
+// ===========================================================================
+/**
+ * The administrator's general landlord viewing fee and the landlord platform
+ * fee statement, in one read.
+ *
+ * Any administrator may read it (it is the setting that publishes landlord
+ * listings); the money records below are capability-gated like the rest of the
+ * finance desk.
+ */
+function handle_admin_landlord_policy(): void
+{
+    require_auth(['admin']);
+    json_response([
+        'success' => true,
+        'policy'  => landlord_policy_summary(),
+    ]);
+}
+
+/**
+ * Set the one general landlord viewing fee.
+ *
+ * Administrator-only, validated server-side as a non-negative money amount, and
+ * audited with the previous value. Nothing a landlord or agent sends can reach
+ * this setting: the role check is the only door.
+ */
+function handle_admin_set_landlord_viewing_fee(): void
+{
+    $user = require_auth(['admin']);
+    $input = request_json();
+
+    $result = set_landlord_viewing_fee($input['amountGhs'] ?? $input['viewingFeeGhs'] ?? null, $user);
+
+    json_response([
+        'success' => true,
+        'message' => 'The general landlord viewing fee is now GH₵ '
+            . number_format((float)($result['policy']['viewingFee']['amountGhs'] ?? 0), 2)
+            . '. It applies to landlord-submitted listings; recorded viewings and payments keep their own figures.',
+        'policy'  => $result['policy'],
+        'listingsUpdated' => $result['listingsUpdated'],
+    ]);
+}
+

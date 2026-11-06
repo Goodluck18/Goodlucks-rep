@@ -650,6 +650,13 @@ CREATE TABLE IF NOT EXISTS `viewing_fee_records` (
   `agent_name` VARCHAR(200) NOT NULL DEFAULT '',
   `agent_user_id` VARCHAR(64) DEFAULT NULL,
   `fee_total_ghs` DECIMAL(10,2) DEFAULT NULL,
+  -- Task 03 update: whose fee this is.
+  --   'agent_collection'        an AGENT listing's fee, collected by an agent
+  --                             and shared with Goodlucks by explicit agreement
+  --   'landlord_platform_fee'   a LANDLORD listing's fee, paid by the tenant
+  --                             directly to Goodlucks. It is 100% Goodlucks and
+  --                             is never run through an agent share.
+  `fee_source` VARCHAR(32) NOT NULL DEFAULT 'agent_collection',
   `collection_state` VARCHAR(24) NOT NULL DEFAULT 'reported',
   `share_basis` VARCHAR(24) NOT NULL DEFAULT 'not_set',
   `goodlucks_share_ghs` DECIMAL(10,2) DEFAULT NULL,
@@ -979,6 +986,23 @@ CREATE TABLE IF NOT EXISTS `rental_commissions` (
   `commission_amount_ghs` DECIMAL(10,2) DEFAULT NULL,
   `currency` VARCHAR(8) NOT NULL DEFAULT 'GHS',
   `basis` VARCHAR(32) NOT NULL DEFAULT 'manual_agreement',
+  -- Task 03 update: which policy priced this record.
+  --   'agent_commission'     an AGENT listing's commission, split by the
+  --                          identity/professional tier (60% / 70%)
+  --   'landlord_platform_fee' a LANDLORD listing's 8% platform fee on rent
+  --                          actually paid. It belongs entirely to Goodlucks,
+  --                          no agent tier is ever applied to it, and it never
+  --                          shares a row with an agent commission.
+  `policy_type` VARCHAR(32) NOT NULL DEFAULT 'agent_commission',
+  -- Landlord platform fee only: the total rent actually paid by the tenant
+  -- (the calculation basis) and the percentage applied at that moment.
+  `rent_amount_ghs` DECIMAL(12,2) DEFAULT NULL,
+  `platform_fee_percent` DECIMAL(5,2) DEFAULT NULL,
+  -- Landlord platform fee only: one key per (property, rent payment) so the
+  -- same rent payment can never be charged the platform fee twice. NULL for
+  -- every agent commission, and MySQL/SQLite both allow many NULLs in a
+  -- UNIQUE index.
+  `dedupe_key` VARCHAR(191) DEFAULT NULL,
   `policy_id` VARCHAR(64) DEFAULT NULL,
   `policy_snapshot_json` LONGTEXT DEFAULT NULL,
   `policy_snapshot_hash` VARCHAR(64) DEFAULT NULL,
@@ -1001,8 +1025,10 @@ CREATE TABLE IF NOT EXISTS `rental_commissions` (
   `updated_at` DATETIME DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uniq_commission_reference` (`reference`),
+  UNIQUE KEY `uniq_commission_dedupe` (`dedupe_key`),
   KEY `idx_commission_status` (`status`, `due_date`),
-  KEY `idx_commission_agent` (`agent_user_id`)
+  KEY `idx_commission_agent` (`agent_user_id`),
+  KEY `idx_commission_policy_type` (`policy_type`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `commission_payments` (
@@ -1035,4 +1061,29 @@ CREATE TABLE IF NOT EXISTS `financial_adjustments` (
   PRIMARY KEY (`id`),
   KEY `idx_fin_adj_subject` (`subject_type`, `subject_id`),
   KEY `idx_fin_adj_created` (`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ------------------------------------------------------------
+-- 31. Platform settings (Task 03 update)
+-- ------------------------------------------------------------
+-- Administrator-controlled settings that are not a per-property value and not
+-- a versioned fee policy. One row per setting key.
+--
+-- The only setting in this release is `landlord_viewing_fee_ghs`: the ONE
+-- general viewing fee that applies to every landlord-submitted property. It has
+-- NO default — when the row is missing the fee is genuinely unconfigured, and
+-- the application says so instead of inventing an amount.
+CREATE TABLE IF NOT EXISTS `platform_settings` (
+  `id` VARCHAR(64) NOT NULL,
+  `setting_key` VARCHAR(64) NOT NULL,
+  -- Stored as text so the table stays useful for non-numeric settings; the
+  -- reading code validates the type it expects.
+  `setting_value` VARCHAR(255) NOT NULL,
+  -- 'money' | 'string' | 'integer' | 'boolean'
+  `value_type` VARCHAR(16) NOT NULL DEFAULT 'string',
+  `updated_by` VARCHAR(64) DEFAULT NULL,
+  `updated_at` DATETIME DEFAULT NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uniq_platform_setting_key` (`setting_key`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

@@ -172,9 +172,11 @@ define('IDENTITY_DATA_KEY', (string)cfg('IDENTITY_DATA_KEY', ''));
 
 define('SESSION_COOKIE', 'gl_session');
 define('SESSION_TTL_SECONDS', (int)cfg('SESSION_TTL_SECONDS', 60 * 60 * 24 * 7)); // 7 days
-// Task 03: there is NO platform-wide viewing fee. Each property carries its own
-// approved fee (`properties.viewing_fee_ghs`), and a property with none approved
-// has no fee. The old `VIEWING_FEE_GHS` default of 100 was a figure no property
+// Task 03: there is NO hardcoded platform-wide viewing fee. Each AGENT property
+// carries its own approved fee (`properties.viewing_fee_ghs`), and a property
+// with none approved has no fee. A LANDLORD listing carries the administrator's
+// general landlord viewing fee, which is stored in `platform_settings` and read
+// with landlord_viewing_fee() — it is never a constant. The old `VIEWING_FEE_GHS` default of 100 was a figure no property
 // had agreed to and has been removed; the constant is kept only as an explicitly
 // configured, non-default escape hatch for legacy imports and reads as 0 unless
 // somebody sets it on purpose.
@@ -253,6 +255,7 @@ require_once GL_ROOT . '/lib/mailer.php';
 require_once GL_ROOT . '/lib/outbox.php';
 require_once GL_ROOT . '/lib/repository.php';
 require_once GL_ROOT . '/lib/viewing_terms.php';
+require_once GL_ROOT . '/lib/landlord_policy.php';
 require_once GL_ROOT . '/lib/private_storage.php';
 require_once GL_ROOT . '/lib/verification.php';
 require_once GL_ROOT . '/lib/fee_policies.php';

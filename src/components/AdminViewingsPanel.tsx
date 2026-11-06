@@ -220,18 +220,34 @@ const DetailPanel: React.FC<{ viewingId: string; onClose: () => void; onChanged:
                   {money(detail.financial.goodlucksShareGhs)}
                 </p>
               )}
-              <label className="flex items-center gap-2 pt-1 text-slate-300">
-                <input
-                  type="checkbox"
-                  checked={feePaid}
-                  disabled={busy}
-                  onChange={(event) => void setFee(event.target.checked)}
-                />
-                Staff recorded a viewing fee collected by the agent on site
-              </label>
-              <p className="text-slate-500">
-                This is a record of a collection, not a payment to Goodlucks and not revenue.
-              </p>
+              {detail.viewing.feeSource === 'platform_policy' ? (
+                <>
+                  <p className="text-slate-400">
+                    This is a landlord listing: the viewing fee is set by Goodlucks Homes and paid to Goodlucks after the
+                    viewing. Record it under Finance → Landlord fees once the viewing is complete — it is never an agent
+                    collection.
+                  </p>
+                  <p className="text-slate-500">
+                    Fee on this viewing: {detail.viewing.feeAmountGhs > 0 ? money(detail.viewing.feeAmountGhs) : 'none'} ·{' '}
+                    {detail.viewing.viewingFeePaid ? 'recorded as received' : 'not yet recorded'}
+                  </p>
+                </>
+              ) : (
+                <>
+                  <label className="flex items-center gap-2 pt-1 text-slate-300">
+                    <input
+                      type="checkbox"
+                      checked={feePaid}
+                      disabled={busy}
+                      onChange={(event) => void setFee(event.target.checked)}
+                    />
+                    Staff recorded a viewing fee collected by the agent on site
+                  </label>
+                  <p className="text-slate-500">
+                    This is a record of a collection, not a payment to Goodlucks and not revenue.
+                  </p>
+                </>
+              )}
             </div>
 
             <div className="bg-slate-900/60 border border-white/10 rounded-xl p-3 text-[11px] space-y-2">

@@ -304,3 +304,59 @@ function handle_admin_commission_adjust(array $params): void
 
     json_response(['success' => true, 'adjustment' => $adjustment], 201);
 }
+
+// ===========================================================================
+// Landlord money (Task 03 update)
+// ===========================================================================
+/**
+ * Landlord platform fees (8% of rent actually paid) and the landlord viewing-fee
+ * payments, kept apart from the agent ledger and the agent commissions.
+ *
+ * Reading needs `can_view_finance`; recording money needs the confirm
+ * capability, exactly like every other financial write.
+ */
+function handle_admin_landlord_platform_fees(): void
+{
+    require_finance_view();
+    json_response([
+        'success'  => true,
+        'fees'     => list_landlord_platform_fees(200),
+        'summary'  => landlord_platform_fee_summary(),
+        'policy'   => landlord_policy_summary()['platformFee'],
+    ]);
+}
+
+function handle_admin_create_landlord_platform_fee(): void
+{
+    $user = require_finance_confirm();
+    $fee = create_landlord_platform_fee(request_json(), $user);
+    json_response([
+        'success' => true,
+        'fee'     => $fee,
+        'message' => 'Platform fee recorded: ' . number_format((float)($fee['platformFeePercent'] ?? 0), 2)
+            . '% of the rent paid, payable to Goodlucks Homes. The landlord receives no commission.',
+    ], 201);
+}
+
+function handle_admin_landlord_viewing_fees(): void
+{
+    require_finance_view();
+    json_response([
+        'success' => true,
+        'records' => list_landlord_viewing_fees(200),
+        'summary' => landlord_viewing_fee_payment_summary(),
+        'policy'  => landlord_policy_summary()['viewingFee'],
+    ]);
+}
+
+function handle_admin_record_landlord_viewing_fee(): void
+{
+    $user = require_finance_confirm();
+    $record = record_landlord_viewing_fee_payment(request_json(), $user);
+    json_response([
+        'success' => true,
+        'record'  => $record,
+        'message' => 'Landlord viewing fee recorded as received by Goodlucks Homes.',
+    ], 201);
+}
+

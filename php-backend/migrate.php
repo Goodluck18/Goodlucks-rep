@@ -119,6 +119,16 @@ $requiredColumns = [
         'reviewed_at'   => "DATETIME DEFAULT NULL AFTER `reviewed_by`",
     ],
     'rental_commissions' => [
+        // Task 03 update: which policy priced the row, plus the landlord
+        // platform-fee basis. Existing rows keep 'agent_commission' and NULL
+        // basis columns — no historical fee is recalculated or back-filled.
+        'policy_type'          => "VARCHAR(32) NOT NULL DEFAULT 'agent_commission' AFTER `basis`",
+        'rent_amount_ghs'      => "DECIMAL(12,2) DEFAULT NULL AFTER `policy_type`",
+        'platform_fee_percent' => "DECIMAL(5,2) DEFAULT NULL AFTER `rent_amount_ghs`",
+        // UNIQUE on a nullable column: MySQL and SQLite both permit many NULLs,
+        // so agent commissions are unaffected while one rent payment can never
+        // be charged the landlord platform fee twice.
+        'dedupe_key'           => "VARCHAR(191) DEFAULT NULL UNIQUE AFTER `platform_fee_percent`",
         // Task 03: the agent tier split frozen when the commission was priced.
         // Existing rows keep NULL — historical commissions are never
         // recalculated or back-filled with a percentage they never had.
@@ -225,6 +235,9 @@ $requiredColumns = [
         'policy_id'             => "VARCHAR(64) DEFAULT NULL AFTER `policy_snapshot_json`",
         'policy_snapshot_id'    => "VARCHAR(64) DEFAULT NULL AFTER `policy_id`",
         'agent_tier_at_snapshot'=> "VARCHAR(32) DEFAULT NULL AFTER `policy_snapshot_id`",
+        // Task 03 update: agent_collection | landlord_platform_fee. Existing
+        // records are agent collections, which is exactly the default.
+        'fee_source'            => "VARCHAR(32) NOT NULL DEFAULT 'agent_collection' AFTER `agent_tier_at_snapshot`",
     ],
 ];
 
@@ -238,7 +251,9 @@ $requiredTables = ['auth_sessions', 'enquiries', 'search_alerts', 'saved_propert
     'remittance_submissions', 'remittance_allocations', 'rental_commissions',
     'commission_payments', 'financial_adjustments',
     // Task 03: property viewing fee / terms change requests.
-    'property_viewing_fee_changes'];
+    'property_viewing_fee_changes',
+    // Task 03 update: administrator-controlled settings (landlord viewing fee).
+    'platform_settings'];
 
 function existing_tables(PDO $pdo): array
 {

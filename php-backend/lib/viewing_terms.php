@@ -3,9 +3,15 @@
  * Goodlucks Homes - property-specific viewing fees and viewing terms (Task 03).
  *
  * Every property that an AGENT submits carries its own viewing fee (GHS) and
- * its own viewing terms. There is deliberately no platform-wide viewing fee:
- * the old `VIEWING_FEE_GHS` default of 100 was a universal figure that no
- * property had actually agreed to, and it has been removed.
+ * its own viewing terms. The old `VIEWING_FEE_GHS` default of 100 was a
+ * universal figure that no property had actually agreed to, and it has been
+ * removed; there is no hardcoded fallback.
+ *
+ * Task 03 update: LANDLORD-submitted listings are the exception, and they do not
+ * use this per-property mechanism at all. They carry the ONE general landlord
+ * viewing fee an administrator configures in `platform_settings` (see
+ * lib/landlord_policy.php). It is never typed by the landlord and never
+ * reviewed per property; a landlord cannot propose a change to it.
  *
  * Two different things are stored, on purpose:
  *
@@ -176,16 +182,44 @@ function shape_property_viewing_terms(array $row, ?array $viewer, ?array $pendin
     $fee = approved_viewing_fee($row);
     $terms = approved_viewing_terms($row);
 
+    // Task 03 update: whose policy set this fee. A landlord-submitted listing
+    // carries the ONE general landlord viewing fee that an administrator sets;
+    // the landlord neither chooses nor changes it. An agent-submitted listing
+    // keeps the per-property fee the agent set and staff approved.
+    $policyOwner = listing_policy_owner($row);
+    $isLandlordListing = $policyOwner === 'landlord';
+
     $payload = [
         'feeGhs'        => $fee,
         'terms'         => $terms,
         // Public: is a fee/terms pair approved for this property right now?
         'isApproved'    => $fee !== null && $terms !== null,
         'appliesToRole' => (string)($row['submitted_by_role'] ?? ''),
+        // 'platform_policy' = the administrator's general landlord viewing fee;
+        // 'property' = the agent's own approved per-property fee; 'none' = no
+        // fee has been approved, and none is invented here.
+        'source'        => $isLandlordListing
+            ? 'platform_policy'
+            : ($fee !== null ? 'property' : 'none'),
+        'setBy'         => $isLandlordListing ? 'Goodlucks Homes' : ($fee !== null ? 'The agent listing this property' : ''),
+        // A viewing fee is always paid after the viewing, never online, and a
+        // landlord never receives it.
+        'payableAfterViewing' => $fee !== null,
+        'paidTo'        => $isLandlordListing
+            ? 'Goodlucks Homes'
+            : ($fee !== null ? 'The agent named on this listing' : ''),
+        'landlordShareGhs' => $isLandlordListing ? 0.0 : null,
     ];
 
     if (!$canSeeReviewState) {
         return $payload;
+    }
+
+    if ($isLandlordListing) {
+        // Staff/owner-only: has the administrator configured the platform-wide
+        // landlord fee at all? Without it a landlord listing has no fee, and the
+        // dashboard says so instead of showing an invented figure.
+        $payload['platformFeeConfigured'] = landlord_viewing_fee_is_configured();
     }
 
     $payload['state'] = (string)($row['viewing_terms_state'] ?? 'not_set');
@@ -568,4 +602,26 @@ function reject_pending_change_on_property_rejection(array $property, array $act
         'changeId' => (string)$pending['id'],
         'via'      => 'listing_rejection',
     ], $actor);
+}
+
+/**
+ * Task 03 update: the fee-policy facts the platform attaches to a viewing
+ * request, so the viewing record itself says where the fee came from, who it is
+ * paid to and whether it is payable after the viewing.
+ */
+function viewing_fee_policy_payload(array $property): array
+{
+    $policyOwner = listing_policy_owner($property);
+    $isLandlordListing = $policyOwner === 'landlord';
+
+    return [
+        'source'              => $isLandlordListing ? 'platform_policy' : 'property',
+        'policyType'          => $isLandlordListing ? COMMISSION_POLICY_LANDLORD : COMMISSION_POLICY_AGENT,
+        'setBy'               => $isLandlordListing ? 'Goodlucks Homes' : 'The agent listing this property',
+        'paidTo'              => $isLandlordListing ? 'Goodlucks Homes' : 'The agent named on this listing',
+        'payableAfterViewing' => true,
+        // The landlord never receives a viewing fee.
+        'landlordShareGhs'    => $isLandlordListing ? 0.0 : null,
+        'agentShareGhs'       => $isLandlordListing ? 0.0 : null,
+    ];
 }

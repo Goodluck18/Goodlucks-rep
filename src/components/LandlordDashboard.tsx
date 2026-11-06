@@ -456,6 +456,20 @@ export const LandlordDashboard: React.FC = () => {
                         {prop.location} ·{' '}
                         <strong className="text-[#08D9D6]">GH₵ {prop.rentGhs.toLocaleString()}/mo</strong>
                       </div>
+                      {/* Task 03 update: the viewing fee is set by Goodlucks Homes, not
+                          by the landlord. Shown read-only so nothing suggests otherwise. */}
+                      <p className="text-[11px] text-slate-400 leading-relaxed">
+                        Viewing fee:{' '}
+                        {prop.viewingTerms?.feeGhs ? (
+                          <>
+                            <strong className="text-white">GH₵ {prop.viewingTerms.feeGhs.toLocaleString()}</strong> — set by
+                            Goodlucks Homes and paid to Goodlucks after the viewing. You don't receive it and you can't
+                            change it.
+                          </>
+                        ) : (
+                          <>not set yet — Goodlucks Homes sets the viewing fee for every landlord listing.</>
+                        )}
+                      </p>
                       {prop.status === 'rejected' && prop.rejectionReason && (
                         <p className="text-[11px] text-[#FF8FA8] leading-relaxed break-words">
                           Reason given: {prop.rejectionReason}
@@ -540,11 +554,25 @@ export const LandlordDashboard: React.FC = () => {
                   </div>
                   <p className="text-xs text-slate-400 leading-relaxed">
                     Viewing agent: <strong className="text-white">{v.assignedAgent || 'not yet assigned'}</strong>.{' '}
-                    {v.isConfirmed ? 'A time has been agreed.' : 'No time has been agreed yet.'} Viewing fee:{' '}
-                    <strong className="text-emerald-400">
-                      {v.viewingFeePaid ? 'recorded as collected on site by the agent' : 'not recorded'}
-                    </strong>
-                    . Goodlucks did not take this payment.
+                    {v.isConfirmed ? 'A time has been agreed.' : 'No time has been agreed yet.'}{' '}
+                    {v.feeSource === 'platform_policy' ? (
+                      <>
+                        Viewing fee:{' '}
+                        <strong className="text-emerald-400">
+                          {v.feeAmountGhs > 0 ? `GH₵ ${v.feeAmountGhs.toLocaleString()}` : 'none'}
+                        </strong>
+                        , set by Goodlucks Homes and paid to Goodlucks after the viewing —{' '}
+                        {v.viewingFeePaid ? 'recorded as received.' : 'not yet recorded.'} You don't receive it.
+                      </>
+                    ) : (
+                      <>
+                        Viewing fee:{' '}
+                        <strong className="text-emerald-400">
+                          {v.viewingFeePaid ? 'recorded as collected on site by the agent' : 'not recorded'}
+                        </strong>
+                        . Goodlucks did not take this payment.
+                      </>
+                    )}
                   </p>
                 </div>
               ))}

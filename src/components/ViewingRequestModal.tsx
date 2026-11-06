@@ -146,11 +146,24 @@ export const ViewingRequestModal: React.FC<ViewingRequestModalProps> = ({ proper
                   <span className="font-bold text-[#08D9D6]">Viewing fee for this property:</span>{' '}
                   {property.viewingTerms?.isApproved && property.viewingTerms.feeGhs ? (
                     <span className="font-semibold text-white">GH₵ {property.viewingTerms.feeGhs.toLocaleString()}</span>
+                  ) : property.viewingTerms?.source === 'platform_policy' ? (
+                    <span className="font-semibold text-white">not set yet — Goodlucks Homes sets it before viewings</span>
                   ) : (
                     <span className="font-semibold text-white">none approved — the agent will tell you before you travel</span>
                   )}
-                  . It is paid <span className="underline font-semibold">directly to the agent on site</span>; Goodlucks
-                  never asks for a viewing fee online, and no payment is taken or confirmed by this form.
+                  .{' '}
+                  {property.viewingTerms?.source === 'platform_policy' ? (
+                    <>
+                      It is <span className="underline font-semibold">payable after the viewing, to Goodlucks Homes</span> —
+                      never online, and never to the landlord. Goodlucks doesn't ask for a viewing fee before you view, and
+                      no payment is taken or confirmed by this form.
+                    </>
+                  ) : (
+                    <>
+                      It is paid <span className="underline font-semibold">directly to the agent on site</span>; Goodlucks
+                      never asks for a viewing fee online, and no payment is taken or confirmed by this form.
+                    </>
+                  )}
                 </div>
                 {property.viewingTerms?.isApproved && property.viewingTerms.terms && (
                   <div className="text-[11px] text-slate-300 space-y-1 border-t border-white/10 pt-1.5">

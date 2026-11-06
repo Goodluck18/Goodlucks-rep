@@ -308,12 +308,23 @@ export const AdminFeeLedger: React.FC = () => {
                       <div className="font-mono font-bold text-[#08D9D6]">{record.reference}</div>
                       <div className="text-[10px] text-slate-400">{record.propertyTitle || '—'}</div>
                     </td>
-                    <td className="p-3">{record.agentName || '—'}</td>
+                    <td className="p-3">
+                      {record.feeSource === 'landlord_platform_fee' ? (
+                        <span className="px-1.5 py-0.5 rounded bg-[#08D9D6]/15 text-[#08D9D6] text-[10px] font-bold">
+                          Goodlucks — landlord listing
+                        </span>
+                      ) : (
+                        record.agentName || '—'
+                      )}
+                    </td>
                     <td className="p-3 text-right">{money(record.feeTotalGhs)}</td>
                     <td className="p-3 text-right">
                       {money(record.goodlucksShareGhs)}
                       {record.shareBasis === 'not_set' && (
                         <div className="text-[10px] text-amber-300">not priced</div>
+                      )}
+                      {record.snapshotKind === 'platform_policy' && (
+                        <div className="text-[10px] text-emerald-300">100% Goodlucks — landlord fee</div>
                       )}
                       {record.snapshotKind === 'policy' && (
                         <div className="text-[10px] text-emerald-300 flex items-center justify-end gap-1">

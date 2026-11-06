@@ -48,6 +48,8 @@ import type {
   FinancialAdjustment,
   FinanceReconciliationSummary,
   RentalCommissionStatus,
+  LandlordPolicy,
+  LandlordFeeSummary,
   ViewingAction,
   ViewingDetail,
   ViewingHistoryEvent,
@@ -882,6 +884,60 @@ export const api = {
       `/admin/finance/commissions/${encodeURIComponent(id)}/adjustments`,
       { method: 'POST', body: data }
     ),
+
+  // ---------------------------------------------------------------------------
+  // Landlord fee policy (Task 03 update)
+  //
+  // One general viewing fee, set by an administrator, plus the 8% platform fee
+  // on rent actually paid for landlord-submitted listings. Landlords receive
+  // neither, and no agent tier is ever applied to either.
+  // ---------------------------------------------------------------------------
+  landlordPolicy: () => request<{ policy: LandlordPolicy }>('/admin/landlord-policy'),
+
+  setLandlordViewingFee: (amountGhs: number | string) =>
+    request<{ policy: LandlordPolicy; message: string; listingsUpdated: number }>(
+      '/admin/landlord-policy/viewing-fee',
+      { method: 'PUT', body: { amountGhs } }
+    ),
+
+  landlordPlatformFees: () =>
+    request<{
+      fees: RentalCommission[];
+      summary: LandlordFeeSummary;
+      policy: LandlordPolicy['platformFee'];
+    }>('/admin/finance/landlord-platform-fees'),
+
+  createLandlordPlatformFee: (data: {
+    propertyId: string;
+    rentAmountGhs: number;
+    rentPaymentReference: string;
+    tenantName?: string;
+    dueDate?: string;
+    notes?: string;
+  }) =>
+    request<{ fee: RentalCommission; message: string }>('/admin/finance/landlord-platform-fees', {
+      method: 'POST',
+      body: data,
+    }),
+
+  landlordViewingFees: () =>
+    request<{
+      records: ViewingFeeRecord[];
+      summary: LandlordFeeSummary;
+      policy: LandlordPolicy['viewingFee'];
+    }>('/admin/finance/landlord-viewing-fees'),
+
+  recordLandlordViewingFee: (data: {
+    viewingId: string;
+    method?: string;
+    reference?: string;
+    receivedAt?: string;
+    notes?: string;
+  }) =>
+    request<{ record: ViewingFeeRecord; message: string }>('/admin/finance/landlord-viewing-fees', {
+      method: 'POST',
+      body: data,
+    }),
 
   // ---------------------------------------------------------------------------
   // Fee policies & agent tiers (Increment E)

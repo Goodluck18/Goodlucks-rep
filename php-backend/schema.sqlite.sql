@@ -498,6 +498,8 @@ CREATE TABLE IF NOT EXISTS viewing_fee_records (
   agent_name TEXT NOT NULL DEFAULT '',
   agent_user_id TEXT,
   fee_total_ghs REAL,
+  -- Task 03 update: agent_collection | landlord_platform_fee
+  fee_source TEXT NOT NULL DEFAULT 'agent_collection',
   collection_state TEXT NOT NULL DEFAULT 'reported',
   share_basis TEXT NOT NULL DEFAULT 'not_set',
   goodlucks_share_ghs REAL,
@@ -766,6 +768,16 @@ CREATE TABLE IF NOT EXISTS rental_commissions (
   currency TEXT NOT NULL DEFAULT 'GHS',
   -- manual_agreement | policy_snapshot
   basis TEXT NOT NULL DEFAULT 'manual_agreement',
+  -- Task 03 update: agent_commission | landlord_platform_fee. The two policies
+  -- never share a row; a landlord row carries no agent tier at all.
+  policy_type TEXT NOT NULL DEFAULT 'agent_commission',
+  -- Landlord platform fee only: the rent actually paid (the calculation basis)
+  -- and the percentage applied at that moment.
+  rent_amount_ghs REAL,
+  platform_fee_percent REAL,
+  -- Landlord platform fee only: one key per (property, rent payment) so the same
+  -- rent payment cannot be charged twice. NULL for agent commissions.
+  dedupe_key TEXT,
   policy_id TEXT,
   policy_snapshot_json TEXT,
   policy_snapshot_hash TEXT,
@@ -791,6 +803,10 @@ CREATE TABLE IF NOT EXISTS rental_commissions (
 
 CREATE INDEX IF NOT EXISTS idx_commission_status ON rental_commissions (status, due_date);
 CREATE INDEX IF NOT EXISTS idx_commission_agent ON rental_commissions (agent_user_id);
+CREATE INDEX IF NOT EXISTS idx_commission_policy_type ON rental_commissions (policy_type);
+-- One platform fee per rent payment. SQLite allows many NULLs in a unique index,
+-- so agent commissions are unaffected.
+CREATE UNIQUE INDEX IF NOT EXISTS uniq_commission_dedupe ON rental_commissions (dedupe_key);
 
 CREATE TABLE IF NOT EXISTS commission_payments (
   id TEXT PRIMARY KEY,
@@ -826,3 +842,20 @@ CREATE TABLE IF NOT EXISTS financial_adjustments (
 
 CREATE INDEX IF NOT EXISTS idx_fin_adj_subject ON financial_adjustments (subject_type, subject_id);
 CREATE INDEX IF NOT EXISTS idx_fin_adj_created ON financial_adjustments (created_at);
+
+-- ------------------------------------------------------------
+-- Platform settings (Task 03 update)
+-- ------------------------------------------------------------
+-- One row per administrator-controlled setting. `landlord_viewing_fee_ghs` is
+-- the general landlord viewing fee; it has NO default value, so a missing row
+-- means "not configured" rather than an invented amount.
+CREATE TABLE IF NOT EXISTS platform_settings (
+  id TEXT PRIMARY KEY,
+  setting_key TEXT NOT NULL UNIQUE,
+  setting_value TEXT NOT NULL,
+  -- money | string | integer | boolean
+  value_type TEXT NOT NULL DEFAULT 'string',
+  updated_by TEXT,
+  updated_at TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);

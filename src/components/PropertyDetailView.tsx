@@ -481,11 +481,22 @@ export const PropertyDetailView: React.FC = () => {
                 <div className="flex items-start gap-2">
                   <span className="w-1.5 h-1.5 rounded-full bg-[#08D9D6] mt-1.5" />
                   {property.viewingTerms?.isApproved && property.viewingTerms.feeGhs ? (
-                    <span>
-                      Viewing Fee for this property:{' '}
-                      <strong className="text-white">GH₵ {property.viewingTerms.feeGhs.toLocaleString()}</strong>{' '}
-                      (paid on site, never online)
-                    </span>
+                    property.viewingTerms.source === 'platform_policy' ? (
+                      <span>
+                        Viewing fee:{' '}
+                        <strong className="text-white">GH₵ {property.viewingTerms.feeGhs.toLocaleString()}</strong>, payable
+                        after the viewing to <strong className="text-white">Goodlucks Homes</strong> — never online, and
+                        never to the landlord
+                      </span>
+                    ) : (
+                      <span>
+                        Viewing Fee for this property:{' '}
+                        <strong className="text-white">GH₵ {property.viewingTerms.feeGhs.toLocaleString()}</strong>{' '}
+                        (paid on site, never online)
+                      </span>
+                    )
+                  ) : property.viewingTerms?.source === 'platform_policy' ? (
+                    <span>No viewing fee is set for this property yet. Goodlucks Homes will confirm it before you travel.</span>
                   ) : (
                     <span>No viewing fee has been approved for this property. Ask the agent before you travel.</span>
                   )}

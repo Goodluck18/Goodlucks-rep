@@ -122,6 +122,8 @@ function shape_viewing(array $row): array
 {
     $storedStatus = (string)($row['status'] ?? 'scheduled');
     $status = viewing_normalise_status($storedStatus);
+    // The fee/terms snapshot written when the request was made, decoded once.
+    $feeSnapshot = json_column($row['viewing_terms_snapshot_json'] ?? null);
     $shaped = [
         'id'               => (string)$row['id'],
         'tenantRequestId'  => (string)($row['tenant_request_id'] ?? ''),
@@ -152,7 +154,14 @@ function shape_viewing(array $row): array
         // Task 03: the fee recorded for THIS request, copied from the property
         // when it was made. 0 means no viewing fee applied — never a default.
         'feeAmountGhs'     => (float)($row['fee_amount_ghs'] ?? 0),
-        'viewingTerms'     => json_column($row['viewing_terms_snapshot_json'] ?? null) ?: null,
+        'viewingTerms'     => $feeSnapshot ?: null,
+        // Task 03 update: where the recorded fee came from and who it is paid
+        // to, taken from the snapshot written when the request was made. A
+        // landlord listing's fee is set by Goodlucks and paid to Goodlucks; an
+        // agent listing's fee is the agent's own and is never re-labelled.
+        'feeSource'        => (string)($feeSnapshot['source'] ?? ''),
+        'feePaidTo'        => (string)($feeSnapshot['paidTo'] ?? ''),
+        'feePayableAfterViewing' => (bool)($feeSnapshot['payableAfterViewing'] ?? false),
         'outcomeNotes'     => (string)($row['outcome_notes'] ?? ''),
         'createdAt'        => to_iso($row['created_at'] ?? null),
         'updatedAt'        => to_iso($row['updated_at'] ?? null),
@@ -1199,7 +1208,7 @@ function update_viewing(string $id, array $fields): void
 // ---------------------------------------------------------------------------
 
 const VIEWING_FEE_COLLECTION_STATES = ['reported', 'confirmed_by_staff', 'disputed', 'void'];
-const VIEWING_FEE_SHARE_BASES = ['not_set', 'manual_agreement', 'policy_snapshot'];
+const VIEWING_FEE_SHARE_BASES = ['not_set', 'manual_agreement', 'policy_snapshot', 'platform_policy'];
 
 function new_viewing_fee_reference(): string
 {
@@ -1310,11 +1319,22 @@ function shape_viewing_fee_record(array $row): array
         'propertyTitle'   => (string)($row['property_title'] ?? ''),
         'agentName'       => (string)($row['agent_name'] ?? ''),
         'agentUserId'     => $agentUserId,
+        // Task 03 update: agent_collection | landlord_platform_fee. A landlord
+        // fee is paid by the tenant straight to Goodlucks and has no agent share.
+        'feeSource'       => (string)($row['fee_source'] ?? 'agent_collection'),
+        'feeSourceLabel'  => (string)($row['fee_source'] ?? 'agent_collection') === 'landlord_platform_fee'
+            ? 'Landlord listing — paid to Goodlucks Homes'
+            : 'Agent collection',
         'feeTotalGhs'     => $feeTotal,
         'collectionState' => $state,
         'shareBasis'      => $basis,
         // Distinguishes the two ways a fee can be priced, and "not priced yet".
-        'snapshotKind'    => $basis === 'policy_snapshot' ? 'policy' : ($basis === 'manual_agreement' ? 'manual_agreement' : 'none'),
+        'snapshotKind'    => match ($basis) {
+            'policy_snapshot' => 'policy',
+            'manual_agreement' => 'manual_agreement',
+            'platform_policy' => 'platform_policy',
+            default => 'none',
+        },
         'policyId'        => (string)($row['policy_id'] ?? ''),
         'agentTierAtSnapshot' => (string)($row['agent_tier_at_snapshot'] ?? ''),
         'policySnapshot'  => $snapshotRow ? shape_fee_snapshot($snapshotRow) : null,
@@ -1400,8 +1420,12 @@ function viewing_fee_summary(?array $records = null): array
  * Idempotent per viewing; an existing row is returned untouched so a later
  * share agreement or remittance can never be overwritten by a re-report.
  */
-function ensure_viewing_fee_record(array $viewing, ?array $actor, ?float $amount = null): ?array
-{
+function ensure_viewing_fee_record(
+    array $viewing,
+    ?array $actor,
+    ?float $amount = null,
+    string $feeSource = 'agent_collection'
+): ?array {
     $viewingId = (string)($viewing['id'] ?? '');
     if ($viewingId === '') {
         return null;
@@ -1415,10 +1439,10 @@ function ensure_viewing_fee_record(array $viewing, ?array $actor, ?float $amount
     $id = new_id('vfr');
     db_exec(
         'INSERT INTO viewing_fee_records (id, reference, viewing_id, property_id, property_title,
-                                          agent_name, agent_user_id, fee_total_ghs, collection_state,
-                                          share_basis, recorded_by, recorded_at)
+                                          agent_name, agent_user_id, fee_total_ghs, fee_source,
+                                          collection_state, share_basis, recorded_by, recorded_at)
          VALUES (:id, :reference, :viewing_id, :property_id, :property_title,
-                 :agent_name, NULL, :fee_total, :state, :basis, :recorded_by, :recorded_at)',
+                 :agent_name, NULL, :fee_total, :fee_source, :state, :basis, :recorded_by, :recorded_at)',
         [
             ':id'             => $id,
             ':reference'      => new_viewing_fee_reference(),
@@ -1429,6 +1453,7 @@ function ensure_viewing_fee_record(array $viewing, ?array $actor, ?float $amount
             // Task 03: no universal fee. A viewing with no approved fee is
             // recorded as 0 until a real amount is reported.
             ':fee_total'      => $amount ?? (float)($viewing['feeAmountGhs'] ?? 0),
+            ':fee_source'     => $feeSource === 'landlord_platform_fee' ? 'landlord_platform_fee' : 'agent_collection',
             ':state'          => 'reported',
             ':basis'          => 'not_set',
             ':recorded_by'    => (string)($actor['id'] ?? ''),
@@ -1458,6 +1483,13 @@ function set_viewing_fee_share(string $id, float $amount, string $note, ?array $
     // it with a typed-in figure would rewrite agreed terms, so it is refused.
     if ((string)($record['share_basis'] ?? 'not_set') === 'policy_snapshot' || !empty($record['policy_snapshot_id'])) {
         throw new InvalidArgumentException('This fee was priced by an approved fee policy and cannot be re-priced manually.');
+    }
+    // Task 03 update: a landlord viewing fee belongs to Goodlucks in full and is
+    // set by the platform policy, so it is never re-shared by hand either.
+    if ((string)($record['share_basis'] ?? 'not_set') === 'platform_policy'
+        || (string)($record['fee_source'] ?? 'agent_collection') === 'landlord_platform_fee'
+    ) {
+        throw new InvalidArgumentException('This is a landlord viewing fee: it belongs to Goodlucks Homes in full and cannot be re-shared.');
     }
 
     $feeTotal = $record['fee_total_ghs'] === null ? null : round((float)$record['fee_total_ghs'], 2);

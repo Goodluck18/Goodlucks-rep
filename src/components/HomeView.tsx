@@ -295,7 +295,7 @@ export const HomeView: React.FC = () => {
               <span>Easy Viewing Process</span>
             </div>
             <p className="text-xs text-slate-300 leading-relaxed">
-              Book tours conveniently with assigned Goodlucks agents. Physical viewing fees are paid directly to staff on site.
+              Book tours conveniently with assigned Goodlucks agents. Physical viewing fees are paid after the viewing — never online.
             </p>
           </div>
 
