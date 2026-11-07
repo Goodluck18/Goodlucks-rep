@@ -2,7 +2,17 @@ import React, { useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { Bell, Building2, ChevronRight, LogOut, Menu, ShieldCheck, X } from 'lucide-react';
 import { Avatar } from './dashboard/DashboardShell';
-import { activeItemId, isMemberRole, navForRole, type NavItem } from '../navigation/navModel';
+import {
+  activeItemId,
+  isMemberRole,
+  isNavAction,
+  navForRole,
+  type BottomTab,
+  type NavItem,
+} from '../navigation/navModel';
+
+/** A bottom-bar tab that links somewhere (the login tab is an action, not a path). */
+const isBottomLink = (tab: BottomTab): tab is NavItem => !isNavAction(tab);
 
 interface NavbarProps {
   onOpenAuth: (initialMode?: 'login' | 'register') => void;
@@ -37,6 +47,31 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAuth }) => {
   const member = isMemberRole(currentRole);
 
   const ctaIcon = nav.cta ? nav.cta.icon : null;
+
+  /**
+   * When does the link row fit?
+   *
+   * The row is not free: the brand (~200px), the account cluster (~170px for a
+   * visitor with Login + Register, ~250px once a member's name, avatar and
+   * logout are in it) and the page padding all share the 1216px that `max-w-7xl`
+   * leaves on a desktop. A visitor's seven links need roughly 690px of that, so
+   * the row only fits from `xl` up; a member has three links (plus, for a
+   * landlord or agent, the one primary action) and fits from `lg` up.
+   *
+   * Before this, the row appeared at `md` for everybody — at 768px a visitor's
+   * header was ~350px wider than the screen, which is what pushed the page
+   * sideways on tablets and small laptops while `body { overflow-x: hidden }`
+   * hid the damage instead of fixing it.
+   *
+   * Below the breakpoint the hamburger carries every destination. A visitor's
+   * Home / Browse / Find a Home only live in the bottom bar (which stops at
+   * `md`), so the menu repeats those three in the band between `md` and the
+   * breakpoint where neither the bottom bar nor the link row exists.
+   */
+  const wideLinkRow = nav.desktop.length > 4;
+  const linkRowClass = wideLinkRow ? 'hidden xl:flex' : 'hidden lg:flex';
+  const compactHeaderClass = wideLinkRow ? 'xl:hidden' : 'lg:hidden';
+  const bottomLinksInMenuClass = wideLinkRow ? 'hidden md:block xl:hidden' : 'hidden md:block lg:hidden';
   const desktopActiveId = activeItemId(nav.desktop, route.path);
   const menuActiveId = activeItemId(nav.menu, route.path);
 
@@ -130,29 +165,33 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAuth }) => {
 
   return (
     <header className="sticky top-0 z-40 w-full bg-surface/95 backdrop-blur-md border-b border-line text-ink">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 sm:h-20 flex items-center justify-between gap-3">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 sm:h-20 flex items-center justify-between gap-2 sm:gap-3">
         {/* Brand */}
         <button
           onClick={() => handleNavClick('/')}
-          className="flex items-center gap-2.5 group text-left focus:outline-none shrink-0"
+          className="flex items-center gap-2 sm:gap-2.5 group text-left focus:outline-none min-w-0"
         >
-          <div className="w-10 h-10 rounded-xl bg-interactive p-0.5 shadow-sm group-hover:scale-105 transition-transform duration-200">
+          <div className="w-9 h-9 sm:w-10 sm:h-10 shrink-0 rounded-xl bg-interactive p-0.5 shadow-sm group-hover:scale-105 transition-transform duration-200">
             <div className="w-full h-full bg-surface rounded-[10px] flex items-center justify-center">
               <Building2 className="w-5 h-5 text-ink" />
             </div>
           </div>
-          <div className="flex flex-col">
-            <span className="font-bold text-lg sm:text-xl tracking-tight text-ink flex items-center gap-1.5">
+          <div className="flex flex-col min-w-0">
+            {/* The lockup is unchanged (charcoal “Goodlucks”, pink “Homes”);
+                `truncate` only matters if a viewer's font renders the name far
+                wider than expected — it ellipsises instead of pushing the
+                bell and menu off a 320px screen. */}
+            <span className="font-bold text-base sm:text-xl tracking-tight text-ink truncate">
               Goodlucks <span className="text-accent">Homes</span>
             </span>
-            <span className="text-[10px] uppercase tracking-widest text-ink/70 font-medium">
+            <span className="text-[9px] sm:text-[10px] uppercase tracking-wider sm:tracking-widest text-ink/70 font-medium truncate">
               Find. View. Rent.
             </span>
           </div>
         </button>
 
         {/* Desktop links — role correct, never another role's destinations */}
-        <nav aria-label="Main" className="hidden md:flex items-center space-x-1 text-sm font-medium">
+        <nav aria-label="Main" className={`${linkRowClass} items-center gap-0.5 xl:gap-1 text-[13px] font-medium min-w-0`}>
           {currentRole === 'admin' && (
             <span className="px-3 py-1 rounded-full text-xs font-bold bg-accent/10 text-accent-text border border-accent/40 flex items-center gap-1">
               <ShieldCheck className="w-3.5 h-3.5" />
@@ -164,8 +203,10 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAuth }) => {
 
         {/* Right-hand account controls */}
         <div className="flex items-center gap-1 sm:gap-2 shrink-0">
-          {/* Desktop cluster */}
-          <div className="hidden md:flex items-center gap-2">
+          {/* Desktop account cluster — shown with the link row, so a tablet
+              does not get two bells (one in each cluster) and a visitor's
+              Login/Register do not crowd the header at 768px. */}
+          <div className={`hidden ${wideLinkRow ? 'xl:flex' : 'lg:flex'} items-center gap-2`}>
             {currentRole === 'guest' && (
               <>
                 <button
@@ -235,7 +276,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAuth }) => {
           </div>
 
           {/* Mobile cluster: the bell and the one menu. */}
-          <div className="flex md:hidden items-center gap-1">
+          <div className={`flex ${compactHeaderClass} items-center gap-1 shrink-0`}>
             {bell}
             <button
               onClick={() => setMenuOpen((open) => !open)}
@@ -254,7 +295,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAuth }) => {
       {menuOpen && (
         <div
           id="site-menu"
-          className="md:hidden bg-surface border-b border-line px-4 pt-3 pb-4 space-y-1 max-h-[calc(100vh-4rem)] overflow-y-auto"
+          className={`${compactHeaderClass} bg-surface border-b border-line px-4 pt-3 pb-4 space-y-1 max-h-[calc(100vh-5rem)] overflow-y-auto`}
         >
           {isMemberRole(currentRole) && (
             <div className="flex items-center gap-3 pb-3 mb-1 border-b border-line">
@@ -265,6 +306,44 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAuth }) => {
               </div>
             </div>
           )}
+
+          {/* The bottom bar stops at `md`, so in the band above it and below
+              the link row, the destinations that normally live down there are
+              listed here instead. Nobody loses a page by rotating a tablet. */}
+          <div
+            className={`${bottomLinksInMenuClass} space-y-1`}
+            data-quick-bar-mirror="true"
+            aria-label="Quick links (shown here between tablet and desktop widths)"
+          >
+            {nav.bottom.map((tab) => {
+              const Icon = tab.icon;
+              const isActive = isBottomLink(tab) && route.path === tab.path;
+              // Links navigate; the sign-in tab opens the auth modal, exactly as
+              // it does in the quick bar. It is only listed here because the
+              // quick bar is hidden wherever this block is visible.
+              const onClick = isBottomLink(tab)
+                ? () => handleNavClick(tab.path)
+                : () => {
+                    setMenuOpen(false);
+                    onOpenAuth('login');
+                  };
+              return (
+                <button
+                  key={`quick-${tab.id}`}
+                  type="button"
+                  onClick={onClick}
+                  aria-current={isActive ? 'page' : undefined}
+                  className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl text-left text-sm font-semibold transition-colors min-h-[44px] ${
+                    isActive ? 'bg-interactive text-ink' : 'text-ink/80 hover:bg-page hover:text-ink'
+                  }`}
+                >
+                  <Icon className="w-4 h-4 shrink-0" />
+                  <span className="flex-1 truncate">{tab.label}</span>
+                  <ChevronRight className="w-4 h-4 text-ink/70 shrink-0" />
+                </button>
+              );
+            })}
+          </div>
 
           {nav.menu.map(menuLink)}
 

@@ -68,9 +68,19 @@
     background-color: var(--color-page);
     color: var(--color-ink);
     font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-    /* A phone must never scroll sideways because one long word or table did
-       not fit. Individual components still control their own overflow. */
-    overflow-x: hidden;
+    /* Long words, addresses, e-mail addresses and URLs break instead of
+       widening the page. This *wraps* text; it does not hide anything.
+
+       This replaced `overflow-x: hidden` on the body. That rule did not fix the
+       layout — it hid a header that was wider than the screen, which is why the
+       page still felt like it moved on a phone (fixed/absolute overlays are not
+       clipped by the body) and why wide content was silently cut off. The real
+       causes are fixed in the components: the header collapses into the menu
+       below `xl`/`lg`, archive tables scroll inside their own box, and every
+       file/URL label truncates. No viewport-wide overflow suppression is used,
+       so nothing important can be clipped without a way to reach it. */
+    overflow-wrap: break-word;
+    word-break: normal;
   }
 
   ::selection {
@@ -97,7 +107,17 @@
   img,
   svg,
   video,
-  canvas {
+  canvas,
+  iframe {
+    max-width: 100%;
+  }
+
+  /* A form control can never be wider than the column it sits in. Native date
+     and file inputs on iOS otherwise keep their intrinsic width and push a
+     320px layout sideways. */
+  input,
+  select,
+  textarea {
     max-width: 100%;
   }
 }

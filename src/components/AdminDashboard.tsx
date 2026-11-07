@@ -38,8 +38,11 @@ import {
   MapPin,
   X,
   Database,
-  Download
+  Download,
+  ImagePlus,
+  Trash2
 } from 'lucide-react';
+import { IMAGE_MAX_BYTES, formatBytes, validateImageFile } from '../lib/uploads';
 
 export const AdminDashboard: React.FC = () => {
   const { 
@@ -177,6 +180,12 @@ export const AdminDashboard: React.FC = () => {
   const [matchesLoading, setMatchesLoading] = useState(false);
   const [editProperty, setEditProperty] = useState<Property | null>(null);
   const [editForm, setEditForm] = useState<Record<string, any>>({});
+  // Image URLs the listing already had when the editor was opened. They are
+  // shown as "Saved" and are kept unless the admin removes a tile; anything
+  // uploaded from this form is shown as "New". Removing a tile takes the image
+  // out of the listing — it never deletes the stored file.
+  const [editSavedImages, setEditSavedImages] = useState<string[]>([]);
+  const [editUploadingImages, setEditUploadingImages] = useState(false);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -218,6 +227,40 @@ export const AdminDashboard: React.FC = () => {
     }
   };
 
+  /** Adds images to the editor from a file picker (validated, then uploaded). */
+  const addEditImages = async (fileList: FileList | null) => {
+    if (!fileList || fileList.length === 0) return;
+    const problems: string[] = [];
+    const accepted: File[] = [];
+    Array.from(fileList).forEach((file) => {
+      const problem = validateImageFile(file, IMAGE_MAX_BYTES);
+      if (problem) problems.push(problem);
+      else accepted.push(file);
+    });
+    if (problems.length > 0) showErrorToast('Some images were not added', problems[0]);
+    if (accepted.length === 0) return;
+
+    setEditUploadingImages(true);
+    try {
+      const result = await api.uploadImages(accepted);
+      setEditForm((prev) => {
+        const current = String(prev.images || '')
+          .split('\n')
+          .map((line) => line.trim())
+          .filter(Boolean);
+        return { ...prev, images: [...current, ...result.urls].join('\n') };
+      });
+      showSuccessToast(
+        'Images added',
+        `${result.urls.length} new ${result.urls.length === 1 ? 'image' : 'images'} will be saved with the listing. The existing images are untouched.`
+      );
+    } catch (error) {
+      showErrorToast('Could not upload images', messageForError(error));
+    } finally {
+      setEditUploadingImages(false);
+    }
+  };
+
   const openEditProperty = (property: Property) => {
     setEditProperty(property);
     setEditForm({
@@ -233,6 +276,7 @@ export const AdminDashboard: React.FC = () => {
       featured: !!property.featured,
       images: property.images.join('\n'),
     });
+    setEditSavedImages(property.images);
   };
 
   useEffect(() => {
@@ -1503,15 +1547,88 @@ export const AdminDashboard: React.FC = () => {
                 />
               </label>
 
-              <label className="space-y-1 sm:col-span-2">
-                <span className="text-[11px] font-bold text-ink/70">Image URLs (one per line)</span>
-                <textarea
-                  rows={3}
-                  value={editForm.images || ''}
-                  onChange={(e) => setEditForm({ ...editForm, images: e.target.value })}
-                  className="w-full bg-page border border-line rounded-xl px-3 py-2 text-[11px] font-mono text-ink focus:outline-none focus:border-interactive"
-                />
-              </label>
+              <div className="space-y-2 sm:col-span-2">
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <span className="text-[11px] font-bold text-ink/70">Listing images</span>
+                  <span className="text-[10px] text-ink/70">
+                    {(() => {
+                      const list = String(editForm.images || '')
+                        .split('\n')
+                        .map((line) => line.trim())
+                        .filter(Boolean);
+                      const fresh = list.filter((url) => !editSavedImages.includes(url)).length;
+                      return `${list.length} image${list.length === 1 ? '' : 's'} · ${fresh} new`;
+                    })()}
+                  </span>
+                </div>
+
+                <ul className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {String(editForm.images || '')
+                    .split('\n')
+                    .map((line) => line.trim())
+                    .filter(Boolean)
+                    .map((url, index) => {
+                      const isSaved = editSavedImages.includes(url);
+                      return (
+                        <li key={`${url}-${index}`} className="relative rounded-xl border border-line overflow-hidden bg-page">
+                          <div className="relative aspect-[4/3]">
+                            <img src={url} alt={`Listing image ${index + 1}`} className="w-full h-full object-cover" />
+                            <span
+                              className={`absolute top-1 left-1 text-[9px] font-black uppercase tracking-wide px-1.5 py-0.5 rounded border ${
+                                isSaved ? 'bg-surface/95 text-ink/70 border-line' : 'bg-interactive text-ink border-interactive/40'
+                              }`}
+                            >
+                              {isSaved ? 'Saved' : 'New'}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const list = String(editForm.images || '')
+                                  .split('\n')
+                                  .map((value) => value.trim())
+                                  .filter(Boolean)
+                                  .filter((value, position) => position !== index);
+                                setEditForm({ ...editForm, images: list.join('\n') });
+                              }}
+                              aria-label={`Remove image ${index + 1} from this listing`}
+                              className="absolute top-1 right-1 p-1.5 rounded-full bg-surface/95 text-ink shadow-sm hover:bg-accent hover:text-white transition-colors min-h-[26px] min-w-[26px] flex items-center justify-center"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          </div>
+                          <p className="px-1.5 py-1 text-[9px] text-ink/70 truncate" title={url}>
+                            {isSaved ? 'Already on this listing' : 'Added now'}
+                          </p>
+                        </li>
+                      );
+                    })}
+                </ul>
+
+                <p className="text-[10px] text-ink/70 leading-snug">
+                  Removing a tile takes that image out of the listing; the stored file is not deleted. Up to{' '}
+                  {formatBytes(IMAGE_MAX_BYTES)} per file.
+                </p>
+
+                <label className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-page border border-line text-[11px] font-bold text-ink cursor-pointer hover:border-interactive min-h-[40px]">
+                  {editUploadingImages ? (
+                    <span className="w-3.5 h-3.5 border-2 border-interactive/30 border-t-interactive rounded-full animate-spin" />
+                  ) : (
+                    <ImagePlus className="w-3.5 h-3.5" />
+                  )}
+                  {editUploadingImages ? 'Uploading…' : 'Add images from this device'}
+                  <input
+                    type="file"
+                    multiple
+                    accept="image/jpeg,image/png,image/webp,image/gif"
+                    disabled={editUploadingImages}
+                    onChange={(event) => {
+                      void addEditImages(event.target.files);
+                      event.target.value = '';
+                    }}
+                    className="sr-only"
+                  />
+                </label>
+              </div>
             </div>
 
             <div className="flex items-center justify-end gap-2 pt-2">

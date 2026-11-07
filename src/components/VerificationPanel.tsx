@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   AlertTriangle,
   BadgeCheck,
+  CheckCircle2,
   Clock3,
   Download,
   FileText,
@@ -9,8 +10,19 @@ import {
   ShieldAlert,
   Trash2,
   Upload,
+  X,
 } from 'lucide-react';
 import { api, messageForError } from '../services/apiService';
+import {
+  DOCUMENT_ACCEPT,
+  DOCUMENT_MAX_BYTES,
+  IdentityDocumentSlot,
+  formatBytes,
+  identityDocumentSlots,
+  identitySubmissionProblem,
+  isPreviewableImage,
+  validateDocumentFile,
+} from '../lib/uploads';
 import {
   IdentityVerificationStatus,
   ProfessionalAuthorisationStatus,
@@ -69,6 +81,159 @@ const StatusPill: React.FC<{ status: string; map: Record<string, { label: string
  * platform has and has not checked: no registry lookups, no licence implied by a
  * document, and an approved identity never means property ownership.
  */
+type DocSlotStatus = 'ready' | 'uploading' | 'uploaded' | 'failed';
+
+/** One file the member has chosen but not necessarily uploaded yet. */
+interface DocSelection {
+  file: File;
+  /** Object URL for an image; null for a PDF, which gets a document icon. */
+  previewUrl: string | null;
+  documentId: string | null;
+  status: DocSlotStatus;
+  error: string | null;
+}
+
+const SLOT_STATUS_COPY: Record<DocSlotStatus, string> = {
+  ready: 'Ready — uploads when you submit',
+  uploading: 'Uploading…',
+  uploaded: 'Uploaded — attached to this submission',
+  failed: 'Upload failed — press Submit again to retry',
+};
+
+/**
+ * One labelled document field: label, picker, thumbnail, filename, size, clear
+ * indicator and status.
+ *
+ * Both identity sides render one of these side by side, so "front" and "back"
+ * can never be confused for each other — which is exactly what happened when
+ * the old form uploaded on selection and then immediately emptied the input.
+ * The empty state is deliberately dashed and says "none selected", so a blank
+ * field can never look like a chosen file.
+ */
+const DocumentSlotField: React.FC<{
+  slotId: string;
+  label: string;
+  required: boolean;
+  savedDocument: VerificationDocument | null;
+  selection: DocSelection | null;
+  disabled: boolean;
+  error?: string;
+  hint?: string;
+  onSelect: (file: File | null) => void;
+  onClear: () => void;
+}> = ({ slotId, label, required, savedDocument, selection, disabled, error, hint, onSelect, onClear }) => {
+  const inputId = `verification-doc-${slotId}`;
+  const busyUploading = selection?.status === 'uploading';
+
+  return (
+    <div className="min-w-0">
+      <div className="flex items-baseline justify-between gap-2">
+        <label htmlFor={inputId} className="block text-[11px] font-semibold text-ink/70 min-w-0">
+          {label}{' '}
+          {required ? (
+            <span className="text-accent font-black" aria-hidden="true">
+              *
+            </span>
+          ) : (
+            <span className="text-[10px] font-normal text-ink/70">(optional)</span>
+          )}
+        </label>
+        {savedDocument && <span className="text-[10px] font-bold text-emerald-700 shrink-0">On file</span>}
+      </div>
+
+      {required && <span className="sr-only">This document is required.</span>}
+
+      <input
+        id={inputId}
+        type="file"
+        accept={DOCUMENT_ACCEPT}
+        disabled={disabled || busyUploading}
+        onChange={(event) => {
+          const file = event.target.files?.[0] ?? null;
+          onSelect(file);
+          // Clear the native input so choosing the same file again still fires
+          // a change event. The selection itself lives in React state.
+          event.target.value = '';
+        }}
+        className="sr-only"
+      />
+
+      {selection ? (
+        <div className="mt-1 rounded-xl border border-line bg-page p-2 flex items-start gap-2">
+          <div className="w-12 h-12 rounded-lg overflow-hidden bg-surface border border-line shrink-0 flex items-center justify-center">
+            {selection.previewUrl ? (
+              <img
+                src={selection.previewUrl}
+                alt={`Preview of ${selection.file.name}`}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <FileText className="w-5 h-5 text-ink/70" />
+            )}
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-[11px] font-semibold text-ink truncate" title={selection.file.name}>
+              {selection.file.name}
+            </p>
+            <p className="text-[10px] text-ink/70">{formatBytes(selection.file.size)}</p>
+            <p
+              role="status"
+              aria-live="polite"
+              className={`text-[10px] font-semibold flex items-center gap-1 ${
+                selection.status === 'failed' ? 'text-ink' : selection.status === 'uploaded' ? 'text-emerald-700' : 'text-ink/70'
+              }`}
+            >
+              {selection.status === 'uploading' && (
+                <span className="w-2.5 h-2.5 border-2 border-interactive/30 border-t-interactive rounded-full animate-spin" />
+              )}
+              {selection.status === 'uploaded' && <CheckCircle2 className="w-3 h-3" />}
+              {SLOT_STATUS_COPY[selection.status]}
+            </p>
+            <div className="flex flex-wrap items-center gap-3 mt-1">
+              <label htmlFor={inputId} className="text-[10px] font-bold text-ink underline cursor-pointer">
+                Replace
+              </label>
+              <button
+                type="button"
+                onClick={onClear}
+                disabled={busyUploading}
+                className="text-[10px] font-bold text-ink/70 hover:text-ink disabled:opacity-50 flex items-center gap-1 min-h-[24px]"
+              >
+                <X className="w-3 h-3" /> Remove
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <label
+          htmlFor={inputId}
+          className={`mt-1 flex items-center justify-center gap-2 rounded-xl border border-dashed px-3 py-3 text-[11px] font-semibold text-ink/70 bg-page cursor-pointer transition-colors min-h-[44px] ${
+            disabled ? 'opacity-60 cursor-not-allowed' : 'border-line hover:border-interactive'
+          }`}
+        >
+          <Upload className="w-3.5 h-3.5 shrink-0" />
+          <span className="min-w-0 truncate">
+            {savedDocument ? 'Choose a replacement — none selected' : 'Choose a file — none selected'}
+          </span>
+        </label>
+      )}
+
+      {hint && <p className="text-[10px] text-ink/70 mt-1">{hint}</p>}
+      {(error || selection?.error) && (
+        <p role="alert" className="text-[10px] text-ink mt-1 flex items-start gap-1">
+          <AlertTriangle className="w-3 h-3 shrink-0 mt-0.5" />
+          <span className="min-w-0 break-words">{error || selection?.error}</span>
+        </p>
+      )}
+      {savedDocument && !selection && (
+        <p className="text-[10px] text-ink/70 mt-1">
+          A file is already on file for this side. Choose a new one to send it instead.
+        </p>
+      )}
+    </div>
+  );
+};
+
 export const VerificationPanel: React.FC<{ scope: 'agent' | 'landlord'; className?: string }> = ({
   scope,
   className = '',
@@ -84,9 +249,22 @@ export const VerificationPanel: React.FC<{ scope: 'agent' | 'landlord'; classNam
   const [legalName, setLegalName] = useState('');
   const [documentType, setDocumentType] = useState('ghana_card');
   const [documentNumber, setDocumentNumber] = useState('');
-  const [pendingDocs, setPendingDocs] = useState<VerificationDocument[]>([]);
-  const frontInput = useRef<HTMLInputElement>(null);
-  const backInput = useRef<HTMLInputElement>(null);
+  /**
+   * Files the member has chosen for the two sides of an identity document.
+   *
+   * They are held here as local File objects and are NOT uploaded on selection —
+   * the old form uploaded immediately and then cleared the input, which meant
+   * there was nothing to preview, nothing to name, and no way to cancel. Both
+   * slots are always on screen together, each with its own file, thumbnail,
+   * filename and status, and nothing leaves the device until the member presses
+   * "Submit for review".
+   */
+  const [identitySlots, setIdentitySlots] = useState<Record<IdentityDocumentSlot, DocSelection | null>>({
+    front: null,
+    back: null,
+  });
+  const objectUrls = useRef<string[]>([]);
+  const submittingRef = useRef(false);
 
   // Professional form state (agents only)
   const [licenceNumber, setLicenceNumber] = useState('');
@@ -94,8 +272,8 @@ export const VerificationPanel: React.FC<{ scope: 'agent' | 'landlord'; classNam
   const [licenceCategory, setLicenceCategory] = useState('');
   const [issueDate, setIssueDate] = useState('');
   const [expiryDate, setExpiryDate] = useState('');
-  const [professionalDocs, setProfessionalDocs] = useState<VerificationDocument[]>([]);
-  const licenceInput = useRef<HTMLInputElement>(null);
+  const [licenceSelection, setLicenceSelection] = useState<DocSelection | null>(null);
+  const [submitting, setSubmitting] = useState<'identity' | 'professional' | null>(null);
 
   const load = useCallback(async () => {
     setIsLoading(true);
@@ -122,17 +300,138 @@ export const VerificationPanel: React.FC<{ scope: 'agent' | 'landlord'; classNam
     void load();
   }, [load]);
 
-  const upload = async (file: File, kind: string, target: 'identity' | 'professional') => {
-    setBusy(true);
+  // ---- choosing files -------------------------------------------------
+  // A selection is validated before it is stored in state, so an oversized or
+  // wrong-typed file is refused on the spot with a message under that field.
+
+  const releasePreview = (selection: DocSelection | null) => {
+    if (!selection?.previewUrl) return;
+    URL.revokeObjectURL(selection.previewUrl);
+    objectUrls.current = objectUrls.current.filter((url) => url !== selection.previewUrl);
+  };
+
+  useEffect(
+    () => () => {
+      objectUrls.current.forEach((url) => URL.revokeObjectURL(url));
+      objectUrls.current = [];
+    },
+    []
+  );
+
+  const selectIdentityDocument = (slot: IdentityDocumentSlot, file: File | null) => {
+    if (!file) return;
     setError(null);
+    setNotice(null);
+    const problem = validateDocumentFile(file, DOCUMENT_MAX_BYTES);
+    if (problem) {
+      setFieldErrors((prev) => ({ ...prev, [slot]: problem }));
+      return;
+    }
+    const previewUrl = isPreviewableImage(file) ? URL.createObjectURL(file) : null;
+    if (previewUrl) objectUrls.current.push(previewUrl);
+    setIdentitySlots((prev) => {
+      releasePreview(prev[slot]);
+      return {
+        ...prev,
+        [slot]: { file, previewUrl, documentId: null, status: 'ready', error: null },
+      };
+    });
+    setFieldErrors((prev) => ({ ...prev, [slot]: '' }));
+  };
+
+  const clearIdentityDocument = (slot: IdentityDocumentSlot) => {
+    setIdentitySlots((prev) => {
+      releasePreview(prev[slot]);
+      return { ...prev, [slot]: null };
+    });
+    setFieldErrors((prev) => ({ ...prev, [slot]: '' }));
+  };
+
+  const selectLicence = (file: File | null) => {
+    if (!file) return;
+    setError(null);
+    setNotice(null);
+    const problem = validateDocumentFile(file, DOCUMENT_MAX_BYTES);
+    if (problem) {
+      setFieldErrors((prev) => ({ ...prev, licence: problem }));
+      return;
+    }
+    const previewUrl = isPreviewableImage(file) ? URL.createObjectURL(file) : null;
+    if (previewUrl) objectUrls.current.push(previewUrl);
+    setLicenceSelection((prev) => {
+      releasePreview(prev);
+      return { file, previewUrl, documentId: null, status: 'ready', error: null };
+    });
+    setFieldErrors((prev) => ({ ...prev, licence: '' }));
+  };
+
+  const clearLicence = () => {
+    setLicenceSelection((prev) => {
+      releasePreview(prev);
+      return null;
+    });
+    setFieldErrors((prev) => ({ ...prev, licence: '' }));
+  };
+
+  /**
+   * Uploads ONE pending selection and records the document id on it.
+   *
+   * The id is remembered so a failed submission can be retried without sending
+   * the same file again (the server would otherwise store a second copy), and
+   * so the member's file stays attached to the form while the rest of the
+   * submission is corrected.
+   */
+  const uploadIdentitySlot = async (slot: IdentityDocumentSlot): Promise<string> => {
+    const current = identitySlots[slot];
+    if (!current) throw new Error('Choose a document first.');
+    if (current.documentId) return current.documentId;
+
+    const rules = identityDocumentSlots(documentType);
+    setIdentitySlots((prev) =>
+      prev[slot] ? { ...prev, [slot]: { ...prev[slot]!, status: 'uploading', error: null } } : prev
+    );
     try {
-      const result = await api.uploadVerificationDocument(file, kind, target === 'professional' ? 'professional' : undefined);
-      if (target === 'professional') {
-        setProfessionalDocs((list) => [...list, result.document]);
-      } else {
-        setPendingDocs((list) => [...list, result.document]);
-      }
-      setNotice('Document uploaded privately. It is not visible at any public link.');
+      const result = await api.uploadVerificationDocument(current.file, rules[slot].kind);
+      setIdentitySlots((prev) =>
+        prev[slot] && prev[slot]!.file === current.file
+          ? { ...prev, [slot]: { ...prev[slot]!, status: 'uploaded', documentId: result.document.id, error: null } }
+          : prev
+      );
+      return result.document.id;
+    } catch (err) {
+      const message = messageForError(err);
+      setIdentitySlots((prev) =>
+        prev[slot] ? { ...prev, [slot]: { ...prev[slot]!, status: 'failed', error: message } } : prev
+      );
+      throw err;
+    }
+  };
+
+  const uploadLicence = async (): Promise<string> => {
+    if (!licenceSelection) throw new Error('Choose a document first.');
+    if (licenceSelection.documentId) return licenceSelection.documentId;
+    setLicenceSelection((prev) => (prev ? { ...prev, status: 'uploading', error: null } : prev));
+    try {
+      const result = await api.uploadVerificationDocument(licenceSelection.file, 'licence', 'professional');
+      setLicenceSelection((prev) =>
+        prev ? { ...prev, status: 'uploaded', documentId: result.document.id, error: null } : prev
+      );
+      return result.document.id;
+    } catch (err) {
+      const message = messageForError(err);
+      setLicenceSelection((prev) => (prev ? { ...prev, status: 'failed', error: message } : prev));
+      throw err;
+    }
+  };
+
+  const removeUploaded = async (document: VerificationDocument) => {
+    setBusy(true);
+    try {
+      await api.deleteVerificationDocument(document.id);
+      // `load()` re-reads the summary, so the removed document disappears from
+      // "Documents on file" without any local list to keep in sync.
+      await load();
+      setNotice('Document removed. It is no longer attached to your verification.');
     } catch (err) {
       setError(messageForError(err));
     } finally {
@@ -140,77 +439,121 @@ export const VerificationPanel: React.FC<{ scope: 'agent' | 'landlord'; classNam
     }
   };
 
-  const removeUploaded = async (document: VerificationDocument, target: 'identity' | 'professional') => {
-    setBusy(true);
-    try {
-      await api.deleteVerificationDocument(document.id);
-      if (target === 'professional') {
-        setProfessionalDocs((list) => list.filter((doc) => doc.id !== document.id));
-      } else {
-        setPendingDocs((list) => list.filter((doc) => doc.id !== document.id));
-      }
-      await load();
-    } catch (err) {
-      setError(messageForError(err));
-    } finally {
-      setBusy(false);
-    }
+  const clearAllIdentitySlots = () => {
+    setIdentitySlots((prev) => {
+      releasePreview(prev.front);
+      releasePreview(prev.back);
+      return { front: null, back: null };
+    });
   };
 
   const submitIdentity = async (event: React.FormEvent) => {
     event.preventDefault();
-    setBusy(true);
-    setError(null);
+    // One submission at a time: a double tap on a slow connection must not
+    // create two submissions or upload the same file twice.
+    if (submittingRef.current) return;
     setFieldErrors({});
+    setError(null);
     setNotice(null);
+
+    const rules = identityDocumentSlots(documentType);
+    const stored = (summary?.identity.documents ?? []).filter((doc) => doc.scope === 'identity');
+    const replacedKinds = new Set<string>(
+      (['front', 'back'] as IdentityDocumentSlot[])
+        .filter((slot) => identitySlots[slot])
+        .map((slot) => rules[slot].kind)
+    );
+
+    // A new file for a side replaces what a saved document of the same side
+    // would have been sent as. The saved file is left in storage (nothing is
+    // deleted here); it is simply not referenced by this submission.
+    const keptIds = stored.filter((doc) => !replacedKinds.has(doc.kind)).map((doc) => doc.id);
+    const kindsOnFile = new Set<string>([
+      ...stored.filter((doc) => !replacedKinds.has(doc.kind)).map((doc) => doc.kind),
+      ...replacedKinds,
+    ]);
+
+    // The same rule the server applies, so a member is never sent to a 422 for
+    // half a Ghana Card.
+    const missing = identitySubmissionProblem(documentType, [...kindsOnFile]);
+
+    if (missing) {
+      setFieldErrors({ documents: missing });
+      return;
+    }
+
+    submittingRef.current = true;
+    setSubmitting('identity');
     try {
-      const existingIds = (summary?.identity.documents ?? []).map((doc) => doc.id);
-      const uploadedIds = [...existingIds, ...pendingDocs.map((doc) => doc.id)];
+      // Every required document is uploaded together, in this one action.
+      const ids = [...keptIds];
+      if (identitySlots.front) ids.push(await uploadIdentitySlot('front'));
+      if (identitySlots.back) ids.push(await uploadIdentitySlot('back'));
+
       await api.submitIdentityVerification({
         legalName: legalName.trim(),
         documentType,
         documentNumber: documentNumber.trim(),
-        documentIds: uploadedIds,
+        documentIds: ids,
       });
       setDocumentNumber('');
-      setPendingDocs([]);
-      setNotice('Identity submitted. A reviewer will check it — this does not grant any permission.');
+      clearAllIdentitySlots();
       await load();
+      setNotice('Identity submitted for review. A reviewer will check it — this does not grant any permission.');
     } catch (err) {
+      // The selections stay exactly as they were, so the member can fix the
+      // problem and press submit again without choosing the files a second time.
       const apiError = err as { fields?: Record<string, string> };
       setFieldErrors(apiError.fields ?? {});
       setError(messageForError(err));
     } finally {
-      setBusy(false);
+      submittingRef.current = false;
+      setSubmitting(null);
     }
   };
 
   const submitProfessional = async (event: React.FormEvent) => {
     event.preventDefault();
-    setBusy(true);
-    setError(null);
+    if (submittingRef.current) return;
     setFieldErrors({});
+    setError(null);
     setNotice(null);
+
+    const stored = professional?.documents ?? [];
+    const keptIds = licenceSelection ? stored.filter((doc) => doc.kind !== 'licence').map((doc) => doc.id) : stored.map((doc) => doc.id);
+    if (!licenceSelection && !stored.some((doc) => doc.kind === 'licence')) {
+      setFieldErrors({ licence: 'Attach your licence or registration certificate.' });
+      return;
+    }
+
+    submittingRef.current = true;
+    setSubmitting('professional');
     try {
-      const existingIds = (summary?.professional?.documents ?? []).map((doc) => doc.id);
+      const ids = [...keptIds];
+      if (licenceSelection) ids.push(await uploadLicence());
+
       await api.submitProfessionalAuthorisation({
         licenceNumber: licenceNumber.trim(),
         issuingAuthority: issuingAuthority.trim(),
         licenceCategory: licenceCategory.trim(),
         issueDate: issueDate || undefined,
         expiryDate: expiryDate || undefined,
-        documentIds: [...existingIds, ...professionalDocs.map((doc) => doc.id)],
+        documentIds: ids,
       });
       setLicenceNumber('');
-      setProfessionalDocs([]);
-      setNotice('Authorisation submitted for review. Nothing is verified until a reviewer decides.');
+      setLicenceSelection((prev) => {
+        releasePreview(prev);
+        return null;
+      });
       await load();
+      setNotice('Authorisation submitted for review. Nothing is verified until a reviewer decides.');
     } catch (err) {
       const apiError = err as { fields?: Record<string, string> };
       setFieldErrors(apiError.fields ?? {});
       setError(messageForError(err));
     } finally {
-      setBusy(false);
+      submittingRef.current = false;
+      setSubmitting(null);
     }
   };
 
@@ -405,13 +748,13 @@ export const VerificationPanel: React.FC<{ scope: 'agent' | 'landlord'; classNam
             <p className="text-[11px] font-semibold text-ink/70">Documents on file</p>
             <ul className="space-y-1.5">
               {documentsForIdentity.map((doc) => (
-                <li key={doc.id} className="flex items-center justify-between gap-2 text-[11px] bg-surface border border-line rounded-lg px-3 py-2">
-                  <span className="flex items-center gap-2 text-ink/70">
-                    <FileText className="w-3.5 h-3.5 text-ink/70" />
-                    {doc.kindLabel}
-                    <span className="text-ink/70">{Math.round(doc.bytes / 1024)} KB</span>
+                <li key={doc.id} className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 text-[11px] bg-surface border border-line rounded-lg px-3 py-2">
+                  <span className="flex items-center gap-2 text-ink/70 min-w-0">
+                    <FileText className="w-3.5 h-3.5 text-ink/70 shrink-0" />
+                    <span className="min-w-0 break-words">{doc.kindLabel}</span>
+                    <span className="text-ink/70 shrink-0">{Math.round(doc.bytes / 1024)} KB</span>
                   </span>
-                  <span className="flex items-center gap-3">
+                  <span className="flex items-center gap-3 shrink-0">
                     {doc.downloadUrl && (
                       <a href={doc.downloadUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-ink font-bold">
                         <Download className="w-3.5 h-3.5" /> Open
@@ -420,7 +763,7 @@ export const VerificationPanel: React.FC<{ scope: 'agent' | 'landlord'; classNam
                     {!identityLocked && (
                       <button
                         type="button"
-                        onClick={() => void removeUploaded(doc, 'identity')}
+                        onClick={() => void removeUploaded(doc)}
                         disabled={busy}
                         className="flex items-center gap-1 text-ink/70 hover:text-ink disabled:opacity-50"
                       >
@@ -483,54 +826,75 @@ export const VerificationPanel: React.FC<{ scope: 'agent' | 'landlord'; classNam
               </label>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="block text-[11px] font-semibold text-ink/70">Front of document (PDF/JPG/PNG)</label>
-                <input
-                  ref={frontInput}
-                  type="file"
-                  accept="application/pdf,image/jpeg,image/png"
-                  onChange={(event) => {
-                    const file = event.target.files?.[0];
-                    if (file) void upload(file, 'document_front', 'identity');
-                    if (frontInput.current) frontInput.current.value = '';
-                  }}
-                  className="mt-1 block w-full text-[11px] text-ink/70 file:mr-3 file:rounded-lg file:border-0 file:bg-page file:px-3 file:py-1.5 file:text-[11px] file:font-bold file:text-ink"
+            <div className="space-y-2">
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <p className="text-[11px] font-bold uppercase tracking-wide text-ink/70">
+                  {documentType === 'ghana_card' ? 'Ghana Card — both sides' : 'Document images'}
+                </p>
+                <p className="text-[10px] text-ink/70">
+                  PDF, JPG or PNG · up to {formatBytes(DOCUMENT_MAX_BYTES)} each
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <DocumentSlotField
+                  slotId="front"
+                  label={documentType === 'ghana_card' ? 'Ghana Card — front' : 'Document — front'}
+                  required
+                  savedDocument={documentsForIdentity.find((doc) => doc.kind === 'document_front') ?? null}
+                  selection={identitySlots.front}
+                  disabled={submitting === 'identity'}
+                  error={fieldErrors.front}
+                  onSelect={(file) => selectIdentityDocument('front', file)}
+                  onClear={() => clearIdentityDocument('front')}
+                />
+                <DocumentSlotField
+                  slotId="back"
+                  label={documentType === 'ghana_card' ? 'Ghana Card — back' : 'Document — back'}
+                  required={documentType === 'ghana_card'}
+                  savedDocument={documentsForIdentity.find((doc) => doc.kind === 'document_back') ?? null}
+                  selection={identitySlots.back}
+                  disabled={submitting === 'identity'}
+                  error={fieldErrors.back}
+                  onSelect={(file) => selectIdentityDocument('back', file)}
+                  onClear={() => clearIdentityDocument('back')}
                 />
               </div>
-              <div>
-                <label className="block text-[11px] font-semibold text-ink/70">Back of document (optional)</label>
-                <input
-                  ref={backInput}
-                  type="file"
-                  accept="application/pdf,image/jpeg,image/png"
-                  onChange={(event) => {
-                    const file = event.target.files?.[0];
-                    if (file) void upload(file, 'document_back', 'identity');
-                    if (backInput.current) backInput.current.value = '';
-                  }}
-                  className="mt-1 block w-full text-[11px] text-ink/70 file:mr-3 file:rounded-lg file:border-0 file:bg-page file:px-3 file:py-1.5 file:text-[11px] file:font-bold file:text-ink"
-                />
-              </div>
+
+              {documentType === 'ghana_card' && (
+                <p className="text-[10px] text-ink/70">
+                  A Ghana Card is checked from both sides, so both files are needed before this can be submitted.
+                  Nothing is sent until you press Submit, and choosing a file never submits anything.
+                </p>
+              )}
             </div>
 
-            {pendingDocs.length > 0 && (
-              <ul className="text-[11px] text-ink/70 space-y-1">
-                {pendingDocs.map((doc) => (
-                  <li key={doc.id} className="flex items-center gap-2">
-                    <Upload className="w-3 h-3 text-ink" />
-                    {doc.kindLabel} uploaded — it will be attached when you submit.
+            {fieldErrors.documents && (
+              <p role="alert" className="text-[10px] text-ink flex items-start gap-1">
+                <AlertTriangle className="w-3 h-3 shrink-0 mt-0.5" />
+                <span className="min-w-0 break-words">{fieldErrors.documents}</span>
+              </p>
+            )}
+
+            {(identitySlots.front || identitySlots.back) && (
+              <div className="rounded-xl border border-interactive/30 bg-interactive/5 p-3 space-y-1">
+                <p className="text-[11px] font-bold text-ink">Check before you submit</p>
+                <ul className="text-[10px] text-ink/70 space-y-0.5">
+                  <li className="truncate">Front: {identitySlots.front?.file.name ?? 'not chosen yet'}</li>
+                  <li className="truncate">
+                    {documentType === 'ghana_card' ? 'Back' : 'Back (optional)'}:{' '}
+                    {identitySlots.back?.file.name ?? 'not chosen yet'}
                   </li>
-                ))}
-              </ul>
+                </ul>
+              </div>
             )}
 
             <button
               type="submit"
-              disabled={busy}
+              disabled={busy || submitting !== null}
               className="gl-btn gl-btn-primary px-5 py-2.5 text-xs"
             >
-              {busy ? 'Submitting…' : 'Submit for review'}
+              {submitting === 'identity' ? 'Uploading and submitting…' : 'Submit for review'}
             </button>
           </form>
         )}
@@ -590,12 +954,12 @@ export const VerificationPanel: React.FC<{ scope: 'agent' | 'landlord'; classNam
           {(professional.documents?.length ?? 0) > 0 && (
             <ul className="space-y-1.5">
               {professional.documents.map((doc) => (
-                <li key={doc.id} className="flex items-center justify-between gap-2 text-[11px] bg-surface border border-line rounded-lg px-3 py-2">
-                  <span className="flex items-center gap-2 text-ink/70">
-                    <FileText className="w-3.5 h-3.5 text-ink/70" />
-                    {doc.kindLabel}
+                <li key={doc.id} className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 text-[11px] bg-surface border border-line rounded-lg px-3 py-2">
+                  <span className="flex items-center gap-2 text-ink/70 min-w-0">
+                    <FileText className="w-3.5 h-3.5 text-ink/70 shrink-0" />
+                    <span className="min-w-0 break-words">{doc.kindLabel}</span>
                   </span>
-                  <span className="flex items-center gap-3">
+                  <span className="flex items-center gap-3 shrink-0">
                     {doc.downloadUrl && (
                       <a href={doc.downloadUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-ink font-bold">
                         <Download className="w-3.5 h-3.5" /> Open
@@ -604,7 +968,7 @@ export const VerificationPanel: React.FC<{ scope: 'agent' | 'landlord'; classNam
                     {professionalCanSubmit && (
                       <button
                         type="button"
-                        onClick={() => void removeUploaded(doc, 'professional')}
+                        onClick={() => void removeUploaded(doc)}
                         disabled={busy}
                         className="flex items-center gap-1 text-ink/70 hover:text-ink disabled:opacity-50"
                       >
@@ -671,28 +1035,27 @@ export const VerificationPanel: React.FC<{ scope: 'agent' | 'landlord'; classNam
                   />
                   {fieldErrors.expiryDate && <span className="text-[10px] text-ink">{fieldErrors.expiryDate}</span>}
                 </label>
-                <div>
-                  <label className="block text-[11px] font-semibold text-ink/70">Certificate (PDF/JPG/PNG)</label>
-                  <input
-                    ref={licenceInput}
-                    type="file"
-                    accept="application/pdf,image/jpeg,image/png"
-                    onChange={(event) => {
-                      const file = event.target.files?.[0];
-                      if (file) void upload(file, 'licence', 'professional');
-                      if (licenceInput.current) licenceInput.current.value = '';
-                    }}
-                    className="mt-1 block w-full text-[11px] text-ink/70 file:mr-3 file:rounded-lg file:border-0 file:bg-page file:px-3 file:py-1.5 file:text-[11px] file:font-bold file:text-ink"
+                <div className="min-w-0">
+                  <DocumentSlotField
+                    slotId="licence"
+                    label="Licence / registration certificate"
+                    required
+                    savedDocument={(professional.documents ?? []).find((doc) => doc.kind === 'licence') ?? null}
+                    selection={licenceSelection}
+                    disabled={submitting === 'professional'}
+                    error={fieldErrors.licence}
+                    onSelect={selectLicence}
+                    onClear={clearLicence}
                   />
                 </div>
               </div>
 
               <button
                 type="submit"
-                disabled={busy}
+                disabled={busy || submitting !== null}
                 className="gl-btn gl-btn-primary px-5 py-2.5 text-xs"
               >
-                {busy ? 'Submitting…' : 'Submit authorisation'}
+                {submitting === 'professional' ? 'Uploading and submitting…' : 'Submit authorisation'}
               </button>
             </form>
           )}

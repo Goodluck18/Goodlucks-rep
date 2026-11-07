@@ -21,7 +21,9 @@
     "test:email-footer": "node --test tests/email-footer.test.mjs",
     "test:property": "node --import tsx --test tests/property-seo.test.mts",
     "test:access": "node --test tests/access-control.test.mjs",
-    "test:sharing": "node --import tsx --test tests/sharing.test.mts"
+    "test:sharing": "node --import tsx --test tests/sharing.test.mts",
+    "test:uploads": "node --import tsx --test tests/uploads.test.mts",
+    "test:responsive": "node --import tsx --test tests/responsive.test.mts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

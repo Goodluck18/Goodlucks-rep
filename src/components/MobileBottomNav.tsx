@@ -49,7 +49,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({ onOpenAuth }) 
         aria-current={isActive ? 'page' : undefined}
         aria-label={tab.description ?? tab.label}
         title={tab.description ?? tab.label}
-        className={`flex-1 flex flex-col items-center justify-center gap-0.5 py-2 my-1 min-h-[56px] rounded-xl transition-colors ${
+        className={`flex-1 min-w-0 flex flex-col items-center justify-center gap-0.5 px-0.5 py-2 my-1 min-h-[56px] rounded-xl transition-colors ${
           isActive
             ? 'bg-interactive/20 text-ink'
             : isEmphasis
@@ -58,7 +58,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({ onOpenAuth }) 
         }`}
       >
         <Icon className="w-[22px] h-[22px]" />
-        <span className={`text-[10px] leading-none ${isActive ? 'font-bold' : 'font-medium'}`}>{tab.label}</span>
+        <span className={`text-[10px] leading-none max-w-full truncate ${isActive ? 'font-bold' : 'font-medium'}`}>{tab.label}</span>
       </button>
     );
   };
