@@ -901,8 +901,26 @@ function quickLinks(app: Awaited<ReturnType<typeof renderAt>>): HTMLElement[] {
 }
 
 /** The rows inside the open hamburger. */
+/**
+ * The rows of the hamburger menu.
+ *
+ * Between `md` (where the phone quick bar disappears) and the width at which the
+ * header's link row fits (`lg` for members, `xl` for visitors), the menu also
+ * lists the quick-bar destinations — otherwise Browse and Find a Home would be
+ * unreachable on a tablet. Those rows live in a block marked
+ * `data-quick-bar-mirror`, and they are excluded here: the rule under test is
+ * that *a surface visible at the same width* never repeats another, and the
+ * quick bar is hidden exactly where the mirror is shown.
+ */
 function menuRows(app: Awaited<ReturnType<typeof renderAt>>): HTMLElement[] {
-  return [...app.container.querySelectorAll('#site-menu button')] as HTMLElement[];
+  return ([...app.container.querySelectorAll('#site-menu button')] as HTMLElement[]).filter(
+    (row) => !row.closest('[data-quick-bar-mirror]')
+  );
+}
+
+/** The quick-bar rows that the menu shows on a tablet (md → link-row width). */
+function mirroredQuickRows(app: Awaited<ReturnType<typeof renderAt>>): HTMLElement[] {
+  return [...app.container.querySelectorAll('#site-menu [data-quick-bar-mirror] button')] as HTMLElement[];
 }
 
 const labels = (elements: HTMLElement[]) => elements.map((el) => (el.textContent ?? '').trim());
@@ -940,6 +958,33 @@ test('the guest quick bar and hamburger do not repeat one another', async () => 
     assert.ok(!rows.includes(repeated), `“${repeated}” is already in the quick bar`);
   }
   assert.ok(!rows.some((row) => /logout|dashboard|settings/i.test(row)), 'a guest sees no member rows');
+  await app.unmount();
+});
+
+test('a tablet can still reach the quick-bar pages while the header row is hidden', async () => {
+  const app = await renderAt('/');
+  await app.clickContaining('Open menu');
+
+  // The visitor quick bar stops at `md` and the visitor link row starts at `xl`
+  // (seven links need about 690px and do not fit a 768px header). In that band
+  // the menu lists the quick-bar pages, so nothing becomes unreachable.
+  const mirrored = labels(mirroredQuickRows(app));
+  // Sign-in is mirrored too: the quick bar (which normally carries it) is
+  // hidden exactly where this block is visible, so a returning visitor on a
+  // tablet still has a way in.
+  assert.deepEqual(mirrored, ['Home', 'Browse', 'Find Home', 'Login']);
+
+  const block = app.container.querySelector('#site-menu [data-quick-bar-mirror]') as HTMLElement | null;
+  assert.ok(block, 'the mirror block is rendered');
+  assert.match(block!.className, /hidden md:block xl:hidden/, 'it is only visible where the quick bar and the link row are not');
+
+  // The mirror never repeats a menu row: each destination still has exactly one
+  // surface at any given width.
+  const rows = labels(menuRows(app));
+  for (const label of mirrored) assert.ok(!rows.includes(label), `“${label}” is not also a menu row`);
+
+  // The sign-in row is an action, not a duplicated menu link.
+  assert.ok(!labels(menuRows(app)).includes('Login'), 'the menu rows themselves still hold no sign-in row');
   await app.unmount();
 });
 

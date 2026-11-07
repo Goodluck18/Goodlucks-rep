@@ -270,7 +270,7 @@ export const PropertyDetailView: React.FC = () => {
               )}
             </div>
 
-            <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-ink tracking-tight">
+            <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-ink tracking-tight break-words">
               {property.title}
             </h1>
 
