@@ -72,8 +72,20 @@ export const FindAHomeView: React.FC<FindAHomeViewProps> = ({ onOpenAuth }) => {
     );
   }
 
-  // Guard Condition 2: User IS logged in, but as a LANDLORD
-  if (currentRole === 'landlord') {
+  // Guard Condition 2 (Correction 1): the visitor is signed in, but not as a
+  // tenant. Matching requests are a tenant action: landlords and agents list and
+  // manage property, and an administrator has the console. The API refuses a
+  // request from any of them (403) and from a guest (401), so this screen can
+  // never be bypassed by hand-crafting the POST.
+  if (currentRole !== 'tenant') {
+    const roleLabel =
+      currentRole === 'landlord' ? 'Landlord' : currentRole === 'agent' ? 'Agent' : 'Administrator';
+    const roleDescription =
+      currentRole === 'landlord'
+        ? 'Landlords list properties and manage viewings.'
+        : currentRole === 'agent'
+        ? 'Agents submit listings and manage the viewings they handle.'
+        : 'Administrators run the platform from the admin console.';
     return (
       <div className="min-h-screen bg-page text-ink py-12 px-4 sm:px-6 lg:px-8 flex items-center justify-center">
         <div className="max-w-xl w-full bg-surface border border-amber-500/30 rounded-2xl p-6 sm:p-8 shadow-lg text-center space-y-6 animate-fadeIn">
@@ -83,13 +95,13 @@ export const FindAHomeView: React.FC<FindAHomeViewProps> = ({ onOpenAuth }) => {
 
           <div className="space-y-2">
             <span className="px-3.5 py-1 rounded-full text-[11px] font-extrabold bg-amber-500/10 text-amber-700 border border-amber-500/20 uppercase tracking-wider">
-              Landlord Account Detected
+              {roleLabel} Account Detected
             </span>
             <h1 className="text-2xl sm:text-3xl font-black text-ink tracking-tight">
               Property Matching Reserved for Tenants
             </h1>
             <p className="text-xs sm:text-sm text-ink/70 leading-relaxed max-w-md mx-auto">
-              You are currently logged in as a <strong>Landlord</strong>. Landlords list properties and manage viewings. To submit property matching requests, please log in with a <strong>Tenant Account</strong>.
+              You are currently logged in as a <strong>{roleLabel}</strong>. {roleDescription} To submit property matching requests, please log in with a <strong>Tenant Account</strong>.
             </p>
           </div>
 
@@ -101,7 +113,7 @@ export const FindAHomeView: React.FC<FindAHomeViewProps> = ({ onOpenAuth }) => {
             </div>
             <div className="flex items-center gap-2 text-ink/70">
               <span className="w-2 h-2 rounded-full bg-amber-400" />
-              <span><strong>Landlord:</strong> Manage property listings and viewing approvals</span>
+              <span><strong>Landlord / Agent:</strong> Manage listings and viewings — not tenant requests</span>
             </div>
           </div>
 
@@ -118,7 +130,7 @@ export const FindAHomeView: React.FC<FindAHomeViewProps> = ({ onOpenAuth }) => {
               className="px-6 py-3 rounded-2xl bg-page text-ink font-bold text-xs sm:text-sm hover:bg-line transition-all border border-line flex items-center justify-center gap-2"
             >
               <Building2 className="w-4 h-4 text-ink" />
-              Go to Landlord Dashboard
+              Go to My Dashboard
             </button>
           </div>
         </div>
@@ -161,6 +173,14 @@ export const FindAHomeView: React.FC<FindAHomeViewProps> = ({ onOpenAuth }) => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError(null);
+
+    // Belt and braces behind the screen guard above and the server check: a
+    // non-tenant never reaches this handler, and if one somehow did, nothing is
+    // sent.
+    if (currentRole !== 'tenant') {
+      setFormError('Rental requests can only be submitted from a tenant account.');
+      return;
+    }
 
     if (!tenantName || !tenantPhone || selectedLocations.length === 0) {
       setFormError('Please add your name, phone number and at least one preferred location.');

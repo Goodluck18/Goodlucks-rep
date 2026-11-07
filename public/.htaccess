@@ -19,6 +19,14 @@ DirectoryIndex index.html index.php
     # 2b. The sitemap is generated from the live catalogue by the PHP API.
     RewriteRule ^sitemap\.xml$ api/index.php [L,QSA]
 
+    # 2c. Property pages are rendered by PHP so the *initial* HTML response
+    #     already carries the listing's own title, price, location, photograph
+    #     and canonical URL. WhatsApp, Facebook, X, LinkedIn and Slack do not
+    #     run the SPA's JavaScript, so without this they only ever saw the
+    #     generic site preview. api/property_page.php also issues the 301 from
+    #     old id-only links (/property/prop-1) to the canonical descriptive URL.
+    RewriteRule ^property/([A-Za-z0-9._-]+)/?$ api/property_page.php [L,QSA]
+
     # 3. Real files and directories (JS, CSS, images, uploads) are served as-is.
     RewriteCond %{REQUEST_FILENAME} -f [OR]
     RewriteCond %{REQUEST_FILENAME} -d

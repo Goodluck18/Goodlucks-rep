@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { SEOHead } from './SEOHead';
+import { siteHost } from '../config/site';
 import { RentReceipt } from '../types';
 import {
   Receipt,
@@ -505,7 +506,7 @@ export const ReceiptsView: React.FC<{ embedded?: boolean }> = ({ embedded = fals
                       </div>
                       <p className="text-[11px] text-ink/70">
                         Property intermediary &amp; viewing coordination<br />
-                        Ridge, Accra, Ghana | +233 23 769 0080 | rent.goodlucks.co
+                        Ridge, Accra, Ghana | +233 23 769 0080 | {siteHost()}
                       </p>
                     </div>
 

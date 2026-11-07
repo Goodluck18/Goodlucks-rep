@@ -4,6 +4,14 @@ import { ViewingRequestModal } from './ViewingRequestModal';
 import { PriceDropModal } from './PriceDropModal';
 import { PropertyCard } from './PropertyCard';
 import { SEOHead } from './SEOHead';
+import {
+  moneyLabel,
+  propertyCanonicalUrl,
+  propertyMainImage,
+  propertyPath,
+  propertyShareDescription,
+  RENT_PERIOD,
+} from '../routing/propertyUrl';
 import { 
   Bed, 
   Bath, 
@@ -43,7 +51,9 @@ export const PropertyDetailView: React.FC = () => {
     toggleSaveProperty, 
     incrementPropertyViews,
     showSuccessToast,
-    navigateToProperty
+    navigateToProperty,
+    route,
+    navigate
   } = useApp();
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [showViewingModal, setShowViewingModal] = useState(false);
@@ -54,6 +64,23 @@ export const PropertyDetailView: React.FC = () => {
     selectedProperty ??
     (selectedPropertyId ? properties.find((p) => p.id === selectedPropertyId) : undefined) ??
     null;
+
+  /**
+   * Correction 4: one listing, one URL.
+   *
+   * `/property/prop-1` and any older slug both render this listing, then the
+   * address bar is replaced with the canonical
+   * `/property/{title}-{location}-{id}` without adding a history entry. The
+   * production server already 301s these (api/property_page.php); this keeps
+   * the URL correct in the client too, so copy/share never propagates the old
+   * form.
+   */
+  const canonicalPath = property ? propertyPath(property) : null;
+  useEffect(() => {
+    if (!canonicalPath || !route || route.name !== 'property-detail') return;
+    if (route.path.toLowerCase() === canonicalPath.toLowerCase()) return;
+    navigate(`${canonicalPath}${window.location.search}`, { replace: true });
+  }, [canonicalPath, route, navigate]);
 
   useEffect(() => {
     if (property) {
@@ -97,19 +124,28 @@ export const PropertyDetailView: React.FC = () => {
   const isSaved = savedPropertyIds.includes(property.id);
 
   const agentWhatsappNumber = "233237690080";
+  // Correction 6: every share path uses the canonical descriptive URL for the
+  // listing that is on screen — never `window.location.href` (which may still be
+  // an old id URL, or carry a tracking parameter) and never a hardcoded domain.
+  const shareUrl = propertyCanonicalUrl(property);
+  const shareSummary = propertyShareDescription(property);
+
   const whatsappText = encodeURIComponent(
     `Hello Goodlucks Homes! I am interested in this listing:\n\n` +
     `*${property.title}*\n` +
     `📍 Location: ${property.location} (${property.city})\n` +
-    `💰 Price: GH₵ ${property.rentGhs.toLocaleString()}/mo\n` +
+    `💰 Price: ${moneyLabel(property.rentGhs)}${RENT_PERIOD}\n` +
     `🏠 Type: ${property.bedrooms} Bed / ${property.bathrooms} Bath ${property.propertyType}\n` +
-    `🆔 Ref: ${property.id}\n\n` +
+    `🔗 ${shareUrl}\n\n` +
     `Is this property currently available for a physical viewing?`
   );
   const whatsappUrl = `https://wa.me/${agentWhatsappNumber}?text=${whatsappText}`;
 
-  const pageTitle = `${property.title} in ${property.location} (GH₵ ${property.rentGhs.toLocaleString()}/mo) | Goodlucks Homes`;
-  const metaDescription = `${property.bedrooms} Bed, ${property.bathrooms} Bath ${property.propertyType} for rent in ${property.location}, ${property.city}. Rent: GH₵ ${property.rentGhs.toLocaleString()}/mo. Verified listing on Goodlucks Homes Ghana.`;
+  const pageTitle = `${property.title} (${moneyLabel(property.rentGhs)}${RENT_PERIOD}) | Goodlucks Homes`;
+  // The share description is the concise price/location line, exactly as the
+  // server-rendered card has it. No "verified" claim: a listing review is not an
+  // ownership check or an inspection.
+  const metaDescription = shareSummary;
   const metaKeywords = `${property.title}, ${property.location} apartment for rent, real estate ${property.city}, rent in ${property.location}, ${property.bedrooms} bedroom house Accra, Goodlucks Homes Ghana`;
 
   const jsonLd = {
@@ -117,8 +153,8 @@ export const PropertyDetailView: React.FC = () => {
     "@type": "RealEstateListing",
     "name": property.title,
     "description": property.description,
-    "url": typeof window !== 'undefined' ? `${window.location.origin}/property/${property.id}` : `https://rent.goodlucks.co/property/${property.id}`,
-    "image": property.images,
+    "url": shareUrl,
+    "image": property.images.map((image) => propertyMainImage({ images: [image] })),
     "datePosted": property.createdAt || "2026-08-01T00:00:00Z",
     "offers": {
       "@type": "Offer",
@@ -154,10 +190,9 @@ export const PropertyDetailView: React.FC = () => {
 
   // Native Web Share API + Clipboard fallback
   const handleShare = async () => {
-    const shareUrl = window.location.href;
     const shareData = {
       title: property.title,
-      text: `Check out this rental property on Goodlucks Homes: ${property.title} in ${property.location} (GH₵ ${property.rentGhs.toLocaleString()}/mo)`,
+      text: `Check out this rental property on Goodlucks Homes: ${property.title} in ${property.location} (${shareSummary})`,
       url: shareUrl,
     };
 
@@ -201,8 +236,9 @@ export const PropertyDetailView: React.FC = () => {
         title={pageTitle}
         description={metaDescription}
         keywords={metaKeywords}
+        canonicalUrl={shareUrl}
         ogType="real_estate:property"
-        ogImage={property.images[0]}
+        ogImage={propertyMainImage(property)}
         priceGhs={property.rentGhs}
         jsonLd={jsonLd}
       />

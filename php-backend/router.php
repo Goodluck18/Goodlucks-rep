@@ -11,6 +11,13 @@
 $uri = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
 $candidate = __DIR__ . $uri;
 
+// Property pages are rendered by their own entry point (metadata + canonical
+// redirects), exactly as the production .htaccess routes them.
+if (preg_match('#^/property/[A-Za-z0-9._-]+/?$#', $uri)) {
+    require __DIR__ . '/property_page.php';
+    exit;
+}
+
 if ($uri !== '/'
     && !is_dir($candidate)
     && is_file($candidate)

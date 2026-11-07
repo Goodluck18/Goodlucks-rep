@@ -389,6 +389,9 @@ function userFor(role: 'tenant' | 'landlord' | 'agent' | 'admin') {
 
 const { createElement, act } = await import('react');
 const { createRoot } = await import('react-dom/client');
+
+/** The mounted root, so a new render never leaves the previous app running. */
+let lastRoot: { unmount: () => void } | null = null;
 const { default: App } = await import('../src/App.tsx');
 
 /** Mount the app at `path`, exactly like a reload at that URL. */
@@ -411,10 +414,19 @@ async function renderAt(
     post: options.blog?.post ?? null,
   };
   calls.length = 0;
+  // Only one app may be mounted at a time: a leftover root keeps its metadata
+  // (including a canonical link) in `document.head`, which would make document
+  // level assertions read the previous page's tags instead of this one's.
+  if (lastRoot) {
+    await act(async () => lastRoot!.unmount());
+    lastRoot = null;
+  }
+  document.head.querySelectorAll('link[rel="canonical"], meta[property^="og:"], meta[name^="twitter:"], title').forEach((node) => node.remove());
   window.history.replaceState({}, '', path);
   document.body.innerHTML = '<div id="root"></div>';
   const container = document.getElementById('root') as HTMLElement;
   const root = createRoot(container);
+  lastRoot = root;
 
   await act(async () => {
     root.render(createElement(App));
@@ -452,6 +464,7 @@ async function renderAt(
       });
     },
     unmount: async () => {
+      if (lastRoot === root) lastRoot = null;
       await act(async () => root.unmount());
     },
   };
@@ -824,6 +837,33 @@ test('opening the notifications page marks nothing read and lists the account re
   await app.unmount();
 });
 
+/* -------------------------------------------------------------------------- */
+/* Payment records are private (Correction 2)                                  */
+/* -------------------------------------------------------------------------- */
+
+test('a visitor opening /receipts is sent to sign in and sees no receipt data', async () => {
+  const app = await renderAt('/receipts');
+  // The guard replaces the page with the sign-in screen, carrying the intended
+  // destination with it.
+  assert.equal(app.path(), '/login?next=%2Freceipts');
+  assert.doesNotMatch(app.text(), /rent payment records/i);
+  assert.doesNotMatch(app.text(), /issuingEnabled|saved records/i);
+  await app.unmount();
+});
+
+test('a signed-in member still reaches their payment records', async () => {
+  const app = await renderAt('/receipts', 'tenant');
+  assert.equal(app.path(), '/receipts');
+  assert.match(app.text(), /rent payment records/i);
+  await app.unmount();
+});
+
+test('the landlord dashboard keeps its own payment records section', async () => {
+  const app = await renderAt('/landlord/receipts', 'landlord');
+  assert.equal(app.path(), '/landlord/receipts');
+  await app.unmount();
+});
+
 test('an empty notifications page says so instead of inventing records', async () => {
   const app = await renderAt('/landlord/notifications', 'landlord');
   assert.match(app.text(), /no notifications yet/i);
@@ -892,7 +932,10 @@ test('the guest quick bar and hamburger do not repeat one another', async () => 
   // Task 07 added one public page to the guest menu: the Learning Centre. It is
   // a menu row, not a quick-bar tab, so the two surfaces still do not repeat
   // one another.
-  assert.deepEqual(rows, ['List Property', 'Receipts', 'Learning Centre', 'About', 'Contact', 'Create an account']);
+  // Correction 2 removed the Receipts entry: payment records are reachable only
+  // from a signed-in member's own dashboard.
+  assert.deepEqual(rows, ['List Property', 'Learning Centre', 'About', 'Contact', 'Create an account']);
+  assert.ok(!rows.includes('Receipts'), 'a visitor is never offered receipts');
   for (const repeated of ['Home', 'Browse', 'Find Home']) {
     assert.ok(!rows.includes(repeated), `“${repeated}” is already in the quick bar`);
   }
@@ -1429,7 +1472,7 @@ test('every public page and dashboard renders on the light system', async () => 
     ['/blog/top-available-properties-east-legon', null],
     ['/about', null],
     ['/contact', null],
-    ['/receipts', null],
+    ['/receipts', 'tenant'],
     ['/tenant/dashboard', 'tenant'],
     ['/landlord/dashboard', 'landlord'],
     ['/agent/dashboard', 'agent'],

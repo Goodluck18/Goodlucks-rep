@@ -1,6 +1,7 @@
 import React from 'react';
 import { Property } from '../types';
 import { useApp } from '../context/AppContext';
+import { propertyCanonicalUrl, propertyPath } from '../routing/propertyUrl';
 import { Bed, Bath, MapPin, Eye, Heart, CalendarCheck, Sparkles, ShieldCheck } from 'lucide-react';
 
 interface PropertyCardProps {
@@ -18,13 +19,15 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({ property, onRequestV
       itemType="https://schema.org/RealEstateListing"
       className="group relative gl-card gl-card-interactive overflow-hidden flex flex-col h-full"
     >
-      <meta itemProp="url" content={`${typeof window !== 'undefined' ? window.location.origin : 'https://rent.goodlucks.co'}/property/${property.id}`} />
+      {/* Correction 4/7: the card advertises the listing's canonical URL, not
+          the bare id, so crawlers and "copy link" agree with the sitemap. */}
+      <meta itemProp="url" content={propertyCanonicalUrl(property)} />
       <meta itemProp="name" content={property.title} />
       <meta itemProp="description" content={property.description} />
       
       {/* Property Image Container */}
       <a 
-        href={`/property/${property.id}`}
+        href={propertyPath(property)}
         onClick={(e) => {
           e.preventDefault();
           navigateToProperty(property.id);
@@ -99,7 +102,7 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({ property, onRequestV
           {/* Title */}
           <h3 className="text-xs sm:text-sm font-bold text-ink line-clamp-2 hover:text-ink transition-colors leading-tight sm:leading-snug">
             <a 
-              href={`/property/${property.id}`}
+              href={propertyPath(property)}
               onClick={(e) => {
                 e.preventDefault();
                 navigateToProperty(property.id);
