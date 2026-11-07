@@ -11,7 +11,8 @@
  *   php tests/property-slug.php <fixtures.json>
  *
  * Input:  [{"id":"prop-1","title":"…","location":"…","city":"…","rent_ghs":6500,"images":["…"]}]
- * Output: [{"id":…,"slug":…,"path":…,"url":…,"description":…,"image":…}]
+ * Output: [{"id":…,"slug":…,"path":…,"url":…,"description":…,"image":…,
+ *           "short_path":…,"short_url":…,"rent_period":…}]
  */
 
 declare(strict_types=1);
@@ -40,6 +41,11 @@ foreach ($rows as $row) {
         'description' => property_share_description($row),
         'image'       => property_main_image_url($row),
         'title'       => property_share_meta($row)['title'],
+        // Share-as-image additions: the short link (/p/{id}) and the payment
+        // period the poster prints. Both must match the browser's helpers.
+        'short_path'  => property_short_path($row),
+        'short_url'   => property_short_url($row),
+        'rent_period' => property_rent_period($row),
     ];
 }
 

@@ -312,6 +312,17 @@ export interface Property {
   location: string;
   city: string;
   rentGhs: number;
+  /**
+   * The period `rentGhs` is quoted in (`month` today, on every listing — the
+   * catalogue stores a monthly rent). It is carried on the record so a yearly,
+   * weekly or daily listing would print its own period rather than being
+   * labelled monthly; see `rentPeriodLabel()` in `src/routing/propertyUrl.ts`.
+   */
+  rentPeriod?: string;
+  /** Optional: the short sharing address (`/p/{id}`) as the API builds it. */
+  shortPath?: string;
+  /** Optional: the absolute short sharing URL as the API builds it. */
+  shortUrl?: string;
   bedrooms: number;
   bathrooms: number;
   propertyType: PropertyType;

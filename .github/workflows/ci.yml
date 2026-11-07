@@ -35,6 +35,9 @@ jobs:
       - name: Property URLs, social previews & sitemap (raw server HTML)
         run: npm run test:property
 
+      - name: Share-as-image poster, sharing and short links
+        run: npm run test:sharing
+
       - name: Blog & Learning Centre tests (task 07)
         run: npm run test:blog
 
@@ -56,7 +59,7 @@ jobs:
               if (!fs.existsSync(f)) { console.error('missing ' + f); process.exit(1); }
             }
             const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
-            for (const script of ['dev', 'api:dev', 'test:api', 'test:access', 'test:property', 'test:routing', 'test:navigation', 'test:blog', 'test:design', 'test:email-footer', 'build']) {
+            for (const script of ['dev', 'api:dev', 'test:api', 'test:access', 'test:property', 'test:sharing', 'test:routing', 'test:navigation', 'test:blog', 'test:design', 'test:email-footer', 'build']) {
               if (!pkg.scripts[script]) { console.error('missing npm script ' + script); process.exit(1); }
             }
             console.log('build artefacts and npm scripts present');

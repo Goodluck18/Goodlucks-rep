@@ -43,6 +43,11 @@ function shape_property(array $row): array
         'slug'                    => property_slug($row),
         'path'                    => property_path($row),
         'url'                     => property_canonical_url($row),
+        // The short sharing address (/p/{id}) and the listing's payment period,
+        // both derived from the row so the client never has to guess either.
+        'shortPath'               => property_short_path($row),
+        'shortUrl'                => property_short_url($row),
+        'rentPeriod'              => property_rent_period_key($row),
         'landlordId'              => $exposeLandlordId ? $landlordId : '',
         // Staff-only: the landlord contact an agent supplied when no account
         // was matched. Never returned to tenants, agents or the public.

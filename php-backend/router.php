@@ -18,6 +18,13 @@ if (preg_match('#^/property/[A-Za-z0-9._-]+/?$#', $uri)) {
     exit;
 }
 
+// The short sharing link resolves to the canonical property page, exactly as
+// the production .htaccess routes it (rule 2d).
+if (preg_match('#^/p/[A-Za-z0-9_-]+/?$#', $uri)) {
+    require __DIR__ . '/short_link.php';
+    exit;
+}
+
 if ($uri !== '/'
     && !is_dir($candidate)
     && is_file($candidate)

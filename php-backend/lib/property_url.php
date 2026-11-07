@@ -53,6 +53,22 @@ const PROPERTY_SLUG_ACCENTS = [
     'Ý' => 'Y', 'Ÿ' => 'Y',
 ];
 
+/**
+ * Payment-period labels.
+ *
+ * The catalogue stores one figure per listing (`rent_ghs`) and, today, that
+ * figure is always a **monthly** rent — which is why `month` is the default. A
+ * record that carries its own `rent_period` (yearly, weekly, daily) is labelled
+ * with that period instead of being called monthly. `src/routing/propertyUrl.ts`
+ * mirrors this map.
+ */
+const PROPERTY_RENT_PERIOD_SUFFIX = [
+    'month' => '/month',
+    'year'  => '/year',
+    'week'  => '/week',
+    'day'   => '/day',
+];
+
 /** Words that add nothing to a URL and are dropped from the title slug. */
 const PROPERTY_SLUG_STOPWORDS = ['a', 'an', 'and', 'at', 'for', 'in', 'of', 'on', 'the', 'to', 'with'];
 
@@ -150,6 +166,45 @@ function property_canonical_url(array $row): string
  * hijack another listing. The longest matching id wins, which keeps ids such as
  * `prop-1` and `prop-10` apart.
  */
+/**
+ * The short, permanent sharing address of a listing: `/p/{id}`.
+ *
+ * The id is the property's own stable public identifier — the value already at
+ * the end of the canonical slug. Reusing it rather than minting a second code is
+ * what keeps the short link valid through a retitle, a price change or a
+ * location correction, needs no extra column and no migration, and cannot drift
+ * out of sync with the row it points at. `src/routing/propertyUrl.ts` builds the
+ * identical path, and `api/short_link.php` resolves it with the same visibility
+ * rule as the property page itself.
+ */
+function property_short_path(array $row): string
+{
+    return '/p/' . rawurlencode((string)($row['id'] ?? ''));
+}
+
+/** The absolute short sharing URL of a listing. */
+function property_short_url(array $row): string
+{
+    return SITE_URL . property_short_path($row);
+}
+
+/**
+ * The listing a `/p/<code>` link points at, or null.
+ *
+ * Deliberately just a row lookup: the code *is* the id, so there is no second
+ * index to keep in step, and an unpublished or deleted listing is filtered by
+ * the caller exactly as it is for the canonical page.
+ */
+function property_resolve_short_code(string $code): ?array
+{
+    $code = trim(rawurldecode($code));
+    if ($code === '' || !preg_match('#^[A-Za-z0-9_-]{1,120}$#', $code)) {
+        return null;
+    }
+    $row = find_property($code);
+    return $row ?: null;
+}
+
 function property_resolve_segment(string $segment): ?array
 {
     $segment = trim($segment);
@@ -205,9 +260,17 @@ function property_money_label(float $amount): string
  * is what the listing cards, the alert emails and the receipt model all state.
  * The helper exists so the wording can only be changed in one place.
  */
+/** The period key a listing is priced in: `month` unless the record says otherwise. */
+function property_rent_period_key(array $row): string
+{
+    $key = strtolower(trim((string)($row['rent_period'] ?? '')));
+    return isset(PROPERTY_RENT_PERIOD_SUFFIX[$key]) ? $key : 'month';
+}
+
+/** The period suffix used in share text and on the poster (`/month`). */
 function property_rent_period(array $row): string
 {
-    return '/month';
+    return PROPERTY_RENT_PERIOD_SUFFIX[property_rent_period_key($row)];
 }
 
 /**
@@ -279,6 +342,11 @@ function property_main_image_url(array $row): string
         }
         // Never build an absolute URL out of a traversal attempt.
         if (str_contains($url, '..')) {
+            continue;
+        }
+        // Nor out of anything that is not a path: `data:`, `blob:`,
+        // `javascript:` and friends are not photographs of this listing.
+        if (preg_match('#^[a-z][a-z0-9+.-]*:#i', $url)) {
             continue;
         }
         return SITE_URL . '/' . ltrim($url, '/');

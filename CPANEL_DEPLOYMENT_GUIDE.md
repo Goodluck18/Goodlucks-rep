@@ -80,7 +80,7 @@ Copy `php-backend/.env.example` to `public_html/api/.env` and fill in:
 
 ```ini
 APP_ENV=production
-APP_URL=https://rent.goodlucks.co
+APP_URL=https://goodlucks.co
 
 DB_DRIVER=mysql
 DB_HOST=localhost
@@ -157,7 +157,7 @@ and search crawlers see the real listing instead of the generic site card.
 Every URL in that output is built from `APP_URL` in `api/.env`:
 
 * testing domain → `APP_URL=https://goodlucks.net`
-* permanent domain → `APP_URL=https://rent.goodlucks.co`
+* permanent domain → `APP_URL=https://goodlucks.co`
 
 Change that one value (and `VITE_SITE_URL` only if you rebuild the frontend for
 a different domain) and the property URLs, share cards, canonical tags and
@@ -172,6 +172,33 @@ curl -s -o /dev/null -w "%{http_code} %{redirect_url}\n" https://<site>/property
 curl -s "https://<site>$(curl -s https://<site>/api/properties?limit=1 | jq -r '.properties[0].path')" \
   | grep -E 'og:(title|image|url)|rel="canonical"'                          # listing's own values
 curl -s https://<site>/sitemap.xml | grep -c '<loc>'                        # canonical URLs only
+```
+
+### 5.2 Short sharing links and the property poster
+
+`RewriteRule ^p/…` (rule `2d` in the shipped `.htaccess`) sends `/p/<property-id>`
+to `api/short_link.php`, which 301s to the canonical property page — or answers
+404 for a listing that is not published. Nothing is stored for it: the id is the
+listing's own identifier, so the link survives a retitle or a price change and
+needs no table, no migration and no third-party shortener.
+
+The poster is drawn in the visitor's browser from the listing the page already
+shows, and is never stored on the server:
+
+* Share → **Share as Image** builds a 1080 × 1350 PNG, shows it for approval, and
+  offers Share / Download / Copy link / Close.
+* It needs the property photograph to be readable by the browser. Same-origin
+  photos (`/api/uploads/…`) always work. If a listing uses a third-party image
+  host, that host must send `Access-Control-Allow-Origin` or the poster falls back
+  to the designed placeholder instead of a broken image — worth checking if you
+  ever move listings to an external CDN.
+* `Share Image` uses the device share sheet with the PNG attached and the short
+  link as the caption. Browsers that cannot attach a file show the download +
+  copy-link route instead; nothing is silently dropped.
+
+```bash
+curl -s -o /dev/null -w "%{http_code} %{redirect_url}\n" https://<site>/p/<property-id>   # 301 -> /property/<slug>
+curl -s -o /dev/null -w "%{http_code}\n" https://<site>/p/does-not-exist                   # 404
 ```
 
 ---
@@ -247,16 +274,16 @@ the message now says so instead of failing silently.
 
 ```bash
 # 1. API + database connectivity
-curl -s https://rent.goodlucks.co/api/health | jq
+curl -s https://goodlucks.co/api/health | jq
 
 # 2. Public listing feed
-curl -s "https://rent.goodlucks.co/api/properties?limit=2" | jq '.total'
+curl -s "https://goodlucks.co/api/properties?limit=2" | jq '.total'
 
 # 3. Admin routes must be closed without a session
-curl -s -o /dev/null -w "%{http_code}\n" https://rent.goodlucks.co/api/admin/stats   # 401
+curl -s -o /dev/null -w "%{http_code}\n" https://goodlucks.co/api/admin/stats   # 401
 
 # 4. Deep link must return the SPA, not a 404
-curl -s -o /dev/null -w "%{http_code}\n" https://rent.goodlucks.co/browse            # 200
+curl -s -o /dev/null -w "%{http_code}\n" https://goodlucks.co/browse            # 200
 ```
 
 Then in the browser:
@@ -318,6 +345,9 @@ Local data lives in `.data/dev.sqlite` (git-ignored) and is seeded from
 
 | Symptom | Cause / fix |
 | --- | --- |
+| `/p/<id>` returns 404 for a live listing | The listing is not `published`, or `.htaccess` rule `2d` is missing so Apache answered with the SPA fallback. Re-upload `public/.htaccess`. |
+| Poster shows the grey "Photograph coming soon" panel | The listing has no image, or the image host blocks cross-origin reads (no `Access-Control-Allow-Origin`). Photos served from `api/uploads/` never hit this. |
+| "Share Image" says the browser cannot attach the file | That browser has no file sharing (Firefox desktop, older Safari). Use **Download Image** and paste the copied link — the dialog says so. |
 | `/property/<slug>` shows the generic site card when shared | `public_html/.htaccess` is missing rule `2c` (or `mod_rewrite` is off), so Apache served `index.html` directly. Re-upload `public/.htaccess`. |
 | Property share card points at the wrong domain | `APP_URL` in `api/.env` still names the other domain. Fix it; no rebuild is needed for server-rendered pages. |
 | `/property/…` returns 404 for a listing that exists | The listing is not `published` (or was removed) — that is deliberate, and the response carries `noindex` so it cannot be indexed. |
@@ -326,7 +356,7 @@ Local data lives in `.data/dev.sqlite` (git-ignored) and is seeded from
 | `500` mentioning `php_flag` | Host runs PHP-FPM; the shipped `.htaccess` already wraps `php_flag` in `<IfModule mod_php.c>`. |
 | API says "Database is not configured" | `DB_NAME` / `DB_USER` empty in `.env`, or `.env` not readable by PHP. |
 | Images upload but show a broken icon | `api/uploads/` is not writable (needs 0755, owner = PHP user). |
-| "Origin not allowed" (403) | `APP_URL` does not match the domain you browse. Set it exactly, e.g. `https://rent.goodlucks.co`. |
+| "Origin not allowed" (403) | `APP_URL` does not match the domain you browse. Set it exactly, e.g. `https://goodlucks.co`. |
 | Admin login says "access key required" | `ADMIN_ACCESS_KEY` is set in `.env`; the console requires it as the third field. |
 | Emails never arrive | No `RESEND_API_KEY` and the server's `mail()` is blocked. Add a Resend key and a verified sender domain. |
 | Email log rows sit on "Queued" | Nothing is draining the outbox: the cron entry is missing (see Step 7), or the last attempts failed — press **Send queued email now** on the Transactional Emails tab and read `email_outbox.last_error`. |

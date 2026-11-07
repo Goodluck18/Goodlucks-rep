@@ -79,7 +79,7 @@ test('query strings are parsed, not swallowed', () => {
 test('duplicate slashes, trailing slashes and absolute URLs normalise', () => {
   assert.equal(normalisePath('//properties//'), '/properties');
   assert.equal(normalisePath('/'), '/');
-  assert.equal(parseLocation('https://rent.goodlucks.co/properties').name, 'browse');
+  assert.equal(parseLocation('https://goodlucks.co/properties').name, 'browse');
   assert.equal(parseLocation('/properties/').path, '/properties');
 });
 
@@ -118,6 +118,28 @@ test('unusable property segments fall through to not-found instead of a broken p
     assert.equal(route.isKnown, false, `${url} should not be a known route`);
     assert.equal(route.name, 'not-found');
   }
+});
+
+test('/p/:id — the short sharing link — opens the same property page', () => {
+  // Share as Image puts this URL in the caption. It is the property's own id, so
+  // it survives a retitle; the property page then replaces the address bar with
+  // the canonical descriptive URL (api/short_link.php does the same with a 301).
+  const route = parseLocation('/p/prop-1');
+  assert.equal(route.name, 'property-detail');
+  assert.equal(route.params.id, 'prop-1');
+  assert.equal(route.isKnown, true);
+  assert.equal(route.path, '/p/prop-1');
+
+  // Query parameters survive, so attribution on a short link is kept.
+  assert.equal(parseLocation('/p/prop-1?utm_source=whatsapp').query.utm_source, 'whatsapp');
+
+  // Unusable short codes are refused rather than half-routed.
+  for (const url of ['/p/', '/p/a b', '/p/abc/extra', '/p/' + 'x'.repeat(260), '/p/-abc']) {
+    assert.equal(parseLocation(url).isKnown, false, `${url} should not resolve`);
+  }
+
+  // `/p` is not a role root and `/properties` is still its own page.
+  assert.equal(parseLocation('/properties').name, 'browse');
 });
 
 test('a property page cannot be reached by a role section shortcut', () => {

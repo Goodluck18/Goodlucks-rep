@@ -225,7 +225,7 @@ describe('Blog: draft, publish, schedule, unpublish', () => {
     assert.equal(publicPost.status, 200);
     assert.equal(publicPost.body.post.title, 'Publishing works');
     assert.match(publicPost.body.post.contentHtml, /This article is public\./);
-    assert.equal(publicPost.body.post.canonicalUrl, `https://rent.goodlucks.co/blog/${post.slug}`);
+    assert.equal(publicPost.body.post.canonicalUrl, `https://goodlucks.co/blog/${post.slug}`);
     assert.equal(publicPost.body.post.seoDescription, 'The meta description an editor wrote.');
 
     const index = await guest.get('/api/blog');
@@ -234,7 +234,7 @@ describe('Blog: draft, publish, schedule, unpublish', () => {
     const sitemap = await guest.get('/api/sitemap.xml', { raw: true });
     const xml = await sitemap.text();
     assert.ok(xml.includes(`/blog/${post.slug}`), 'a published article is in the sitemap');
-    assert.ok(xml.includes('<loc>https://rent.goodlucks.co/blog</loc>'), 'the Learning Centre itself is in the sitemap');
+    assert.ok(xml.includes('<loc>https://goodlucks.co/blog</loc>'), 'the Learning Centre itself is in the sitemap');
   });
 
   test('an empty article cannot be published', async () => {
@@ -560,7 +560,7 @@ describe('Blog: featured image, tags and SEO metadata', () => {
     assert.deepEqual(publicPost.body.post.tags, ['Renting', 'East Legon']);
     assert.equal(publicPost.body.post.seoTitle, 'A custom search title');
     assert.equal(publicPost.body.post.seoDescription, 'A custom search description for the article.');
-    assert.equal(publicPost.body.post.canonicalUrl, `https://rent.goodlucks.co/blog/${post.slug}`);
+    assert.equal(publicPost.body.post.canonicalUrl, `https://goodlucks.co/blog/${post.slug}`);
 
     const served = await guest.get(imageUrl, { raw: true });
     assert.equal(served.status, 200);
@@ -584,10 +584,10 @@ describe('Blog: featured image, tags and SEO metadata', () => {
     const post = await createPost({
       title: 'Linking article',
       contentHtml:
-        '<p>See <a href="/blog/another-article">another article</a> and <a href="https://rent.goodlucks.co/properties">the listings</a>.</p>',
+        '<p>See <a href="/blog/another-article">another article</a> and <a href="https://goodlucks.co/properties">the listings</a>.</p>',
     });
     assert.match(post.contentHtml, /href="\/blog\/another-article"/);
-    assert.match(post.contentHtml, /href="https:\/\/rent\.goodlucks\.co\/properties"/);
+    assert.match(post.contentHtml, /href="https:\/\/goodlucks.co\/properties"/);
   });
 });
 
@@ -681,14 +681,14 @@ describe('Blog: email templates link to published articles only', () => {
     const slugs = res.body.posts.map((item) => item.slug);
     assert.ok(slugs.includes(article.slug), 'the published article is offered');
     assert.equal(slugs.includes(draft.slug), false, 'a draft is never offered');
-    assert.match(res.body.posts.find((item) => item.slug === article.slug).url, /^https:\/\/rent\.goodlucks\.co\/blog\//);
+    assert.match(res.body.posts.find((item) => item.slug === article.slug).url, /^https:\/\/goodlucks\.co\/blog\//);
   });
 
   test('a template with a published article link saves and reaches the real email', async () => {
     const created = await admin.post('/api/admin/email-templates', {
       name: 'Renting guide in enquiry replies',
       targetType: 'enquiry_confirmation',
-      bodyHtml: `<p>Read our <a href="https://rent.goodlucks.co/blog/${article.slug}">guide to renting in Ghana</a>.</p>`,
+      bodyHtml: `<p>Read our <a href="https://goodlucks.co/blog/${article.slug}">guide to renting in Ghana</a>.</p>`,
     });
     assert.equal(created.status, 201, JSON.stringify(created.body));
     const template = created.body.template;
@@ -809,6 +809,6 @@ describe('Blog: the console view', () => {
     const res = await admin.get(`/api/admin/blog/posts/${post.id}`);
     assert.equal(res.status, 200);
     assert.match(res.body.post.contentHtml, /Only the console sees this/);
-    assert.equal(res.body.post.publicUrl, `https://rent.goodlucks.co/blog/${post.slug}`);
+    assert.equal(res.body.post.publicUrl, `https://goodlucks.co/blog/${post.slug}`);
   });
 });

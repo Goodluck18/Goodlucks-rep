@@ -2,6 +2,11 @@
 
 **Date:** 2026-11-06
 **Branch:** `arena/77e46f19-goodlucks-rep` (not merged to `main`)
+> **Domain update (2026-11-07).** The official domain is now **`goodlucks.co`**
+> (previously `rent.goodlucks.co`). The configuration described in this report —
+> `APP_URL` / `SITE_URL` / `VITE_SITE_URL` — is unchanged; only the default value
+> moved. See `docs/TASK_SHARE_AS_IMAGE_2026-11-07.md`.
+
 **Scope:** the eight corrections in the brief. No redesign, no new features, no
 dependency or infrastructure changes, no DNS / email / hosting changes.
 

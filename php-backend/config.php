@@ -115,7 +115,7 @@ define('SOCIAL_INSTAGRAM_URL', (string)cfg('SOCIAL_INSTAGRAM_URL', 'https://www.
 define('SOCIAL_LINKEDIN_URL', (string)cfg('SOCIAL_LINKEDIN_URL', 'https://www.linkedin.com/company/GoodlucksHomes'));
 define('SOCIAL_X_URL', (string)cfg('SOCIAL_X_URL', 'https://x.com/GoodlucksHomes'));
 define('SOCIAL_TIKTOK_URL', (string)cfg('SOCIAL_TIKTOK_URL', 'https://www.tiktok.com/@GoodlucksHomes'));
-define('SITE_URL', rtrim((string)cfg('APP_URL', 'https://rent.goodlucks.co'), '/'));
+define('SITE_URL', rtrim((string)cfg('APP_URL', 'https://goodlucks.co'), '/'));
 
 define('DB_DRIVER', strtolower((string)cfg('DB_DRIVER', 'mysql')));
 define('DB_HOST', (string)cfg('DB_HOST', 'localhost'));

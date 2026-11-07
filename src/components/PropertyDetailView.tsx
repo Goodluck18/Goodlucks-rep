@@ -10,8 +10,9 @@ import {
   propertyMainImage,
   propertyPath,
   propertyShareDescription,
-  RENT_PERIOD,
+  rentPeriodLabel,
 } from '../routing/propertyUrl';
+import { SharePropertyModal } from './SharePropertyModal';
 import { 
   Bed, 
   Bath, 
@@ -50,15 +51,14 @@ export const PropertyDetailView: React.FC = () => {
     savedPropertyIds, 
     toggleSaveProperty, 
     incrementPropertyViews,
-    showSuccessToast,
     navigateToProperty,
     route,
     navigate
   } = useApp();
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [showViewingModal, setShowViewingModal] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
   const [showPriceDropModal, setShowPriceDropModal] = useState(false);
-  const [copied, setCopied] = useState(false);
 
   const property =
     selectedProperty ??
@@ -134,14 +134,14 @@ export const PropertyDetailView: React.FC = () => {
     `Hello Goodlucks Homes! I am interested in this listing:\n\n` +
     `*${property.title}*\n` +
     `📍 Location: ${property.location} (${property.city})\n` +
-    `💰 Price: ${moneyLabel(property.rentGhs)}${RENT_PERIOD}\n` +
+    `💰 Price: ${moneyLabel(property.rentGhs)}${rentPeriodLabel(property)}\n` +
     `🏠 Type: ${property.bedrooms} Bed / ${property.bathrooms} Bath ${property.propertyType}\n` +
     `🔗 ${shareUrl}\n\n` +
     `Is this property currently available for a physical viewing?`
   );
   const whatsappUrl = `https://wa.me/${agentWhatsappNumber}?text=${whatsappText}`;
 
-  const pageTitle = `${property.title} (${moneyLabel(property.rentGhs)}${RENT_PERIOD}) | Goodlucks Homes`;
+  const pageTitle = `${property.title} (${moneyLabel(property.rentGhs)}${rentPeriodLabel(property)}) | Goodlucks Homes`;
   // The share description is the concise price/location line, exactly as the
   // server-rendered card has it. No "verified" claim: a listing review is not an
   // ownership check or an inspection.
@@ -188,36 +188,11 @@ export const PropertyDetailView: React.FC = () => {
     }
   };
 
-  // Native Web Share API + Clipboard fallback
-  const handleShare = async () => {
-    const shareData = {
-      title: property.title,
-      text: `Check out this rental property on Goodlucks Homes: ${property.title} in ${property.location} (${shareSummary})`,
-      url: shareUrl,
-    };
-
-    if (navigator.share) {
-      try {
-        await navigator.share(shareData);
-        showSuccessToast('Shared Successfully', 'Property link shared with your contacts!');
-      } catch (err: any) {
-        if (err.name !== 'AbortError') {
-          copyToClipboard(shareUrl);
-        }
-      }
-    } else {
-      copyToClipboard(shareUrl);
-    }
-  };
-
-  const copyToClipboard = (text: string) => {
-    if (navigator.clipboard) {
-      navigator.clipboard.writeText(text);
-      setCopied(true);
-      showSuccessToast('Link Copied', 'Property link copied to clipboard!');
-      setTimeout(() => setCopied(false), 2500);
-    }
-  };
+  // Sharing lives in one dialog now: the original link sharing is the first
+  // option there, and the branded poster is the second. Opening a dialog instead
+  // of sharing immediately is what makes both paths discoverable without
+  // changing what the link option does.
+  const handleShare = () => setShowShareModal(true);
 
   // Find similar properties in same city/location, budget range or property type
   const similarProperties = properties.filter(p => {
@@ -257,10 +232,11 @@ export const PropertyDetailView: React.FC = () => {
           <button
             onClick={handleShare}
             className="p-2.5 rounded-xl bg-page hover:bg-page text-ink/70 hover:text-ink transition-colors text-sm flex items-center gap-1.5"
-            title="Share listing via Web Share"
+            title="Share this property"
+            aria-haspopup="dialog"
           >
             <Share2 className="w-4 h-4 text-ink" />
-            <span className="hidden sm:inline text-xs font-semibold">{copied ? 'Copied Link!' : 'Share'}</span>
+            <span className="hidden sm:inline text-xs font-semibold">Share</span>
           </button>
 
           <button
@@ -667,6 +643,13 @@ export const PropertyDetailView: React.FC = () => {
           <span className="text-xs font-black tracking-tight leading-tight">Message on WhatsApp</span>
         </div>
       </a>
+
+      {/* Share dialog: link sharing and the branded poster */}
+      <SharePropertyModal
+        property={property}
+        isOpen={showShareModal}
+        onClose={() => setShowShareModal(false)}
+      />
 
       {/* Viewing Modal */}
       {showViewingModal && (

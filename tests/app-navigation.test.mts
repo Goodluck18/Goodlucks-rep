@@ -30,7 +30,7 @@ process.on('unhandledRejection', (reason) => {
 });
 
 const window = new Window({
-  url: 'https://rent.goodlucks.co/',
+  url: 'https://goodlucks.co/',
   settings: { disableJavaScriptEvaluation: true, disableCSSFileLoading: true },
 });
 
@@ -1268,8 +1268,8 @@ function blogArticle(overrides: Record<string, unknown> = {}) {
     subtitle: 'A short, honest tour of what is actually on the market this month.',
     slug: 'top-available-properties-east-legon',
     url: '/blog/top-available-properties-east-legon',
-    absoluteUrl: 'https://rent.goodlucks.co/blog/top-available-properties-east-legon',
-    canonicalUrl: 'https://rent.goodlucks.co/blog/top-available-properties-east-legon',
+    absoluteUrl: 'https://goodlucks.co/blog/top-available-properties-east-legon',
+    canonicalUrl: 'https://goodlucks.co/blog/top-available-properties-east-legon',
     featuredImage: '/api/uploads/gl-20260101-abc123.png',
     featuredImageAlt: 'A courtyard in East Legon',
     category: { id: 'cat-tenant', name: 'Tenant Guides', slug: 'tenant-guides', description: '' },
@@ -1377,7 +1377,7 @@ test('opening an article shows its content, author, dates and live listing cards
 
   // SEO: canonical URL, social tags and structured data, all for this article.
   const canonical = app.container.ownerDocument.querySelector('link[rel="canonical"]');
-  assert.equal(canonical?.getAttribute('href'), 'https://rent.goodlucks.co/blog/top-available-properties-east-legon');
+  assert.equal(canonical?.getAttribute('href'), 'https://goodlucks.co/blog/top-available-properties-east-legon');
   const jsonLd = [...app.container.ownerDocument.querySelectorAll('script[type="application/ld+json"]')]
     .map((node) => node.textContent ?? '')
     .join('\n');
@@ -1504,4 +1504,105 @@ test('every public page and dashboard renders on the light system', async () => 
 
     await app.unmount();
   }
+});
+
+/* -------------------------------------------------------------------------- */
+/* Share Property as Image                                                    */
+/* -------------------------------------------------------------------------- */
+
+/** A published listing with a photograph — the share dialog's happy path. */
+const SHAREABLE_LISTING = {
+  ...LANDLORD_LISTING,
+  id: 'prop-share',
+  title: 'Harbour View Three Bedroom Apartment',
+  location: 'Cantonments',
+  rentGhs: 6500,
+  images: ['https://images.example.com/gl-share.jpg'],
+  viewingTerms: undefined,
+};
+
+/** Find a button/link inside the open dialog by its visible text. */
+function controlContaining(root: Element | Document, label: string): HTMLElement | null {
+  return (
+    ([...root.querySelectorAll('button, a, [role="button"]')] as HTMLElement[]).find((element) =>
+      (element.textContent ?? '').toLowerCase().includes(label.toLowerCase())
+    ) ?? null
+  );
+}
+
+test('the Share button offers link sharing and a branded poster, and link sharing still works', async () => {
+  const copied: string[] = [];
+  const clipboard = window.navigator.clipboard as unknown as { writeText: (text: string) => Promise<void> };
+  clipboard.writeText = async (text: string) => {
+    copied.push(text);
+  };
+
+  const app = await renderAt('/property/prop-share', null, { properties: [SHAREABLE_LISTING] });
+  assert.match(app.text(), /Harbour View Three Bedroom Apartment/);
+
+  // The Share control opens the dialog rather than firing the old one-shot share.
+  const shareButton = app.container.querySelector('button[title="Share this property"]') as HTMLElement | null;
+  assert.ok(shareButton, 'the Share button is still on the property page');
+  await act(async () => {
+    shareButton!.dispatchEvent(new window.MouseEvent('click', { bubbles: true }) as unknown as Event);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+
+  const dialog = app.container.querySelector('#share-property-modal');
+  assert.ok(dialog, 'the share dialog opens');
+
+  // Both options exist; the original one is first and unchanged.
+  const linkOption = controlContaining(dialog!, 'Share Property Link');
+  const imageOption = controlContaining(dialog!, 'Share as Image');
+  assert.ok(linkOption, 'Share Property Link is offered');
+  assert.ok(imageOption, 'Share as Image is offered');
+
+  // Choosing the link still copies the canonical property URL (this DOM has no
+  // share sheet, so the clipboard is the documented fallback).
+  await act(async () => {
+    linkOption!.dispatchEvent(new window.MouseEvent('click', { bubbles: true }) as unknown as Event);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+  assert.equal(copied.length, 1, 'the link was copied');
+  assert.match(copied[0], /\/property\/harbour-view-three-bedroom-apartment-cantonments-prop-share$/);
+  assert.match(document.body.textContent ?? '', /Link Copied/);
+
+  await app.unmount();
+});
+
+test('Share as Image refuses to invent a poster when the browser cannot draw one', async () => {
+  // This DOM has no 2D canvas, which is the same situation as an old browser.
+  // The dialog must say so and keep the link option available — never show a
+  // blank preview or fail silently.
+  const app = await renderAt('/property/prop-share', null, { properties: [SHAREABLE_LISTING] });
+  const shareButton = app.container.querySelector('button[title="Share this property"]') as HTMLElement | null;
+  assert.ok(shareButton);
+  await act(async () => {
+    shareButton!.dispatchEvent(new window.MouseEvent('click', { bubbles: true }) as unknown as Event);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+  const dialog = app.container.querySelector('#share-property-modal');
+  assert.ok(dialog);
+
+  const imageOption = controlContaining(dialog!, 'Share as Image');
+  await act(async () => {
+    imageOption!.dispatchEvent(new window.MouseEvent('click', { bubbles: true }) as unknown as Event);
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  });
+
+  const after = app.container.querySelector('#share-property-modal');
+  assert.ok(after, 'the dialog stays open');
+  assert.equal(after!.querySelectorAll('img[width="1080"]').length, 0, 'no blank poster is shown');
+  assert.match(after!.textContent ?? '', /cannot (draw|create) the poster|Try again/i);
+  // The visitor is not stranded: the dialog offers a retry and a way back.
+  assert.ok(controlContaining(after!, 'Try again'));
+  assert.ok(controlContaining(after!, 'Back'));
+  await app.unmount();
+});
+
+test('the poster is not generated just by opening a property page', async () => {
+  const app = await renderAt('/property/prop-share', null, { properties: [SHAREABLE_LISTING] });
+  assert.equal(app.container.querySelector('#share-property-modal'), null);
+  assert.equal(app.container.querySelectorAll('img[width="1080"]').length, 0);
+  await app.unmount();
 });

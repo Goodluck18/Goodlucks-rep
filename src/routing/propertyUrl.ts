@@ -84,6 +84,37 @@ export function propertyCanonicalUrl(property: SlugSource): string {
 }
 
 /**
+ * The short, permanent sharing address of a listing: `/p/{id}`.
+ *
+ * The id is the property's own stable public identifier — the same value that
+ * already sits at the end of the canonical slug. Reusing it (rather than
+ * minting a second code) is what makes the short link survive a retitle, a
+ * price change or a location correction, needs no extra column, and cannot
+ * drift out of sync with the listing it points at. `php-backend/lib/property_url.php`
+ * builds the identical path, and `api/short_link.php` resolves it server-side
+ * with the same visibility rule as the property page.
+ */
+export function propertyShortPath(property: { id: string }): string {
+  return `/p/${encodeURIComponent(property.id)}`;
+}
+
+/** The absolute short sharing URL of a listing (`https://…/p/prop-1`). */
+export function propertyShortUrl(property: { id: string }): string {
+  return `${SITE_ORIGIN}${propertyShortPath(property)}`;
+}
+
+/**
+ * Whether a listing may be shared at all.
+ *
+ * Mirrors `property_is_public()` on the server: only a published listing has a
+ * page, a share card or a poster. Anything else (pending review, archived,
+ * deleted) must not be turned into an image or a link.
+ */
+export function propertyIsShareable(property: { status?: string }): boolean {
+  return property.status === 'active';
+}
+
+/**
  * The listing a `/property/<segment>` URL points at.
  *
  * Accepts the bare id (`prop-1`) and any slug ending in it
@@ -133,8 +164,31 @@ export function moneyLabel(amount: number): string {
   return `GH₵ ${decimals ? `${grouped}.${decimals}` : grouped}`;
 }
 
-/** Every rent on the platform is quoted per month (see `rent_ghs`). */
-export const RENT_PERIOD = '/month';
+/**
+ * Payment periods, as the listing stores them.
+ *
+ * The catalogue keeps one number — `rentGhs` — and a period key. Today every
+ * listing on the platform is quoted **per month**, which is why `RENT_PERIOD`
+ * is the default; but the label is always derived from the record via
+ * `rentPeriodLabel()` so a yearly, weekly or daily listing would print its own
+ * period instead of being mislabelled as monthly. PHP mirrors this in
+ * `property_rent_period()`.
+ */
+export const RENT_PERIOD_SUFFIX: Record<string, string> = {
+  month: '/month',
+  year: '/year',
+  week: '/week',
+  day: '/day',
+};
+
+/** The default period, used when a record carries none. */
+export const RENT_PERIOD = RENT_PERIOD_SUFFIX.month;
+
+/** `/month`, `/year`, … for this listing (never assumed from the price alone). */
+export function rentPeriodLabel(property: { rentPeriod?: string }): string {
+  const key = (property.rentPeriod ?? '').trim().toLowerCase();
+  return RENT_PERIOD_SUFFIX[key] ?? RENT_PERIOD;
+}
 
 /**
  * The one-line share description used under the photograph:
@@ -144,6 +198,7 @@ export function propertyShareDescription(property: {
   rentGhs: number;
   location?: string;
   city?: string;
+  rentPeriod?: string;
 }): string {
   const location = (property.location ?? '').trim();
   const city = (property.city ?? '').trim();
@@ -151,7 +206,7 @@ export function propertyShareDescription(property: {
   if (city && !location.toLowerCase().includes(city.toLowerCase())) {
     place = location ? `${location}, ${city}` : city;
   }
-  return `${moneyLabel(property.rentGhs)}${RENT_PERIOD} · ${place || 'Ghana'}`;
+  return `${moneyLabel(property.rentGhs)}${rentPeriodLabel(property)} · ${place || 'Ghana'}`;
 }
 
 /**
@@ -163,13 +218,31 @@ export function propertyShareDescription(property: {
  * preview.
  */
 export function propertyMainImage(property: { images?: string[] }): string {
+  return propertyPrimaryPhoto(property) ?? DEFAULT_SHARE_IMAGE;
+}
+
+/**
+ * The listing's own primary photograph as an absolute URL, or `null` when the
+ * record has no usable image.
+ *
+ * Same selection rules as `propertyMainImage()` — first usable entry wins, a
+ * relative upload path is made absolute, protocol-relative and traversal-looking
+ * values are skipped — but a listing with no photograph reports the absence
+ * instead of silently borrowing the site's default share card. The poster uses
+ * this so a photoless listing gets the designed placeholder panel rather than a
+ * different graphic that pretends to be the property.
+ */
+export function propertyPrimaryPhoto(property: { images?: string[] }): string | null {
   const images = Array.isArray(property.images) ? property.images : [];
   for (const candidate of images) {
     if (typeof candidate !== 'string') continue;
     const url = candidate.trim();
     if (!url || url.startsWith('//') || url.includes('..')) continue;
     if (/^https?:\/\//i.test(url)) return url;
+    // Any other scheme (`data:`, `blob:`, `javascript:`, `file:`) is not a
+    // photograph of this property and is never turned into a URL we then load.
+    if (/^[a-z][a-z0-9+.-]*:/i.test(url)) continue;
     return `${SITE_ORIGIN}/${url.replace(/^\/+/, '')}`;
   }
-  return DEFAULT_SHARE_IMAGE;
+  return null;
 }

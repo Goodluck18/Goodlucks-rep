@@ -1,4 +1,10 @@
 # goodlucks.net — live site audit
+>
+> **Domain update (2026-11-07).** The official Goodlucks Homes domain is now
+> **`goodlucks.co`**; `rent.goodlucks.co` is retired. References to the old domain
+> below are kept as the record of what the live site served on the date of this
+> audit. Nothing in the application is pinned to a domain — it is configured
+> through `APP_URL`, so the testing deployment keeps its own domain.
 
 **Date:** 6 November 2026 · **Checked:** https://goodlucks.net (live), plus DNS, `robots.txt`, `sitemap.xml` and page metadata.
 **Method:** pages fetched and rendered server-side (HTML + rendered DOM), DNS/records queried directly, metadata read from the live DOM. **No browser was available in this environment** — see §6 for what that means.
