@@ -17,12 +17,15 @@
  *      This keeps the testing deployment (`goodlucks.net`) sharing and
  *      canonicalising its own domain instead of the permanent one, without a
  *      second build.
- *   3. The permanent domain, as a last-resort default for local/offline runs.
+ *   3. The official production domain, as a last-resort default for local or
+ *      offline runs.
  *
- * The permanent-domain strategy itself is unchanged: `rent.goodlucks.co`
- * remains the default and the intended home of the site.
+ * The official domain of Goodlucks Homes is `goodlucks.co`; the site is still
+ * being tested on a separate domain, and `APP_URL` / `VITE_SITE_URL` are what
+ * switch between them. Neither value belongs in a component, a poster or a
+ * share caption — everything reads from here or from `SITE_URL` in the backend.
  */
-const PERMANENT_ORIGIN = 'https://rent.goodlucks.co';
+const PERMANENT_ORIGIN = 'https://goodlucks.co';
 
 /** Hosts that are never a canonical origin (local dev, file previews). */
 const LOCAL_ORIGIN = /^https?:\/\/(?:localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])(?::\d+)?$/i;
@@ -43,12 +46,12 @@ function resolveSiteOrigin(): string {
 
 export const SITE_ORIGIN = resolveSiteOrigin();
 
-/** The host shown to users and in share cards (`rent.goodlucks.co`). */
+/** The host shown to users and in share cards (`goodlucks.co`). */
 export function siteHost(): string {
   try {
     return new URL(SITE_ORIGIN).host;
   } catch {
-    return 'rent.goodlucks.co';
+    return 'goodlucks.co';
   }
 }
 

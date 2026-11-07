@@ -3412,7 +3412,7 @@ describe('Match scoring, notifications & SEO', () => {
     assert.ok(res.body.raw ? res.body.raw.includes('<urlset') : true);
 
     const xml = res.body.raw;
-    assert.ok(xml.includes('https://rent.goodlucks.co/'));
+    assert.ok(xml.includes('https://goodlucks.co/'));
     // The sitemap must advertise the routes the app actually serves
     // (src/routing/routes.ts). /browse and /find-home were never real pages.
     assert.ok(xml.includes('/properties'));

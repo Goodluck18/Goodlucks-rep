@@ -3,6 +3,7 @@ User-agent: *
 Allow: /
 Allow: /browse
 Allow: /property/
+Allow: /p/
 Allow: /find-home
 Allow: /about
 
@@ -13,4 +14,4 @@ Disallow: /*?admin=*
 Disallow: /*#admin*
 
 # XML Sitemap for Search Engine Crawlers
-Sitemap: https://rent.goodlucks.co/sitemap.xml
+Sitemap: https://goodlucks.co/sitemap.xml

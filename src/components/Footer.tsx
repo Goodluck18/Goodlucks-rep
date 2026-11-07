@@ -1,6 +1,22 @@
 import React from 'react';
 import { useApp } from '../context/AppContext';
 import { Building2, Mail, Phone, Instagram, Linkedin, Twitter, Facebook, Music2, ShieldCheck } from 'lucide-react';
+import { BRAND_CONTACT, BRAND_HANDLE, BRAND_SOCIALS } from '../config/brand';
+
+/**
+ * The platform icons, keyed by the account name in `BRAND_SOCIALS`.
+ *
+ * The handle and the URLs live in `src/config/brand.ts` because the property
+ * poster draws the same account on a canvas; one source keeps the footer and the
+ * poster from ever advertising different accounts.
+ */
+const SOCIAL_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
+  Instagram,
+  TikTok: Music2,
+  LinkedIn: Linkedin,
+  X: Twitter,
+  Facebook,
+};
 
 export const Footer: React.FC = () => {
   const { setCurrentView, navigate } = useApp();
@@ -44,72 +60,43 @@ export const Footer: React.FC = () => {
         {/* Direct Contact Info */}
         <div className="flex flex-wrap justify-center items-center gap-6 text-sm font-medium text-ink pt-2">
           <a 
-            href="mailto:rentals@goodlucks.co" 
+            href={`mailto:${BRAND_CONTACT.email}`} 
             className="gl-link flex items-center gap-2 text-ink"
           >
             <Mail className="w-4 h-4 text-interactive-text" />
-            rentals@goodlucks.co
+            {BRAND_CONTACT.email}
           </a>
           <a 
-            href="tel:+233237690080" 
+            href={BRAND_CONTACT.phoneHref} 
             className="gl-link flex items-center gap-2 text-ink"
           >
             <Phone className="w-4 h-4 text-interactive-text" />
-            +233 23 769 0080
+            {BRAND_CONTACT.phone}
           </a>
         </div>
 
         {/* Social Media Icons & Handle */}
         <div className="flex flex-col items-center gap-2 pt-2">
           <span className="text-xs font-semibold text-ink">
-            @GoodlucksHomes
+            {BRAND_HANDLE}
           </span>
           <div className="flex items-center gap-3 text-ink/70">
-            <a 
-              href="https://www.instagram.com/GoodlucksHomes" 
-              target="_blank" 
-              rel="noopener noreferrer" 
-              className="p-2 rounded-lg border border-line bg-surface text-ink hover:border-interactive hover:bg-interactive/15 transition-colors" 
-              title="Instagram @GoodlucksHomes"
-            >
-              <Instagram className="w-5 h-5" />
-            </a>
-            <a
-              href="https://www.tiktok.com/@GoodlucksHomes"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="p-2 rounded-lg border border-line bg-surface text-ink hover:border-interactive hover:bg-interactive/15 transition-colors"
-              title="TikTok @GoodlucksHomes"
-            >
-              <Music2 className="w-5 h-5" />
-            </a>
-            <a 
-              href="https://www.linkedin.com/company/GoodlucksHomes" 
-              target="_blank" 
-              rel="noopener noreferrer" 
-              className="p-2 rounded-lg border border-line bg-surface text-ink hover:border-interactive hover:bg-interactive/15 transition-colors" 
-              title="LinkedIn @GoodlucksHomes"
-            >
-              <Linkedin className="w-5 h-5" />
-            </a>
-            <a 
-              href="https://x.com/GoodlucksHomes" 
-              target="_blank" 
-              rel="noopener noreferrer" 
-              className="p-2 rounded-lg border border-line bg-surface text-ink hover:border-interactive hover:bg-interactive/15 transition-colors" 
-              title="X / Twitter @GoodlucksHomes"
-            >
-              <Twitter className="w-5 h-5" />
-            </a>
-            <a 
-              href="https://www.facebook.com/GoodlucksHomes" 
-              target="_blank" 
-              rel="noopener noreferrer" 
-              className="p-2 rounded-lg border border-line bg-surface text-ink hover:border-interactive hover:bg-interactive/15 transition-colors" 
-              title="Facebook @GoodlucksHomes"
-            >
-              <Facebook className="w-5 h-5" />
-            </a>
+            {BRAND_SOCIALS.map((social) => {
+              const Icon = SOCIAL_ICONS[social.name] ?? ShieldCheck;
+              return (
+                <a
+                  key={social.name}
+                  href={social.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="p-2 rounded-lg border border-line bg-surface text-ink hover:border-interactive hover:bg-interactive/15 transition-colors"
+                  title={`${social.name} ${social.handle}`}
+                  aria-label={`${social.name} ${social.handle}`}
+                >
+                  <Icon className="w-5 h-5" />
+                </a>
+              );
+            })}
           </div>
         </div>
 

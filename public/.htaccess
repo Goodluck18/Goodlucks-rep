@@ -27,6 +27,12 @@ DirectoryIndex index.html index.php
     #     old id-only links (/property/prop-1) to the canonical descriptive URL.
     RewriteRule ^property/([A-Za-z0-9._-]+)/?$ api/property_page.php [L,QSA]
 
+    # 2d. The short sharing link (/p/<property-id>) redirects to the canonical
+    #     property page. The id is the listing's own stable identifier, so the
+    #     link keeps working when the title or price changes, and the resolver
+    #     applies the same visibility rule as the property page itself.
+    RewriteRule ^p/([A-Za-z0-9_-]+)/?$ api/short_link.php [L,QSA]
+
     # 3. Real files and directories (JS, CSS, images, uploads) are served as-is.
     RewriteCond %{REQUEST_FILENAME} -f [OR]
     RewriteCond %{REQUEST_FILENAME} -d

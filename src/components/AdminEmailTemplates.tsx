@@ -309,7 +309,7 @@ export const AdminEmailTemplates: React.FC<Props> = ({ notify }) => {
                 ref={bodyRef}
                 defaultValue={editing === 'new' ? '' : editing.bodyHtml}
                 rows={10}
-                placeholder={'<p>Read our <a href="https://rent.goodlucks.co/blog/…">guide to renting in Ghana</a>.</p>'}
+                placeholder={'<p>Read our <a href="https://goodlucks.co/blog/…">guide to renting in Ghana</a>.</p>'}
                 className="w-full bg-page border border-line rounded-xl px-3 py-2 text-xs font-mono text-ink"
               />
               {fieldErrors.bodyHtml ? (

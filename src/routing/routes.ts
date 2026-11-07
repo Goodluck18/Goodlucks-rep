@@ -359,6 +359,29 @@ export function parseLocation(rawUrl: string): RouteState {
     return { name: 'not-found', path: pathname, params: {}, query, isKnown: false };
   }
 
+  /**
+   * /p/<id> — the short sharing link.
+   *
+   * The server 301s this to the canonical property URL before the app ever
+   * boots (api/short_link.php). This branch keeps the short link working in the
+   * app too — for a client-side navigation, or a host that does not run the
+   * shipped .htaccess — by resolving it to the same property page, which then
+   * replaces the address bar with the canonical URL.
+   */
+  if (segments[0] === 'p' && segments.length === 2) {
+    const code = segments[1];
+    if (PROPERTY_SEGMENT.test(code) && !code.endsWith('-')) {
+      return {
+        name: 'property-detail',
+        path: `/p/${code}`,
+        params: { id: code },
+        query,
+        isKnown: true,
+      };
+    }
+    return { name: 'not-found', path: pathname, params: {}, query, isKnown: false };
+  }
+
   // /blog — the Learning Centre index, and /blog/<slug> — one article.
   if (segments[0] === 'blog') {
     if (segments.length === 1) {

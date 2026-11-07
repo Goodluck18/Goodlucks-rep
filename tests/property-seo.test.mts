@@ -33,7 +33,10 @@ import {
   propertyMainImage,
   propertyPath,
   propertyShareDescription,
+  propertyShortPath,
+  propertyShortUrl,
   propertySlug,
+  rentPeriodLabel,
 } from '../src/routing/propertyUrl.ts';
 
 const projectRoot = path.resolve(import.meta.dirname, '..');
@@ -226,6 +229,12 @@ describe('Descriptive property URLs', () => {
     assert.equal(found.path, propertyPath(found));
     assert.equal(found.slug, propertySlug(found));
     assert.equal(found.url, `${APP_URL}${propertyPath(found)}`);
+    // The short sharing link and the payment period travel with the listing, so
+    // the poster and the share caption never have to guess either.
+    assert.equal(found.shortPath, `/p/${found.id}`);
+    assert.equal(found.shortUrl, `${APP_URL}/p/${found.id}`);
+    assert.equal(found.rentPeriod, 'month');
+    assert.equal(rentPeriodLabel(found), '/month');
   });
 
   test('the API resolves a descriptive slug as well as a bare id', async () => {
@@ -380,6 +389,70 @@ describe('Old URLs redirect to the canonical URL', () => {
 });
 
 /* -------------------------------------------------------------------------- */
+/* Short sharing links (/p/{id})                                              */
+/* -------------------------------------------------------------------------- */
+
+describe('Short links resolve to the canonical property page', () => {
+  test('/p/{id} redirects 301 to the descriptive URL', async () => {
+    const res = await guest.request('GET', `/p/${state.twinA.id}`, { raw: true });
+    assert.equal(res.status, 301);
+    assert.equal(res.headers.get('location'), propertyPath(state.twinA));
+    // The short link the browser builds is the one the server serves.
+    assert.equal(propertyShortPath(state.twinA), `/p/${state.twinA.id}`);
+  });
+
+  test('the short link keeps the query string and survives a retitle', async () => {
+    const retitled = await admin.put(`/api/properties/${state.twinB.id}`, {
+      title: 'Renamed Twin Listing',
+      location: 'East Legon',
+      rentGhs: 3900,
+      images: state.twinB.images,
+      description: state.twinB.description,
+    });
+    assert.equal(retitled.status, 200, JSON.stringify(retitled.body));
+
+    const res = await guest.request('GET', `/p/${state.twinB.id}?utm_source=whatsapp&ref=poster`, { raw: true });
+    assert.equal(res.status, 301);
+    const location = res.headers.get('location');
+    assert.equal(location, `${propertyPath(retitled.body.property)}?utm_source=whatsapp&ref=poster`);
+    assert.ok(location.includes(state.twinB.id), 'the id is unchanged after a retitle');
+
+    // It points at the canonical URL, which then answers 200 without a loop.
+    const canonical = await guest.request('GET', propertyPath(retitled.body.property), { raw: true });
+    assert.equal(canonical.status, 200);
+  });
+
+  test('an unknown short code is a real 404 and is not indexed', async () => {
+    const res = await guest.request('GET', '/p/not-a-real-listing-zzzz', { raw: true });
+    assert.equal(res.status, 404);
+    const html = await res.text();
+    assert.equal(metaContent(html, 'robots'), 'noindex, follow');
+    assert.notEqual(metaContent(html, 'og:url'), `${APP_URL}${propertyPath(state.twinA)}`);
+  });
+
+  test('an unpublished listing cannot be reached through its short link', async () => {
+    const pending = await createProperty({
+      title: 'Pending Short Link Apartment',
+      location: 'Spintex',
+      rentGhs: 2600,
+      images: ['/api/uploads/pending-short.jpg'],
+      status: 'pending',
+    });
+    const res = await guest.request('GET', `/p/${pending.id}`, { raw: true });
+    assert.equal(res.status, 404);
+    const html = await res.text();
+    assert.equal(metaContent(html, 'robots'), 'noindex, follow');
+  });
+
+  test('a malformed short code is refused', async () => {
+    for (const code of ['a..b', 'a%20b']) {
+      const res = await guest.request('GET', `/p/${code}`, { raw: true });
+      assert.equal(res.status, 404, code);
+    }
+  });
+});
+
+/* -------------------------------------------------------------------------- */
 /* Sitemap                                                                    */
 /* -------------------------------------------------------------------------- */
 
@@ -427,7 +500,7 @@ describe('Sitemap uses the canonical property URLs', () => {
 
 describe('The server and the browser agree on every slug', () => {
   test('PHP and TypeScript produce identical slugs, descriptions and images', () => {
-    const fixtures = [
+    const fixtures: Array<Record<string, any>> = [
       { id: 'prop-1', title: '3-Bedroom Apartment in East Legon', location: 'East Legon', city: 'Accra', rent_ghs: 4500, images: ['/api/uploads/a.jpg'] },
       { id: 'prop-10', title: 'Café "Résidence" & Suites!!', location: 'Airport Residential Area', city: 'Accra', rent_ghs: 6500.5, images: [] },
       { id: 'prop-2b', title: 'THE  Pearl — Executive', location: 'Cantonments', city: 'Accra', rent_ghs: 9000, images: ['https://cdn.example.com/x.jpg'] },
@@ -453,6 +526,7 @@ describe('The server and the browser agree on every slug', () => {
         city: fixture.city,
         rentGhs: fixture.rent_ghs,
         images: fixture.images,
+        rentPeriod: fixture.rent_period,
       };
 
       assert.equal(php.slug, propertySlug(tsProperty), `slug differs for ${fixture.id}`);
@@ -481,6 +555,11 @@ describe('The server and the browser agree on every slug', () => {
         assert.equal(php.image, `${APP_URL}/og-image.jpg`, `fallback image expected (${fixture.id})`);
         assert.ok(tsImage.endsWith('/og-image.jpg'), `the browser must fall back too (${fixture.id})`);
       }
+      // Share-as-image parity: the short link and the payment period the poster
+      // prints come from the same rules on both sides.
+      assert.equal(php.short_path, propertyShortPath(tsProperty), `short path differs for ${fixture.id}`);
+      assert.equal(php.short_url, `${APP_URL}/p/${fixture.id}`, `short URL differs for ${fixture.id}`);
+      assert.equal(php.rent_period, rentPeriodLabel(tsProperty), `period differs for ${fixture.id}`);
       assert.equal(php.title, fixture.title.trim());
     }
   });
