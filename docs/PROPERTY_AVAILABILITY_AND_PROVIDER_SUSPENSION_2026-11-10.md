@@ -376,7 +376,8 @@ package.json                                   (test:availability + suite regist
 docs/PROPERTY_AVAILABILITY_AND_PROVIDER_SUSPENSION_2026-11-10.md (this report)
 ```
 
-The commit message records the same summary; see the branch head for the exact hash.
+Commit: **`6d2ba24`** — *"Seven-day property availability renewal, activity monitoring and provider suspension"*,
+pushed to `origin/arena/40f19dd4-goodlucks-rep` (`a26eb47..6d2ba24`).
 
 ---
 
