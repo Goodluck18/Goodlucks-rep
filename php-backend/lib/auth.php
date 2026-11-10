@@ -339,6 +339,17 @@ function public_user(array $row): array
     if ($providerCategory !== null) {
         $user['providerCategory'] = $providerCategory;
         $user['classificationRequired'] = $providerCategory === 'pending';
+
+        // Verification is mandatory before listing, so the client is told the
+        // answer instead of inferring it. The value is derived on the server from
+        // the stored records; it is not a client-side flag.
+        if (function_exists('provider_listing_state')) {
+            $listing = provider_listing_state($row);
+            $user['canListProperties'] = $listing['canList'];
+            $user['listingBlockedReason'] = $listing['reason'];
+            $user['identityVerificationStatus'] = $listing['identityStatus'];
+            $user['verifiedLabel'] = $listing['verifiedLabel'];
+        }
     }
 
     // Increment C: an agent account carries its own profile (agency, operating

@@ -266,6 +266,56 @@ export const ListPropertyView: React.FC<ListPropertyViewProps> = ({ onOpenAuth }
     );
   }
 
+  // Verification is mandatory before listing. An account that has not chosen
+  // Agent/Landlord, whose identity is not approved, or that is suspended cannot
+  // submit — the server refuses it as well — so the form is replaced by the rule
+  // and the way to satisfy it.
+  if (currentUser.canListProperties === false) {
+    return (
+      <div className="min-h-[80vh] bg-surface text-ink py-12 px-4 flex items-center justify-center">
+        <SEOHead
+          title="Verification Required to List - Agent/Landlord | Goodlucks Homes"
+          description="Identity verification is required before an Agent or Landlord account can list property on Goodlucks Homes."
+        />
+        <div className="max-w-xl w-full bg-surface border border-amber-500/30 rounded-2xl p-6 sm:p-10 text-center space-y-5 shadow-lg">
+          <div className="w-16 h-16 rounded-2xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center mx-auto">
+            <ShieldAlert className="w-8 h-8 text-amber-700" />
+          </div>
+          <div className="space-y-2">
+            <span className="px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/25 text-[11px] font-extrabold uppercase tracking-wider text-ink">
+              Verification required
+            </span>
+            <h1 className="text-2xl font-black text-ink tracking-tight">Verify your identity to list</h1>
+            <p className="text-sm text-ink/70 leading-relaxed max-w-md mx-auto">
+              {currentUser.listingBlockedReason === 'classification_required'
+                ? 'Choose whether you are an Agent or a Landlord first — it is the first step of verification.'
+                : currentUser.identityVerificationStatus === 'pending_review' ||
+                    currentUser.identityVerificationStatus === 'under_review'
+                  ? 'Your identity verification is waiting for review. Listing opens as soon as it is approved.'
+                  : currentUser.identityVerificationStatus === 'rejected' ||
+                      currentUser.identityVerificationStatus === 'resubmission_required'
+                    ? 'Your identity verification was not approved. Correct it and resubmit to start listing properties.'
+                    : 'Complete your identity verification to start listing properties on Goodlucks Homes.'}
+            </p>
+          </div>
+          <div className="bg-page rounded-2xl border border-line p-4 text-left text-[11px] text-ink/70 space-y-1.5">
+            <div className="font-bold text-ink">What listing requires</div>
+            <div>1. An Agent or Landlord classification.</div>
+            <div>2. An approved Ghana Card identity verification.</div>
+            <div>3. Goodlucks staff approval — then the submission form opens.</div>
+          </div>
+          <button
+            type="button"
+            onClick={() => navigate(currentRole === 'landlord' ? '/landlord/verification' : '/agent/verification')}
+            className="gl-btn gl-btn-primary w-full py-3 text-sm"
+          >
+            Go to verification
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   // An Agent/Landlord account that has not yet said which it is cannot submit a
   // listing (the server refuses it too). Send it to that one question instead of
   // showing a form that cannot be used.

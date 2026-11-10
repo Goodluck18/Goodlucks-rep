@@ -169,6 +169,24 @@ export interface VerificationSummary {
    */
   providerCategory?: 'agent' | 'landlord' | 'pending' | null;
   classificationRequired?: boolean;
+  /** The account's professional classification, derived from the stored choice. */
+  classification?: 'agent' | 'landlord' | 'pending' | null;
+  /** True for a landlord account, so the form can ask for an operating location. */
+  isLandlord?: boolean;
+  /** The city or area the account operates from (prefills a landlord's verification). */
+  operatingLocation?: string;
+  /**
+   * The listing rule, straight from the server: verification is mandatory before
+   * a property can be submitted.
+   */
+  listing?: {
+    canList: boolean;
+    reason: string | null;
+    message: string;
+    identityStatus: string;
+    identityApproved: boolean;
+    verifiedLabel: string | null;
+  };
   encryptionActive: boolean;
   retentionDays: number;
   documentTypes: Array<{ value: string; label: string }>;
@@ -282,6 +300,18 @@ export interface User {
   providerCategory?: 'agent' | 'landlord' | 'pending' | null;
   /** True while an Agent/Landlord account still has to choose its classification. */
   classificationRequired?: boolean;
+  /**
+   * Whether this Agent/Landlord account may submit listings. Verification is
+   * mandatory, so this is true only once an identity verification has been
+   * approved (and the account is not suspended). Server-derived.
+   */
+  canListProperties?: boolean;
+  /** Why listing is closed: classification_required | identity_* | suspended. */
+  listingBlockedReason?: string | null;
+  /** 'not_submitted' | 'pending_review' | 'under_review' | 'approved' | ... */
+  identityVerificationStatus?: string;
+  /** 'Verified Landlord' | 'Verified Agent Tier 1' | 'Verified Agent Tier 2' | null. */
+  verifiedLabel?: string | null;
   /** Present only on agent accounts (Increment C). */
   agentProfile?: AgentProfile | null;
   /** Present only on administrator accounts (Increment D). */

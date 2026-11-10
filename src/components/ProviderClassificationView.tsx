@@ -53,8 +53,9 @@ export const ProviderClassificationView: React.FC = () => {
             </h1>
             <p className="text-xs sm:text-sm text-ink/70 leading-relaxed max-w-lg mx-auto">
               You registered an <strong>Agent/Landlord account</strong>
-              {currentUser?.name ? `, ${currentUser.name}` : ''}. Tell us which one you are, and this same account is
-              verified as that. It is not a new sign-up, and you stay signed in.
+              {currentUser?.name ? `, ${currentUser.name}` : ''}. Tell us which one you are, then complete the Ghana Card
+              verification that follows. Listing properties opens once staff approve it — it is not a new sign-up, and
+              you stay signed in.
             </p>
           </div>
 

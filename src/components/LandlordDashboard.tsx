@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext';
+import { VerificationRequiredNotice } from './VerificationGate';
 import { api, messageForError } from '../services/apiService';
 import type { IdentityVerification } from '../types';
 import {
@@ -126,7 +127,8 @@ export const LandlordDashboard: React.FC = () => {
 
   const unreadNotifications = notifications.filter((n) => !n.read).length;
 
-  // Identity verification state (optional for landlords; never proof of ownership).
+  // Identity verification state. It is mandatory: an approved identity is what
+  // opens property listing for this account.
   const [identityStatus, setIdentityStatus] = useState<string | null>(null);
   useEffect(() => {
     if (!currentUser || currentUser.role !== 'landlord') return;
@@ -215,14 +217,22 @@ export const LandlordDashboard: React.FC = () => {
             actions={
               <button
                 type="button"
-                onClick={() => setCurrentView('list-property')}
+                // Verification is mandatory, so an unverified account is sent to
+                // that step rather than to a form it cannot submit.
+                onClick={() =>
+                  currentUser?.canListProperties === false
+                    ? navigate('/landlord/verification')
+                    : setCurrentView('list-property')
+                }
                 className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-interactive text-ink text-xs font-extrabold hover:bg-interactive/90 transition-colors"
               >
                 <PlusCircle className="w-4 h-4" />
-                List a property
+                {currentUser?.canListProperties === false ? 'Verify to list' : 'List a property'}
               </button>
             }
           />
+
+          <VerificationRequiredNotice showAction={false} />
 
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
             <SummaryCard
@@ -386,10 +396,15 @@ export const LandlordDashboard: React.FC = () => {
             actions={
               <button
                 type="button"
-                onClick={() => setCurrentView('list-property')}
+                onClick={() =>
+                  currentUser?.canListProperties === false
+                    ? navigate('/landlord/verification')
+                    : setCurrentView('list-property')
+                }
                 className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-interactive text-ink text-xs font-extrabold hover:bg-interactive/90 transition-colors"
               >
-                <PlusCircle className="w-4 h-4" /> Add listing
+                <PlusCircle className="w-4 h-4" />{' '}
+                {currentUser?.canListProperties === false ? 'Verify to list' : 'Add listing'}
               </button>
             }
           />
@@ -402,10 +417,14 @@ export const LandlordDashboard: React.FC = () => {
               action={
                 <button
                   type="button"
-                  onClick={() => setCurrentView('list-property')}
+                  onClick={() =>
+                    currentUser?.canListProperties === false
+                      ? navigate('/landlord/verification')
+                      : setCurrentView('list-property')
+                  }
                   className="px-5 py-2.5 rounded-xl bg-interactive text-ink text-xs font-black"
                 >
-                  List a property
+                  {currentUser?.canListProperties === false ? 'Complete verification' : 'List a property'}
                 </button>
               }
             />
@@ -576,18 +595,8 @@ export const LandlordDashboard: React.FC = () => {
         <div className="space-y-4 animate-fadeIn">
           <SectionHeader
             title="Verification"
-            description="Identity verification is optional for landlords."
+            description="Required for every Agent/Landlord account before it can list properties."
           />
-          <div className="bg-surface border border-line rounded-2xl p-4">
-            <h2 className="text-sm font-bold text-ink flex items-center gap-2">
-              <ShieldCheck className="w-4 h-4 text-ink" /> Identity verification is optional
-            </h2>
-            <p className="text-[11px] text-ink/70 mt-1 leading-relaxed">
-              You can register and list properties without it. Verifying your identity does not verify that you own or
-              may let any particular property — ownership is a separate question and no listing is marked verified
-              because of this check.
-            </p>
-          </div>
           <VerificationPanel scope="landlord" />
         </div>
       )}

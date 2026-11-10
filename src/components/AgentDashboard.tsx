@@ -14,6 +14,7 @@ import {
   ArrowRight,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { VerificationRequiredNotice } from './VerificationGate';
 import { VerificationPanel } from './VerificationPanel';
 import { AgentViewingsPanel } from './AgentViewingsPanel';
 import { AgentListingForm } from './AgentListingForm';
@@ -266,6 +267,9 @@ export const AgentDashboard: React.FC = () => {
             description="Listings you submitted on a landlord's behalf. The landlord keeps their own record; your submission never transfers ownership."
           />
 
+          {/* Verification is mandatory before listing; the same notice as the
+              listing page, driven by the server's own answer. */}
+          <VerificationRequiredNotice showAction={false} />
           <AgentListingForm canSubmit={Boolean(profile?.canSubmitListings) && status === 'active'} />
 
           <div className="bg-surface border border-line rounded-2xl p-5 space-y-4">
@@ -389,7 +393,10 @@ export const AgentDashboard: React.FC = () => {
               </p>
             )}
             <div className="pt-2 border-t border-line text-[11px] text-ink/70 space-y-1">
-              <p>Listing submissions: {profile?.canSubmitListings && status === 'active' ? 'open' : 'closed'}</p>
+              <p>
+                Listing submissions: {profile?.canSubmitListings && status === 'active' ? 'open' : 'closed'}
+                {!(profile?.canSubmitListings && status === 'active') && ' — finish identity verification to open them'}
+              </p>
               <p>Viewing tools: {status === 'active' ? 'open' : 'closed'}</p>
             </div>
           </div>

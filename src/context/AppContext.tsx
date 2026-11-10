@@ -792,10 +792,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         showSuccessToast(
           category === 'agent' ? 'Agent account' : 'Landlord account',
           category === 'agent'
-            ? 'Saved. Complete verification to be verified as an Agent.'
-            : 'Saved. Complete verification to be verified as a Landlord.'
+            ? 'Saved. Complete identity verification to be verified as an Agent.'
+            : 'Saved. Complete identity verification to be verified as a Landlord.'
         );
-        navigate(dashboardPath(category), { replace: true });
+        // The classification is step one of verification, so the member lands on
+        // the verification step that follows it — not on a dashboard that cannot
+        // list anything yet.
+        navigate(`/${category}/verification`, { replace: true });
         return { ok: true };
       } catch (error) {
         return { ok: false, error: messageForError(error), fields: (error as any)?.fields || {} };

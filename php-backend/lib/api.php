@@ -1322,6 +1322,34 @@ function handle_set_agent_status(array $params): void
 // tenancy agreements.
 // ===========================================================================
 /**
+ * The listing gate (Upgrade 2 correction).
+ *
+ * Verification is mandatory before property listing. A provider account that has
+ * not chosen Agent or Landlord, whose identity is not approved, or that has been
+ * suspended cannot submit a property — whatever the client shows or hides. The
+ * check is here so every submission route goes through it, and an administrator
+ * keeps working from the console.
+ */
+function require_provider_listing_access(array $user): void
+{
+    if ((string)($user['role'] ?? '') === 'admin') {
+        return;
+    }
+    $state = provider_listing_state($user);
+    if ($state['canList']) {
+        return;
+    }
+    $fields = [
+        'verificationRequired' => $state['message'],
+        'verificationStatus'   => $state['identityStatus'],
+    ];
+    if ($state['reason'] === 'classification_required') {
+        $fields['classificationRequired'] = 'Choose Agent or Landlord to continue.';
+    }
+    error_response($state['message'], 403, $fields);
+}
+
+/**
  * Refuse a provider action until the account has chosen Agent or Landlord.
  *
  * The choice is the first step of verification and it decides what the account
@@ -1887,10 +1915,10 @@ function handle_create_property(): void
 {
     $user = require_auth(['landlord', 'agent', 'admin']);
     enforce_rate_limit('property-create', 30, 3600);
-    // Upgrade 2 correction: an Agent/Landlord account chooses which it is before
-    // it can submit anything, so a listing never arrives from an account whose
-    // own classification (and therefore its fee rules) is still unknown.
-    require_provider_classification($user);
+    // Verification is mandatory before listing: the classification is chosen,
+    // the identity is approved, and the account is not suspended. One rule for
+    // both provider roles — a landlord is not exempt.
+    require_provider_listing_access($user);
 
     $input = request_json();
 
@@ -1901,11 +1929,14 @@ function handle_create_property(): void
     $agentProfile = null;
     if ($isAgentSubmission) {
         $agentProfile = find_agent_profile_by_user((string)$user['id']);
+        // The gate above already required an approved identity. This second check
+        // is the administrator's suspension switch: it can close submissions on an
+        // otherwise verified agent, and nothing here can reopen them.
         if (!agent_can_submit_listings($agentProfile)) {
             error_response(
-                'Your agent account is still pending review, so listing submissions are not open yet.',
+                'Listing submissions are closed on this agent account. Contact Goodlucks Homes if you think this is wrong.',
                 403,
-                ['agentStatus' => 'Agent listing submissions require an approved account.']
+                ['agentStatus' => 'Agent listing submissions are closed for this account.']
             );
         }
 
@@ -2109,6 +2140,12 @@ function handle_update_property(array $params): void
     $id = (string)($params[0] ?? '');
     // Agents edit only listings they submitted (see can_manage_property).
     $user = require_auth(['landlord', 'agent', 'admin']);
+
+    // Upgrade 2 correction: editing a listing is a listing action, so the same
+    // verification rule applies as at creation. Without this, a provider whose
+    // verification was never approved could create nothing but still rewrite an
+    // existing advert. Administrators are exempt (they moderate).
+    require_provider_listing_access($user);
 
     $row = find_property($id);
     if (!$row) {

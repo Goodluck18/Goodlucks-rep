@@ -154,8 +154,14 @@ describe('The Agent/Landlord account group', () => {
   test('a pending account cannot submit a listing before it has chosen', async () => {
     const { client } = await registerProvider('nolisting');
     const created = await client.post('/api/properties', newListing({ title: 'Too early' }));
-    assert.equal(created.status, 409, JSON.stringify(created.body));
-    assert.ok(created.body.fields.classificationRequired);
+    // Upgrade 2 correction: listing is refused for an account that has not been
+    // classified AND verified. The refusal says both, so the member knows the
+    // choice is the first step of verification rather than a separate chore.
+    assert.equal(created.status, 403, JSON.stringify(created.body));
+    assert.ok(created.body.fields.verificationRequired);
+    assert.equal(created.body.fields.verificationStatus, 'not_submitted');
+    assert.ok(created.body.fields.classificationRequired, 'the refusal names the missing choice too');
+    assert.match(created.body.error, /Complete your identity verification to start listing properties/i);
   });
 
   test('a pending account cannot start verification before it has chosen', async () => {
@@ -193,9 +199,20 @@ describe('Choosing Agent or Landlord', () => {
     const me = await client.get('/api/auth/me');
     assert.equal(me.body.user.agentProfile, undefined);
 
-    const listed = await client.post('/api/properties', newListing({ title: 'Landlord after choosing' }));
-    assert.equal(listed.status, 201, JSON.stringify(listed.body));
-    assert.equal(listed.body.property.status, 'pending');
+    // Choosing grants the classification and nothing else: listing is still
+    // closed until the identity is submitted and approved. This is the rule the
+    // correction exists for — no account lists merely because it registered.
+    const blocked = await client.post('/api/properties', newListing({ title: 'Landlord after choosing' }));
+    assert.equal(blocked.status, 403, JSON.stringify(blocked.body));
+    assert.equal(blocked.body.fields.verificationStatus, 'not_submitted');
+    assert.equal(me.body.user.canListProperties, false);
+    assert.equal(me.body.user.listingBlockedReason, 'identity_not_submitted');
+    assert.equal(me.body.user.verifiedLabel, null, 'no label is claimed before verification');
+
+    const summary = await client.get('/api/verification');
+    assert.equal(summary.body.verification.classification, 'landlord');
+    assert.equal(summary.body.verification.isLandlord, true);
+    assert.equal(summary.body.verification.listing.canList, false);
   });
 
   test('choosing Agent creates the normal pending agent profile', async () => {

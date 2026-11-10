@@ -410,6 +410,8 @@ export const api = {
     documentType: string;
     documentNumber: string;
     documentIds: string[];
+    /** A Landlord's verification also records where they let property. */
+    operatingLocation?: string;
   }) => request<{ identity: IdentityVerification }>('/verification/identity', { method: 'POST', body: data }),
 
   submitProfessionalAuthorisation: (data: {
