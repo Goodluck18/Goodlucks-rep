@@ -3,6 +3,7 @@ import { useApp } from '../context/AppContext';
 import { BlogPropertyCard } from './BlogPropertyCard';
 import type { BlogPropertyCard as BlogPropertyCardData } from '../types';
 import { Building2 } from 'lucide-react';
+import { splitShowcase } from '../lib/blogHtml';
 
 interface Props {
   /** Sanitised article HTML from the server. */
@@ -38,11 +39,11 @@ export const BlogArticleBody: React.FC<Props> = ({
   className = '',
 }) => {
   const { navigate } = useApp();
-  const marker = placeholder || '<div class="gl-showcase"></div>';
-
-  const index = html.indexOf(marker);
-  const before = index >= 0 ? html.slice(0, index) : html;
-  const after = index >= 0 ? html.slice(index + marker.length) : '';
+  // Located structurally, not by an exact string (Upgrade 2, A2): a browser pads
+  // an empty `<div class="gl-showcase">` inside a contentEditable with `<br>`,
+  // and an exact match then lost the cards. `splitShowcase` accepts any `<div>`
+  // whose class list contains `gl-showcase`, and drops a duplicated marker.
+  const { before, after, hasShowcase } = splitShowcase(html, placeholder);
 
   const handleClick = (event: React.MouseEvent<HTMLDivElement>) => {
     const anchor = (event.target as HTMLElement).closest?.('a');
@@ -76,7 +77,7 @@ export const BlogArticleBody: React.FC<Props> = ({
       {after ? (
         <div className="gl-article" onClick={handleClick} dangerouslySetInnerHTML={{ __html: after }} />
       ) : null}
-      {cards.length === 0 && index >= 0 ? (
+      {cards.length === 0 && hasShowcase ? (
         <p className="text-xs text-ink/70 flex items-center gap-2">
           <Building2 className="w-4 h-4" />
           No listings are attached to this article right now.

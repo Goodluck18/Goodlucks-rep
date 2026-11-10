@@ -3,6 +3,7 @@ import { useApp } from '../context/AppContext';
 import { api, messageForError, PropertyMatch } from '../services/apiService';
 import type { ViewingSchedule } from '../types';
 import { PropertyCard } from './PropertyCard';
+import { PropertyCardGrid } from './PropertyCardGrid';
 import {
   User,
   Clock,
@@ -649,23 +650,32 @@ export const TenantDashboard: React.FC = () => {
             }
           />
 
+          {/* Matches (Upgrade 2, A4): compact swipeable row on a phone, the
+              existing grid from `sm` upwards. The match badge follows the card
+              into whichever form is on screen. */}
           {matches.length > 0 ? (
-            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6">
-              {matches.map(({ property, score, reason, curated }) => (
-                <div key={property.id} className="relative">
-                  <div
-                    title={reason}
-                    className={`absolute top-3 left-3 z-20 font-black text-[10px] px-2 py-0.5 rounded-md shadow-md flex items-center gap-1 ${
-                      curated ? 'bg-interactive text-ink' : 'bg-emerald-500 text-ink'
-                    }`}
-                  >
-                    <Sparkles className="w-3 h-3" />
-                    {curated ? 'Chosen for you' : `${score}% match`}
+            <PropertyCardGrid
+              properties={matches.map((entry) => entry.property)}
+              label="Your matches"
+              renderCard={(property, layout) => {
+                const entry = matches.find((candidate) => candidate.property.id === property.id);
+                if (!entry) return null;
+                return (
+                  <div key={property.id} className="relative">
+                    <div
+                      title={entry.reason}
+                      className={`absolute top-3 left-3 z-20 font-black text-[10px] px-2 py-0.5 rounded-md shadow-md flex items-center gap-1 ${
+                        entry.curated ? 'bg-interactive text-ink' : 'bg-emerald-500 text-ink'
+                      }`}
+                    >
+                      <Sparkles className="w-3 h-3" />
+                      {entry.curated ? 'Chosen for you' : `${entry.score}% match`}
+                    </div>
+                    <PropertyCard property={property} layout={layout} />
                   </div>
-                  <PropertyCard property={property} />
-                </div>
-              ))}
-            </div>
+                );
+              }}
+            />
           ) : (
             <EmptyState
               icon={Sparkles}
@@ -728,12 +738,9 @@ export const TenantDashboard: React.FC = () => {
       {activeSection === 'saved' && (
         <div className="space-y-4 animate-fadeIn">
           <SectionHeader title="Saved properties" description="Homes you kept for later." />
+          {/* Saved listings (Upgrade 2, A4): same pattern as the matches above. */}
           {savedProps.length > 0 ? (
-            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6">
-              {savedProps.map((property) => (
-                <PropertyCard key={property.id} property={property} />
-              ))}
-            </div>
+            <PropertyCardGrid properties={savedProps} label="Saved properties" />
           ) : (
             <EmptyState
               icon={Heart}

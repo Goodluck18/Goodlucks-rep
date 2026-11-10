@@ -12,7 +12,7 @@
     "lint": "tsc --noEmit",
     "dev:web": "tsx server.ts",
     "api:dev": "node scripts/api-dev.mjs",
-    "test:api": "node --test --test-concurrency=1 tests/api.test.mjs tests/account-settings.test.mjs tests/task03.test.mjs tests/migration.test.mjs tests/concurrency.test.mjs tests/access-control.test.mjs tests/primary-admin.test.mjs tests/tenant-contact.test.mjs",
+    "test:api": "node --test --test-concurrency=1 tests/api.test.mjs tests/account-settings.test.mjs tests/task03.test.mjs tests/migration.test.mjs tests/concurrency.test.mjs tests/access-control.test.mjs tests/primary-admin.test.mjs tests/tenant-contact.test.mjs tests/admin-console-api.test.mjs",
     "test:routing": "node --import tsx --test tests/routing.test.mts",
     "test:navigation": "node --import tsx --test tests/app-navigation.test.mts",
     "test:content": "node --test tests/content.test.mjs",
@@ -23,7 +23,10 @@
     "test:access": "node --test tests/access-control.test.mjs",
     "test:sharing": "node --import tsx --test tests/sharing.test.mts",
     "test:uploads": "node --import tsx --test tests/uploads.test.mts",
-    "test:responsive": "node --import tsx --test tests/responsive.test.mts"
+    "test:responsive": "node --import tsx --test tests/responsive.test.mts",
+    "test:blog-html": "node --import tsx --test tests/blog-html.test.mts",
+    "test:admin-console": "node --import tsx --test tests/admin-console.test.mts",
+    "test:admin-console-api": "node --test --test-concurrency=1 tests/admin-console-api.test.mjs"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

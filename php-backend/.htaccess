@@ -28,6 +28,18 @@ Options -Indexes
     RewriteRule (^|/)doc_[a-f0-9]{24}\.(pdf|jpe?g|png)$ - [F,L]
     RewriteRule (^|/)doc_[a-f0-9]{24}\.json$ - [F,L]
 
+    # 1c. `uploads/` is a REAL directory in the deployed tree, so Apache's
+    # mod_dir would answer a request for `/api/uploads` (no trailing slash) with a
+    # 301 to `/api/uploads/`. The browser then re-sends a redirected POST as a
+    # GET, which reached the front controller as `GET /api/uploads/` and answered
+    # "Endpoint not found." — the blog featured-image upload (Upgrade 2, A1).
+    #
+    # This rule comes BEFORE mod_dir can act and before the static-file rule, so
+    # the bare path is handled by the router as `POST /uploads`, exactly like the
+    # slashed form. Individual files under `/api/uploads/<name>` are still served
+    # straight from disk by rule 2 below; only the directory itself is rewritten.
+    RewriteRule ^uploads/?$ index.php [L,QSA]
+
     # 2. Serve already-uploaded images directly (faster than streaming in PHP).
     RewriteCond %{REQUEST_URI} ^/api/uploads/ [NC]
     RewriteCond %{REQUEST_FILENAME} -f

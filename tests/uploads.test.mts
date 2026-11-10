@@ -43,6 +43,8 @@ const listProperty = read('src/components/ListPropertyView.tsx');
 const verification = read('src/components/VerificationPanel.tsx');
 const adminDashboard = read('src/components/AdminDashboard.tsx');
 const accountSettings = read('src/components/dashboard/AccountSettingsView.tsx');
+const apiClient = read('src/services/apiService.ts');
+const apiHtaccess = read('php-backend/.htaccess');
 
 const file = (name: string, type: string, size: number) => ({ name, type, size });
 
@@ -264,4 +266,36 @@ test('the same file cannot be queued twice', () => {
   );
   assert.deepEqual(accepted.map((entry) => entry.name), ['a.jpg']);
   assert.deepEqual(skipped, ['b.jpg', 'a.jpg']);
+});
+
+/* -------------------------------------------------------------------------- */
+/* 4. Upload endpoint path (Upgrade 2, A1)                                    */
+/* -------------------------------------------------------------------------- */
+
+test('the client posts to the upload path with its trailing slash', () => {
+  // `api/uploads` is a real directory on the deployed host. Apache's mod_dir
+  // answers `/api/uploads` with a 301 to `/api/uploads/`, and a browser re-sends
+  // a redirected POST as a GET — which came back "Endpoint not found." The client
+  // therefore posts to the slashed path, which the server routes identically.
+  assert.match(apiClient, /request<\{ urls: string\[\]; warnings\?: string\[\] \}>\('\/uploads\/',/);
+  assert.ok(
+    !/request<\{ urls: string\[\]; warnings\?: string\[\] \}>\(\/uploads\',/.test(apiClient),
+    'the bare path must not be posted to'
+  );
+});
+
+test('the API directory routes the bare upload path before Apache serves it as a directory', () => {
+  const rule = /RewriteRule \^uploads\/\?\$ index\.php \[L,QSA\]/;
+  assert.match(apiHtaccess, rule, 'the bare upload directory must reach the front controller');
+
+  // Order matters: the rewrite has to appear before the static-file rule, or
+  // mod_dir/directory handling wins. Compare the two offsets.
+  const ruleAt = apiHtaccess.search(rule);
+  const staticAt = apiHtaccess.indexOf('Serve already-uploaded images directly');
+  assert.ok(ruleAt > -1 && staticAt > -1 && ruleAt < staticAt, 'the upload rewrite must come first');
+
+  // Uploaded files are still static: the directory's own .htaccess stays strict.
+  const uploadsHtaccess = read('php-backend/uploads/.htaccess');
+  assert.match(uploadsHtaccess, /RemoveHandler \.php/);
+  assert.match(uploadsHtaccess, /Require all denied/);
 });

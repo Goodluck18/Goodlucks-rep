@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { PropertyCard } from './PropertyCard';
+import { PropertyCardGrid } from './PropertyCardGrid';
 import { ViewingRequestModal } from './ViewingRequestModal';
 import { GetNotifiedModal } from './GetNotifiedModal';
 import { SEOHead } from './SEOHead';
@@ -417,17 +418,16 @@ export const BrowseView: React.FC = () => {
           </button>
         </div>
 
-        {/* PROPERTY GRID - STRICT REQUIREMENT: 2 CARDS PER ROW ON MOBILE */}
+        {/* PROPERTY LIST (Upgrade 2, A4).
+            On a phone the listings are compact horizontal cards in one swipeable
+            row; from `sm` upwards they are the same two-to-four column grid as
+            before. `PropertyCardGrid` owns both so the pages cannot drift. */}
         {filteredProperties.length > 0 ? (
-          <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6">
-            {filteredProperties.map(property => (
-              <PropertyCard 
-                key={property.id} 
-                property={property} 
-                onRequestViewing={(p) => setSelectedViewingProp(p)}
-              />
-            ))}
-          </div>
+          <PropertyCardGrid
+            properties={filteredProperties}
+            label="Available rentals"
+            onRequestViewing={(p) => setSelectedViewingProp(p)}
+          />
         ) : (
           <div className="text-center py-16 bg-surface/50 backdrop-blur-xl rounded-2xl border border-line space-y-4 px-4">
             <Building2 className="w-12 h-12 text-ink/70 mx-auto" />

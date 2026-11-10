@@ -536,6 +536,35 @@ describe('Image uploads', () => {
     assert.equal(bytes[0], 0x89);
   });
 
+  // Upgrade 2, A1: on the deployed host `api/uploads` is a real directory, so a
+  // POST to the un-slashed path could be answered by Apache's mod_dir with a 301
+  // that the browser re-sent as a GET ("Endpoint not found"). Both spellings must
+  // reach the upload handler, and a rejected file must come back as a field error.
+  test('the upload endpoint answers on both spellings of its path', async () => {
+    const slashed = new FormData();
+    slashed.append('file', new Blob([createPng(80, 60)], { type: 'image/png' }), 'slashed.png');
+    const okSlashed = await landlord.request('POST', '/api/uploads/', { body: slashed });
+    assert.equal(okSlashed.status, 201);
+    assert.match(okSlashed.body.urls[0], /^\/api\/uploads\/gl-\d{8}-[a-f0-9]+\.png$/);
+
+    // The stored file is served from the same path the client was given.
+    const served = await guest.get(okSlashed.body.urls[0], { raw: true });
+    assert.equal(served.status, 200);
+
+    const bare = new FormData();
+    bare.append('file', new Blob([createPng(80, 60)], { type: 'image/png' }), 'bare.png');
+    const okBare = await landlord.request('POST', '/api/uploads', { body: bare });
+    assert.equal(okBare.status, 201);
+  });
+
+  test('a refused upload on the slashed path reports the field', async () => {
+    const form = new FormData();
+    form.append('file', new Blob([Buffer.from('not an image')], { type: 'text/plain' }), 'notes.txt');
+    const res = await landlord.request('POST', '/api/uploads/', { body: form });
+    assert.equal(res.status, 422);
+    assert.ok(res.body.fields && res.body.fields.file, 'the refusal names the file field');
+  });
+
   test('non-image uploads are rejected', async () => {
     const form = new FormData();
     form.append('file', new Blob([Buffer.from('<?php echo "hacked"; ?>')], { type: 'application/x-php' }), 'shell.php');
@@ -6327,3 +6356,4 @@ describe('Receipt-specific reversals and concurrency (audit R3/R4)', () => {
     assert.equal(after.remittances.length, 0, 'no receipt was written');
   });
 });
+// ---------------------------------------------------------------------------

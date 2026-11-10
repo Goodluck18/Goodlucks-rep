@@ -1002,22 +1002,55 @@ function handle_update_agent_profile(): void
     ]);
 }
 
+/**
+ * Agent accounts, with the console's search and filters (Upgrade 2, A8).
+ *
+ * Identity verification and listing authorisation are separate filters on
+ * purpose: `verification=verified` says nothing about `listing=allowed`, and the
+ * three status chips (pending / approved for listing / suspended) are derived
+ * from the account's own decision fields, never guessed.
+ */
 function handle_list_agents(): void
 {
     require_auth(['admin']);
-    $status = query_param('status');
-    $agents = list_agent_profiles(200);
-    if ($status) {
-        $agents = array_values(array_filter(
-            $agents,
-            static fn(array $a): bool => (string)$a['accountStatus'] === (string)$status
-        ));
+
+    $filters = [
+        'q'             => trim((string)query_param('q', '')),
+        'stage'         => strtolower(trim((string)query_param('stage', ''))),
+        'verification'  => strtolower(trim((string)query_param('verification', ''))),
+        'listing'       => strtolower(trim((string)query_param('listing', ''))),
+        'accountStatus' => strtolower(trim((string)query_param('accountStatus', ''))),
+    ];
+
+    if ($filters['stage'] !== '' && !in_array($filters['stage'], ['pending', 'approved_for_listing', 'suspended'], true)) {
+        error_response('Unknown agent filter.', 422, [
+            'stage' => 'Choose one of: pending, approved_for_listing, suspended.',
+        ]);
     }
+    if ($filters['verification'] !== '' && !in_array($filters['verification'], ['verified', 'unverified'], true)) {
+        error_response('Unknown verification filter.', 422, [
+            'verification' => 'Choose one of: verified, unverified.',
+        ]);
+    }
+    if ($filters['listing'] !== '' && !in_array($filters['listing'], ['allowed', 'blocked'], true)) {
+        error_response('Unknown listing filter.', 422, [
+            'listing' => 'Choose one of: allowed, blocked.',
+        ]);
+    }
+    if ($filters['accountStatus'] !== '' && !in_array($filters['accountStatus'], AGENT_ACCOUNT_STATUSES, true)) {
+        error_response('Unknown account status.', 422, [
+            'accountStatus' => 'Allowed values: ' . implode(', ', AGENT_ACCOUNT_STATUSES) . '.',
+        ]);
+    }
+    $filters = array_filter($filters, static fn($value): bool => $value !== '');
+
+    $agents = list_agent_profiles(500, $filters);
 
     json_response([
-        'success' => true,
-        'count'   => count($agents),
-        'agents'  => $agents,
+        'success'    => true,
+        'count'      => count($agents),
+        'agents'     => $agents,
+        'stageCounts' => count_agents_by_stage(),
     ]);
 }
 
@@ -2251,24 +2284,74 @@ function handle_property_feature(array $params): void
     json_response(['success' => true, 'property' => $updated ? shape_property($updated) : null]);
 }
 
+/**
+ * Every listing, for the administrator's Manage Listings screen (Upgrade 2, A6).
+ *
+ * The console used to fetch one page and filter it in the browser, so a search
+ * only ever covered the listings that happened to be in that page and anything
+ * past the 100-row cap was invisible. Every filter below runs in SQL over the
+ * real table, and the response carries the true total so the console can page
+ * through all of it:
+ *
+ *   q, status (comma-separated or repeated), location, city, type, bedrooms,
+ *   minRent, maxRent, createdFrom, createdTo, sort, page, perPage
+ */
 function handle_admin_properties(): void
 {
     require_admin();
-    $filters = [
-        'status'  => query_param('status') ? (string)query_param('status') : null,
-        'q'       => query_param('q'),
-        'sort'    => query_param('sort', 'newest'),
-        'page'    => query_param('page', 1),
-        'perPage' => query_param('perPage', 100),
-    ];
-    if ($filters['status'] === null) {
-        unset($filters['status']);
+
+    $statusParam = query_param('status');
+    $statuses = [];
+    if (is_string($statusParam) && trim($statusParam) !== '') {
+        foreach (explode(',', $statusParam) as $candidate) {
+            $candidate = strtolower(trim($candidate));
+            if (in_array($candidate, PROPERTY_STATUSES, true)) {
+                $statuses[] = $candidate;
+            }
+        }
     }
+
+    // A date the console sends must be a real YYYY-MM-DD date; anything else is
+    // ignored rather than silently matching everything.
+    $validDate = static function ($value): ?string {
+        if (!is_string($value) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) {
+            return null;
+        }
+        $parsed = date_create($value);
+        return $parsed !== false ? $parsed->format('Y-m-d') : null;
+    };
+
+    $filters = [
+        'q'           => trim((string)query_param('q', '')),
+        'sort'        => (string)query_param('sort', 'newest'),
+        'page'        => (int)query_param('page', 1),
+        'perPage'     => (int)query_param('perPage', 20),
+        'location'    => trim((string)query_param('location', '')),
+        'city'        => trim((string)query_param('city', '')),
+        'type'        => trim((string)query_param('type', '')),
+        'bedrooms'    => trim((string)query_param('bedrooms', '')),
+        'minRent'     => query_param('minRent'),
+        'maxRent'     => query_param('maxRent'),
+        'createdFrom' => $validDate(query_param('createdFrom')),
+        'createdTo'   => $validDate(query_param('createdTo')),
+    ];
+    if ($statuses !== []) {
+        $filters['status'] = $statuses;
+    }
+
+    // Drop the empty strings so `query_properties()` does not create an
+    // always-true LIKE on an empty needle.
+    $filters = array_filter($filters, static fn($value): bool => $value !== null && $value !== '');
+    // A page size outside the API's own range is clamped by query_properties();
+    // asking for everything is never allowed.
     $result = query_properties($filters);
+
     json_response([
         'success'    => true,
         'count'      => count($result['items']),
         'total'      => $result['total'],
+        'page'       => $result['page'],
+        'perPage'    => $result['perPage'],
         'properties' => $result['items'],
     ]);
 }
@@ -2537,10 +2620,43 @@ function handle_create_enquiry(): void
     ], 201);
 }
 
+/**
+ * Web enquiries, with search and status filters (Upgrade 2, A10).
+ *
+ * `statusCounts` counts EVERY enquiry, so the console's status chips stay
+ * truthful while a search narrows the list below them.
+ */
 function handle_admin_enquiries(): void
 {
     require_admin();
-    json_response(['success' => true, 'enquiries' => list_enquiries(300)]);
+
+    $statusParam = query_param('status');
+    $statuses = [];
+    if (is_string($statusParam) && trim($statusParam) !== '') {
+        foreach (explode(',', $statusParam) as $candidate) {
+            $candidate = strtolower(trim($candidate));
+            if (in_array($candidate, ENQUIRY_STATUSES, true)) {
+                $statuses[] = $candidate;
+            }
+        }
+    }
+
+    $filters = ['q' => trim((string)query_param('q', ''))];
+    if ($statuses !== []) {
+        $filters['status'] = $statuses;
+    }
+    if ($filters['q'] === '') {
+        unset($filters['q']);
+    }
+
+    $enquiries = list_enquiries(500, $filters);
+
+    json_response([
+        'success'      => true,
+        'count'        => count($enquiries),
+        'enquiries'    => $enquiries,
+        'statusCounts' => count_enquiries_by_status(),
+    ]);
 }
 
 // ===========================================================================
@@ -2654,7 +2770,42 @@ function handle_list_tenant_requests(): void
         if (!is_admin($user)) {
             error_response('You do not have permission to view all requests.', 403);
         }
-        json_response(['success' => true, 'requests' => list_tenant_requests([], 300)]);
+
+        // Console filters (Upgrade 2, A7): a name/phone/email search and the
+        // pending / approved / viewing-scheduled stages. `stageCounts` counts
+        // every request so the chips stay truthful while a search narrows the
+        // list below them.
+        $scope = [];
+        $query = trim((string)query_param('q', ''));
+        if ($query !== '') {
+            $scope['q'] = $query;
+        }
+        $stage = strtolower(trim((string)query_param('stage', '')));
+        if ($stage !== '') {
+            if (tenant_request_stage_statuses($stage) === []) {
+                error_response('Unknown request stage.', 422, [
+                    'stage' => 'Choose one of: pending, approved, viewing_scheduled, completed, cancelled.',
+                ]);
+            }
+            $scope['stage'] = $stage;
+        }
+        $status = trim((string)query_param('status', ''));
+        if ($status !== '') {
+            $scope['status'] = $status;
+        }
+
+        $requests = list_tenant_requests($scope, 500);
+        $stageCounts = ['pending' => 0, 'approved' => 0, 'viewing_scheduled' => 0, 'completed' => 0, 'cancelled' => 0];
+        foreach (list_tenant_requests([], 2000) as $row) {
+            $key = (string)($row['stage'] ?? 'pending');
+            $stageCounts[$key] = ($stageCounts[$key] ?? 0) + 1;
+        }
+
+        json_response([
+            'success'     => true,
+            'requests'    => $requests,
+            'stageCounts' => $stageCounts,
+        ]);
     }
 
     json_response(['success' => true, 'requests' => list_tenant_requests([

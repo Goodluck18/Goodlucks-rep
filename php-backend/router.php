@@ -25,6 +25,14 @@ if (preg_match('#^/p/[A-Za-z0-9_-]+/?$#', $uri)) {
     exit;
 }
 
+// The Learning Centre index and every article are rendered by their own entry
+// point so the first HTML response already carries the article's own share
+// metadata (Upgrade 2, A3). This mirrors rules 2e in public/.htaccess.
+if (preg_match('#^/blog/?$#', $uri) || preg_match('#^/blog/[A-Za-z0-9._-]+/?$#', $uri)) {
+    require __DIR__ . '/blog_page.php';
+    exit;
+}
+
 if ($uri !== '/'
     && !is_dir($candidate)
     && is_file($candidate)

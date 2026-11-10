@@ -12,7 +12,19 @@ declare(strict_types=1);
 
 const PROPERTY_TYPES = ['Apartment', 'Luxury Villa', 'Townhouse', 'Studio', 'Duplex', 'Penthouse', 'Commercial'];
 const PROPERTY_STATUSES = ['active', 'pending', 'rejected', 'rented', 'deactivated'];
-const ENQUIRY_STATUSES = ['new', 'contacted', 'closed'];
+/**
+ * The enquiry lifecycle (Upgrade 2, A10).
+ *
+ * `new`      — just arrived from a form
+ * `received` — an administrator has taken it on (acknowledged, not yet answered)
+ * `contacted`— the visitor has been contacted
+ * `replied`  — an answer was sent
+ * `closed`   — no further action
+ *
+ * Adding the two middle states is additive: an existing row keeps whatever
+ * status it already has, and every new value is validated on write.
+ */
+const ENQUIRY_STATUSES = ['new', 'received', 'contacted', 'replied', 'closed'];
 const REQUEST_STATUSES = ['submitted', 'searching', 'matched', 'viewing_scheduled', 'completed', 'cancelled'];
 const VIEWING_STATUSES = ['scheduled', 'completed', 'cancelled'];
 const USER_ROLES = ['tenant', 'landlord', 'agent', 'admin'];

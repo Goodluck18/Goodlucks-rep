@@ -33,6 +33,9 @@ const port = 8800 + Math.floor(Math.random() * 500);
 const ADMIN_EMAIL = 'admin@blog.test';
 const ADMIN_PASSWORD = 'Admin-Test-Password-123';
 const ADMIN_ACCESS_KEY = 'test-access-key';
+// The default site URL the API uses when APP_URL is not set (config.php). Share
+// metadata is absolute, so the canonical/og:url values use it.
+const APP_URL = 'https://goodlucks.co';
 
 let server;
 let admin;
@@ -368,6 +371,93 @@ describe('Blog: article HTML is sanitised on save', () => {
     });
     assert.match(post.contentHtml, /<aside class="gl-callout">/);
     assert.doesNotMatch(post.contentHtml, /class="spoof"/);
+  });
+});
+
+/* ========================================================================== */
+/* C2. A video and the property showcase coexist (Upgrade 2, A2)              */
+/* ========================================================================== */
+
+describe('Blog: a YouTube video and the property showcase coexist', () => {
+  // The showcase used to be found by an exact string match while the editor is
+  // a contentEditable, so a browser-padded marker (`<div class="gl-showcase"><br>`
+  // `</div>`) stopped matching and the cards vanished. And a canonical embed URL
+  // could not be parsed back to its id (a `#` inside a character class ended the
+  // regex early), so re-saving an article deleted its video. Both are fixed at
+  // the sanitiser, which is where every article body passes.
+
+  test('both embeds survive one save, in either order', async () => {
+    const video = '<iframe src="https://www.youtube.com/watch?v=dQw4w9WgXcQ"></iframe>';
+    const showcase = '<div class="gl-showcase"></div>';
+
+    for (const [label, html] of [
+      ['video then showcase', `<p>Intro.</p>${video}${showcase}<p>Outro.</p>`],
+      ['showcase then video', `<p>Intro.</p>${showcase}${video}<p>Outro.</p>`],
+    ]) {
+      const post = await createPost({ title: `Both embeds — ${label}`, contentHtml: html });
+      assert.match(post.contentHtml, /<iframe class="gl-video-frame" [^>]*src="https:\/\/www\.youtube-nocookie\.com\/embed\/dQw4w9WgXcQ"/, label);
+      assert.match(post.contentHtml, /<div class="gl-showcase"><\/div>/, label);
+      assert.match(post.contentHtml, /<p>Intro\.<\/p>/, label);
+      assert.match(post.contentHtml, /<p>Outro\.<\/p>/, label);
+
+      // Re-saving the stored HTML must not lose either block: this is what
+      // happened when an administrator opened a saved article and pressed Save.
+      const again = await admin.patch(`/api/admin/blog/posts/${post.id}`, { contentHtml: post.contentHtml });
+      assert.equal(again.status, 200, JSON.stringify(again.body));
+      assert.match(again.body.post.contentHtml, /<iframe class="gl-video-frame"/, `${label}: video survived a re-save`);
+      assert.match(again.body.post.contentHtml, /<div class="gl-showcase"><\/div>/, `${label}: showcase survived a re-save`);
+    }
+  });
+
+  test('a browser-padded showcase marker is normalised, not lost', async () => {
+    const post = await createPost({
+      title: 'Padded showcase marker',
+      contentHtml:
+        '<p>Before.</p><div class="gl-showcase"><br></div><p>After.</p>' +
+        '<div class="gl-showcase">&nbsp;<br><br></div>',
+    });
+    // One canonical marker, whatever the browser padded it with; the duplicate
+    // is collapsed rather than rendered twice.
+    assert.equal((post.contentHtml.match(/gl-showcase/g) ?? []).length, 1, post.contentHtml);
+    assert.match(post.contentHtml, /<div class="gl-showcase"><\/div>/);
+    assert.doesNotMatch(post.contentHtml, /<div class="gl-showcase"><br>/);
+    assert.match(post.contentHtml, /<p>Before\.<\/p>/);
+    assert.match(post.contentHtml, /<p>After\.<\/p>/);
+  });
+
+  test('text typed inside the showcase block is kept, padding is not', async () => {
+    const post = await createPost({
+      title: 'Showcase with text inside',
+      contentHtml: '<div class="gl-showcase"><br>Spare bedroom noted.</div>',
+    });
+    assert.match(post.contentHtml, /<div class="gl-showcase"><\/div>/, 'the marker is canonical');
+    assert.match(post.contentHtml, /Spare bedroom noted\./, 'the author\'s words survive');
+  });
+
+  test('a showcase marker nested in a video figure is moved out, not dropped', async () => {
+    const post = await createPost({
+      title: 'Nested showcase marker',
+      contentHtml:
+        '<figure class="gl-video"><iframe src="https://youtu.be/dQw4w9WgXcQ"></iframe>' +
+        '<div class="gl-showcase"></div></figure>',
+    });
+    // Both blocks stay, and the marker is at the article's own level so the
+    // reader can place the cards without splitting the figure in half.
+    assert.match(post.contentHtml, /<div class="gl-showcase"><\/div>/);
+    const showcaseAt = post.contentHtml.indexOf('<div class="gl-showcase">');
+    const figureEnd = post.contentHtml.indexOf('</figure>');
+    assert.ok(figureEnd > -1, post.contentHtml);
+    assert.ok(showcaseAt > figureEnd, 'the marker sits after the closed figure');
+    assert.match(post.contentHtml, /<iframe class="gl-video-frame"/);
+  });
+
+  test('a non-YouTube iframe is still refused', async () => {
+    const post = await createPost({
+      title: 'Foreign embed',
+      contentHtml: '<div class="gl-showcase"></div><iframe src="https://evil.example/embed/1"></iframe>',
+    });
+    assert.doesNotMatch(post.contentHtml, /evil\.example/);
+    assert.match(post.contentHtml, /<div class="gl-showcase"><\/div>/);
   });
 });
 
@@ -810,5 +900,106 @@ describe('Blog: the console view', () => {
     assert.equal(res.status, 200);
     assert.match(res.body.post.contentHtml, /Only the console sees this/);
     assert.equal(res.body.post.publicUrl, `https://goodlucks.co/blog/${post.slug}`);
+  });
+});
+
+/* ========================================================================== */
+/* J. Article share metadata is in the first HTML response (Upgrade 2, A3)    */
+/* ========================================================================== */
+
+describe('Blog: an article link previews as the article', () => {
+  const fetchPage = (pathname) => fetch(`${server.baseUrl}${pathname}`, { redirect: 'manual' });
+
+  let published;
+
+  before(async () => {
+    published = await createPost({
+      title: 'How a viewing fee really works in Accra',
+      subtitle: 'What you pay for, and what you never should.',
+      contentHtml: '<p>The fee covers a scheduled viewing, not a reservation.</p>',
+      featuredImage: '/api/uploads/gl-20260101-abcdef0123456789.jpg',
+      featuredImageAlt: 'A courtyard in East Legon',
+      seoTitle: 'Viewing fees in Accra, explained',
+      seoDescription: 'A viewing fee buys a scheduled viewing. Here is what it covers and what it does not.',
+    });
+    await publish2(published.id);
+  });
+
+  // The suite-level publish helper is declared earlier in this file.
+  async function publish2(id) {
+    const res = await admin.post(`/api/admin/blog/posts/${id}/status`, { status: 'published' });
+    assert.equal(res.status, 200, JSON.stringify(res.body));
+  }
+
+  test('the response itself carries the article title, description and canonical URL', async () => {
+    const res = await fetchPage(`/blog/${published.slug}`);
+    assert.equal(res.status, 200);
+    const html = await res.text();
+
+    assert.match(html, new RegExp(`<title>Viewing fees in Accra, explained \\| Goodlucks Homes</title>`));
+    assert.match(html, /<meta name="description" content="A viewing fee buys a scheduled viewing\./);
+    assert.match(html, /<link rel="canonical" href="https:\/\/goodlucks\.co\/blog\/[a-z0-9-]+" \/>/);
+    assert.match(html, /<meta property="og:type" content="article" \/>/);
+    assert.match(html, /<meta property="og:title" content="Viewing fees in Accra, explained" \/>/);
+    assert.match(html, /<meta property="og:url" content="https:\/\/goodlucks\.co\/blog\/[a-z0-9-]+" \/>/);
+    assert.match(html, /<meta property="og:image" content="https:\/\/goodlucks\.co\/api\/uploads\/gl-20260101-abcdef0123456789\.jpg" \/>/);
+    assert.match(html, /<meta property="og:image:alt" content="A courtyard in East Legon" \/>/);
+    assert.match(html, /<meta name="twitter:card" content="summary_large_image" \/>/);
+    assert.match(html, /<meta property="article:published_time" content="\d{4}-\d{2}-\d{2}T/);
+    assert.match(html, /<script type="application\/ld\+json">/);
+    assert.match(html, /"@type":"Article"/);
+
+    // Exactly one canonical and one og:title: a response with two competing
+    // values is more confusing to a scraper than one with none.
+    assert.equal((html.match(/rel="canonical"/g) ?? []).length, 1);
+    assert.equal((html.match(/property="og:title"/g) ?? []).length, 1);
+    assert.equal((html.match(/property="og:type"/g) ?? []).length, 1);
+  });
+
+  test('a draft or unknown slug answers 404 with noindex, indistinguishably', async () => {
+    const draft = await createPost({ title: 'Unpublished draft about deposits' });
+
+    const draftRes = await fetchPage(`/blog/${draft.slug}`);
+    const unknownRes = await fetchPage('/blog/this-slug-never-existed');
+
+    assert.equal(draftRes.status, 404);
+    assert.equal(unknownRes.status, 404);
+
+    const draftHtml = await draftRes.text();
+    const unknownHtml = await unknownRes.text();
+    assert.equal(draftHtml, unknownHtml, 'a draft must be indistinguishable from a missing article');
+    assert.match(draftHtml, /<meta name="robots" content="noindex, follow" \/>/);
+    assert.doesNotMatch(draftHtml, /Unpublished draft about deposits/);
+    assert.doesNotMatch(draftHtml, /property="og:type" content="article"/);
+  });
+
+  test('no member contact data can appear in an article page', async () => {
+    const res = await fetchPage(`/blog/${published.slug}`);
+    const html = await res.text();
+    // The byline is the only person named, and it is the administrator's own.
+    assert.match(html, /Blog Editor/);
+    // The site's OWN public number is in the shell by design; a member's is not.
+    // This run registered a tenant with this phone and email address, so their
+    // absence from an article page is a real assertion about the response.
+    assert.match(html, /\+233237690080/, "the site's own published number is unaffected");
+    assert.doesNotMatch(html, /\+233201234567/, "the tenant's phone must not leak");
+    assert.doesNotMatch(html, /@example\.com/, 'no member email address');
+  });
+  test('the Learning Centre index carries a site-level card and the newest titles', async () => {
+    const res = await fetchPage('/blog');
+    assert.equal(res.status, 200);
+    const html = await res.text();
+
+    assert.match(html, /<title>Learning Centre — renting in Ghana, explained \| Goodlucks Homes<\/title>/);
+    assert.match(html, /<link rel="canonical" href="https:\/\/goodlucks\.co\/blog" \/>/);
+    assert.match(html, /<meta property="og:type" content="website" \/>/);
+    assert.match(html, /How a viewing fee really works in Accra/, 'the newest published article is listed');
+    assert.match(html, /"@type":"CollectionPage"/);
+  });
+
+  test('a different case redirects to the canonical article URL and keeps the query', async () => {
+    const res = await fetchPage(`/blog/${published.slug.toUpperCase()}?utm_source=whatsapp`);
+    assert.equal(res.status, 301);
+    assert.equal(res.headers.get('location'), `/blog/${published.slug}?utm_source=whatsapp`);
   });
 });

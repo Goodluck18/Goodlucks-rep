@@ -3,6 +3,7 @@ import { useApp } from '../context/AppContext';
 import { ViewingRequestModal } from './ViewingRequestModal';
 import { PriceDropModal } from './PriceDropModal';
 import { PropertyCard } from './PropertyCard';
+import { PropertyCardGrid } from './PropertyCardGrid';
 import { SEOHead } from './SEOHead';
 import {
   moneyLabel,
@@ -605,18 +606,17 @@ export const PropertyDetailView: React.FC = () => {
               </button>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 sm:gap-6">
-              {similarProperties.map(simProp => (
-                <PropertyCard
-                  key={simProp.id}
-                  property={simProp}
-                  onRequestViewing={() => {
-                    navigateToProperty(simProp.id);
-                    setShowViewingModal(true);
-                  }}
-                />
-              ))}
-            </div>
+            {/* Similar listings (Upgrade 2, A4): compact swipeable row on a
+                phone, the same two-column grid from `sm` upwards. */}
+            <PropertyCardGrid
+              properties={similarProperties}
+              label="Similar listings"
+              gridClassName="grid-cols-2 gap-3 sm:gap-6"
+              onRequestViewing={(simProp) => {
+                navigateToProperty(simProp.id);
+                setShowViewingModal(true);
+              }}
+            />
           </div>
         )}
 

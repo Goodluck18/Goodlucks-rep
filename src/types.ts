@@ -41,6 +41,15 @@ export interface AgentProfile {
  * review queue needs to the agent's own profile shape. `contactAddress` is the
  * agent's own address and is deliberately separate from `operatingCity`.
  */
+/**
+ * The console's view of an agent account (Upgrade 2, A8).
+ *
+ * `pending` / `approved_for_listing` / `suspended` describe the LISTING
+ * authorisation decision. Identity verification (`identityVerified`) is a
+ * different decision and is never implied by this one.
+ */
+export type AgentAccountStage = 'pending' | 'approved_for_listing' | 'suspended';
+
 export interface AdminAgentAccount extends AgentProfile {
   name: string;
   email: string;
@@ -435,6 +444,12 @@ export interface TenantRequest {
   propertyType: string;
   moveInDate: string;
   status: RequestProgressStatus;
+  /**
+   * The administrator's view of the same lifecycle (Upgrade 2, A7):
+   * pending (submitted/searching) · approved (matched) · viewing_scheduled ·
+   * completed · cancelled. Derived on the server; it never overrides `status`.
+   */
+  stage?: 'pending' | 'approved' | 'viewing_scheduled' | 'completed' | 'cancelled';
   matchedPropertyIds?: string[];
   assignedAgent?: string;
   notes?: string;
@@ -1257,7 +1272,12 @@ export interface Enquiry {
   phone: string;
   message: string;
   source: 'contact_form' | 'property_page' | string;
-  status: 'new' | 'contacted' | 'closed';
+  /**
+   * The enquiry lifecycle (Upgrade 2, A10): new → received → contacted →
+   * replied → closed. `received` means an administrator took it on;
+   * `replied` means an answer was sent. Both are real stored values.
+   */
+  status: 'new' | 'received' | 'contacted' | 'replied' | 'closed';
   createdAt: string;
 }
 

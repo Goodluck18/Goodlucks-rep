@@ -46,6 +46,18 @@ export const AdminEmailTemplates: React.FC<Props> = ({ notify }) => {
   const [name, setName] = useState('');
   const [targetType, setTargetType] = useState('');
   const [status, setStatus] = useState<'active' | 'inactive'>('active');
+  /**
+   * The template body is a CONTROLLED value (Upgrade 2, A5).
+   *
+   * It used to be an uncontrolled `<textarea defaultValue=…>` read back through a
+   * ref at save time, and `bodyValue()` returned an empty string whenever the
+   * form was for a NEW template. Two consequences, both reported as "No content"
+   * on save: a brand-new template could never keep what the administrator typed,
+   * and switching between templates left the previous body in the DOM. The body
+   * now lives in state, is initialised from the template being edited, and is
+   * the only thing that is ever sent.
+   */
+  const [body, setBody] = useState('');
   const [saving, setSaving] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [brokenLinks, setBrokenLinks] = useState<Array<{ slug: string; status: string; title: string }>>([]);
@@ -87,19 +99,18 @@ export const AdminEmailTemplates: React.FC<Props> = ({ notify }) => {
       setName('');
       setTargetType(targets[0]?.type ?? '');
       setStatus('active');
+      setBody('');
       setPickerOpen(false);
     } else {
       setName(template.name);
       setTargetType(template.targetType);
       setStatus(template.status);
       setBrokenLinks(template.brokenLinks ?? []);
+      setBody(template.bodyHtml ?? '');
     }
   };
 
-  const bodyValue = (): string => {
-    if (editing === 'new') return '';
-    return bodyRef.current?.value ?? (editing?.bodyHtml ?? '');
-  };
+  const bodyValue = (): string => body;
 
   const loadPickerPosts = async (query: string) => {
     setPickerLoading(true);
@@ -123,24 +134,34 @@ export const AdminEmailTemplates: React.FC<Props> = ({ notify }) => {
     const text = (linkText.trim() || post.title).replace(/</g, '&lt;').replace(/&/g, '&amp;');
     const snippet = `<p><a href="${post.url}">${text}</a></p>`;
     const textarea = bodyRef.current;
-    if (textarea) {
-      const start = textarea.selectionStart ?? textarea.value.length;
-      const end = textarea.selectionEnd ?? textarea.value.length;
-      textarea.value = textarea.value.slice(0, start) + snippet + textarea.value.slice(end);
-    }
+    const start = textarea?.selectionStart ?? body.length;
+    const end = textarea?.selectionEnd ?? body.length;
+    setBody((current) => current.slice(0, start) + snippet + current.slice(end));
     setPickerOpen(false);
     setLinkText('');
     notify('info', 'Article link inserted', 'Save the template to keep it.');
   };
 
+  /**
+   * Wrap the current selection (or insert the snippet at the caret). The textarea
+   * is controlled, so the new value goes through state and the caret is restored
+   * afterwards — otherwise React would reset it to the end on re-render.
+   */
   const wrapSelection = (before: string, after: string) => {
     const textarea = bodyRef.current;
-    if (!textarea) return;
-    const start = textarea.selectionStart ?? 0;
-    const end = textarea.selectionEnd ?? 0;
-    const selected = textarea.value.slice(start, end);
-    textarea.value =
-      textarea.value.slice(0, start) + before + selected + after + textarea.value.slice(end);
+    const start = textarea?.selectionStart ?? body.length;
+    const end = textarea?.selectionEnd ?? body.length;
+    const selected = body.slice(start, end);
+    const next = body.slice(0, start) + before + selected + after + body.slice(end);
+    setBody(next);
+
+    const caret = start + before.length + selected.length;
+    window.setTimeout(() => {
+      const element = bodyRef.current;
+      if (!element) return;
+      element.focus();
+      element.setSelectionRange(caret, caret);
+    }, 0);
   };
 
   const checkLinks = async () => {
@@ -306,8 +327,10 @@ export const AdminEmailTemplates: React.FC<Props> = ({ notify }) => {
               </div>
 
               <textarea
+                key={editing === 'new' ? 'new' : editing.id}
                 ref={bodyRef}
-                defaultValue={editing === 'new' ? '' : editing.bodyHtml}
+                value={body}
+                onChange={(event) => setBody(event.target.value)}
                 rows={10}
                 placeholder={'<p>Read our <a href="https://goodlucks.co/blog/…">guide to renting in Ghana</a>.</p>'}
                 className="w-full bg-page border border-line rounded-xl px-3 py-2 text-xs font-mono text-ink"

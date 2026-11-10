@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { PropertyCard } from './PropertyCard';
+import { PropertyCardGrid } from './PropertyCardGrid';
 import { ViewingRequestModal } from './ViewingRequestModal';
 import { GetNotifiedModal } from './GetNotifiedModal';
 import { SEOHead } from './SEOHead';
@@ -182,16 +183,13 @@ export const HomeView: React.FC = () => {
           </button>
         </div>
 
-        {/* PROPERTY GRID - MUST BE 2 CARDS PER ROW ON MOBILE */}
-        <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6">
-          {filteredProperties.slice(0, 8).map(property => (
-            <PropertyCard 
-              key={property.id} 
-              property={property}
-              onRequestViewing={(p) => setSelectedViewingProp(p)}
-            />
-          ))}
-        </div>
+        {/* PROPERTY LIST (Upgrade 2, A4): compact horizontal cards in a swipeable
+            row on a phone, the existing grid from `sm` upwards. */}
+        <PropertyCardGrid
+          properties={filteredProperties.slice(0, 8)}
+          label="Featured rentals"
+          onRequestViewing={(p) => setSelectedViewingProp(p)}
+        />
 
       </section>
 

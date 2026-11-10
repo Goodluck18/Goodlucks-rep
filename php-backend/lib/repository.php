@@ -113,6 +113,8 @@ function shape_tenant_request(array $row): array
         'propertyType'         => (string)$row['property_type'],
         'moveInDate'           => (string)($row['move_in_date'] ?? ''),
         'status'               => (string)$row['status'],
+        // The console's own vocabulary for the same lifecycle (Upgrade 2, A7).
+        'stage'                => tenant_request_stage((string)$row['status']),
         'matchedPropertyIds'   => json_column($row['matched_property_ids'] ?? null),
         'assignedAgent'        => (string)($row['assigned_agent'] ?? ''),
         'notes'                => (string)($row['notes'] ?? ''),
@@ -612,6 +614,18 @@ function query_properties(array $filters): array
         $where[] = 'featured = 1';
     }
 
+    // Listing date range (Upgrade 2, A6). `createdTo` is inclusive of the whole
+    // day it names, so "1–7 November" includes listings created on the 7th.
+    if (!empty($filters['createdFrom'])) {
+        $where[] = 'created_at >= :created_from';
+        $params[':created_from'] = (string)$filters['createdFrom'] . ' 00:00:00';
+    }
+    if (!empty($filters['createdTo'])) {
+        $nextDay = date('Y-m-d', strtotime((string)$filters['createdTo'] . ' +1 day'));
+        $where[] = 'created_at < :created_to';
+        $params[':created_to'] = $nextDay . ' 00:00:00';
+    }
+
     $whereSql = $where ? ' WHERE ' . implode(' AND ', $where) : '';
 
     $sortMap = [
@@ -809,16 +823,48 @@ function agent_can_submit_listings(?array $profile): bool
 }
 
 /** Admin listing: agent account + the public user fields staff need. */
-function list_agent_profiles(int $limit = 200): array
+/**
+ * Agent accounts with the console's search and filters (Upgrade 2, A8).
+ *
+ * Identity verification and listing authorisation are DIFFERENT decisions and
+ * stay separate here: `verification` filters on the verification record, while
+ * `listing` and `stage` filter on the listing-authorisation decision. An agent
+ * whose identity is verified has not therefore been allowed to publish.
+ *
+ *   'q'            — name, email address, contact address, agency or operating city
+ *   'stage'        — pending | approved_for_listing | suspended
+ *   'verification' — verified | unverified
+ *   'listing'      — allowed | blocked
+ *   'accountStatus'— pending_review | active | suspended
+ */
+function list_agent_profiles(int $limit = 200, array $filters = []): array
 {
+    $where = [];
+    $params = [];
+
+    $query = trim((string)($filters['q'] ?? ''));
+    if ($query !== '') {
+        $needle = '%' . mb_strtolower($query) . '%';
+        $where[] = '(LOWER(u.name) LIKE :q OR LOWER(u.email) LIKE :q OR LOWER(u.address) LIKE :q'
+            . ' OR LOWER(COALESCE(ap.agency_name, \'\')) LIKE :q OR LOWER(COALESCE(ap.operating_city, \'\')) LIKE :q)';
+        $params[':q'] = $needle;
+    }
+
+    if (!empty($filters['accountStatus'])) {
+        $where[] = 'ap.account_status = :account_status';
+        $params[':account_status'] = (string)$filters['accountStatus'];
+    }
+
     $rows = db_all(
         "SELECT ap.*, u.name, u.email, u.phone, u.address, u.created_at AS user_created_at
            FROM agent_profiles ap
-           JOIN users u ON u.id = ap.user_id
-          ORDER BY ap.created_at DESC" . db_limit_clause($limit, 0)
+           JOIN users u ON u.id = ap.user_id"
+        . ($where ? ' WHERE ' . implode(' AND ', $where) : '')
+        . ' ORDER BY ap.created_at DESC' . db_limit_clause($limit, 0),
+        $params
     );
 
-    return array_map(static function (array $row): array {
+    $profiles = array_map(static function (array $row): array {
         $profile = shape_agent_profile($row);
         $profile['name'] = (string)($row['name'] ?? '');
         $profile['email'] = (string)($row['email'] ?? '');
@@ -829,6 +875,70 @@ function list_agent_profiles(int $limit = 200): array
         $profile['registeredAt'] = to_iso($row['user_created_at'] ?? null);
         return $profile;
     }, $rows);
+
+    return agent_profiles_matching($profiles, $filters);
+}
+
+/** The stage an administrator sees for one agent account (Upgrade 2, A8). */
+function agent_account_stage(array $profile): string
+{
+    if ((string)($profile['accountStatus'] ?? '') === 'suspended') {
+        return 'suspended';
+    }
+    if (!empty($profile['canSubmitListings'])) {
+        return 'approved_for_listing';
+    }
+
+    return 'pending';
+}
+
+/**
+ * Apply the verification / listing / stage filters to already-shaped profiles.
+ *
+ * These live in PHP rather than SQL because verification is derived from the
+ * verification records (see `agent_tier_state()`); putting it in the query would
+ * mean a second, divergent definition of what "verified" means.
+ */
+function agent_profiles_matching(array $profiles, array $filters): array
+{
+    $stage = (string)($filters['stage'] ?? '');
+    $verification = (string)($filters['verification'] ?? '');
+    $listing = (string)($filters['listing'] ?? '');
+
+    return array_values(array_filter($profiles, static function (array $profile) use ($stage, $verification, $listing): bool {
+        if ($stage !== '' && agent_account_stage($profile) !== $stage) {
+            return false;
+        }
+        if ($verification === 'verified' && empty($profile['identityVerified'])) {
+            return false;
+        }
+        if ($verification === 'unverified' && !empty($profile['identityVerified'])) {
+            return false;
+        }
+        if ($listing === 'allowed' && empty($profile['canSubmitListings'])) {
+            return false;
+        }
+        if ($listing === 'blocked' && !empty($profile['canSubmitListings'])) {
+            return false;
+        }
+
+        return true;
+    }));
+}
+
+/**
+ * How many agent accounts are in each console stage, over every account.
+ *
+ * @return array<string, int>
+ */
+function count_agents_by_stage(): array
+{
+    $counts = ['pending' => 0, 'approved_for_listing' => 0, 'suspended' => 0];
+    foreach (list_agent_profiles(1000) as $profile) {
+        $counts[agent_account_stage($profile)] = ($counts[agent_account_stage($profile)] ?? 0) + 1;
+    }
+
+    return $counts;
 }
 
 function create_property(array $data): string
@@ -994,10 +1104,84 @@ function create_enquiry(array $data): string
     return $id;
 }
 
-function list_enquiries(int $limit = 200): array
+/**
+ * Enquiries, newest first (Upgrade 2, A10).
+ *
+ * The console used to fetch every enquiry and filter it in the browser, which
+ * silently hid anything past the limit and could not be searched at all. The
+ * filters run in SQL over the real rows:
+ *
+ *   'q'      — name, email address or phone number (a phone search also matches
+ *              the same subscriber written with spaces, +233 or a local 0 prefix
+ *              because the digits are compared, not the punctuation);
+ *   'status' — one of ENQUIRY_STATUSES, or an array of them.
+ *
+ * `count_enquiries_by_status()` is separate on purpose: the console's status
+ * chips show how many enquiries exist in each state across ALL records, not how
+ * many survived the current search.
+ */
+function list_enquiries(int $limit = 200, array $filters = []): array
 {
-    $rows = db_all('SELECT * FROM enquiries ORDER BY created_at DESC' . db_limit_clause($limit, 0));
-    return array_map('shape_enquiry', $rows);
+    $where = [];
+    $params = [];
+
+    $statuses = $filters['status'] ?? null;
+    if ($statuses !== null && $statuses !== '' && $statuses !== []) {
+        $statuses = is_array($statuses) ? $statuses : [$statuses];
+        $statuses = array_values(array_intersect($statuses, ENQUIRY_STATUSES));
+        if ($statuses) {
+            $placeholders = [];
+            foreach ($statuses as $index => $status) {
+                $placeholders[] = ':status' . $index;
+                $params[':status' . $index] = $status;
+            }
+            $where[] = 'status IN (' . implode(', ', $placeholders) . ')';
+        } else {
+            // An unknown status can never match a record; be explicit rather
+            // than silently returning everything.
+            return [];
+        }
+    }
+
+    $query = trim((string)($filters['q'] ?? ''));
+    if ($query !== '') {
+        $needle = '%' . mb_strtolower($query) . '%';
+        $conditions = ['LOWER(name) LIKE :q', 'LOWER(email) LIKE :q'];
+        $params[':q'] = $needle;
+
+        // A phone number is matched on its digits so "+233 24 123 4567" and
+        // "0241234567" find the same enquiry.
+        $digits = preg_replace('/\D+/', '', $query) ?? '';
+        if (strlen($digits) >= 3) {
+            $conditions[] = "REPLACE(REPLACE(REPLACE(REPLACE(phone, ' ', ''), '-', ''), '+', ''), '(', '') LIKE :phone_q";
+            $params[':phone_q'] = '%' . $digits . '%';
+        }
+        $where[] = '(' . implode(' OR ', $conditions) . ')';
+    }
+
+    $sql = 'SELECT * FROM enquiries'
+        . ($where ? ' WHERE ' . implode(' AND ', $where) : '')
+        . ' ORDER BY created_at DESC' . db_limit_clause($limit, 0);
+
+    return array_map('shape_enquiry', db_all($sql, $params));
+}
+
+/**
+ * How many enquiries exist in each status, over every record.
+ *
+ * @return array<string, int> keyed by status, every known status present (0 when empty)
+ */
+function count_enquiries_by_status(): array
+{
+    $counts = array_fill_keys(ENQUIRY_STATUSES, 0);
+    foreach (db_all('SELECT status, COUNT(*) AS total FROM enquiries GROUP BY status', []) as $row) {
+        $status = (string)($row['status'] ?? '');
+        if (array_key_exists($status, $counts)) {
+            $counts[$status] = (int)$row['total'];
+        }
+    }
+
+    return $counts;
 }
 
 // ---------------------------------------------------------------------------
@@ -1039,6 +1223,56 @@ function create_tenant_request(array $data): string
 /**
  * @param array $scope ['tenantId' => ..., 'email' => ...] or empty for all
  */
+/**
+ * The console's three-way view of a rental request (Upgrade 2, A7).
+ *
+ * The stored lifecycle (`submitted … cancelled`, REQUEST_STATUSES) is unchanged
+ * and is still what the pipeline acts on. The console groups it into the
+ * vocabulary an administrator uses:
+ *
+ *   pending           — submitted or searching: nobody has approved matches yet
+ *   approved          — matched: staff approved the matches for the tenant
+ *   viewing_scheduled — a viewing appointment exists for the request
+ *   completed         — the request finished
+ *   cancelled         — the tenant or staff cancelled it
+ */
+function tenant_request_stage(string $status): string
+{
+    return match ($status) {
+        'submitted', 'searching' => 'pending',
+        'matched'                => 'approved',
+        'viewing_scheduled'      => 'viewing_scheduled',
+        'completed'              => 'completed',
+        'cancelled'              => 'cancelled',
+        default                  => 'pending',
+    };
+}
+
+/** The stored statuses that make up a console stage. @return string[] */
+function tenant_request_stage_statuses(string $stage): array
+{
+    return match ($stage) {
+        'pending'           => ['submitted', 'searching'],
+        'approved'          => ['matched'],
+        'viewing_scheduled' => ['viewing_scheduled'],
+        'completed'         => ['completed'],
+        'cancelled'         => ['cancelled'],
+        default             => [],
+    };
+}
+
+/**
+ * Rental requests (Upgrade 2, A7).
+ *
+ * `$scope` may carry the owner restriction (`tenantId` / `email`) used by the
+ * tenant's own view, and the console filters:
+ *
+ *   'q'      — the tenant's name, phone number or email address;
+ *   'stage'  — pending | approved | viewing_scheduled | completed | cancelled;
+ *   'status' — the exact stored status (or a list of them).
+ *
+ * Real records only: nothing is invented for a request that has no match yet.
+ */
 function list_tenant_requests(array $scope = [], int $limit = 200): array
 {
     $where = [];
@@ -1050,9 +1284,59 @@ function list_tenant_requests(array $scope = [], int $limit = 200): array
         $where[] = 'LOWER(tenant_email) = LOWER(:email)';
         $params[':email'] = $scope['email'];
     }
+
+    $stageStatuses = [];
+    if (!empty($scope['stage'])) {
+        $stageStatuses = tenant_request_stage_statuses((string)$scope['stage']);
+        if ($stageStatuses === []) {
+            return [];
+        }
+    }
+
+    if (!empty($scope['status'])) {
+        $statuses = is_array($scope['status']) ? $scope['status'] : [$scope['status']];
+        $statuses = array_values(array_intersect($statuses, REQUEST_STATUSES));
+        if ($stageStatuses !== []) {
+            $statuses = array_values(array_intersect($statuses, $stageStatuses));
+        }
+        if ($statuses === []) {
+            return [];
+        }
+        $placeholders = [];
+        foreach ($statuses as $index => $status) {
+            $placeholders[] = ':status' . $index;
+            $params[':status' . $index] = $status;
+        }
+        $where[] = 'status IN (' . implode(', ', $placeholders) . ')';
+    } elseif ($stageStatuses !== []) {
+        $placeholders = [];
+        foreach ($stageStatuses as $index => $status) {
+            $placeholders[] = ':stage' . $index;
+            $params[':stage' . $index] = $status;
+        }
+        $where[] = 'status IN (' . implode(', ', $placeholders) . ')';
+    }
+
+    $query = trim((string)($scope['q'] ?? ''));
+    if ($query !== '') {
+        $needle = '%' . mb_strtolower($query) . '%';
+        $conditions = [
+            'LOWER(tenant_name) LIKE :q',
+            'LOWER(tenant_email) LIKE :q',
+        ];
+        $params[':q'] = $needle;
+        $digits = preg_replace('/\D+/', '', $query) ?? '';
+        if (strlen($digits) >= 3) {
+            $conditions[] = "REPLACE(REPLACE(REPLACE(REPLACE(tenant_phone, ' ', ''), '-', ''), '+', ''), '(', '') LIKE :phone_q";
+            $params[':phone_q'] = '%' . $digits . '%';
+        }
+        $where[] = '(' . implode(' OR ', $conditions) . ')';
+    }
+
     $sql = 'SELECT * FROM tenant_requests'
         . ($where ? ' WHERE ' . implode(' AND ', $where) : '')
         . ' ORDER BY created_at DESC' . db_limit_clause($limit, 0);
+
     return array_map('shape_tenant_request', db_all($sql, $params));
 }
 

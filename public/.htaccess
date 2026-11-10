@@ -33,6 +33,15 @@ DirectoryIndex index.html index.php
     #     applies the same visibility rule as the property page itself.
     RewriteRule ^p/([A-Za-z0-9_-]+)/?$ api/short_link.php [L,QSA]
 
+    # 2e. The Learning Centre and every article are rendered by PHP for the same
+    #     reason as a property page: a link pasted into WhatsApp, Facebook, X,
+    #     LinkedIn or Slack must show the ARTICLE's own title, description,
+    #     photograph and canonical URL, not the generic site card. Only a
+    #     published article gets a real card; a draft answers 404 (see
+    #     api/blog_page.php).
+    RewriteRule ^blog/?$ api/blog_page.php [L,QSA]
+    RewriteRule ^blog/([A-Za-z0-9._-]+)/?$ api/blog_page.php [L,QSA]
+
     # 3. Real files and directories (JS, CSS, images, uploads) are served as-is.
     RewriteCond %{REQUEST_FILENAME} -f [OR]
     RewriteCond %{REQUEST_FILENAME} -d

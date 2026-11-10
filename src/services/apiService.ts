@@ -434,7 +434,29 @@ export const api = {
     ),
 
   // --- Staff: agent account review (Increment C) -----------------------------
-  listAgents: () => request<{ agents: AdminAgentAccount[]; count: number }>('/admin/agents'),
+  /**
+   * Agent accounts (Upgrade 2, A8). `stage` is the console's three-way view of
+   * the LISTING authorisation decision (pending / approved_for_listing /
+   * suspended); `verification` is the separate identity decision.
+   */
+  listAgents: (
+    params: {
+      q?: string;
+      stage?: string;
+      verification?: string;
+      listing?: string;
+      accountStatus?: string;
+    } = {}
+  ) => {
+    const search = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== '') search.set(key, String(value));
+    });
+    const query = search.toString();
+    return request<{ agents: AdminAgentAccount[]; count: number; stageCounts: Record<string, number> }>(
+      `/admin/agents${query ? `?${query}` : ''}`
+    );
+  },
 
   /**
    * Approve, suspend or return an agent account to review. `canSubmitListings`
@@ -471,7 +493,9 @@ export const api = {
       if (value !== undefined && value !== '') search.set(key, String(value));
     });
     const query = search.toString();
-    return request<{ properties: Property[]; total: number }>(`/admin/properties${query ? `?${query}` : ''}`);
+    return request<{ properties: Property[]; total: number; count: number; page: number; perPage: number }>(
+      `/admin/properties${query ? `?${query}` : ''}`
+    );
   },
 
   getProperty: (id: string) => request<{ property: Property }>(`/properties/${encodeURIComponent(id)}`),
@@ -535,10 +559,21 @@ export const api = {
       body: { featured },
     }),
 
+  /**
+   * `POST /api/uploads/` — the TRAILING SLASH is deliberate (Upgrade 2, A1).
+   *
+   * On the deployed host `public_html/api/uploads` is a real directory. Apache's
+   * `mod_dir` answers a request for a directory without its trailing slash with a
+   * `301` to the slashed form, and a browser re-issues a redirected POST as a
+   * GET — which then reached the front controller as `GET /api/uploads/` and came
+   * back "Endpoint not found." Posting to the slashed path skips that redirect.
+   * The API directory's `.htaccess` also routes the bare path to `index.php`
+   * first, so both spellings work; the server accepts either (tests assert both).
+   */
   uploadImages: (files: File[]) => {
     const form = new FormData();
     files.forEach((file) => form.append('file', file, file.name));
-    return request<{ urls: string[]; warnings?: string[] }>('/uploads', { method: 'POST', formData: form });
+    return request<{ urls: string[]; warnings?: string[] }>('/uploads/', { method: 'POST', formData: form });
   },
 
   // -------------------------------------------------------------------------
@@ -547,7 +582,19 @@ export const api = {
   createEnquiry: (data: { name: string; email: string; phone?: string; message: string; propertyId?: string; source?: string }) =>
     request<{ success: boolean; message: string; enquiryId: string }>('/enquiries', { method: 'POST', body: data }),
 
-  listEnquiries: () => request<{ enquiries: Enquiry[] }>('/admin/enquiries'),
+  /** Web enquiries, newest first (Upgrade 2, A10). */
+  listEnquiries: (params: { q?: string; status?: string } = {}) => {
+    const search = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== '') search.set(key, String(value));
+    });
+    const query = search.toString();
+    return request<{
+      enquiries: Enquiry[];
+      count: number;
+      statusCounts: Record<string, number>;
+    }>(`/admin/enquiries${query ? `?${query}` : ''}`);
+  },
 
   updateEnquiryStatus: (id: string, status: Enquiry['status']) =>
     request<{ enquiry: Enquiry; message: string }>(`/admin/enquiries/${encodeURIComponent(id)}`, {
@@ -569,7 +616,20 @@ export const api = {
 
   listTenantRequests: () => request<{ requests: TenantRequest[] }>('/tenant-requests'),
 
-  listAllTenantRequests: () => request<{ requests: TenantRequest[] }>('/admin/tenant-requests'),
+  /**
+   * Every rental request, with the console's search and stage filter
+   * (Upgrade 2, A7). `stageCounts` counts all requests, not the filtered list.
+   */
+  listAllTenantRequests: (params: { q?: string; stage?: string; status?: string } = {}) => {
+    const search = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== '') search.set(key, String(value));
+    });
+    const query = search.toString();
+    return request<{ requests: TenantRequest[]; stageCounts: Record<string, number> }>(
+      `/admin/tenant-requests${query ? `?${query}` : ''}`
+    );
+  },
 
   updateTenantRequest: (id: string, data: { status?: string; matchedPropertyIds?: string[] }) =>
     request<{ request: TenantRequest }>(`/tenant-requests/${encodeURIComponent(id)}`, { method: 'PATCH', body: data }),

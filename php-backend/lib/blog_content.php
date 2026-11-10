@@ -162,7 +162,9 @@ function blog_youtube_id(string $url): ?string
         // A youtu.be link may carry the id with a trailing segment.
         $candidate = explode('/', $candidate)[0] ?? '';
     } elseif ($host === 'youtube.com' || $host === 'youtube-nocookie.com') {
-        if (preg_match('#^/(?:embed|shorts|live|v)/([^/?#]+)#', $path, $m)) {
+        // NB: the '#' inside the character class must be escaped, or PHP reads it
+        // as the closing delimiter and the whole match fails (Upgrade 2, A2).
+        if (preg_match('#^/(?:embed|shorts|live|v)/([^/?\#]+)#', $path, $m)) {
             $candidate = $m[1];
         } elseif (isset($query['v']) && is_string($query['v'])) {
             $candidate = $query['v'];
@@ -414,7 +416,10 @@ function blog_sanitize_html(string $html, array $options = []): string
         $output .= '</' . array_pop($stack) . '>';
     }
 
-    return trim($output);
+    // One canonical showcase marker, however the editor/browser padded it
+    // (Upgrade 2, A2). Storing the tidy form means every consumer — the reader,
+    // the share card, an export — sees the same bytes.
+    return blog_normalize_showcase_blocks(trim($output));
 }
 
 /** Escape a text node for output (existing entities are kept). */
@@ -473,25 +478,216 @@ function blog_parse_attributes(string $raw): array
 }
 
 /**
+ * Locate every property-showcase block in an article body (Upgrade 2, A2).
+ *
+ * The match is STRUCTURAL, not a byte-exact string. A `contentEditable` pads an
+ * empty `<div class="gl-showcase"></div>` with `<br>`, and an exact match then
+ * lost the cards — which is why a video and the showcase used to displace each
+ * other. Any `<div>` whose class list contains `gl-showcase` counts, whatever
+ * padding or children it picked up, and the block's matching close tag is found
+ * by counting nested `<div>`s so the whole block is removed, not just its opener.
+ *
+ * @return array<int, array{start: int, length: int, inner: string}>
+ */
+function blog_showcase_block_spans(string $html): array
+{
+    $spans = [];
+    $length = strlen($html);
+    $offset = 0;
+
+    while ($offset < $length && preg_match('/<div\b[^>]*>/i', $html, $match, PREG_OFFSET_CAPTURE, $offset)) {
+        $tagText = $match[0][0];
+        $tagStart = (int)$match[0][1];
+        $tagEnd = $tagStart + strlen($tagText);
+        $offset = $tagEnd;
+
+        if (!preg_match('/\bclass\s*=\s*(?:"([^"]*)"|\'([^\']*)\')/i', $tagText, $classMatch)) {
+            continue;
+        }
+        $classValue = $classMatch[1] !== '' ? $classMatch[1] : ($classMatch[2] ?? '');
+        $classes = preg_split('/\s+/', strtolower(trim($classValue))) ?: [];
+        if (!in_array(BLOG_SHOWCASE_CLASS, $classes, true)) {
+            continue;
+        }
+
+        $depth = 1;
+        $cursor = $tagEnd;
+        $innerEnd = null;
+        while ($depth > 0 && preg_match('#<div\b[^>]*>|</div\s*>#i', $html, $inner, PREG_OFFSET_CAPTURE, $cursor)) {
+            $innerText = $inner[0][0];
+            $position = (int)$inner[0][1];
+            $cursor = $position + strlen($innerText);
+            if (strncasecmp($innerText, '</div', 5) === 0) {
+                $depth--;
+                if ($depth === 0) {
+                    $innerEnd = $position;
+                }
+            } else {
+                $depth++;
+            }
+        }
+        if ($innerEnd === null) {
+            // Unclosed block: treat the remainder as part of it so no stray
+            // opener is left behind in the stored article.
+            $innerEnd = $length;
+            $cursor = $length;
+        }
+
+        $spans[] = [
+            'start'  => $tagStart,
+            'length' => $cursor - $tagStart,
+            'inner'  => substr($html, $tagEnd, max(0, $innerEnd - $tagEnd)),
+        ];
+        $offset = $cursor;
+    }
+
+    return $spans;
+}
+
+/**
+ * The content inside a showcase block that a person actually wrote.
+ *
+ * Browser padding (`<br>`, `&nbsp;`, whitespace) is not content and is dropped;
+ * real text or markup is kept, so normalising can never delete an author's words.
+ */
+function blog_showcase_inner_content(string $inner): string
+{
+    $clean = preg_replace('/<br\s*\/?>/i', '', $inner) ?? '';
+    $clean = str_replace(['&nbsp;', "\xC2\xA0"], '', $clean);
+
+    return trim($clean) === '' ? '' : trim($inner);
+}
+
+/**
+ * Collapse the article's showcase block(s) to the one canonical, empty marker.
+ *
+ * Called at the end of `blog_sanitize_html()`, so the stored HTML is always the
+ * tidy form. A second marker is removed (an article has one showcase); anything
+ * an author typed inside the block is preserved after the marker.
+ */
+function blog_normalize_showcase_blocks(string $html): string
+{
+    $html = blog_lift_nested_showcase_blocks($html);
+    $spans = blog_showcase_block_spans($html);
+    if ($spans === []) {
+        return $html;
+    }
+
+    $output = '';
+    $cursor = 0;
+    $first = true;
+    foreach ($spans as $span) {
+        $output .= substr($html, $cursor, $span['start'] - $cursor);
+        $kept = blog_showcase_inner_content($span['inner']);
+        if ($first) {
+            $output .= blog_showcase_placeholder();
+            $output .= $kept;
+            $first = false;
+        } else {
+            $output .= $kept;
+        }
+        $cursor = $span['start'] + $span['length'];
+    }
+    $output .= substr($html, $cursor);
+
+    return $output;
+}
+
+/**
+ * The end offset of the `<figure>`/`<aside>` that encloses a showcase marker.
+ *
+ * A marker nested inside a video figure or a callout splits that block in half
+ * when the reader places the cards, which produces invalid markup. Normalising
+ * lifts the marker out instead. Returns null when the marker is not enclosed.
+ */
+function blog_showcase_outer_block(string $html, int $start): ?int
+{
+    $stack = [];
+    $offset = 0;
+    while (preg_match('#<(figure|aside)\b[^>]*>|</(figure|aside)\s*>#i', $html, $m, PREG_OFFSET_CAPTURE, $offset)) {
+        $text = $m[0][0];
+        $position = (int)$m[0][1];
+        $offset = $position + strlen($text);
+        $isClosing = ($text[1] ?? '') === '/';
+
+        if ($position < $start) {
+            if ($isClosing) {
+                $name = strtolower((string)($m[2][0] ?? ''));
+                if ($stack !== [] && end($stack) === $name) {
+                    array_pop($stack);
+                }
+            } else {
+                $stack[] = strtolower((string)($m[1][0] ?? ''));
+            }
+            continue;
+        }
+
+        // At or after the marker: the first close of the innermost enclosing
+        // block ends the block the marker has to leave.
+        if ($isClosing && $stack !== [] && end($stack) === strtolower((string)($m[2][0] ?? ''))) {
+            return $offset;
+        }
+    }
+
+    return null;
+}
+
+/**
+ * Move any showcase marker that is nested inside a figure/aside to just after
+ * that block, so the marker always sits at the article's own level.
+ */
+function blog_lift_nested_showcase_blocks(string $html): string
+{
+    for ($pass = 0; $pass < 20; $pass++) {
+        $moved = false;
+        foreach (blog_showcase_block_spans($html) as $span) {
+            $outerEnd = blog_showcase_outer_block($html, $span['start']);
+            if ($outerEnd === null) {
+                continue;
+            }
+            $html = substr($html, 0, $span['start']) . substr($html, $span['start'] + $span['length']);
+            $insertAt = max(0, $outerEnd - $span['length']);
+            $html = substr($html, 0, $insertAt) . blog_showcase_placeholder() . substr($html, $insertAt);
+            $moved = true;
+            break;
+        }
+        if (!$moved) {
+            break;
+        }
+    }
+
+    return $html;
+}
+
+/**
  * Split an article body around the property showcase placeholder.
+ *
+ * Structural (see `blog_showcase_block_spans()`): a padded or duplicated marker
+ * still splits correctly, and a duplicated marker is never rendered twice.
  *
  * @return array{before: string, after: string, has_placeholder: bool}
  */
 function blog_split_showcase(string $html): array
 {
-    $pattern = '/<div\s+class="' . preg_quote(BLOG_SHOWCASE_CLASS, '/') . '"\s*>\s*<\/div>/i';
-    if (preg_match($pattern, $html, $match, PREG_OFFSET_CAPTURE)) {
-        $start = (int)$match[0][1];
-        $length = strlen($match[0][0]);
-
-        return [
-            'before'          => substr($html, 0, $start),
-            'after'           => substr($html, $start + $length),
-            'has_placeholder' => true,
-        ];
+    $spans = blog_showcase_block_spans($html);
+    if ($spans === []) {
+        return ['before' => $html, 'after' => '', 'has_placeholder' => false];
     }
 
-    return ['before' => $html, 'after' => '', 'has_placeholder' => false];
+    $first = $spans[0];
+    $before = substr($html, 0, $first['start']);
+    $afterStart = $first['start'] + $first['length'];
+    $after = substr($html, $afterStart);
+
+    // Remove any further marker, last one first so the offsets stay valid.
+    foreach (array_reverse(array_slice($spans, 1)) as $span) {
+        $startInAfter = $span['start'] - $afterStart;
+        if ($startInAfter >= 0) {
+            $after = substr($after, 0, $startInAfter) . substr($after, $startInAfter + $span['length']);
+        }
+    }
+
+    return ['before' => $before, 'after' => $after, 'has_placeholder' => true];
 }
 
 /** The placeholder markup the editor inserts (kept in one place). */
