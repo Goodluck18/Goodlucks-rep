@@ -333,6 +333,15 @@ function public_user(array $row): array
         'createdAt'          => to_iso($row['created_at'] ?? null),
     ];
 
+    // This upgrade: the formal account state. It is reported for every account
+    // (a tenant is always 'active'), and the suspension record itself is included
+    // only for an account that has one — imposed, lifted, or both.
+    $suspension = user_suspension_state($row);
+    $user['accountStatus'] = $suspension['status'];
+    if ($suspension['suspended'] || $suspension['suspendedAt'] !== '' || $suspension['reinstatedAt'] !== '') {
+        $user['suspension'] = $suspension;
+    }
+
     // Upgrade 2 correction: an Agent/Landlord account exposes its classification
     // so the client can ask for the choice once, and never again after that.
     $providerCategory = provider_category_state($row);

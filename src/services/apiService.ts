@@ -12,6 +12,9 @@
 import type {
   AccountGroup,
   AdminActivityEntry,
+  AdminAvailabilityRow,
+  PropertyAvailabilityEvent,
+  PropertyAvailabilityRenewal,
   AdminCampaign,
   AdminCampaignSummary,
   AdminUserActivityEntry,
@@ -585,6 +588,99 @@ export const api = {
       method: 'POST',
       body: { decision, note },
     }),
+
+  // -------------------------------------------------------------------------
+  // Seven-day availability renewal (this upgrade)
+  //
+  // The provider's two answers. The deadline itself is enforced by the server:
+  // nothing here decides whether a listing is public.
+  // -------------------------------------------------------------------------
+  confirmPropertyAvailability: (id: string, note = '') =>
+    request<{ success: boolean; message: string; property: Property }>(
+      `/properties/${encodeURIComponent(id)}/availability/confirm`,
+      { method: 'POST', body: { note } }
+    ),
+
+  declinePropertyAvailability: (id: string, note = '') =>
+    request<{ success: boolean; message: string; property: Property }>(
+      `/properties/${encodeURIComponent(id)}/availability/decline`,
+      { method: 'POST', body: { note } }
+    ),
+
+  propertyAvailabilityHistory: (id: string) =>
+    request<{
+      success: boolean;
+      history: PropertyAvailabilityEvent[];
+      availability: PropertyAvailabilityRenewal;
+    }>(`/properties/${encodeURIComponent(id)}/availability/history`),
+
+  /** Staff: the availability console, with counts for every filter. */
+  adminPropertyAvailability: (params: { filter?: string; q?: string; page?: number; perPage?: number } = {}) => {
+    const search = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== '') search.set(key, String(value));
+    });
+    const query = search.toString();
+    return request<{
+      success: boolean;
+      items: AdminAvailabilityRow[];
+      total: number;
+      counts: Record<string, number>;
+      page: number;
+      perPage: number;
+    }>(`/admin/property-availability${query ? `?${query}` : ''}`);
+  },
+
+  adminPropertyAvailabilityActivity: (params: { kind?: string; q?: string; page?: number; perPage?: number } = {}) => {
+    const search = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== '') search.set(key, String(value));
+    });
+    const query = search.toString();
+    return request<{
+      success: boolean;
+      items: Array<{
+        id: string;
+        at: string;
+        action: string;
+        label: string;
+        actorRole: string;
+        actorName: string;
+        system: boolean;
+        entityType: string;
+        entityId: string;
+        property: { id: string; title: string; location: string } | null;
+        account: { id: string; name: string; role: string } | null;
+        detail: { reason: string; note: string; source: string; automated: boolean };
+      }>;
+      total: number;
+      counts: Record<string, number>;
+    }>(`/admin/property-availability/activity${query ? `?${query}` : ''}`);
+  },
+
+  /** Staff: reactivate a listing. A reason and a confirmation source are required. */
+  adminReactivatePropertyAvailability: (
+    id: string,
+    data: { reason: string; confirmedWith: string; note?: string }
+  ) =>
+    request<{ success: boolean; message: string; property: Property }>(
+      `/admin/properties/${encodeURIComponent(id)}/availability/reactivate`,
+      { method: 'POST', body: data }
+    ),
+
+  /** Staff: suspend an Agent or Landlord account. */
+  suspendProvider: (userId: string, reason: string) =>
+    request<{ success: boolean; message: string; user: User; listingsUnpublished: number }>(
+      `/admin/users/${encodeURIComponent(userId)}/suspension`,
+      { method: 'POST', body: { reason } }
+    ),
+
+  /** Staff: lift a suspension. Nothing is republished automatically. */
+  reinstateProvider: (userId: string, reason: string) =>
+    request<{ success: boolean; message: string; user: User; listingsAwaitingConfirmation: number }>(
+      `/admin/users/${encodeURIComponent(userId)}/reinstatement`,
+      { method: 'POST', body: { reason } }
+    ),
 
   setPropertyStatus: (id: string, status: PropertyStatus) =>
     request<{ property: Property }>(`/properties/${encodeURIComponent(id)}/status`, {

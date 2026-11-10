@@ -158,6 +158,11 @@ function shape_property(array $row): array
         ],
         'nearbyPlaces'            => json_column($row['nearby_places'] ?? null),
         'availability'            => (string)($row['availability'] ?? 'Available Now'),
+        // Seven-day availability renewal. `status` says where the listing is in
+        // its lifecycle; this block says whether it is actually allowed to be
+        // public right now. The detailed dates are for the owner, the submitting
+        // agent and staff; everyone else only needs the state and the deadline.
+        'availabilityRenewal'     => shape_property_availability($row, $exposeProviderDetail),
         'featured'                => (bool)($row['featured'] ?? false),
         'viewsCount'              => (int)($row['views_count'] ?? 0),
         'enquiriesCount'          => (int)($row['enquiries_count'] ?? 0),
@@ -614,6 +619,16 @@ function query_properties(array $filters): array
         $where[] = 'featured = 1';
     }
 
+    // Seven-day availability renewal. A public query must not return a listing
+    // whose confirmation deadline has passed, even if the scheduled job has not
+    // run yet. Staff and owner queries set `includeUnconfirmed` so the console
+    // and the provider dashboard still see everything.
+    if (!empty($filters['availabilityCurrent'])) {
+        [$availabilitySql, $availabilityParams] = availability_public_where_sql();
+        $where[] = $availabilitySql;
+        $params += $availabilityParams;
+    }
+
     // Listing date range (Upgrade 2, A6). `createdTo` is inclusive of the whole
     // day it names, so "1–7 November" includes listings created on the 7th.
     if (!empty($filters['createdFrom'])) {
@@ -957,6 +972,7 @@ function create_property(array $data): string
                                  featured, views_count, enquiries_count,
                                  viewing_fee_ghs, viewing_terms_json, viewing_terms_state,
                                  viewing_terms_updated_at, viewing_terms_approved_by,
+                                 published_at, availability_confirmed_at, availability_due_at,
                                  created_at, updated_at)
          VALUES (:id, :landlord_id, :landlord_name, :landlord_company,
                  :submitted_by_user_id, :submitted_by_role, :landlord_authority_state,
@@ -970,6 +986,7 @@ function create_property(array $data): string
                  :featured, 0, 0,
                  :viewing_fee, :viewing_terms, :viewing_state,
                  :viewing_updated, :viewing_by,
+                 :published_at, :availability_confirmed_at, :availability_due_at,
                  :created, :updated)',
         [
             ':id'               => $id,
@@ -1012,6 +1029,11 @@ function create_property(array $data): string
             ':viewing_state'    => $data['viewing_terms_state'] ?? 'not_set',
             ':viewing_updated'  => $data['viewing_terms_updated_at'] ?? null,
             ':viewing_by'       => $data['viewing_terms_approved_by'] ?? null,
+            // Seven-day availability renewal. A new listing has no deadline
+            // until it is published; the clock starts on the `active` transition.
+            ':published_at'     => $data['published_at'] ?? null,
+            ':availability_confirmed_at' => $data['availability_confirmed_at'] ?? null,
+            ':availability_due_at'       => $data['availability_due_at'] ?? null,
             ':created'          => db_now(),
             ':updated'          => db_now(),
         ]
@@ -1035,6 +1057,10 @@ function update_property(string $id, array $data): void
         // viewing-terms helpers or by staff approval, never blindly by an edit.
         'viewing_fee_ghs', 'viewing_terms_json', 'viewing_terms_state',
         'viewing_terms_updated_at', 'viewing_terms_approved_by',
+        // Seven-day availability renewal: written only by the availability
+        // helpers, which own the cycle arithmetic. They are listed here so the
+        // helpers go through the one property-write path.
+        'published_at', 'availability_confirmed_at', 'availability_due_at',
     ];
     $set = [];
     $params = [':id' => $id];

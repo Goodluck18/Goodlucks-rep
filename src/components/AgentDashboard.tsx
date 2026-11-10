@@ -14,6 +14,8 @@ import {
   ArrowRight,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { PropertyAvailabilityCard } from './PropertyAvailabilityCard';
+import { ProviderSuspensionNotice } from './ProviderSuspensionNotice';
 import { VerificationRequiredNotice } from './VerificationGate';
 import { VerificationPanel } from './VerificationPanel';
 import { AgentViewingsPanel } from './AgentViewingsPanel';
@@ -269,6 +271,7 @@ export const AgentDashboard: React.FC = () => {
 
           {/* Verification is mandatory before listing; the same notice as the
               listing page, driven by the server's own answer. */}
+          <ProviderSuspensionNotice user={currentUser} />
           <VerificationRequiredNotice showAction={false} />
           <AgentListingForm canSubmit={Boolean(profile?.canSubmitListings) && status === 'active'} />
 
@@ -305,6 +308,8 @@ export const AgentDashboard: React.FC = () => {
                           Your declaration only — landlord authority is unverified
                         </p>
                       )}
+                      {/* Seven-day availability renewal: the agent's two answers. */}
+                      <PropertyAvailabilityCard property={property} onUpdated={refreshProperties} />
                       <AgentViewingTermsPanel property={property} onUpdated={refreshProperties} />
                     </div>
                     <div className="flex items-center gap-2 text-[11px] flex-wrap">

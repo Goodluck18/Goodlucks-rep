@@ -46,6 +46,15 @@ CREATE TABLE IF NOT EXISTS users (
   -- Upgrade 2: the primary platform administrator. Assigned only from the
   -- server console (php-backend/assign_primary_admin.php); never by HTTP.
   is_primary_admin INTEGER NOT NULL DEFAULT 0,
+  -- Seven-day availability renewal: an administrative restriction on an
+  -- Agent/Landlord account, kept separate from identity verification. 'active'
+  -- for every existing account, so nobody is suspended by the migration.
+  account_status TEXT NOT NULL DEFAULT 'active',
+  suspension_reason TEXT,
+  suspended_at TEXT,
+  suspended_by TEXT,
+  reinstated_at TEXT,
+  reinstated_by TEXT,
   -- Upgrade 2 Phase 3: the user directory and bulk email are their own powers,
   -- granted from the server console like the other capabilities. Default deny.
   can_manage_users INTEGER NOT NULL DEFAULT 0,
@@ -120,6 +129,12 @@ CREATE TABLE IF NOT EXISTS properties (
   provider_commission_note TEXT,
   views_count INTEGER NOT NULL DEFAULT 0,
   enquiries_count INTEGER NOT NULL DEFAULT 0,
+  -- Seven-day availability renewal. `published_at` is the moment the listing
+  -- first went live and is never cleared; `availability_due_at` is the deadline
+  -- the provider must confirm by. All three are UTC, like every other timestamp.
+  published_at TEXT,
+  availability_confirmed_at TEXT,
+  availability_due_at TEXT,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT
 );
@@ -1070,3 +1085,37 @@ CREATE TABLE IF NOT EXISTS email_campaign_recipients (
 
 CREATE UNIQUE INDEX IF NOT EXISTS uniq_campaign_recipient ON email_campaign_recipients (campaign_id, email);
 CREATE INDEX IF NOT EXISTS idx_campaign_recipient_status ON email_campaign_recipients (campaign_id, status);
+
+-- ===========================================================================
+-- Seven-day property availability (2026-11-10)
+--
+-- Append-only history of every availability action, so a provider's answer, an
+-- automatic expiry and an administrator's reactivation are all attributable and
+-- auditable. `cycle_key` is the deadline the action belongs to (the due date, or
+-- a marker for administrative actions); the unique key makes a re-run of the
+-- scheduled job, or a double click, record one event rather than two.
+-- ===========================================================================
+CREATE TABLE IF NOT EXISTS property_availability_events (
+  id TEXT PRIMARY KEY,
+  property_id TEXT NOT NULL,
+  -- published | reminder_sent | confirmation_requested | confirmed |
+  -- declared_unavailable | expired | reactivated_by_provider |
+  -- reactivated_by_admin | suspended_by_admin | reopened_after_reinstatement
+  action TEXT NOT NULL,
+  -- provider | admin | system. Automated events are never attributed to a person.
+  actor_role TEXT NOT NULL DEFAULT 'system',
+  actor_id TEXT,
+  actor_name TEXT NOT NULL DEFAULT '',
+  source TEXT NOT NULL DEFAULT '',
+  note TEXT NOT NULL DEFAULT '',
+  cycle_key TEXT NOT NULL DEFAULT '',
+  due_at TEXT,
+  created_at TEXT NOT NULL
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uniq_availability_event
+  ON property_availability_events (property_id, action, cycle_key);
+CREATE INDEX IF NOT EXISTS idx_availability_event_property
+  ON property_availability_events (property_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_availability_event_created
+  ON property_availability_events (created_at);

@@ -12,7 +12,14 @@
  *   2. Email outbox           - delivers queued mail and retries anything that
  *                               failed, with exponential backoff (1m, 5m, 15m,
  *                               1h, 4h, 12h) before parking it as failed.
- *   3. Retention pruning      - trims page views, email logs, delivered outbox
+ *   3. Availability renewal   - the seven-day confirmation rule: a listing due
+ *                               tomorrow gets its reminder, a listing at its
+ *                               deadline gets a confirmation request, and an
+ *                               unanswered listing is unpublished (status
+ *                               `expired`) while keeping every record. Every
+ *                               message and status change is claimed through a
+ *                               unique row, so re-running this pass is safe.
+ *   4. Retention pruning      - trims page views, email logs, delivered outbox
  *                               rows, expired sessions and stale rate-limit
  *                               rows so the database does not grow forever.
  *
@@ -106,7 +113,29 @@ try {
 }
 
 // ---------------------------------------------------------------------------
-// 4. Retention pruning
+// 4. Seven-day availability renewal
+//
+// This is the scheduled half of the rule. The other half is the public query
+// guard in `lib/availability.php`, which hides a listing the moment its deadline
+// passes — so a late or broken cron can never leave a stale advert on the site.
+// ---------------------------------------------------------------------------
+try {
+    $availability = run_property_availability_maintenance($dryRun);
+    if ($dryRun) {
+        echo "Availability: {$availability['checked']} published listing(s) checked, "
+            . "{$availability['reminded']} reminder(s) due, {$availability['requested']} confirmation(s) due, "
+            . "{$availability['expired']} would be unpublished\n";
+    } else {
+        echo "Availability: {$availability['checked']} published listing(s) checked, "
+            . "{$availability['reminded']} reminder(s) sent, {$availability['requested']} confirmation request(s) sent, "
+            . "{$availability['expired']} listing(s) unpublished for a missed confirmation\n";
+    }
+} catch (Throwable $e) {
+    fwrite(STDERR, 'Availability renewal step failed: ' . $e->getMessage() . "\n");
+}
+
+// ---------------------------------------------------------------------------
+// 5. Retention pruning
 // ---------------------------------------------------------------------------
 $retention = [
     'page_views'  => ['column' => 'created_at', 'days' => (int)cfg('RETENTION_PAGE_VIEW_DAYS', 365)],

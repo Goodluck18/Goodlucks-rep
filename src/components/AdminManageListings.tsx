@@ -23,8 +23,12 @@ const STATUSES: Array<{ value: PropertyStatus | ''; label: string }> = [
   { value: 'active', label: 'Live' },
   { value: 'pending', label: 'Pending review' },
   { value: 'rejected', label: 'Rejected' },
-  { value: 'deactivated', label: 'Archived' },
+  { value: 'deactivated', label: 'Not available' },
   { value: 'rented', label: 'Rented' },
+  // This upgrade: the two states the availability rule adds. They are separate
+  // from `deactivated`, because "nobody answered" is not "the provider withdrew".
+  { value: 'expired', label: 'Expired (no confirmation)' },
+  { value: 'suspended', label: 'Provider suspended' },
 ];
 
 interface Filters {

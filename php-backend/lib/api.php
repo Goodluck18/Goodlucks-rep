@@ -81,6 +81,12 @@ function resolve_route(string $method, string $path): ?array
         ['POST', '#^/properties/([A-Za-z0-9\-_]+)/verify$#', 'handle_property_verify'],
         // Task 03: a property's own viewing fee + viewing terms. Approving a
         // change is a staff decision; proposing one is the owner's/agent's.
+        // Seven-day availability renewal. The provider answers "still available"
+        // or "no longer available"; the deadline itself is enforced by the
+        // backend, never by the browser.
+        ['POST', '#^/properties/([A-Za-z0-9\-_]+)/availability/confirm$#', 'handle_property_availability_confirm'],
+        ['POST', '#^/properties/([A-Za-z0-9\-_]+)/availability/decline$#', 'handle_property_availability_decline'],
+        ['GET',  '#^/properties/([A-Za-z0-9\-_]+)/availability/history$#', 'handle_property_availability_history'],
         ['POST', '#^/properties/([A-Za-z0-9\-_]+)/viewing-terms$#', 'handle_request_viewing_terms'],
         ['GET',  '#^/properties/([A-Za-z0-9\-_]+)/viewing-terms/history$#', 'handle_viewing_terms_history'],
         // Task 03 update: the ONE general landlord viewing fee, controlled by an
@@ -90,6 +96,11 @@ function resolve_route(string $method, string $path): ?array
         ['GET',  '#^/admin/viewing-terms/changes$#', 'handle_admin_viewing_term_changes'],
         ['POST', '#^/admin/viewing-terms/changes/([A-Za-z0-9\-_]+)/decision$#', 'handle_admin_decide_viewing_term_change'],
         ['GET',  '#^/admin/properties$#', 'handle_admin_properties'],
+        // The availability console: awaiting confirmation, due soon, expired,
+        // draft, unavailable and reactivated listings, with counts.
+        ['GET',  '#^/admin/property-availability$#', 'handle_admin_property_availability'],
+        ['GET',  '#^/admin/property-availability/activity$#', 'handle_admin_property_availability_activity'],
+        ['POST', '#^/admin/properties/([A-Za-z0-9\-_]+)/availability/reactivate$#', 'handle_admin_property_availability_reactivate'],
 
         // --- Agent accounts (Increment C) --------------------------------
         // An agent reads and edits only their own profile. Status changes are
@@ -135,6 +146,10 @@ function resolve_route(string $method, string $path): ?array
         ['GET',  '#^/admin/users$#', 'handle_admin_users'],
         ['GET',  '#^/admin/users/([A-Za-z0-9\-_]+)$#', 'handle_admin_user_profile'],
         ['GET',  '#^/admin/users/([A-Za-z0-9\-_]+)/activity$#', 'handle_admin_user_activity'],
+        // This upgrade: formal suspension and reinstatement of an Agent or
+        // Landlord account. One pair of endpoints for both classifications.
+        ['POST', '#^/admin/users/([A-Za-z0-9\-_]+)/suspension$#', 'handle_admin_suspend_provider'],
+        ['POST', '#^/admin/users/([A-Za-z0-9\-_]+)/reinstatement$#', 'handle_admin_reinstate_provider'],
         // Upgrade 2 (E2): the only way a provider classification changes.
         ['POST', '#^/admin/users/([A-Za-z0-9\-_]+)/role$#', 'handle_admin_correct_user_role'],
         ['GET',  '#^/admin/activity$#', 'handle_admin_activity'],
@@ -1346,6 +1361,11 @@ function require_provider_listing_access(array $user): void
     if ($state['reason'] === 'classification_required') {
         $fields['classificationRequired'] = 'Choose Agent or Landlord to continue.';
     }
+    if ($state['reason'] === 'suspended') {
+        // The client must be able to tell a suspension from a verification gap.
+        $fields['accountSuspended'] = 'Your account is suspended.';
+        $fields['suspensionReason'] = (string)($state['suspension']['reason'] ?? '');
+    }
     error_response($state['message'], 403, $fields);
 }
 
@@ -1703,12 +1723,15 @@ function handle_list_properties(): void
             $filters = ['landlordId' => $user['id']];
         }
     } elseif (is_admin($user) && query_param('all') === '1') {
+        // Staff see the whole catalogue, including expired listings: that is the
+        // point of the availability console.
         $filters = [];
         if (query_param('status')) {
             $filters['status'] = (string)query_param('status');
         }
     } else {
-        $filters = ['status' => $statuses];
+        // The public catalogue: published AND inside its confirmation period.
+        $filters = ['status' => $statuses, 'availabilityCurrent' => true];
     }
 
     $filters['q'] = query_param('q');
@@ -1752,7 +1775,11 @@ function handle_get_property(array $params): void
     }
 
     $user = auth_user();
-    $isPublic = in_array($row['status'], ['active', 'rented'], true);
+    // A listing whose availability deadline has passed is not public, even if
+    // the scheduled job has not yet written `expired` (rented listings keep
+    // their page: the record of a let property is still useful).
+    $isPublic = in_array($row['status'], ['active', 'rented'], true)
+        && ((string)$row['status'] === 'rented' || property_is_publicly_visible($row));
     if (!$isPublic && !is_admin($user) && !($user && can_manage_property($user, $row))) {
         // Do not reveal that a hidden listing exists.
         error_response('Property not found.', 404);
@@ -2077,8 +2104,15 @@ function handle_create_property(): void
     }
 
     // An admin can publish immediately; landlords go to the queue and are
-    // matched when approved.
+    // matched when approved. A listing that goes live here starts its seven-day
+    // availability clock at the same moment it becomes public.
     if ($created && ($created['status'] ?? '') === 'active') {
+        $created = start_property_availability_cycle(
+            $created,
+            ['role' => (string)$user['role'], 'id' => (string)$user['id'], 'name' => (string)$user['name']],
+            'staff_dashboard',
+            'published'
+        );
         try {
             dispatch_search_alert_matches($created);
         } catch (Throwable $e) {
@@ -2301,6 +2335,27 @@ function handle_property_status(array $params): void
 
     $wasActive = ((string)($row['status'] ?? '')) === 'active';
 
+    // Suspension outranks every other publication rule: a listing whose
+    // responsible account is suspended cannot be approved into public view, no
+    // matter who asks. The refusal names the cause so staff know what to fix.
+    if ($status === 'active') {
+        $provider = availability_provider_for($row);
+        if ($provider !== null) {
+            $providerState = provider_listing_state($provider);
+            // Only the suspension is re-checked on this existing approval path:
+            // identity verification is enforced where a provider submits or
+            // republishes, so historic listings approved before this upgrade can
+            // still be moderated without inventing a new refusal for them.
+            if ($providerState['suspended']) {
+                error_response(
+                    'This listing cannot be published: the responsible account is suspended.',
+                    409,
+                    ['provider' => $providerState['message'], 'accountSuspended' => 'The account is suspended.']
+                );
+            }
+        }
+    }
+
     // Task 03 update: a landlord listing is published with the administrator's
     // general viewing fee attached. The fee is applied here too, so a listing
     // that was submitted before the fee was configured still gets it. When no
@@ -2328,10 +2383,19 @@ function handle_property_status(array $params): void
         reject_pending_change_on_property_rejection($row, $user, clean_string($input['note'] ?? '', 500));
     }
 
-    // Going live is the moment saved searches should hear about it.
+    // Going live is the moment saved searches should hear about it — and the
+    // moment the seven-day availability clock starts. `start_property_availability_cycle`
+    // records the original publication date the first time only, so a listing
+    // that is republished after an expiry keeps its history.
     if ($status === 'active' && !$wasActive) {
         $live = find_property($id);
         if ($live) {
+            $live = start_property_availability_cycle(
+                $live,
+                ['role' => (string)$user['role'], 'id' => (string)$user['id'], 'name' => (string)$user['name']],
+                'admin_console',
+                'published'
+            );
             try {
                 dispatch_search_alert_matches($live);
             } catch (Throwable $e) {
@@ -2405,6 +2469,163 @@ function handle_property_status(array $params): void
  * "Verified" is a physical-inspection claim made by Goodlucks staff, so it is
  * never set by the client and never defaults to true.
  */
+/**
+ * Seven-day availability renewal: the provider's own answers.
+ *
+ * One endpoint per answer, both authorised the same way (the signed-in account
+ * must own or have submitted the listing) and both enforced on the server: the
+ * dashboard is a convenience, never the rule.
+ */
+function handle_property_availability_confirm(array $params): void
+{
+    $id = (string)($params[0] ?? '');
+    $user = require_auth(['landlord', 'agent', 'admin']);
+    $row = find_property($id);
+    if (!$row || !can_manage_property($user, $row)) {
+        // The same answer for "missing" and "not yours": ownership is never
+        // confirmed to an account that does not hold it.
+        error_response('Property not found.', 404);
+    }
+
+    $input = request_json();
+    $result = confirm_property_availability(
+        $row,
+        $user,
+        is_admin($user) ? 'admin_console' : 'provider_dashboard',
+        clean_string($input['note'] ?? '', 500)
+    );
+    if (!$result['ok']) {
+        error_response($result['error'], $result['code'] ?? 422, $result['fields'] ?? []);
+    }
+
+    json_response([
+        'success'  => true,
+        'message'  => $result['reactivated']
+            ? 'Availability confirmed. Your listing is published again with a fresh seven-day confirmation period.'
+            : 'Availability confirmed. Your listing stays published and the next confirmation is due in seven days.',
+        'property' => shape_property($result['property']),
+    ]);
+}
+
+function handle_property_availability_decline(array $params): void
+{
+    $id = (string)($params[0] ?? '');
+    $user = require_auth(['landlord', 'agent', 'admin']);
+    $row = find_property($id);
+    if (!$row || !can_manage_property($user, $row)) {
+        error_response('Property not found.', 404);
+    }
+
+    $input = request_json();
+    $note = clean_string($input['note'] ?? $input['reason'] ?? '', 500);
+    $result = withdraw_property_availability($row, $user, $note);
+    if (!$result['ok']) {
+        error_response($result['error'], $result['code'] ?? 422, $result['fields'] ?? []);
+    }
+
+    json_response([
+        'success'  => true,
+        'message'  => 'Marked as no longer available. It is no longer publicly advertised; the listing and its photographs are kept.',
+        'property' => shape_property($result['property']),
+    ]);
+}
+
+/** The listing's availability history: owner, submitting agent and staff. */
+function handle_property_availability_history(array $params): void
+{
+    $id = (string)($params[0] ?? '');
+    $user = require_auth(['landlord', 'agent', 'admin']);
+    $row = find_property($id);
+    if (!$row || !can_manage_property($user, $row)) {
+        error_response('Property not found.', 404);
+    }
+    json_response([
+        'success' => true,
+        'history' => property_availability_history($id),
+        'availability' => property_availability_state($row),
+    ]);
+}
+
+/**
+ * The administrator's availability console.
+ *
+ * Filters: all | active | due_soon | awaiting | expired | draft | unavailable |
+ * reactivated | suspended. `q` searches title, location, provider and id.
+ */
+function handle_admin_property_availability(): void
+{
+    require_admin();
+    $result = admin_property_availability_list([
+        'filter'  => (string)query_param('filter', ''),
+        'q'       => (string)query_param('q', ''),
+        'page'    => (int)query_param('page', 1),
+        'perPage' => (int)query_param('perPage', 50),
+    ]);
+    $result['success'] = true;
+    json_response($result);
+}
+
+/**
+ * The activity side of the availability console: confirmations, declines,
+ * automatic expiries, reactivations and provider suspensions, newest first.
+ */
+function handle_admin_property_availability_activity(): void
+{
+    require_admin();
+    $result = admin_availability_activity([
+        'kind'    => (string)query_param('kind', ''),
+        'q'       => (string)query_param('q', ''),
+        'page'    => (int)query_param('page', 1),
+        'perPage' => (int)query_param('perPage', 50),
+    ]);
+    $result['success'] = true;
+    json_response($result);
+}
+
+/**
+ * Administrative reactivation. A reason is required, and the source of the
+ * availability confirmation is recorded with it, because an administrator is
+ * asserting a fact about the property on the provider's behalf.
+ */
+function handle_admin_property_availability_reactivate(array $params): void
+{
+    $admin = require_admin();
+    $id = (string)($params[0] ?? '');
+    $row = find_property($id);
+    if (!$row) {
+        error_response('Property not found.', 404);
+    }
+
+    $input = request_json();
+    $reason = clean_string($input['reason'] ?? '', 500);
+    $source = clean_string($input['confirmedWith'] ?? $input['source'] ?? '', 120);
+    if (mb_strlen($reason) < 10) {
+        error_response(
+            'Record the reason for the reactivation (at least 10 characters).',
+            422,
+            ['reason' => 'Explain how the availability was established.']
+        );
+    }
+    if ($source === '') {
+        error_response(
+            'Record how availability was confirmed (for example: telephone call with the agent).',
+            422,
+            ['confirmedWith' => 'Say who confirmed the property is still available.']
+        );
+    }
+
+    $result = admin_reactivate_property_availability($row, $admin, $reason, $source, clean_string($input['note'] ?? '', 500));
+    if (!$result['ok']) {
+        error_response($result['error'], $result['code'] ?? 422, $result['fields'] ?? []);
+    }
+
+    json_response([
+        'success'  => true,
+        'message'  => 'Listing reactivated with a fresh seven-day confirmation period. The reason is recorded.',
+        'property' => shape_property($result['property']),
+    ]);
+}
+
 function handle_property_verify(array $params): void
 {
     require_admin();
@@ -2833,6 +3054,63 @@ function handle_update_enquiry(array $params): void
 // Every endpoint here re-checks its capability server-side. The console hides a
 // screen it cannot use, but hiding is never the enforcement.
 // ===========================================================================
+/**
+ * Formal suspension of an Agent or Landlord account (this upgrade).
+ *
+ * Both classifications go through the same two endpoints, because suspension is
+ * an account state, not a role feature. Reinstatement is deliberately a separate
+ * action with its own reason: lifting a suspension is not the same decision as
+ * imposing one, and neither is the same as verifying an identity.
+ */
+function handle_admin_suspend_provider(array $params): void
+{
+    $admin = require_admin();
+    $userId = (string)($params[0] ?? '');
+    $target = find_user_by_id($userId);
+    if (!$target) {
+        error_response('Account not found.', 404);
+    }
+
+    $input = request_json();
+    $result = suspend_provider($target, $admin, (string)($input['reason'] ?? ''));
+    if (!$result['ok']) {
+        error_response($result['error'], 422, $result['fields'] ?? []);
+    }
+
+    json_response([
+        'success' => true,
+        'message' => 'Account suspended. ' . (int)($result['unpublished'] ?? 0)
+            . ' live listing(s) were removed from public view and every record is kept.',
+        'user' => public_user($result['user']),
+        'listingsUnpublished' => (int)($result['unpublished'] ?? 0),
+    ]);
+}
+
+function handle_admin_reinstate_provider(array $params): void
+{
+    $admin = require_admin();
+    $userId = (string)($params[0] ?? '');
+    $target = find_user_by_id($userId);
+    if (!$target) {
+        error_response('Account not found.', 404);
+    }
+
+    $input = request_json();
+    $result = reinstate_provider($target, $admin, (string)($input['reason'] ?? ''));
+    if (!$result['ok']) {
+        error_response($result['error'], 422, $result['fields'] ?? []);
+    }
+
+    json_response([
+        'success' => true,
+        'message' => 'Account reinstated. Identity verification and classification are unchanged. '
+            . (int)($result['awaitingConfirmation'] ?? 0)
+            . ' listing(s) now wait for a fresh availability confirmation — none were republished automatically.',
+        'user' => public_user($result['user']),
+        'listingsAwaitingConfirmation' => (int)($result['awaitingConfirmation'] ?? 0),
+    ]);
+}
+
 function handle_admin_users(): void
 {
     $admin = require_admin();
@@ -5437,7 +5715,7 @@ function handle_sitemap(): void
         ];
     }
 
-    $result = query_properties(['status' => 'active', 'perPage' => 500]);
+    $result = query_properties(['status' => 'active', 'perPage' => 500, 'availabilityCurrent' => true]);
     foreach ($result['items'] as $property) {
         $updated = (string)($property['updatedAt'] ?? '');
         $timestamp = $updated !== '' ? strtotime($updated) : false;
@@ -5628,7 +5906,7 @@ function handle_matches(): void
     }
 
     $curated = array_map('strval', (array)($request['matchedPropertyIds'] ?? []));
-    $result = query_properties(['status' => 'active', 'perPage' => 120]);
+    $result = query_properties(['status' => 'active', 'perPage' => 120, 'availabilityCurrent' => true]);
 
     $scored = [];
     foreach ($result['items'] as $property) {

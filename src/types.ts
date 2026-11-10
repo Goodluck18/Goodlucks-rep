@@ -312,6 +312,22 @@ export interface User {
   identityVerificationStatus?: string;
   /** 'Verified Landlord' | 'Verified Agent Tier 1' | 'Verified Agent Tier 2' | null. */
   verifiedLabel?: string | null;
+  /**
+   * The formal account state (this upgrade). A suspended Agent or Landlord keeps
+   * sign-in and read access but cannot create, publish or reactivate listings.
+   * It is separate from — and outranks — identity verification.
+   */
+  accountStatus?: 'active' | 'suspended';
+  /** Present for an account that has ever been suspended (imposed or lifted). */
+  suspension?: {
+    suspended: boolean;
+    status: 'active' | 'suspended';
+    reason: string;
+    suspendedAt: string;
+    suspendedBy: string;
+    reinstatedAt: string;
+    reinstatedBy: string;
+  };
   /** Present only on agent accounts (Increment C). */
   agentProfile?: AgentProfile | null;
   /** Present only on administrator accounts (Increment D). */
@@ -323,7 +339,97 @@ export interface User {
   isPrimaryAdmin?: boolean;
 }
 
-export type PropertyStatus = 'active' | 'pending' | 'rejected' | 'rented' | 'deactivated';
+/**
+ * The property lifecycle.
+ *
+ * `expired` and `suspended` were added with the seven-day availability rule and
+ * are deliberately distinct from `deactivated` (the provider said the property is
+ * gone) and from each other (nobody answered / the account was suspended).
+ */
+export type PropertyStatus =
+  | 'active'
+  | 'pending'
+  | 'rejected'
+  | 'rented'
+  | 'deactivated'
+  | 'expired'
+  | 'suspended';
+
+/** The derived availability state the API reports for a listing. */
+export type AvailabilityState =
+  | 'not_published'
+  | 'active_confirmed'
+  | 'due_soon'
+  | 'awaiting_confirmation'
+  | 'expired'
+  | 'unavailable'
+  | 'suspended'
+  | 'rented';
+
+/**
+ * Seven-day availability renewal, as the API derives it (never as the browser
+ * decides it). `publiclyVisible` is the server's own answer to "is this
+ * advertised right now".
+ */
+export interface PropertyAvailabilityRenewal {
+  state: AvailabilityState;
+  label: string;
+  publishedAt: string;
+  confirmedAt: string;
+  dueAt: string;
+  dueInSeconds?: number | null;
+  overdue: boolean;
+  publiclyVisible: boolean;
+  canConfirm: boolean;
+  canDeclareUnavailable: boolean;
+  awaitingProvider: boolean;
+  expiredAutomatically?: boolean;
+  withdrawnByProvider?: boolean;
+  explanation?: string;
+  periodDays?: number;
+}
+
+/** One entry of a listing's availability history. */
+export interface PropertyAvailabilityEvent {
+  id: string;
+  propertyId: string;
+  action: string;
+  label: string;
+  actorRole: 'provider' | 'admin' | 'system' | string;
+  actorName: string;
+  system: boolean;
+  source: string;
+  note: string;
+  dueAt: string;
+  createdAt: string;
+}
+
+/** A row of the administrator's availability console. */
+export interface AdminAvailabilityRow {
+  id: string;
+  title: string;
+  location: string;
+  status: PropertyStatus | string;
+  availability: PropertyAvailabilityRenewal;
+  provider: {
+    id: string;
+    name: string;
+    email: string;
+    role: string;
+    accountStatus: string;
+  };
+  lastAction: {
+    action: string;
+    label: string;
+    actorRole: string;
+    actorName: string;
+    system: boolean;
+    source: string;
+    note: string;
+    at: string;
+  };
+  canReactivate: boolean;
+}
 
 export type PropertyType = 
   | 'Apartment' 
@@ -424,7 +530,13 @@ export interface Property {
    */
   providerCommission?: { percent: number | null; note: string; isPlatformFee: boolean };
   nearbyPlaces: NearbyPlace[];
+  /** The listing's own availability copy ("Available Now"). */
   availability: string;
+  /**
+   * Seven-day availability renewal. Present on every listing the API shapes;
+   * the dates are detailed for the owner, the submitting agent and staff.
+   */
+  availabilityRenewal?: PropertyAvailabilityRenewal;
   featured?: boolean;
   viewsCount: number;
   enquiriesCount: number;
@@ -1606,6 +1718,17 @@ export interface AdminUserRecord {
     documentsOnFile: number;
   };
   agentProfile: { accountStatus: string; canSubmitListings: boolean } | null;
+  /** The formal account state (this upgrade). Separate from verification. */
+  accountStatus?: 'active' | 'suspended';
+  suspension?: {
+    suspended: boolean;
+    status: 'active' | 'suspended';
+    reason: string;
+    suspendedAt: string;
+    suspendedBy: string;
+    reinstatedAt: string;
+    reinstatedBy: string;
+  };
   company?: string;
   address?: string;
   lastActiveAt?: string | null;

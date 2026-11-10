@@ -176,6 +176,8 @@ export const ROLE_SECTIONS: Record<'tenant' | 'landlord' | 'agent' | 'admin', Se
       // Upgrade 2 Phase 3: the user directory and bulk email.
       users: 'users',
       'bulk-email': 'bulk-email',
+      // This upgrade: the seven-day availability console.
+      availability: 'availability',
     },
     canonical: {
       analytics: 'analytics',
@@ -192,6 +194,7 @@ export const ROLE_SECTIONS: Record<'tenant' | 'landlord' | 'agent' | 'admin', Se
       'email-templates': 'email-templates',
       users: 'users',
       'bulk-email': 'bulk-email',
+      availability: 'availability',
     },
     fallback: 'analytics',
   },

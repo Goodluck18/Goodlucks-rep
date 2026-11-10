@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext';
+import { PropertyAvailabilityCard } from './PropertyAvailabilityCard';
+import { ProviderSuspensionNotice } from './ProviderSuspensionNotice';
 import { VerificationRequiredNotice } from './VerificationGate';
 import { api, messageForError } from '../services/apiService';
 import type { IdentityVerification } from '../types';
@@ -39,7 +41,9 @@ const PROPERTY_STATUS_LABEL: Record<string, string> = {
   pending: 'Pending review',
   rejected: 'Rejected',
   rented: 'Rented',
-  deactivated: 'Deactivated',
+  deactivated: 'Not available',
+  expired: 'Confirmation required',
+  suspended: 'Account suspended',
 };
 
 const PROPERTY_STATUS_TONE: Record<string, string> = {
@@ -48,6 +52,8 @@ const PROPERTY_STATUS_TONE: Record<string, string> = {
   rejected: 'bg-accent/20 text-ink border border-accent/30',
   rented: 'bg-blue-500/20 text-blue-700 border border-blue-500/30',
   deactivated: 'bg-line text-ink/70',
+  expired: 'bg-amber-500/20 text-amber-700 border border-amber-500/30',
+  suspended: 'bg-line text-ink/70',
 };
 
 const VERIFICATION_LABEL: Record<string, string> = {
@@ -82,6 +88,7 @@ export const LandlordDashboard: React.FC = () => {
     updateUserProfile,
     viewingSchedules,
     notifications,
+    refreshProperties,
     showErrorToast,
     showSuccessToast,
   } = useApp();
@@ -164,6 +171,31 @@ export const LandlordDashboard: React.FC = () => {
     setActionError(null);
     try {
       await updatePropertyStatus(id, status);
+    } catch (error) {
+      setActionError(messageForError(error));
+    }
+  };
+
+  /**
+   * The two availability answers. They replace the old status switch, which the
+   * server never honoured for a landlord: publishing is decided by the seven-day
+   * confirmation rule, not by a status field the client sends.
+   */
+  const handleWithdraw = async (id: string) => {
+    setActionError(null);
+    try {
+      await api.declinePropertyAvailability(id);
+      await refreshProperties();
+    } catch (error) {
+      setActionError(messageForError(error));
+    }
+  };
+
+  const handleRepublish = async (id: string) => {
+    setActionError(null);
+    try {
+      await api.confirmPropertyAvailability(id);
+      await refreshProperties();
     } catch (error) {
       setActionError(messageForError(error));
     }
@@ -409,6 +441,8 @@ export const LandlordDashboard: React.FC = () => {
             }
           />
 
+          <ProviderSuspensionNotice user={currentUser} />
+
           {myProperties.length === 0 ? (
             <EmptyState
               icon={Building2}
@@ -479,6 +513,9 @@ export const LandlordDashboard: React.FC = () => {
                           <>not set yet — Goodlucks Homes sets the viewing fee for every landlord listing.</>
                         )}
                       </p>
+                      {/* Seven-day availability renewal: the landlord's answer and
+                          the server's deadline. Nothing here decides visibility. */}
+                      <PropertyAvailabilityCard property={prop} onUpdated={refreshProperties} />
                       {prop.status === 'rejected' && prop.rejectionReason && (
                         <p className="text-[11px] text-ink leading-relaxed break-words">
                           Reason given: {prop.rejectionReason}
@@ -491,18 +528,18 @@ export const LandlordDashboard: React.FC = () => {
                     {prop.status === 'active' ? (
                       <button
                         type="button"
-                        onClick={() => void handleStatusChange(prop.id, 'deactivated')}
+                        onClick={() => void handleWithdraw(prop.id)}
                         className="px-3 py-1.5 rounded-lg bg-surface text-ink/70 hover:text-ink text-xs font-semibold flex items-center gap-1 border border-line"
                       >
-                        <Power className="w-3.5 h-3.5" /> Deactivate
+                        <Power className="w-3.5 h-3.5" /> Mark unavailable
                       </button>
-                    ) : prop.status === 'deactivated' ? (
+                    ) : prop.status === 'deactivated' || prop.status === 'expired' ? (
                       <button
                         type="button"
-                        onClick={() => void handleStatusChange(prop.id, 'active')}
+                        onClick={() => void handleRepublish(prop.id)}
                         className="px-3 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-700 hover:bg-emerald-500/30 text-xs font-semibold flex items-center gap-1 border border-emerald-500/30"
                       >
-                        <CheckCircle2 className="w-3.5 h-3.5" /> Reactivate
+                        <CheckCircle2 className="w-3.5 h-3.5" /> Confirm availability
                       </button>
                     ) : (
                       <span className="text-[11px] text-ink/70">

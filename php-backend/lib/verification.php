@@ -1122,6 +1122,7 @@ function provider_listing_state(?array $user = null): array
             'identityStatus'   => 'not_submitted',
             'identityApproved' => false,
             'suspended'        => false,
+            'suspension'       => user_suspension_state($user),
             'verifiedLabel'    => null,
         ];
     }
@@ -1133,10 +1134,16 @@ function provider_listing_state(?array $user = null): array
     $identityStatus = $identityRow ? (string)$identityRow['status'] : 'not_submitted';
     $identityApproved = $identityStatus === 'approved';
 
-    $suspended = false;
+    // Two sources, one rule. `users.account_status` is the formal suspension and
+    // applies to Agents and Landlords alike; a suspended agent profile from
+    // before this upgrade still counts, so no historic suspension is lost.
+    $suspension = user_suspension_state($user);
+    $suspended = $suspension['suspended'];
     if ($role === 'agent') {
         $profile = find_agent_profile_by_user($userId);
-        $suspended = $profile !== null && (string)($profile['account_status'] ?? '') === 'suspended';
+        if ($profile !== null && (string)($profile['account_status'] ?? '') === 'suspended') {
+            $suspended = true;
+        }
     }
 
     $reason = null;
@@ -1149,8 +1156,10 @@ function provider_listing_state(?array $user = null): array
         // `fields.classificationRequired`, not in a second wording.
         $message = LISTING_VERIFICATION_MESSAGE;
     } elseif ($suspended) {
+        // Suspension outranks verification: the message never suggests that
+        // completing verification would reopen listing.
         $reason = 'suspended';
-        $message = 'This account is suspended, so listing submissions are closed. Contact Goodlucks Homes.';
+        $message = 'Your account is suspended, so you cannot publish listings. You can still sign in and view your records. Contact Goodlucks Homes.';
     } elseif (!$identityApproved) {
         $reason = 'identity_' . $identityStatus;
         $message = match ($identityStatus) {
@@ -1186,6 +1195,7 @@ function provider_listing_state(?array $user = null): array
         'identityStatus'   => $identityStatus,
         'identityApproved' => $identityApproved,
         'suspended'        => $suspended,
+        'suspension'       => $suspension,
         'verifiedLabel'    => $verifiedLabel,
     ];
 }
@@ -1278,6 +1288,10 @@ function verification_summary_for_user(array $user): array
             'identityStatus'   => $listingState['identityStatus'],
             'identityApproved' => $listingState['identityApproved'],
             'verifiedLabel'    => $listingState['verifiedLabel'],
+            // Suspension is its own answer, never folded into verification: an
+            // approved identity with a suspended account still cannot list.
+            'suspended'        => $listingState['suspended'],
+            'suspension'       => $listingState['suspension'],
         ],
         // Task 03: the official Ghana Card name supplied at registration. It is
         // offered as a starting value for the identity form and is never treated

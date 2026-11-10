@@ -139,7 +139,9 @@ function dispatch_price_drop_alerts(array $propertyRow, float $oldRent, float $n
 function dispatch_search_alert_matches(array $propertyRow): int
 {
     $propertyId = (string)($propertyRow['id'] ?? '');
-    if ($propertyId === '' || ($propertyRow['status'] ?? '') !== 'active') {
+    // Availability is part of "is this public": alerts are only sent for a
+    // listing that is inside its seven-day confirmation period.
+    if ($propertyId === '' || ($propertyRow['status'] ?? '') !== 'active' || !property_is_publicly_visible($propertyRow)) {
         return 0;
     }
 
@@ -223,7 +225,10 @@ function dispatch_search_alert_matches(array $propertyRow): int
 function run_search_alert_digest(): array
 {
     $properties = db_all(
-        "SELECT * FROM properties WHERE status = 'active' ORDER BY created_at DESC" . db_limit_clause(200, 0)
+        "SELECT * FROM properties WHERE status = 'active'"
+        . " AND availability_due_at IS NOT NULL AND availability_due_at > :now"
+        . ' ORDER BY created_at DESC' . db_limit_clause(200, 0),
+        [':now' => db_now()]
     );
 
     $emails = 0;

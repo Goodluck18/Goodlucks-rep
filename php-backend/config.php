@@ -270,6 +270,8 @@ require_once GL_ROOT . '/lib/viewing_terms.php';
 require_once GL_ROOT . '/lib/landlord_policy.php';
 require_once GL_ROOT . '/lib/private_storage.php';
 require_once GL_ROOT . '/lib/verification.php';
+require_once GL_ROOT . '/lib/suspension.php';
+require_once GL_ROOT . '/lib/availability.php';
 require_once GL_ROOT . '/lib/fee_policies.php';
 require_once GL_ROOT . '/lib/viewings.php';
 require_once GL_ROOT . '/lib/property_media.php';

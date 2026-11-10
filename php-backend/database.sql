@@ -71,6 +71,15 @@ CREATE TABLE IF NOT EXISTS `users` (
   `can_manage_users` TINYINT(1) NOT NULL DEFAULT 0,
   `can_view_user_activity` TINYINT(1) NOT NULL DEFAULT 0,
   `can_send_bulk_email` TINYINT(1) NOT NULL DEFAULT 0,
+  -- Seven-day availability renewal: an administrative restriction on an
+  -- Agent/Landlord account, kept separate from identity verification. Every
+  -- existing account is 'active', so the migration suspends nobody.
+  `account_status` VARCHAR(20) NOT NULL DEFAULT 'active',
+  `suspension_reason` VARCHAR(500) DEFAULT NULL,
+  `suspended_at` DATETIME DEFAULT NULL,
+  `suspended_by` VARCHAR(64) DEFAULT NULL,
+  `reinstated_at` DATETIME DEFAULT NULL,
+  `reinstated_by` VARCHAR(64) DEFAULT NULL,
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` DATETIME DEFAULT NULL,
   PRIMARY KEY (`id`),
@@ -153,10 +162,16 @@ CREATE TABLE IF NOT EXISTS `properties` (
   `provider_commission_note` VARCHAR(500) DEFAULT NULL,
   `views_count` INT NOT NULL DEFAULT 0,
   `enquiries_count` INT NOT NULL DEFAULT 0,
+  -- Seven-day availability renewal. `published_at` is when the listing first
+  -- went live and is never cleared; `availability_due_at` is the deadline.
+  `published_at` DATETIME DEFAULT NULL,
+  `availability_confirmed_at` DATETIME DEFAULT NULL,
+  `availability_due_at` DATETIME DEFAULT NULL,
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` DATETIME DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `idx_prop_status` (`status`),
+  KEY `idx_prop_availability_due` (`availability_due_at`),
   KEY `idx_prop_landlord` (`landlord_id`),
   KEY `idx_prop_submitted_by` (`submitted_by_user_id`),
   KEY `idx_prop_city` (`city`),
@@ -1331,4 +1346,27 @@ CREATE TABLE IF NOT EXISTS `email_campaign_recipients` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `uniq_campaign_recipient` (`campaign_id`, `email`),
   KEY `idx_campaign_recipient_status` (`campaign_id`, `status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ===========================================================================
+-- Seven-day property availability (2026-11-10)
+-- Append-only history of every availability action. `cycle_key` is the deadline
+-- the action belongs to; the unique key makes a re-run of the scheduled job (or
+-- a double click) record one event rather than two.
+-- ===========================================================================
+CREATE TABLE IF NOT EXISTS `property_availability_events` (
+  `id` VARCHAR(64) NOT NULL,
+  `property_id` VARCHAR(64) NOT NULL,
+  `action` VARCHAR(48) NOT NULL,
+  `actor_role` VARCHAR(16) NOT NULL DEFAULT 'system',
+  `actor_id` VARCHAR(64) DEFAULT NULL,
+  `actor_name` VARCHAR(255) NOT NULL DEFAULT '',
+  `source` VARCHAR(64) NOT NULL DEFAULT '',
+  `note` VARCHAR(500) NOT NULL DEFAULT '',
+  `cycle_key` VARCHAR(64) NOT NULL DEFAULT '',
+  `due_at` DATETIME DEFAULT NULL,
+  `created_at` DATETIME NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uniq_availability_event` (`property_id`, `action`, `cycle_key`),
+  KEY `idx_availability_event_created` (`created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
