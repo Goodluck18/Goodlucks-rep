@@ -24,6 +24,10 @@ import type {
   FeePolicyOverview,
   FeePolicySnapshot,
   AdminAgentTiers,
+  AreaAdjacency,
+  ContactDisclosure,
+  MatchFactor,
+  MatchBand,
   IdentityVerification,
   ProfessionalAuthorisation,
   VerificationDecisionEntry,
@@ -189,6 +193,9 @@ export interface PropertyMatch {
   score: number;
   reason: string;
   curated: boolean;
+  /** Upgrade 2 (B2): the six weighted factors behind `score`. */
+  breakdown?: MatchFactor[];
+  band?: MatchBand;
 }
 
 export interface PropertyInput {
@@ -762,7 +769,7 @@ export const api = {
   /** One endpoint per lifecycle action; each is validated on the server. */
   viewingAction: (
     id: string,
-    action: ViewingAction | 'reschedule' | 'request-reschedule' | 'no-show' | 'could-not-proceed',
+    action: ViewingAction | 'reschedule' | 'request-reschedule' | 'accept-reschedule' | 'decline-reschedule' | 'no-show' | 'could-not-proceed',
     body: { date?: string; time?: string; note?: string; reason?: string; who?: 'tenant' | 'agent' } = {}
   ) =>
     request<{ viewing: ViewingSchedule; message: string }>(
@@ -1169,6 +1176,49 @@ export const api = {
 
   adminAgentTiers: () => request<AdminAgentTiers>('/admin/agent-tiers'),
 
+  // --- Upgrade 2 Phase 5: contact disclosure (B6) -------------------------
+  requestContactDisclosure: (viewingId: string, reason: string) =>
+    request<{ success: boolean; message: string; disclosure: ContactDisclosure; viewing: ViewingSchedule }>(
+      `/viewings/${encodeURIComponent(viewingId)}/request-contact`,
+      { method: 'POST', body: { reason } }
+    ),
+
+  myContactDisclosures: (viewingId?: string) =>
+    request<{ success: boolean; disclosures: ContactDisclosure[] }>(
+      viewingId
+        ? `/contact-disclosures?viewingId=${encodeURIComponent(viewingId)}`
+        : '/contact-disclosures'
+    ),
+
+  adminContactDisclosures: (status?: string) =>
+    request<{
+      success: boolean;
+      disclosures: ContactDisclosure[];
+      counts: Record<string, number>;
+      validDays: number;
+    }>(`/admin/contact-disclosures${status ? `?status=${encodeURIComponent(status)}` : ''}`),
+
+  decideContactDisclosure: (id: string, decision: 'approve' | 'reject' | 'revoke', note: string) =>
+    request<{ success: boolean; disclosure: ContactDisclosure }>(
+      `/admin/contact-disclosures/${encodeURIComponent(id)}/decision`,
+      { method: 'POST', body: { decision, note } }
+    ),
+
+  // --- Upgrade 2 Phase 5: area proximity (B2) -----------------------------
+  areaAdjacency: () =>
+    request<{ success: boolean; adjacencies: AreaAdjacency[]; areas: string[]; validDays?: number }>(
+      '/admin/area-adjacency'
+    ),
+
+  saveAreaAdjacency: (data: { areaA: string; areaB: string; band: number; note?: string }) =>
+    request<{ success: boolean; adjacency: AreaAdjacency }>('/admin/area-adjacency', {
+      method: 'POST',
+      body: data,
+    }),
+
+  deleteAreaAdjacency: (id: string) =>
+    request<{ success: boolean }>(`/admin/area-adjacency/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+
   getAgentTier: (userId: string) =>
     request<{ agent: { userId: string; name: string; email: string }; tier: AgentTierState }>(
       `/admin/agents/${encodeURIComponent(userId)}/tier`
@@ -1211,10 +1261,21 @@ export const api = {
   }) => request<{ description: string; ai: boolean }>('/ai/describe', { method: 'POST', body: data }),
 
   // Scored shortlist from the backend (same engine as /ai/match).
+  // Upgrade 2 (B3): the API returns two lists — the staff's shortlist and the
+  // scored longlist — because they are two different promises to the tenant.
   matches: (requestId?: string) =>
-    request<{ success: boolean; requestId: string | null; topScore?: number; matches: PropertyMatch[] }>(
-      requestId ? `/matches?requestId=${encodeURIComponent(requestId)}` : '/matches'
-    ),
+    request<{
+      success: boolean;
+      requestId: string | null;
+      topScore?: number;
+      matches: PropertyMatch[];
+      curatedForYou?: PropertyMatch[];
+      similarMatches?: PropertyMatch[];
+      curatedCount?: number;
+      curatedMinimum?: number;
+      curationWarning?: string | null;
+      scoreBands?: Record<string, number>;
+    }>(requestId ? `/matches?requestId=${encodeURIComponent(requestId)}` : '/matches'),
 
   aiMatch: (tenantRequest: Partial<TenantRequest>, property: Partial<Property>) =>
     request<{ matchScore: number; aiMatchReason: string }>('/ai/match', {

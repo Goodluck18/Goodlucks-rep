@@ -9,6 +9,7 @@ import {
   Clock3,
   Info,
   Loader2,
+  Lock,
   MapPin,
   RefreshCw,
   ShieldCheck,
@@ -79,6 +80,9 @@ const ViewingCard: React.FC<{ viewing: ViewingSchedule }> = ({ viewing }) => {
   const [detail, setDetail] = useState<ViewingDetail | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
+  // Upgrade 2 (B6): asking staff to share the tenant's contact details.
+  const [contactReason, setContactReason] = useState('');
+  const [contactBusy, setContactBusy] = useState(false);
   const [date, setDate] = useState(viewing.date || daysFromNow(2));
   const [time, setTime] = useState(viewing.time || '11:00 AM');
   const [note, setNote] = useState('');
@@ -105,6 +109,12 @@ const ViewingCard: React.FC<{ viewing: ViewingSchedule }> = ({ viewing }) => {
       showErrorToast('Choose a date and time', 'An appointment needs a slot.');
       return;
     }
+    // Upgrade 2 (B5): moving an agreed appointment needs a reason the tenant can
+    // read, and the tenant has to accept the new time before it takes effect.
+    if (action === 'reschedule' && note.trim() === '') {
+      showErrorToast('Say why it needs to move', 'The tenant sees your reason and must accept the new time.');
+      return;
+    }
     if ((action === 'cancel' || action === 'could-not-proceed') && note.trim() === '') {
       showErrorToast('A reason is needed', 'Record why before closing the viewing.');
       return;
@@ -129,6 +139,24 @@ const ViewingCard: React.FC<{ viewing: ViewingSchedule }> = ({ viewing }) => {
     const refreshed = await api.getViewing(viewing.id).catch(() => null);
     if (refreshed) setDetail(refreshed);
     await refreshViewings();
+  };
+
+  const requestContact = async () => {
+    if (contactReason.trim().length < 5) {
+      showErrorToast('Give a reason', 'Tell Goodlucks why you need the tenant’s contact details.');
+      return;
+    }
+    setContactBusy(true);
+    try {
+      await api.requestContactDisclosure(viewing.id, contactReason.trim());
+      setContactReason('');
+      const refreshed = await api.getViewing(viewing.id).catch(() => null);
+      if (refreshed) setDetail(refreshed);
+    } catch (err) {
+      showErrorToast('Could not send the request', messageForError(err));
+    } finally {
+      setContactBusy(false);
+    }
   };
 
   const allowed = detail ? actionForAllowed(detail.allowedActions) : [];
@@ -191,6 +219,41 @@ const ViewingCard: React.FC<{ viewing: ViewingSchedule }> = ({ viewing }) => {
 
       {expanded && (
         <div className="space-y-3 border-t border-line pt-3">
+          {viewing.tenantContactVisible === false && (
+            <div className="bg-page border border-line rounded-xl p-3 space-y-2">
+              <p className="text-[11px] font-bold text-ink flex items-center gap-1.5">
+                <Lock className="w-3.5 h-3.5" /> Tenant contact
+              </p>
+              <p className="text-[10px] text-ink/70">{viewing.tenantContactReason || 'Withheld until Goodlucks approves.'}</p>
+              {(!viewing.contactDisclosure || ['rejected', 'revoked', 'expired'].includes(viewing.contactDisclosure.status)) && (
+                <>
+                  <input
+                    value={contactReason}
+                    onChange={(event) => setContactReason(event.target.value)}
+                    placeholder="Why do you need the tenant's phone number and email?"
+                    className="w-full bg-surface border border-line rounded-lg px-3 py-2 text-[11px] text-ink"
+                  />
+                  <button
+                    onClick={() => void requestContact()}
+                    disabled={contactBusy}
+                    className="px-3 py-1.5 rounded-lg bg-interactive text-ink text-[11px] font-bold disabled:opacity-50"
+                  >
+                    {contactBusy ? 'Sending…' : 'Ask Goodlucks for contact'}
+                  </button>
+                </>
+              )}
+              {viewing.contactDisclosure?.status === 'pending' && (
+                <p className="text-[10px] text-amber-700">
+                  Requested {viewing.contactDisclosure.requestedAt ? new Date(viewing.contactDisclosure.requestedAt).toLocaleString() : ''} — awaiting staff review.
+                </p>
+              )}
+              {viewing.contactDisclosure?.status === 'approved' && (
+                <p className="text-[10px] text-emerald-700">
+                  Approved until {viewing.contactDisclosure.expiresAt ? new Date(viewing.contactDisclosure.expiresAt).toLocaleDateString() : 'further notice'}.
+                </p>
+              )}
+            </div>
+          )}
           {isLoading && (
             <p className="text-[11px] text-ink/70 flex items-center gap-2">
               <Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading the record…

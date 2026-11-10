@@ -31,7 +31,9 @@
     "test:bulk-email": "node --test tests/bulk-email.test.mjs",
     "test:fee-policies-phase4": "node --test tests/fee-policies-phase4.test.mjs",
     "test:admin-console-phase4": "node --import tsx --test tests/admin-console-phase4.test.mts",
-    "test:admin-console-phase3": "node --import tsx --test tests/admin-console-phase3.test.mts"
+    "test:admin-console-phase3": "node --import tsx --test tests/admin-console-phase3.test.mts",
+    "test:tenant-experience": "node --test tests/tenant-experience.test.mjs",
+    "test:admin-console-phase5": "node --import tsx --test tests/admin-console-phase5.test.mts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

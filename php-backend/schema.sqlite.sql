@@ -93,6 +93,9 @@ CREATE TABLE IF NOT EXISTS properties (
   viewing_terms_state TEXT NOT NULL DEFAULT 'not_set',
   viewing_terms_updated_at TEXT,
   viewing_terms_approved_by TEXT,
+  -- Upgrade 2 (B2): optional coordinates; proximity is scored from area_adjacency.
+  latitude REAL,
+  longitude REAL,
   views_count INTEGER NOT NULL DEFAULT 0,
   enquiries_count INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -457,6 +460,48 @@ CREATE INDEX IF NOT EXISTS idx_audit_action ON audit_logs (action);
 
 -- Increment B: viewing-fee ledger (see database.sql for the authoritative
 -- definitions and the accounting rules).
+
+-- Upgrade 2 (B2): administrator-maintained proximity between areas. One row per
+-- undirected pair, so A->B and B->A can never disagree.
+-- Upgrade 2 Phase 5 (B6): approved tenant-contact disclosure, one row per
+-- (viewing, provider). Contact is serialised only while approved and unexpired.
+CREATE TABLE IF NOT EXISTS contact_disclosures (
+  id TEXT PRIMARY KEY,
+  viewing_id TEXT NOT NULL,
+  property_id TEXT,
+  property_title TEXT NOT NULL DEFAULT '',
+  provider_user_id TEXT NOT NULL,
+  provider_name TEXT NOT NULL DEFAULT '',
+  tenant_user_id TEXT,
+  tenant_name TEXT NOT NULL DEFAULT '',
+  requested_by TEXT,
+  reason TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'pending',
+  decided_by TEXT,
+  decided_at TEXT,
+  decision_note TEXT,
+  expires_at TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_cd_viewing_provider ON contact_disclosures (viewing_id, provider_user_id);
+CREATE INDEX IF NOT EXISTS idx_cd_status ON contact_disclosures (status, created_at);
+CREATE INDEX IF NOT EXISTS idx_cd_tenant ON contact_disclosures (tenant_user_id);
+
+CREATE TABLE IF NOT EXISTS area_adjacency (
+  id TEXT PRIMARY KEY,
+  area_a TEXT NOT NULL,
+  area_b TEXT NOT NULL,
+  band INTEGER NOT NULL DEFAULT 2,
+  note TEXT,
+  created_by TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_area_pair ON area_adjacency (area_a, area_b);
+CREATE INDEX IF NOT EXISTS idx_area_second ON area_adjacency (area_b);
 
 CREATE TABLE IF NOT EXISTS fee_policies (
   id TEXT PRIMARY KEY,

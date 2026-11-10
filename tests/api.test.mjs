@@ -3382,9 +3382,17 @@ describe('Match scoring, notifications & SEO', () => {
     const best = inBudget.body.matches.find((m) => !m.curated);
     assert.ok(best);
 
+    // A complete request that fits on every axis: Upgrade 2 scores six factors,
+    // so omitting one (bathrooms) now honestly costs its ten points.
     const comparison = await guest.post('/api/ai/match', {
-      tenantRequest: { budgetMin: 2000, budgetMax: 8000, bedrooms: 2, preferredLocations: ['East Legon'] },
-      property: { rentGhs: 7400, bedrooms: 2, location: 'East Legon, Accra', propertyType: 'Apartment' },
+      tenantRequest: {
+        budgetMin: 2000,
+        budgetMax: 8000,
+        bedrooms: 2,
+        bathrooms: 2,
+        preferredLocations: ['East Legon'],
+      },
+      property: { rentGhs: 7400, bedrooms: 2, bathrooms: 2, location: 'East Legon, Accra', propertyType: 'Apartment' },
     });
     assert.equal(comparison.status, 200);
     assert.ok(comparison.body.matchScore >= 90, 'a listing inside budget must score at least 90');
@@ -4784,10 +4792,19 @@ describe('Agent-led viewing lifecycle (Increment F)', () => {
     const previousDate = previous.viewing.date;
     const previousTime = previous.viewing.time;
 
-    const rescheduled = await action(f.agents.primary.client, f.viewings.primary, 'reschedule', {
+    // Upgrade 2 (B5): the provider asks to move it; the tenant accepts.
+    const requested = await action(f.agents.primary.client, f.viewings.primary, 'reschedule', {
       date: daysFromNow(5),
       time: '04:00 PM',
       reason: 'The landlord has a conflict.',
+    });
+    assert.equal(requested.status, 200, JSON.stringify(requested.body));
+    assert.equal(requested.body.viewing.status, 'reschedule_requested');
+    assert.equal(requested.body.viewing.date, previousDate, 'the agreed slot does not move by itself');
+    assert.equal(requested.body.viewing.preferredDate, daysFromNow(5));
+
+    const rescheduled = await action(f.tenants.primary.client, f.viewings.primary, 'accept-reschedule', {
+      note: 'The new time suits me.',
     });
     assert.equal(rescheduled.status, 200, JSON.stringify(rescheduled.body));
     assert.equal(rescheduled.body.viewing.status, 'rescheduled');
@@ -4800,13 +4817,26 @@ describe('Agent-led viewing lifecycle (Increment F)', () => {
     assert.equal(move.previousDate, previousDate);
     assert.equal(move.previousTime, previousTime);
     assert.equal(move.newDate, daysFromNow(5));
-    assert.equal(move.actorId, f.agents.primary.id);
+    // Upgrade 2 (B5): the appointment moved because the tenant accepted, so the
+    // tenant is the actor on the move and the agent is the actor on the request.
+    assert.equal(move.actorId, f.tenants.primary.id);
+    const ask = after.history.filter((event) => event.action === 'viewing.reschedule_requested').pop();
+    assert.ok(ask, 'the request itself is on the record');
+    assert.equal(ask.actorId, f.agents.primary.id);
   });
 
   test('the tenant can ask for a different time without moving the appointment', async () => {
+    const withoutReason = await action(f.tenants.primary.client, f.viewings.primary, 'request-reschedule', {
+      date: daysFromNow(6),
+      time: '11:00 AM',
+    });
+    assert.equal(withoutReason.status, 422, JSON.stringify(withoutReason.body));
+    assert.ok(withoutReason.body.fields.reason);
+
     const requested = await action(f.tenants.primary.client, f.viewings.primary, 'request-reschedule', {
       date: daysFromNow(6),
       time: '11:00 AM',
+      reason: 'Something came up at work.',
       note: 'Something came up at work.',
     });
     assert.equal(requested.status, 200, JSON.stringify(requested.body));
@@ -5284,8 +5314,16 @@ describe('Agent-led viewing lifecycle (Increment F)', () => {
     assert.equal(moved.status, 200, JSON.stringify(moved.body));
     const rescheduleNotes = fresh(tenantBeforeReschedule, await notificationsFor(tenantClient));
     assert.equal(rescheduleNotes.length, 1);
-    assert.match(rescheduleNotes[0].title, /Appointment rescheduled/i);
-    assert.match(rescheduleNotes[0].message, /Appointment: /);
+    assert.match(rescheduleNotes[0].title, /Reschedule requested/i);
+    assert.match(rescheduleNotes[0].message, /Note: Landlord asked to move it/);
+
+    // --- 5b. the tenant accepts, and the agent is told ---------------------
+    const agentBeforeAccept = await notificationsFor(agent);
+    const accepted = await action(tenantClient, id, 'accept-reschedule', {});
+    assert.equal(accepted.status, 200, JSON.stringify(accepted.body));
+    const acceptNotes = fresh(agentBeforeAccept, await notificationsFor(agent));
+    assert.equal(acceptNotes.length, 1);
+    assert.match(acceptNotes[0].title, /Appointment rescheduled/i);
 
     // --- 6. completing too early notifies nobody ---------------------------
     const agentBeforeEarly = await notificationsFor(agent);

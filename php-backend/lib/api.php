@@ -163,7 +163,7 @@ function resolve_route(string $method, string $path): ?array
         ['GET',  '#^/admin/viewings/([A-Za-z0-9\-_]+)$#', 'handle_admin_viewing_detail'],
         ['POST', '#^/admin/viewings/([A-Za-z0-9\-_]+)/correction$#', 'handle_correct_viewing'],
         ['POST', '#^/admin/viewings/([A-Za-z0-9\-_]+)/assign-agent$#', 'handle_assign_viewing_agent'],
-        ['POST', '#^/viewings/([A-Za-z0-9\-_]+)/(propose|confirm|reschedule|request-reschedule|cancel|complete|no-show|could-not-proceed)$#', 'handle_viewing_action'],
+        ['POST', '#^/viewings/([A-Za-z0-9\-_]+)/(propose|confirm|reschedule|request-reschedule|accept-reschedule|decline-reschedule|cancel|complete|no-show|could-not-proceed)$#', 'handle_viewing_action'],
         ['GET',  '#^/viewings/([A-Za-z0-9\-_]+)$#', 'handle_get_viewing'],
         ['PATCH', '#^/viewings/([A-Za-z0-9\-_]+)$#', 'handle_update_viewing'],
 
@@ -221,6 +221,17 @@ function resolve_route(string $method, string $path): ?array
         // Every agent's derived tier, read-only: a tier decides how a real
         // commission is split, so it follows verification, never a dropdown.
         ['GET',  '#^/admin/agent-tiers$#', 'handle_admin_agent_tier_overview'],
+
+        // --- Tenant contact disclosure (Upgrade 2, B6) -------------------
+        // A provider asks; staff decide; the tenant is told what was shared.
+        ['POST', '#^/viewings/([A-Za-z0-9\-_]+)/request-contact$#', 'handle_request_contact_disclosure'],
+        ['GET',  '#^/contact-disclosures$#', 'handle_my_contact_disclosures'],
+        ['GET',  '#^/admin/contact-disclosures$#', 'handle_list_contact_disclosures'],
+        // Area proximity: the administrator's judgement, used by the scorer.
+        ['GET',    '#^/admin/area-adjacency$#', 'handle_list_area_adjacency'],
+        ['POST',   '#^/admin/area-adjacency$#', 'handle_save_area_adjacency'],
+        ['DELETE', '#^/admin/area-adjacency/([A-Za-z0-9\-_]+)$#', 'handle_delete_area_adjacency'],
+        ['POST', '#^/admin/contact-disclosures/([A-Za-z0-9\-_]+)/decision$#', 'handle_decide_contact_disclosure'],
         ['GET',  '#^/admin/agents/([A-Za-z0-9\-_]+)/tier$#', 'handle_admin_agent_tier'],
 
         // --- Remittances, reconciliation & rental commissions (Increment G) ---
@@ -3050,7 +3061,7 @@ function handle_create_tenant_request(): void
         error_response('Please correct the highlighted fields.', 422, $validator->errors());
     }
 
-    $requestId = create_tenant_request([
+    $payload = [
         // The account that submitted it, taken from the session (Correction 1).
         'tenant_id'         => (string)$user['id'],
         'tenant_name'       => clean_string($input['tenantName'], 120),
@@ -3064,7 +3075,39 @@ function handle_create_tenant_request(): void
         'property_type'     => one_of($input['propertyType'] ?? 'Apartment', array_merge(PROPERTY_TYPES, ['All']), 'Apartment'),
         'move_in_date'      => $moveInDate,
         'notes'             => clean_text($input['notes'] ?? '', 2000),
-    ]);
+    ];
+
+    // Upgrade 2 (D1): at most three requests may be open at once. The check and
+    // the insert share one immediate transaction, so two submissions racing each
+    // other cannot both squeeze past a count of two.
+    $pendingStatuses = TENANT_REQUEST_PENDING_STATUSES;
+    $placeholders = implode(', ', array_map(static fn($s) => "'" . $s . "'", $pendingStatuses));
+    $outcome = db_transaction_immediate(static function () use ($user, $payload, $placeholders): array {
+        $pending = (int)db_value(
+            'SELECT COUNT(*) FROM tenant_requests WHERE tenant_id = :tid AND status IN (' . $placeholders . ')',
+            [':tid' => (string)$user['id']]
+        );
+        if ($pending >= TENANT_REQUEST_PENDING_LIMIT) {
+            return ['blocked' => true, 'pending' => $pending, 'requestId' => null];
+        }
+
+        return ['blocked' => false, 'pending' => $pending, 'requestId' => create_tenant_request($payload)];
+    });
+
+    if ($outcome['blocked']) {
+        audit_log('tenant_request.limit_reached', 'tenant_request', (string)$user['id'], [
+            'pending' => $outcome['pending'],
+            'limit'   => TENANT_REQUEST_PENDING_LIMIT,
+        ], $user);
+        error_response(
+            'You already have ' . TENANT_REQUEST_PENDING_LIMIT . ' rental requests in progress. '
+            . 'Once one is matched, scheduled or closed you can submit another.',
+            409,
+            ['pending' => 'Close or complete one of your open rental requests first.']
+        );
+    }
+
+    $requestId = (string)$outcome['requestId'];
 
     send_email(
         (string)valid_email($input['tenantEmail']),
@@ -3170,7 +3213,35 @@ function handle_update_tenant_request(array $params): void
             $fields['status'] = $status;
         }
         if (isset($input['matchedPropertyIds'])) {
-            $fields['matched_property_ids'] = clean_string_list($input['matchedPropertyIds'], 20, 64);
+            // Upgrade 2 (B3): the administrator's "chosen for you" set is a real
+            // recommendation, so it is validated rather than stored blindly: only
+            // live listings, no duplicates, and never more than six.
+            //
+            // Three is the point at which a shortlist reads as a recommendation,
+            // but it is not a hard floor: a genuine single-property match has
+            // always been allowed and existing records still say so. A shorter
+            // set is therefore accepted and *labelled* — `curationWarning` in
+            // /api/matches tells the tenant (and the console) that the list is
+            // thin rather than pretending it is a considered shortlist.
+            $chosen = array_values(array_unique(clean_string_list($input['matchedPropertyIds'], 20, 64)));
+            if (count($chosen) > 6) {
+                error_response(
+                    'Choose at most 6 properties for the tenant. More than six is a search result, not a recommendation.',
+                    422,
+                    ['matchedPropertyIds' => 'Select up to 6 live listings.']
+                );
+            }
+            foreach ($chosen as $propertyId) {
+                $property = find_property($propertyId);
+                if (!$property || (string)($property['status'] ?? '') !== 'active') {
+                    error_response(
+                        'One of the chosen properties is not a live listing any more. Refresh and choose again.',
+                        422,
+                        ['matchedPropertyIds' => 'Every chosen property must be an active listing.']
+                    );
+                }
+            }
+            $fields['matched_property_ids'] = $chosen;
         }
         if (!$fields) {
             error_response('No valid changes were provided.', 400);
@@ -3590,15 +3661,19 @@ function handle_viewing_action(array $params): void
     $date = isset($input['date']) ? clean_string((string)$input['date'], 32) : null;
     $time = isset($input['time']) ? clean_string((string)$input['time'], 32) : null;
 
-    $agentOnly = static function (string $role): void {
-        if (!in_array($role, ['agent', 'admin'], true)) {
-            error_response('Only the agent responsible for this viewing can do that.', 403);
+    // Upgrade 2 (B5): the provider responsible for the viewing acts on it —
+    // an agent, or the landlord who listed the property. Administrators keep
+    // their override. `viewing_access()` has already established which of those
+    // the caller is, so this only has to reject a tenant.
+    $providerOnly = static function (string $role): void {
+        if (!in_array($role, ['agent', 'landlord', 'admin'], true)) {
+            error_response('Only the provider responsible for this viewing can do that.', 403);
         }
     };
 
     switch ($action) {
         case 'propose':
-            $agentOnly($role);
+            $providerOnly($role);
             if ($date === null || $time === null || $time === '') {
                 error_response('Choose the date and time you are proposing.', 422, [
                     'date' => 'A proposed appointment needs a date.',
@@ -3616,8 +3691,8 @@ function handle_viewing_action(array $params): void
             return;
 
         case 'confirm':
-            if (!in_array($role, ['tenant', 'agent', 'admin'], true)) {
-                error_response('Only the tenant or the responsible agent can confirm this appointment.', 403);
+            if (!in_array($role, ['tenant', 'agent', 'landlord', 'admin'], true)) {
+                error_response('Only the tenant or the responsible provider can confirm this appointment.', 403);
             }
             if (viewing_normalise_status($viewing['status']) === 'confirmed') {
                 error_response('This appointment is already confirmed.', 409);
@@ -3631,29 +3706,95 @@ function handle_viewing_action(array $params): void
             return;
 
         case 'reschedule':
-            $agentOnly($role);
+            if (!in_array($role, ['agent', 'landlord', 'admin'], true)) {
+                error_response('Only the provider responsible for this viewing can move it.', 403);
+            }
             if ($date === null || $time === null || $time === '') {
                 error_response('Choose the new date and time.', 422, [
                     'date' => 'A rescheduled appointment needs a date.',
                     'time' => 'A rescheduled appointment needs a time.',
                 ]);
             }
+            if ($reason === '') {
+                error_response('Say why the appointment needs to move.', 422, [
+                    'reason' => 'A reschedule needs a reason the tenant can read.',
+                ]);
+            }
+            // Upgrade 2 (B5): the provider proposes; the tenant accepts. Only an
+            // administrator may move an agreed appointment outright.
+            $rescheduleTarget = $role === 'admin' ? 'rescheduled' : 'reschedule_requested';
             $updated = viewing_apply_transition($viewing, $user, $role, [
-                'status' => 'rescheduled', 'date' => $date, 'time' => $time, 'note' => $note !== '' ? $note : $reason,
+                'status' => $rescheduleTarget,
+                'date'   => $date,
+                'time'   => $time,
+                'note'   => $note,
+                'reason' => $reason,
             ]);
             json_response([
                 'success' => true,
-                'message' => 'Rescheduled to ' . $updated['date'] . ' at ' . $updated['time'] . '. The previous slot is kept in the history.',
+                'message' => $rescheduleTarget === 'rescheduled'
+                    ? 'Rescheduled to ' . $updated['date'] . ' at ' . $updated['time'] . '. The previous slot is kept in the history.'
+                    : 'New time proposed (' . $updated['date'] . ' at ' . $updated['time'] . '). The tenant must accept it before the appointment moves.',
+                'viewing' => viewing_payload($updated),
+            ]);
+            return;
+
+        case 'accept-reschedule':
+            // Upgrade 2 (B5): the tenant accepts the time the provider proposed.
+            // The slot comes from the stored request, not from the client.
+            if (!in_array($role, ['tenant', 'admin'], true)) {
+                error_response('Only the tenant can accept a new time.', 403);
+            }
+            if (viewing_normalise_status($viewing['status']) !== 'reschedule_requested') {
+                error_response('There is no requested new time to accept.', 409);
+            }
+            $requestedDate = (string)($viewing['preferredDate'] ?? '');
+            if ($requestedDate === '') {
+                error_response('The requested time is missing its date. Ask the provider to propose it again.', 422);
+            }
+            $updated = viewing_apply_transition($viewing, $user, $role, [
+                'status' => 'rescheduled',
+                'date'   => $requestedDate,
+                'time'   => (string)($viewing['preferredTime'] ?? ''),
+                'note'   => $note,
+            ]);
+            json_response([
+                'success' => true,
+                'message' => 'New time accepted: ' . $updated['date'] . ' at ' . $updated['time'] . '.',
+                'viewing' => viewing_payload($updated),
+            ]);
+            return;
+
+        case 'decline-reschedule':
+            if (!in_array($role, ['tenant', 'admin'], true)) {
+                error_response('Only the tenant can decline a new time.', 403);
+            }
+            if (viewing_normalise_status($viewing['status']) !== 'reschedule_requested') {
+                error_response('There is no requested new time to decline.', 409);
+            }
+            $updated = viewing_apply_transition($viewing, $user, $role, [
+                'status' => 'confirmed',
+                'note'   => $note !== '' ? $note : 'The agreed time stands.',
+            ]);
+            json_response([
+                'success' => true,
+                'message' => 'New time declined. The agreed appointment stands: ' . $updated['date'] . ' at ' . $updated['time'] . '.',
                 'viewing' => viewing_payload($updated),
             ]);
             return;
 
         case 'request-reschedule':
-            if (!in_array($role, ['tenant', 'agent', 'admin'], true)) {
-                error_response('Only the tenant or the agent can ask for a new time.', 403);
+            if (!in_array($role, ['tenant', 'agent', 'landlord', 'admin'], true)) {
+                error_response('Only the tenant or the provider can ask for a new time.', 403);
+            }
+            if ($reason === '') {
+                error_response('Say why the appointment needs to move.', 422, [
+                    'reason' => 'A reschedule request needs a reason.',
+                ]);
             }
             $updated = viewing_apply_transition($viewing, $user, $role, [
-                'status' => 'reschedule_requested', 'date' => $date, 'time' => $time, 'note' => $note,
+                'status' => 'reschedule_requested', 'date' => $date, 'time' => $time,
+                'note' => $note, 'reason' => $reason,
             ]);
             json_response([
                 'success' => true,
@@ -3676,7 +3817,7 @@ function handle_viewing_action(array $params): void
             return;
 
         case 'complete':
-            $agentOnly($role);
+            $providerOnly($role);
             if ($role === 'admin' && $note === '') {
                 error_response('Add a note when an administrator records a completion.', 422, [
                     'note' => 'The audit trail needs to say what was verified.',
@@ -3716,7 +3857,7 @@ function handle_viewing_action(array $params): void
             return;
 
         case 'could-not-proceed':
-            $agentOnly($role);
+            $providerOnly($role);
             $updated = viewing_apply_transition($viewing, $user, $role, [
                 'status' => 'could_not_proceed', 'reason' => $reason, 'note' => $note,
             ]);
@@ -4670,6 +4811,152 @@ function handle_admin_agent_tier(array $params): void
     ]);
 }
 
+// ===========================================================================
+// Area proximity (Upgrade 2, Phase 5: B2)
+// ===========================================================================
+function handle_list_area_adjacency(): void
+{
+    require_auth(['admin']);
+
+    json_response([
+        'success'     => true,
+        'adjacencies' => list_area_adjacency(),
+        'areas'       => match_known_areas(),
+        'bands'       => AREA_ADJACENCY_BANDS,
+        'weights'     => MATCH_WEIGHTS,
+        'note'        => 'Proximity is the administrator\'s judgement, not a guessed distance. '
+            . 'A listing in an area with no recorded relationship earns no proximity points, and the '
+            . 'tenant sees that in the score breakdown.',
+    ]);
+}
+
+function handle_save_area_adjacency(): void
+{
+    $admin = require_auth(['admin']);
+    enforce_rate_limit('area-adjacency', 120, 3600);
+    $input = request_json();
+
+    try {
+        $adjacency = save_area_adjacency($input, $admin);
+    } catch (InvalidArgumentException $e) {
+        error_response($e->getMessage(), 422);
+    }
+
+    json_response(['success' => true, 'adjacency' => $adjacency], 201);
+}
+
+function handle_delete_area_adjacency(array $params): void
+{
+    $admin = require_auth(['admin']);
+    $id = (string)($params[0] ?? '');
+
+    try {
+        delete_area_adjacency($id, $admin);
+    } catch (InvalidArgumentException $e) {
+        error_response($e->getMessage(), 404);
+    }
+
+    json_response(['success' => true]);
+}
+
+// ===========================================================================
+// Tenant contact disclosure (Upgrade 2, Phase 5: B6)
+// ===========================================================================
+function handle_request_contact_disclosure(array $params): void
+{
+    $user = require_auth(['agent', 'landlord']);
+    enforce_rate_limit('contact-disclosure-request', 30, 3600);
+
+    $id = (string)($params[0] ?? '');
+    $viewing = find_viewing($id);
+    if (!$viewing) {
+        error_response('Viewing not found.', 404);
+    }
+
+    // The provider must be responsible for this viewing; the relationship is
+    // resolved on the server, never taken from the request body.
+    $access = viewing_access($viewing, $user);
+    if (!$access['canView'] || !in_array($access['role'], ['agent', 'landlord'], true)) {
+        error_response('You do not have access to this viewing.', 403);
+    }
+
+    $input = request_json();
+    try {
+        $disclosure = request_contact_disclosure($viewing, $user, (string)($input['reason'] ?? ''));
+    } catch (RuntimeException $e) {
+        error_response($e->getMessage(), 409);
+    } catch (InvalidArgumentException $e) {
+        error_response($e->getMessage(), 422);
+    }
+
+    json_response([
+        'success'    => true,
+        'message'    => 'Request sent to Goodlucks staff. The tenant\'s details stay hidden until it is approved.',
+        'disclosure' => $disclosure,
+        'viewing'    => viewing_for_viewer($viewing, $user),
+    ], 201);
+}
+
+/** A provider's own requests, and the record a tenant is entitled to see. */
+function handle_my_contact_disclosures(): void
+{
+    $user = require_auth();
+    $role = (string)($user['role'] ?? '');
+    $id = (string)$user['id'];
+
+    if ($role === 'tenant') {
+        json_response(['success' => true, 'disclosures' => list_contact_disclosures_for_tenant($id)]);
+    }
+    if ($role === 'agent' || $role === 'landlord') {
+        json_response([
+            'success'     => true,
+            'disclosures' => list_contact_disclosures_for_provider($id, clean_string(query_param('viewingId', ''), 64)),
+        ]);
+    }
+
+    json_response(['success' => true, 'disclosures' => []]);
+}
+
+function handle_list_contact_disclosures(): void
+{
+    require_auth(['admin']);
+    $status = clean_string(query_param('status', ''), 24);
+
+    json_response([
+        'success'     => true,
+        'disclosures' => list_contact_disclosures(['status' => $status]),
+        'counts'      => [
+            'pending'  => count(list_contact_disclosures(['status' => 'pending'])),
+            'approved' => count(list_contact_disclosures(['status' => 'approved'])),
+            'rejected' => count(list_contact_disclosures(['status' => 'rejected'])),
+            'revoked'  => count(list_contact_disclosures(['status' => 'revoked'])),
+        ],
+        'validDays'   => CONTACT_DISCLOSURE_VALID_DAYS,
+    ]);
+}
+
+function handle_decide_contact_disclosure(array $params): void
+{
+    $admin = require_auth(['admin']);
+    $id = (string)($params[0] ?? '');
+    $input = request_json();
+
+    try {
+        $disclosure = decide_contact_disclosure(
+            $id,
+            $admin,
+            (string)($input['decision'] ?? ''),
+            (string)($input['note'] ?? '')
+        );
+    } catch (RuntimeException $e) {
+        error_response($e->getMessage(), 409);
+    } catch (InvalidArgumentException $e) {
+        error_response($e->getMessage(), 422);
+    }
+
+    json_response(['success' => true, 'disclosure' => $disclosure]);
+}
+
 function handle_set_viewing_fee_state(array $params): void
 {
     $user = require_auth(['admin']);
@@ -4986,43 +5273,24 @@ function handle_ai_describe(): void
  *
  * @return array{score: int, reason: string}
  */
+/**
+ * Score one listing against one rental request (Upgrade 2, B2).
+ *
+ * The arithmetic lives in `lib/matching.php` so the weights, the proximity rule
+ * and the explanation are in one place. This wrapper keeps the historic
+ * signature: callers get the score and the sentence, and now also the breakdown
+ * that produced them.
+ */
 function match_score(array $request, array $property): array
 {
-    $rent = (float)($property['rentGhs'] ?? 0);
-    $budgetMin = (float)($request['budgetMin'] ?? 0);
-    $budgetMax = (float)($request['budgetMax'] ?? PHP_INT_MAX);
-    $bedrooms = (int)($property['bedrooms'] ?? 0);
+    $result = match_score_breakdown($request, $property);
 
-    $score = 70;
-    if ($rent >= $budgetMin && $rent <= $budgetMax) {
-        $score += 20;
-    } elseif ($rent > $budgetMax) {
-        $score -= min(25, (int)(($rent - $budgetMax) / max(1, $budgetMax) * 50));
-    }
-    if ($bedrooms >= (int)($request['bedrooms'] ?? 0)) {
-        $score += 8;
-    }
-    foreach ((array)($request['preferredLocations'] ?? []) as $location) {
-        if (is_string($location) && $location !== '' && stripos((string)($property['location'] ?? ''), $location) !== false) {
-            $score += 5;
-            break;
-        }
-    }
-    if (($property['propertyType'] ?? '') === ($request['propertyType'] ?? '')) {
-        $score += 4;
-    }
-    $score = max(40, min(98, $score));
-
-    $reason = sprintf(
-        'Fits the GH₵ %s - GH₵ %s budget at GH₵ %s/month and offers %d bedroom(s) in %s.',
-        number_format($budgetMin, 0),
-        number_format($budgetMax, 0),
-        number_format($rent, 0),
-        $bedrooms,
-        (string)($property['location'] ?? 'Accra')
-    );
-
-    return ['score' => $score, 'reason' => $reason];
+    return [
+        'score'     => $result['score'],
+        'reason'    => $result['reason'],
+        'breakdown' => $result['breakdown'],
+        'band'      => match_score_band($result['score']),
+    ];
 }
 
 function handle_ai_match(): void
@@ -5079,27 +5347,55 @@ function handle_matches(): void
     foreach ($result['items'] as $property) {
         $scoredScore = match_score($request, $property);
         $scored[] = [
-            'property' => $property,
-            'score'    => $scoredScore['score'],
-            'reason'   => $scoredScore['reason'],
-            'curated'  => in_array((string)$property['id'], $curated, true),
+            'property'  => $property,
+            'score'     => $scoredScore['score'],
+            'reason'    => $scoredScore['reason'],
+            'breakdown' => $scoredScore['breakdown'],
+            'band'      => $scoredScore['band'],
+            'curated'   => in_array((string)$property['id'], $curated, true),
         ];
     }
 
-    usort($scored, static function (array $a, array $b): int {
-        if ($a['curated'] !== $b['curated']) {
-            return $a['curated'] ? -1 : 1;
+    // Upgrade 2 (B3): two lists, because they are two different promises.
+    //
+    //   curatedForYou  — properties an administrator chose for this tenant, in
+    //                    the order they chose them. These come first.
+    //   similarMatches — everything else, ordered by the documented score.
+    //
+    // A tenant must be able to tell which is which, so they are never merged
+    // into one unlabelled list.
+    $curatedMatches = [];
+    foreach ($curated as $propertyId) {
+        foreach ($scored as $candidate) {
+            if ((string)$candidate['property']['id'] === $propertyId) {
+                $curatedMatches[] = $candidate;
+                break;
+            }
         }
-        return $b['score'] <=> $a['score'];
-    });
+    }
 
-    $matches = array_slice($scored, 0, 12);
+    $similar = array_values(array_filter($scored, static fn(array $row): bool => !$row['curated']));
+    usort($similar, static fn(array $a, array $b): int => $b['score'] <=> $a['score']);
+    $similarMatches = array_slice($similar, 0, 12);
+
+    $curatedCount = count($curatedMatches);
 
     json_response([
-        'success'      => true,
-        'requestId'    => (string)$request['id'],
-        'topScore'     => $matches ? (int)$matches[0]['score'] : 0,
-        'matches'      => $matches,
+        'success'        => true,
+        'requestId'      => (string)$request['id'],
+        // Legacy key, in the order the console and dashboard have always read.
+        'matches'        => array_merge($curatedMatches, $similarMatches),
+        'curatedForYou'  => $curatedMatches,
+        'similarMatches' => $similarMatches,
+        'curatedCount'   => $curatedCount,
+        'curatedMinimum' => 3,
+        // Stated, not hidden: a shortlist of one or two is labelled as such.
+        'curationWarning' => $curatedCount > 0 && $curatedCount < 3
+            ? 'Only ' . $curatedCount . ' propert' . ($curatedCount === 1 ? 'y is' : 'ies are')
+                . ' marked as chosen for this tenant. Choose at least 3 so the shortlist reads as a recommendation.'
+            : null,
+        'topScore'       => $similarMatches ? (int)$similarMatches[0]['score'] : ($curatedMatches ? (int)$curatedMatches[0]['score'] : 0),
+        'scoreBands'     => ['strong' => 85, 'good' => 65, 'possible' => 45],
     ]);
 }
 

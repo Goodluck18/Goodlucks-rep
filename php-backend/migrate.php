@@ -95,6 +95,11 @@ $requiredColumns = [
         'updated_at'          => "DATETIME DEFAULT NULL",
     ],
     'properties' => [
+        // Upgrade 2 (B2): optional coordinates. Existing listings keep NULL and
+        // are never geocoded behind anyone's back; proximity is scored from the
+        // administrator-maintained area adjacency instead.
+        'latitude'             => "DECIMAL(10,7) DEFAULT NULL",
+        'longitude'            => "DECIMAL(10,7) DEFAULT NULL",
         'landlord_name'        => "VARCHAR(255) DEFAULT NULL AFTER `landlord_id`",
         'landlord_company'     => "VARCHAR(255) DEFAULT NULL AFTER `landlord_name`",
         // Increment C: who actually submitted the listing, and whether landlord
@@ -273,7 +278,10 @@ $requiredTables = ['auth_sessions', 'enquiries', 'search_alerts', 'saved_propert
     // Task 03 update: administrator-controlled settings (landlord viewing fee).
     'platform_settings',
     // Task 07: Blog & Learning Centre, plus the extended email templates.
-    'blog_categories', 'blog_posts', 'blog_post_properties', 'email_templates'];
+    'blog_categories', 'blog_posts', 'blog_post_properties', 'email_templates',
+    // Upgrade 2 Phase 5: administrator-maintained area proximity, and the
+    // approved tenant-contact disclosure chain.
+    'area_adjacency', 'contact_disclosures'];
 
 function existing_tables(PDO $pdo): array
 {

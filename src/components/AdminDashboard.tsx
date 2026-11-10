@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { ApiError, PropertyMatch, api, messageForError } from '../services/apiService';
+import AdminAreaAdjacency from './AdminAreaAdjacency';
+import AdminContactDisclosures from './AdminContactDisclosures';
 import { AdminActivityEntry, Property, TenantRequest } from '../types';
 import { AdminFeeLedger } from './AdminFeeLedger';
 import { AdminAgentAccounts } from './AdminAgentAccounts';
@@ -201,6 +203,9 @@ export const AdminDashboard: React.FC = () => {
   // Real match scores per tenant request, fetched from the backend so the
   // console shows the same numbers the tenant sees.
   const [requestMatches, setRequestMatches] = useState<Record<string, PropertyMatch[]>>({});
+  // Upgrade 2 (B3): the staff shortlist is built deliberately and saved in one
+  // go, because the server accepts 3–6 live listings and nothing else.
+  const [shortlists, setShortlists] = useState<Record<string, string[]>>({});
   const [matchesLoading, setMatchesLoading] = useState(false);
   const [editProperty, setEditProperty] = useState<Property | null>(null);
   const [editForm, setEditForm] = useState<Record<string, any>>({});
@@ -232,8 +237,38 @@ export const AdminDashboard: React.FC = () => {
     void runAction(() => updatePropertyStatus(id, 'rejected'), 'Could not reject the listing.');
   };
 
-  const handleConfirmMatch = (reqId: string, propId: string) => {
-    void runAction(() => updateTenantRequestStatus(reqId, 'matched', [propId]), 'Could not confirm the match.');
+  const toggleChosen = (reqId: string, propId: string) => {
+    setShortlists((prev) => {
+      const current = prev[reqId] ?? [];
+      return {
+        ...prev,
+        [reqId]: current.includes(propId) ? current.filter((id) => id !== propId) : [...current, propId],
+      };
+    });
+  };
+
+  const handleSaveShortlist = (reqId: string) => {
+    const chosen = shortlists[reqId] ?? [];
+    if (chosen.length === 0 || chosen.length > 6) {
+      showErrorToast(
+        'Choose up to 6 properties',
+        'A shortlist is a recommendation, not a search result: pick at most six live listings.'
+      );
+      return;
+    }
+    void runAction(
+      async () => {
+        await updateTenantRequestStatus(reqId, 'matched', chosen);
+        await Promise.all(
+          matchingRequests.map(async (req) => {
+            if (req.id !== reqId) return;
+            const result = await api.matches(req.id).catch(() => ({ matches: [] as PropertyMatch[] }));
+            setRequestMatches((prev) => ({ ...prev, [req.id]: result.matches }));
+          })
+        );
+      },
+      'Could not save the shortlist.'
+    );
   };
 
   const handleRunAlertDigest = async () => {
@@ -952,14 +987,20 @@ export const AdminDashboard: React.FC = () => {
                             </div>
                           </div>
 
-                          {!curated && (
-                            <button
-                              onClick={() => handleConfirmMatch(req.id, prop.id)}
-                              className="gl-btn gl-btn-primary px-3 py-1.5 text-xs shrink-0"
-                            >
-                              Confirm Match
-                            </button>
-                          )}
+                          <button
+                            onClick={() => toggleChosen(req.id, prop.id)}
+                            aria-pressed={(shortlists[req.id] ?? []).includes(prop.id)}
+                            disabled={curated}
+                            className={`px-3 py-1.5 text-xs shrink-0 rounded-lg border font-bold ${
+                              curated
+                                ? 'bg-interactive/20 text-ink border-interactive/40'
+                                : (shortlists[req.id] ?? []).includes(prop.id)
+                                  ? 'bg-interactive text-ink border-interactive'
+                                  : 'bg-page text-ink border-line'
+                            }`}
+                          >
+                            {curated ? 'In the shortlist' : (shortlists[req.id] ?? []).includes(prop.id) ? 'Chosen' : 'Choose'}
+                          </button>
                         </div>
                       ))}
                       {!matchesLoading && (requestMatches[req.id] ?? []).length === 0 && (
@@ -975,15 +1016,37 @@ export const AdminDashboard: React.FC = () => {
                     </div>
                   </div>
 
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-t border-line pt-3">
+                    <p className="text-[11px] text-ink/70">
+                      Chosen for this tenant:{' '}
+                      <span className="font-bold text-ink">{(shortlists[req.id] ?? []).length}</span> of up to 6.
+                      {(shortlists[req.id] ?? []).length > 0 && (shortlists[req.id] ?? []).length < 3
+                        ? ' Choose at least three so the shortlist reads as a recommendation.'
+                        : ''}
+                    </p>
+                    <button
+                      onClick={() => handleSaveShortlist(req.id)}
+                      disabled={
+                        (shortlists[req.id] ?? []).length === 0 || (shortlists[req.id] ?? []).length > 6
+                      }
+                      className="gl-btn gl-btn-primary px-3 py-1.5 text-xs shrink-0 disabled:opacity-50"
+                    >
+                      Save shortlist for {req.tenantName}
+                    </button>
+                  </div>
+
                 </div>
               ))}
             </div>
+
+            <AdminAreaAdjacency />
           </div>
         )}
 
         {/* TAB 4: Viewing requests, appointments and history (Increment F) */}
         {activeAdminTab === 'viewings' && (
           <div className="space-y-4">
+            <AdminContactDisclosures />
             <AdminViewingsPanel />
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-surface border border-line rounded-2xl p-4">
               <p className="text-[11px] text-ink/70 max-w-xl">

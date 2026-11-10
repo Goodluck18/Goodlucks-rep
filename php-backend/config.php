@@ -273,6 +273,8 @@ require_once GL_ROOT . '/lib/private_storage.php';
 require_once GL_ROOT . '/lib/verification.php';
 require_once GL_ROOT . '/lib/fee_policies.php';
 require_once GL_ROOT . '/lib/viewings.php';
+require_once GL_ROOT . '/lib/matching.php';
+require_once GL_ROOT . '/lib/contact_disclosure.php';
 require_once GL_ROOT . '/lib/finance.php';
 require_once GL_ROOT . '/lib/finance_api.php';
 require_once GL_ROOT . '/lib/alerts.php';

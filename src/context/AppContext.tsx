@@ -190,7 +190,7 @@ interface AppContextType {
   /** Run a lifecycle action (propose, confirm, reschedule, cancel, complete…) and refresh. */
   runViewingAction: (
     id: string,
-    action: 'propose' | 'confirm' | 'reschedule' | 'request-reschedule' | 'cancel' | 'complete' | 'no-show' | 'could-not-proceed',
+    action: 'propose' | 'confirm' | 'reschedule' | 'request-reschedule' | 'accept-reschedule' | 'decline-reschedule' | 'cancel' | 'complete' | 'no-show' | 'could-not-proceed',
     body?: { date?: string; time?: string; note?: string; reason?: string; who?: 'tenant' | 'agent' }
   ) => Promise<{ ok: boolean; error?: string; fields?: Record<string, string> }>;
   refreshViewings: () => Promise<void>;
@@ -1020,7 +1020,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const runViewingAction = useCallback(
     async (
       id: string,
-      action: 'propose' | 'confirm' | 'reschedule' | 'request-reschedule' | 'cancel' | 'complete' | 'no-show' | 'could-not-proceed',
+      action: 'propose' | 'confirm' | 'reschedule' | 'request-reschedule' | 'accept-reschedule' | 'decline-reschedule' | 'cancel' | 'complete' | 'no-show' | 'could-not-proceed',
       body: { date?: string; time?: string; note?: string; reason?: string; who?: 'tenant' | 'agent' } = {}
     ) => {
       try {

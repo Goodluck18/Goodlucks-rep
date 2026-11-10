@@ -26,6 +26,19 @@ const PROPERTY_STATUSES = ['active', 'pending', 'rejected', 'rented', 'deactivat
  */
 const ENQUIRY_STATUSES = ['new', 'received', 'contacted', 'replied', 'closed'];
 const REQUEST_STATUSES = ['submitted', 'searching', 'matched', 'viewing_scheduled', 'completed', 'cancelled'];
+
+/**
+ * Upgrade 2 (D1): how many rental requests a tenant may have *in progress*.
+ *
+ * The cap is about open requests, not history: once a request is matched,
+ * scheduled, completed or cancelled it no longer counts, so a tenant can always
+ * come back. A rental request is not a viewing request and the two budgets are
+ * counted separately.
+ */
+const TENANT_REQUEST_PENDING_LIMIT = 3;
+
+/** The statuses that count against TENANT_REQUEST_PENDING_LIMIT. */
+const TENANT_REQUEST_PENDING_STATUSES = ['submitted', 'searching'];
 const VIEWING_STATUSES = ['scheduled', 'completed', 'cancelled'];
 const USER_ROLES = ['tenant', 'landlord', 'agent', 'admin'];
 

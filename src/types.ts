@@ -489,6 +489,8 @@ export type ViewingAction =
   | 'confirm'
   | 'reschedule'
   | 'request_reschedule'
+  | 'accept_reschedule'
+  | 'decline_reschedule'
   | 'cancel'
   | 'complete'
   | 'tenant_no_show'
@@ -513,6 +515,8 @@ export interface ViewingSchedule {
    * (not visible). The full approval workflow arrives with the disclosure queue.
    */
   tenantContactState?: string;
+  /** The provider's own request: pending/approved/rejected/revoked/expired. */
+  contactDisclosure?: ContactDisclosure | null;
   /** Plain-language explanation shown in place of the withheld details. */
   tenantContactReason?: string;
   /** The tenant account, when the request came from a signed-in tenant. */
@@ -1169,6 +1173,56 @@ export interface FeePolicy {
   supersedesPolicyId: string;
   approved: boolean;
   applicable: boolean;
+}
+
+/** One line of the documented match score (Upgrade 2, B2). */
+export interface MatchFactor {
+  factor: string;
+  label: string;
+  points: number;
+  max: number;
+  detail: string;
+}
+
+export interface MatchBand {
+  label: string;
+  band: 'strong' | 'good' | 'possible' | 'weak' | string;
+}
+
+/** A tenant's contact details, and who may see them (Upgrade 2, B6). */
+export interface ContactDisclosure {
+  id: string;
+  viewingId: string;
+  propertyId: string;
+  propertyTitle: string;
+  providerUserId: string;
+  providerName: string;
+  tenantUserId: string;
+  tenantName: string;
+  requestedBy: string;
+  reason: string;
+  status: 'pending' | 'approved' | 'rejected' | 'revoked' | 'expired';
+  storedStatus: string;
+  statusLabel: string;
+  active: boolean;
+  decidedBy: string;
+  decidedAt: string;
+  decisionNote: string;
+  expiresAt: string;
+  requestedAt: string;
+  updatedAt: string;
+}
+
+/** Administrator-maintained proximity between two areas (Upgrade 2, B2). */
+export interface AreaAdjacency {
+  id: string;
+  areaA: string;
+  areaB: string;
+  band: number;
+  bandLabel: string;
+  note: string;
+  createdBy: string;
+  createdAt: string;
 }
 
 export interface FeePolicyEventChange {

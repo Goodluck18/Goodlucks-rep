@@ -130,6 +130,11 @@ CREATE TABLE IF NOT EXISTS `properties` (
   `viewing_terms_state` VARCHAR(24) NOT NULL DEFAULT 'not_set',
   `viewing_terms_updated_at` DATETIME DEFAULT NULL,
   `viewing_terms_approved_by` VARCHAR(64) DEFAULT NULL,
+  -- Upgrade 2 (B2): coordinates are optional and never guessed. Proximity is
+  -- scored from administrator-maintained area adjacency today; these columns let
+  -- a real distance replace that later without a schema change.
+  `latitude` DECIMAL(10,7) DEFAULT NULL,
+  `longitude` DECIMAL(10,7) DEFAULT NULL,
   `views_count` INT NOT NULL DEFAULT 0,
   `enquiries_count` INT NOT NULL DEFAULT 0,
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -603,6 +608,53 @@ CREATE TABLE IF NOT EXISTS `audit_logs` (
 -- Money never moves because of this table. Applying a policy writes an
 -- immutable snapshot (table 29); revenue is recognised only from a remittance.
 -- ------------------------------------------------------------
+-- Upgrade 2 (B2): how close two neighbourhoods are, as decided by staff.
+-- One row per undirected pair (area_a < area_b, both lower-case), so A→B and
+-- B→A can never disagree. Nothing here invents a distance: it records a
+-- judgement the platform can defend, and listings without a recorded
+-- relationship simply earn no proximity points.
+-- Upgrade 2 Phase 5 (B6): the approved contact-disclosure chain. One row per
+-- (viewing, provider). A tenant's phone number and email address are released
+-- only while `status = 'approved'` and `expires_at` has not passed; every
+-- decision is also written to audit_logs.
+CREATE TABLE IF NOT EXISTS `contact_disclosures` (
+  `id` VARCHAR(64) NOT NULL,
+  `viewing_id` VARCHAR(64) NOT NULL,
+  `property_id` VARCHAR(64) DEFAULT NULL,
+  `property_title` VARCHAR(255) NOT NULL DEFAULT '',
+  `provider_user_id` VARCHAR(64) NOT NULL,
+  `provider_name` VARCHAR(200) NOT NULL DEFAULT '',
+  `tenant_user_id` VARCHAR(64) DEFAULT NULL,
+  `tenant_name` VARCHAR(200) NOT NULL DEFAULT '',
+  `requested_by` VARCHAR(64) DEFAULT NULL,
+  `reason` VARCHAR(500) NOT NULL DEFAULT '',
+  `status` VARCHAR(24) NOT NULL DEFAULT 'pending',
+  `decided_by` VARCHAR(64) DEFAULT NULL,
+  `decided_at` DATETIME DEFAULT NULL,
+  `decision_note` VARCHAR(500) DEFAULT NULL,
+  `expires_at` DATETIME DEFAULT NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` DATETIME DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `idx_cd_viewing_provider` (`viewing_id`, `provider_user_id`),
+  KEY `idx_cd_status` (`status`, `created_at`),
+  KEY `idx_cd_tenant` (`tenant_user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `area_adjacency` (
+  `id` VARCHAR(64) NOT NULL,
+  `area_a` VARCHAR(120) NOT NULL,
+  `area_b` VARCHAR(120) NOT NULL,
+  `band` TINYINT NOT NULL DEFAULT 2,
+  `note` VARCHAR(300) DEFAULT NULL,
+  `created_by` VARCHAR(64) DEFAULT NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` DATETIME DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `idx_area_pair` (`area_a`, `area_b`),
+  KEY `idx_area_second` (`area_b`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS `fee_policies` (
   `id` VARCHAR(64) NOT NULL,
   `name` VARCHAR(160) NOT NULL DEFAULT '',
