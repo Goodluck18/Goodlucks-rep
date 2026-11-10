@@ -87,6 +87,11 @@ $requiredColumns = [
         // server console (assign_primary_admin.php); no HTTP route sets it, and
         // `role = 'admin'` does not imply it. Existing accounts stay 0.
         'is_primary_admin'             => "TINYINT(1) NOT NULL DEFAULT 0 AFTER `can_confirm_remittances`",
+        // Upgrade 2 Phase 3: the user directory and bulk email are separate
+        // capabilities, granted from the server console. Default deny.
+        'can_manage_users'             => "TINYINT(1) NOT NULL DEFAULT 0 AFTER `is_primary_admin`",
+        'can_view_user_activity'       => "TINYINT(1) NOT NULL DEFAULT 0 AFTER `can_manage_users`",
+        'can_send_bulk_email'          => "TINYINT(1) NOT NULL DEFAULT 0 AFTER `can_view_user_activity`",
         'updated_at'          => "DATETIME DEFAULT NULL",
     ],
     'properties' => [

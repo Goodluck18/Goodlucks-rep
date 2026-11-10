@@ -281,5 +281,8 @@ require_once GL_ROOT . '/lib/alerts.php';
 require_once GL_ROOT . '/lib/blog_content.php';
 require_once GL_ROOT . '/lib/blog.php';
 require_once GL_ROOT . '/lib/email_templates.php';
+// Upgrade 2 Phase 3: the user directory, profiles/activity and bulk email.
+require_once GL_ROOT . '/lib/users_admin.php';
+require_once GL_ROOT . '/lib/campaigns.php';
 require_once GL_ROOT . '/lib/blog_api.php';
 require_once GL_ROOT . '/lib/api.php';

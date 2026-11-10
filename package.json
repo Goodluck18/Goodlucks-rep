@@ -12,7 +12,7 @@
     "lint": "tsc --noEmit",
     "dev:web": "tsx server.ts",
     "api:dev": "node scripts/api-dev.mjs",
-    "test:api": "node --test --test-concurrency=1 tests/api.test.mjs tests/account-settings.test.mjs tests/task03.test.mjs tests/migration.test.mjs tests/concurrency.test.mjs tests/access-control.test.mjs tests/primary-admin.test.mjs tests/tenant-contact.test.mjs tests/admin-console-api.test.mjs",
+    "test:api": "node --test --test-concurrency=1 tests/api.test.mjs tests/account-settings.test.mjs tests/task03.test.mjs tests/migration.test.mjs tests/concurrency.test.mjs tests/access-control.test.mjs tests/primary-admin.test.mjs tests/tenant-contact.test.mjs tests/admin-console-api.test.mjs tests/user-management.test.mjs tests/bulk-email.test.mjs",
     "test:routing": "node --import tsx --test tests/routing.test.mts",
     "test:navigation": "node --import tsx --test tests/app-navigation.test.mts",
     "test:content": "node --test tests/content.test.mjs",
@@ -26,7 +26,10 @@
     "test:responsive": "node --import tsx --test tests/responsive.test.mts",
     "test:blog-html": "node --import tsx --test tests/blog-html.test.mts",
     "test:admin-console": "node --import tsx --test tests/admin-console.test.mts",
-    "test:admin-console-api": "node --test --test-concurrency=1 tests/admin-console-api.test.mjs"
+    "test:admin-console-api": "node --test --test-concurrency=1 tests/admin-console-api.test.mjs",
+    "test:user-management": "node --test tests/user-management.test.mjs",
+    "test:bulk-email": "node --test tests/bulk-email.test.mjs",
+    "test:admin-console-phase3": "node --import tsx --test tests/admin-console-phase3.test.mts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

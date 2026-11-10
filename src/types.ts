@@ -1431,3 +1431,93 @@ export interface EmailTemplateTarget {
   type: string;
   label: string;
 }
+
+/* -------------------------------------------------------------------------- */
+/* Administrator: user directory, activity and bulk email (Upgrade 2, Phase 3) */
+/* -------------------------------------------------------------------------- */
+
+/** One account in the administrator directory (A11). Never a password hash. */
+export interface AdminUserRecord {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  role: 'tenant' | 'landlord' | 'agent' | 'admin';
+  isVerified: boolean;
+  createdAt: string;
+  counts: {
+    properties: number;
+    saved: number;
+    requests: number;
+    viewings: number;
+    enquiries: number;
+  };
+  /** Documents are a count only: this screen never receives a file reference. */
+  verification: {
+    identityStatus: string | null;
+    documentsOnFile: number;
+  };
+  agentProfile: { accountStatus: string; canSubmitListings: boolean } | null;
+  company?: string;
+  address?: string;
+  lastActiveAt?: string | null;
+  landlordState?: {
+    listings: number;
+    activeListings: number;
+    pendingListings: number;
+  };
+}
+
+/** One stored event in a person's history (A13). */
+export interface AdminUserActivityEntry {
+  kind: 'property' | 'saved' | 'request' | 'viewing' | 'enquiry' | 'action';
+  id: string;
+  title: string;
+  status: string;
+  at: string;
+}
+
+/** One entry in the platform activity feed (A14). */
+export interface AdminActivityEntry {
+  kind: string;
+  id: string;
+  title: string;
+  detail: string;
+  actor: string;
+  /** Console tab that owns the record, so the feed can open it. */
+  tab: string;
+  at: string;
+}
+
+/** A bulk email campaign (A12). */
+export interface AdminCampaign {
+  id: string;
+  subject: string;
+  bodyHtml: string;
+  audience: string;
+  audienceLabel: string;
+  kind: 'marketing' | 'service';
+  status: 'draft' | 'queued' | 'sent' | 'partly_failed';
+  createdBy: string;
+  createdAt: string;
+  queuedAt: string | null;
+  completedAt: string | null;
+  recipientTotal: number;
+  skippedUnsubscribed: number;
+}
+
+/** Delivery state, read back from the outbox rows. */
+export interface AdminCampaignSummary {
+  campaign: AdminCampaign;
+  counts: { total: number; queued: number; sent: number; failed: number; pending: number };
+  /** Computed from the outbox rows, so it cannot drift from reality. */
+  deliveryStatus: 'pending' | 'delivered' | 'partly_failed' | 'failed';
+  recipients: Array<{
+    email: string;
+    name: string;
+    status: 'sent' | 'failed' | 'pending';
+    attempts: number;
+    error: string;
+    sentAt: string | null;
+  }>;
+}

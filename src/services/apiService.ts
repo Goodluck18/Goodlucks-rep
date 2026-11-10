@@ -10,6 +10,11 @@
  */
 
 import type {
+  AdminActivityEntry,
+  AdminCampaign,
+  AdminCampaignSummary,
+  AdminUserActivityEntry,
+  AdminUserRecord,
   AdminAgentAccount,
   AgentProfile,
   AgentTierState,
@@ -601,6 +606,88 @@ export const api = {
       method: 'PATCH',
       body: { status },
     }),
+
+  // -------------------------------------------------------------------------
+  // Administrator: user directory, profiles, activity and bulk email
+  // (Upgrade 2 Phase 3: A11, A13, A14, A12)
+  // -------------------------------------------------------------------------
+
+  /** A11. Search and filter run on the server, over every account. */
+  listAdminUsers: (
+    params: { q?: string; role?: string; status?: string; page?: number; perPage?: number } = {}
+  ) => {
+    const search = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== '') search.set(key, String(value));
+    });
+    const query = search.toString();
+    return request<{
+      users: AdminUserRecord[];
+      total: number;
+      count: number;
+      page: number;
+      perPage: number;
+      roles: string[];
+      statuses: string[];
+    }>(`/admin/users${query ? `?${query}` : ''}`);
+  },
+
+  /** A11/A13. One profile with its stored history (when permitted). */
+  getAdminUser: (id: string) =>
+    request<{
+      user: AdminUserRecord;
+      activity: AdminUserActivityEntry[];
+      canViewActivity: boolean;
+    }>(`/admin/users/${encodeURIComponent(id)}`),
+
+  /** A13. The history on its own, for a page refresh. */
+  getAdminUserActivity: (id: string, limit = 50) =>
+    request<{ userId: string; activity: AdminUserActivityEntry[] }>(
+      `/admin/users/${encodeURIComponent(id)}/activity?limit=${limit}`
+    ),
+
+  /** A14. Recent activity across the platform, from real records. */
+  getAdminActivity: (limit = 20) =>
+    request<{ activity: AdminActivityEntry[]; count: number }>(`/admin/activity?limit=${limit}`),
+
+  /** A12. Who would receive a campaign, before anything is written. */
+  previewCampaign: (params: { audience?: string; kind?: string } = {}) => {
+    const search = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== '') search.set(key, String(value));
+    });
+    const query = search.toString();
+    return request<{
+      audience: string;
+      kind: string;
+      total: number;
+      excludedUnsubscribed: number;
+      duplicatesRemoved: number;
+      recipients: Array<{ id: string; email: string; name: string; role: string; optedIn: boolean }>;
+    }>(`/admin/campaigns/preview${query ? `?${query}` : ''}`);
+  },
+
+  listCampaigns: (limit = 20) =>
+    request<{ campaigns: AdminCampaign[]; audiences: string[]; kinds: string[] }>(
+      `/admin/campaigns?limit=${limit}`
+    ),
+
+  createCampaign: (data: { subject: string; body: string; audience: string; kind: string }) =>
+    request<{ campaign: AdminCampaign }>('/admin/campaigns', { method: 'POST', body: data }),
+
+  getCampaign: (id: string) => request<AdminCampaignSummary>(`/admin/campaigns/${encodeURIComponent(id)}`),
+
+  queueCampaign: (id: string) =>
+    request<AdminCampaignSummary & { message: string }>(
+      `/admin/campaigns/${encodeURIComponent(id)}/queue`,
+      { method: 'POST', body: {} }
+    ),
+
+  retryCampaign: (id: string) =>
+    request<AdminCampaignSummary & { message: string }>(
+      `/admin/campaigns/${encodeURIComponent(id)}/retry`,
+      { method: 'POST', body: {} }
+    ),
 
   runAlertDigest: () =>
     request<{ success: boolean; properties: number; emails: number; message: string }>('/admin/alerts/run', {

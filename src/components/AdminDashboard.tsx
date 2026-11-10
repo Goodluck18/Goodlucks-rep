@@ -1,11 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { ApiError, PropertyMatch, api, messageForError } from '../services/apiService';
-import { Property, TenantRequest } from '../types';
+import { AdminActivityEntry, Property, TenantRequest } from '../types';
 import { AdminFeeLedger } from './AdminFeeLedger';
 import { AdminAgentAccounts } from './AdminAgentAccounts';
 import { AdminManageListings } from './AdminManageListings';
 import { AdminEnquiries } from './AdminEnquiries';
+import { AdminUserManagement } from './AdminUserManagement';
+import { AdminBulkEmail } from './AdminBulkEmail';
+import { AdminActivityFeed } from './AdminActivityFeed';
 import { AdminFeePolicies } from './AdminFeePolicies';
 import { AdminFinancePanel } from './AdminFinancePanel';
 import { AdminViewingsPanel } from './AdminViewingsPanel';
@@ -42,7 +45,8 @@ import {
   Database,
   Download,
   ImagePlus,
-  Trash2
+  Trash2,
+  Send
 } from 'lucide-react';
 import { IMAGE_MAX_BYTES, formatBytes, validateImageFile } from '../lib/uploads';
 
@@ -118,7 +122,11 @@ export const AdminDashboard: React.FC = () => {
     // Task 07: Blog Management and the email-template editor live in the same
     // console, as two more sections of it.
     | 'blog'
-    | 'email-templates';
+    | 'email-templates'
+    // Upgrade 2 Phase 3: the user directory and bulk email are their own
+    // console sections, reachable at /admin/users and /admin/bulk-email.
+    | 'users'
+    | 'bulk-email';
   const setActiveAdminTab = setSectionTab;
 
   // Real data export: CSV of the listings currently loaded from the API.
@@ -518,6 +526,13 @@ export const AdminDashboard: React.FC = () => {
           </button>
 
           <button
+            onClick={() => setActiveAdminTab('users')}
+            className={`gl-tab ${activeAdminTab === 'users' ? 'gl-tab-active' : ''}`}
+          >
+            <Users className="w-4 h-4" /> User Management
+          </button>
+
+          <button
             onClick={() => setActiveAdminTab('fee-policies')}
             className={`gl-tab ${activeAdminTab === 'fee-policies' ? 'gl-tab-active' : ''}`}
           >
@@ -560,6 +575,13 @@ export const AdminDashboard: React.FC = () => {
           </button>
 
           <button
+            onClick={() => setActiveAdminTab('bulk-email')}
+            className={`gl-tab ${activeAdminTab === 'bulk-email' ? 'gl-tab-active' : ''}`}
+          >
+            <Send className="w-4 h-4" /> Bulk Email
+          </button>
+
+          <button
             onClick={() => setCurrentView('receipts')}
             className="px-4 py-2.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-2 bg-interactive/10 text-ink border border-interactive/30 hover:bg-interactive/20"
           >
@@ -580,7 +602,19 @@ export const AdminDashboard: React.FC = () => {
         {/* TAB 1: Advanced Analytics Dashboard */}
         {activeAdminTab === 'analytics' && (
           <div className="space-y-8">
-            
+
+            {/* Recent activity (Upgrade 2, A14): the newest real records. */}
+            <AdminActivityFeed
+              onOpen={(entry: AdminActivityEntry) => {
+                const property = properties.find((candidate) => candidate.id === entry.id);
+                if (entry.kind === 'property' && property) {
+                  setViewPropertyModal(property);
+                  return;
+                }
+                setActiveAdminTab(entry.tab as typeof activeAdminTab);
+              }}
+            />
+
             {/* Visitor Statistics Header Cards */}
             <div className="space-y-3">
               <h2 className="text-lg font-bold text-ink flex items-center gap-2">
@@ -980,6 +1014,16 @@ export const AdminDashboard: React.FC = () => {
               else showInfoToast(title, message);
             }}
           />
+        )}
+
+        {/* TAB: User Management (Upgrade 2, A11 + A13) */}
+        {activeAdminTab === 'users' && (
+          <AdminUserManagement />
+        )}
+
+        {/* TAB: Bulk Email (Upgrade 2, A12) */}
+        {activeAdminTab === 'bulk-email' && (
+          <AdminBulkEmail />
         )}
 
         {/* TAB 5: Email Transactional Logs */}

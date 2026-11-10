@@ -128,6 +128,24 @@ function resolve_route(string $method, string $path): ?array
         ['GET',  '#^/admin/enquiries$#', 'handle_admin_enquiries'],
         ['PATCH', '#^/admin/enquiries/([A-Za-z0-9\-_]+)$#', 'handle_update_enquiry'],
 
+        // --- User directory, profiles and activity (Upgrade 2, A11/A13/A14) ---
+        ['GET',  '#^/admin/users$#', 'handle_admin_users'],
+        ['GET',  '#^/admin/users/([A-Za-z0-9\-_]+)$#', 'handle_admin_user_profile'],
+        ['GET',  '#^/admin/users/([A-Za-z0-9\-_]+)/activity$#', 'handle_admin_user_activity'],
+        ['GET',  '#^/admin/activity$#', 'handle_admin_activity'],
+
+        // --- Bulk email campaigns (Upgrade 2, A12) -----------------------
+        ['GET',  '#^/admin/campaigns$#', 'handle_list_campaigns'],
+        ['GET',  '#^/admin/campaigns/preview$#', 'handle_campaign_preview'],
+        ['POST', '#^/admin/campaigns$#', 'handle_create_campaign'],
+        ['GET',  '#^/admin/campaigns/([A-Za-z0-9\-_]+)$#', 'handle_campaign_show'],
+        ['POST', '#^/admin/campaigns/([A-Za-z0-9\-_]+)/queue$#', 'handle_queue_campaign'],
+        ['POST', '#^/admin/campaigns/([A-Za-z0-9\-_]+)/retry$#', 'handle_retry_campaign'],
+
+        // --- Email preferences (public link from every campaign email) ----
+        ['GET',  '#^/email/preferences$#', 'handle_email_preferences_show'],
+        ['POST', '#^/email/preferences$#', 'handle_email_preferences_update'],
+
         // --- Tenant requests -------------------------------------------
         ['POST', '#^/tenant-requests$#', 'handle_create_tenant_request'],
         ['POST', '#^/tenant_requests$#', 'handle_create_tenant_request'],
@@ -2531,6 +2549,317 @@ function handle_update_enquiry(array $params): void
         'success' => true,
         'enquiry' => $updated ? shape_enquiry($updated) : null,
         'message' => 'Enquiry marked as ' . str_replace('_', ' ', $status) . '.',
+    ]);
+}
+
+// ===========================================================================
+// User directory, profiles and activity (Upgrade 2 Phase 3: A11, A13, A14)
+//
+// Every endpoint here re-checks its capability server-side. The console hides a
+// screen it cannot use, but hiding is never the enforcement.
+// ===========================================================================
+function handle_admin_users(): void
+{
+    $admin = require_admin();
+    if (!can_manage_users($admin)) {
+        error_response('Your account cannot open the user directory.', 403);
+    }
+
+    $page = max(1, (int)query_param('page', 1));
+    $perPage = (int)query_param('perPage', 25);
+
+    $roles = [];
+    foreach (explode(',', (string)query_param('role', '')) as $candidate) {
+        $candidate = strtolower(trim($candidate));
+        if (in_array($candidate, USER_DIRECTORY_ROLES, true)) {
+            $roles[] = $candidate;
+        }
+    }
+
+    $status = strtolower(trim((string)query_param('status', '')));
+    if ($status !== '' && !in_array($status, USER_DIRECTORY_STATUSES, true)) {
+        error_response(
+            'Unknown verification filter.',
+            422,
+            ['status' => 'Choose one of: ' . implode(', ', USER_DIRECTORY_STATUSES)]
+        );
+    }
+
+    $result = list_admin_users(
+        [
+            'q'      => (string)query_param('q', ''),
+            'roles'  => $roles,
+            'status' => $status,
+        ],
+        $page,
+        $perPage
+    );
+
+    json_response([
+        'success'      => true,
+        'count'        => count($result['rows']),
+        'total'        => $result['total'],
+        'page'         => $result['page'],
+        'perPage'      => $result['perPage'],
+        'users'        => $result['rows'],
+        'roles'        => USER_DIRECTORY_ROLES,
+        'statuses'     => USER_DIRECTORY_STATUSES,
+        'capabilities' => directory_capabilities($admin),
+    ]);
+}
+
+function handle_admin_user_profile(array $params): void
+{
+    $admin = require_admin();
+    if (!can_manage_users($admin) && !can_view_user_activity($admin)) {
+        error_response('Your account cannot read user profiles.', 403);
+    }
+
+    $summary = admin_user_summary((string)($params[0] ?? ''));
+    if ($summary === null) {
+        error_response('That account does not exist.', 404);
+    }
+
+    // The summary never carries a document reference; when the viewer also holds
+    // the activity capability it carries the stored history as well.
+    $activity = can_view_user_activity($admin)
+        ? admin_user_activity((string)$summary['id'], 50)
+        : [];
+
+    json_response([
+        'success'      => true,
+        'user'         => $summary,
+        'activity'     => $activity,
+        'canViewActivity' => can_view_user_activity($admin),
+    ]);
+}
+
+function handle_admin_user_activity(array $params): void
+{
+    $admin = require_admin();
+    if (!can_view_user_activity($admin)) {
+        error_response('Your account cannot read user activity.', 403);
+    }
+
+    $userId = (string)($params[0] ?? '');
+    $exists = db_one('SELECT id FROM users WHERE id = :id', [':id' => $userId]);
+    if ($exists === null) {
+        error_response('That account does not exist.', 404);
+    }
+
+    $limit = (int)query_param('limit', 50);
+
+    json_response([
+        'success'  => true,
+        'userId'   => $userId,
+        'activity' => admin_user_activity($userId, $limit),
+    ]);
+}
+
+function handle_admin_activity(): void
+{
+    $admin = require_admin();
+    // The feed is the same power as a person's history: reading who did what.
+    // Holding the directory capability does not carry it.
+    if (!can_view_user_activity($admin)) {
+        error_response('Your account cannot read the activity feed.', 403);
+    }
+
+    $limit = (int)query_param('limit', 20);
+    $entries = admin_activity_feed($limit);
+
+    json_response([
+        'success'  => true,
+        'count'    => count($entries),
+        'activity' => $entries,
+    ]);
+}
+
+// ===========================================================================
+// Bulk email campaigns (Upgrade 2 Phase 3: A12)
+// ===========================================================================
+function handle_list_campaigns(): void
+{
+    $admin = require_admin();
+    if (!can_send_bulk_email($admin)) {
+        error_response('Your account cannot send bulk email.', 403);
+    }
+
+    json_response([
+        'success'   => true,
+        'campaigns' => campaign_list((int)query_param('limit', 20)),
+        'audiences' => CAMPAIGN_AUDIENCES,
+        'kinds'     => CAMPAIGN_KINDS,
+    ]);
+}
+
+function handle_campaign_preview(): void
+{
+    $admin = require_admin();
+    if (!can_send_bulk_email($admin)) {
+        error_response('Your account cannot send bulk email.', 403);
+    }
+
+    $preview = campaign_preview(
+        (string)query_param('audience', 'all'),
+        (string)query_param('kind', 'marketing')
+    );
+
+    json_response(['success' => true] + $preview);
+}
+
+function handle_create_campaign(): void
+{
+    $admin = require_admin();
+    if (!can_send_bulk_email($admin)) {
+        error_response('Your account cannot send bulk email.', 403);
+    }
+
+    $input = request_json();
+
+    try {
+        $campaign = campaign_create($input, $admin);
+    } catch (CampaignValidationException $e) {
+        error_response($e->getMessage(), 422, $e->fields);
+    } catch (InvalidArgumentException $e) {
+        error_response($e->getMessage(), 422);
+    }
+
+    json_response(['success' => true, 'campaign' => $campaign], 201);
+}
+
+function handle_campaign_show(array $params): void
+{
+    $admin = require_admin();
+    if (!can_send_bulk_email($admin)) {
+        error_response('Your account cannot send bulk email.', 403);
+    }
+
+    $summary = campaign_summary((string)($params[0] ?? ''));
+    if ($summary === null) {
+        error_response('That campaign does not exist.', 404);
+    }
+
+    json_response(['success' => true] + $summary);
+}
+
+function handle_queue_campaign(array $params): void
+{
+    $admin = require_admin();
+    if (!can_send_bulk_email($admin)) {
+        error_response('Your account cannot send bulk email.', 403);
+    }
+
+    try {
+        $summary = campaign_queue((string)($params[0] ?? ''), $admin);
+    } catch (CampaignValidationException $e) {
+        error_response($e->getMessage(), 422, $e->fields);
+    } catch (CampaignConflictException $e) {
+        error_response($e->getMessage(), 409);
+    } catch (InvalidArgumentException $e) {
+        error_response($e->getMessage(), 422);
+    }
+
+    json_response([
+        'success' => true,
+        'message' => 'Queued ' . (int)($summary['counts']['total'] ?? 0) . ' messages. Delivery happens in the background.',
+    ] + $summary);
+}
+
+function handle_retry_campaign(array $params): void
+{
+    $admin = require_admin();
+    if (!can_send_bulk_email($admin)) {
+        error_response('Your account cannot send bulk email.', 403);
+    }
+
+    try {
+        $summary = campaign_retry_failed((string)($params[0] ?? ''), $admin);
+    } catch (InvalidArgumentException $e) {
+        error_response($e->getMessage(), 422);
+    }
+
+    json_response(['success' => true, 'message' => 'Failed messages are back in the queue.'] + $summary);
+}
+
+// ---------------------------------------------------------------------------
+// Email preferences (public: the link in every campaign email)
+// ---------------------------------------------------------------------------
+function handle_email_preferences_show(): void
+{
+    $token = trim((string)query_param('token', ''));
+    $preferences = $token === '' ? null : email_preferences_by_token($token);
+
+    if ($preferences === null) {
+        http_response_code(404);
+        header('Content-Type: text/html; charset=utf-8');
+        echo '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">'
+            . '<meta name="viewport" content="width=device-width,initial-scale=1"><title>Email preferences</title></head>'
+            . '<body style="font-family:Arial,Helvetica,sans-serif;background:#F7F7F7;color:#252A34;padding:40px 16px;">'
+            . '<div style="max-width:520px;margin:0 auto;background:#fff;border-radius:10px;padding:28px;">'
+            . '<h1 style="font-size:20px;margin:0 0 10px;">This link is not valid</h1>'
+            . '<p style="font-size:14px;line-height:1.5;color:#4B5563;margin:0;">The preferences link may have been '
+            . 'shortened or copied wrongly. Reply to any of our emails and we will update your preference for you.</p>'
+            . '</div></body></html>';
+        return;
+    }
+
+    $masked = mask_email_address($preferences['email']);
+    $state = $preferences['optIn'] ? 'You are receiving occasional updates.' : 'You are not receiving marketing email.';
+    $action = $preferences['optIn'] ? 'Stop marketing email' : 'Receive platform updates';
+    $next = $preferences['optIn'] ? 'false' : 'true';
+
+    header('Content-Type: text/html; charset=utf-8');
+    echo '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">'
+        . '<meta name="viewport" content="width=device-width,initial-scale=1"><title>Email preferences</title></head>'
+        . '<body style="font-family:Arial,Helvetica,sans-serif;background:#F7F7F7;color:#252A34;padding:40px 16px;">'
+        . '<div style="max-width:520px;margin:0 auto;background:#fff;border-radius:10px;padding:28px;">'
+        . '<p style="font-size:12px;letter-spacing:.5px;color:#FF2E63;font-weight:bold;margin:0 0 6px;">GOODLUCKS HOMES</p>'
+        . '<h1 style="font-size:20px;margin:0 0 10px;">Email preferences</h1>'
+        . '<p style="font-size:14px;line-height:1.5;color:#4B5563;margin:0 0 6px;">This page manages ' . e($masked) . '.</p>'
+        . '<p style="font-size:14px;line-height:1.5;color:#4B5563;margin:0 0 18px;">' . e($state) . '</p>'
+        . '<button type="button" data-next="' . e($next) . '" id="gl-pref-button" '
+        . 'style="background:#FF2E63;color:#fff;border:0;border-radius:8px;padding:12px 18px;font-size:14px;font-weight:bold;cursor:pointer;">'
+        . e($action) . '</button>'
+        . '<p id="gl-pref-result" style="font-size:13px;color:#4B5563;margin:14px 0 0;"></p>'
+        . '<p style="font-size:11px;color:#8A8A8A;margin:18px 0 0;">Account, security and payment messages are '
+        . 'not affected by this setting.</p>'
+        . '</div><script>'
+        . 'document.getElementById("gl-pref-button").addEventListener("click",function(){'
+        . 'var b=this;var out=document.getElementById("gl-pref-result");b.disabled=true;'
+        . 'fetch("/api/email/preferences",{method:"POST",headers:{"Content-Type":"application/json"},'
+        . 'body:JSON.stringify({token:' . json_encode($token) . ',optIn:' . ($preferences['optIn'] ? 'false' : 'true') . '})})'
+        . '.then(function(r){return r.json();}).then(function(d){if(d&&d.success){out.textContent=d.message||"Saved.";}'
+        . 'else{out.textContent=(d&&d.message)||"Could not save that.";b.disabled=false;}})'
+        . '.catch(function(){out.textContent="Could not reach the server. Please try again.";b.disabled=false;});'
+        . '});</script></body></html>';
+}
+
+function handle_email_preferences_update(): void
+{
+    enforce_rate_limit('email-preferences', 60, 3600);
+    $input = request_json();
+    $token = trim((string)($input['token'] ?? ''));
+    $optIn = filter_var($input['optIn'] ?? false, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+
+    if ($token === '' || $optIn === null) {
+        error_response('That preferences link is not valid.', 422);
+    }
+
+    $preferences = email_preferences_update($token, (bool)$optIn);
+    if ($preferences === null) {
+        error_response('That preferences link is not valid.', 404);
+    }
+
+    json_response([
+        'success' => true,
+        'message' => $optIn
+            ? 'You will receive occasional platform updates. You can change this at any time.'
+            : 'You have been removed from marketing email. Account and security messages still reach you.',
+        'preferences' => [
+            'optIn' => $preferences['optIn'],
+            'email' => mask_email_address($preferences['email']),
+        ],
     ]);
 }
 

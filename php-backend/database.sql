@@ -61,6 +61,11 @@ CREATE TABLE IF NOT EXISTS `users` (
   -- created itself. It is NOT implied by `role = 'admin'`, and no HTTP route can
   -- set it.
   `is_primary_admin` TINYINT(1) NOT NULL DEFAULT 0,
+  -- Upgrade 2 Phase 3: the user directory and bulk email are their own powers,
+  -- granted from the server console like the other capabilities. Default deny.
+  `can_manage_users` TINYINT(1) NOT NULL DEFAULT 0,
+  `can_view_user_activity` TINYINT(1) NOT NULL DEFAULT 0,
+  `can_send_bulk_email` TINYINT(1) NOT NULL DEFAULT 0,
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` DATETIME DEFAULT NULL,
   PRIMARY KEY (`id`),
@@ -1197,4 +1202,62 @@ CREATE TABLE IF NOT EXISTS `email_templates` (
   PRIMARY KEY (`id`),
   KEY `idx_email_template_type` (`target_type`, `status`),
   KEY `idx_email_template_status` (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ===========================================================================
+-- Upgrade 2 Phase 3: bulk email campaigns and email preferences
+--
+-- One message per recipient: `email_campaign_recipients` points at the row in
+-- `email_outbox` that carries that one address. There is no recipient list in
+-- any single message, so no recipient can see another's address.
+-- ===========================================================================
+CREATE TABLE IF NOT EXISTS `email_preferences` (
+  `email` VARCHAR(255) NOT NULL,
+  `user_id` VARCHAR(64) DEFAULT NULL,
+  -- Marketing is opt-in: 0 until the address holder says otherwise.
+  `marketing_opt_in` TINYINT(1) NOT NULL DEFAULT 0,
+  `unsubscribe_token` VARCHAR(64) NOT NULL,
+  `opted_in_at` DATETIME DEFAULT NULL,
+  `unsubscribed_at` DATETIME DEFAULT NULL,
+  `created_at` DATETIME NOT NULL,
+  `updated_at` DATETIME DEFAULT NULL,
+  PRIMARY KEY (`email`),
+  UNIQUE KEY `uniq_email_preference_token` (`unsubscribe_token`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `email_campaigns` (
+  `id` VARCHAR(64) NOT NULL,
+  `subject` VARCHAR(200) NOT NULL,
+  `body_html` LONGTEXT NOT NULL,
+  -- all | tenants | landlords | agents | admins | providers
+  `audience` VARCHAR(32) NOT NULL DEFAULT 'all',
+  -- marketing (opt-in only) | service (non-optional account notices)
+  `kind` VARCHAR(16) NOT NULL DEFAULT 'marketing',
+  -- draft | queued | sent | partly_failed
+  `status` VARCHAR(16) NOT NULL DEFAULT 'draft',
+  `created_by` VARCHAR(64) DEFAULT NULL,
+  `recipient_total` INT NOT NULL DEFAULT 0,
+  `skipped_unsubscribed` INT NOT NULL DEFAULT 0,
+  `created_at` DATETIME NOT NULL,
+  `updated_at` DATETIME DEFAULT NULL,
+  `queued_at` DATETIME DEFAULT NULL,
+  `completed_at` DATETIME DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_campaign_status` (`status`, `created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `email_campaign_recipients` (
+  `id` VARCHAR(64) NOT NULL,
+  `campaign_id` VARCHAR(64) NOT NULL,
+  `email` VARCHAR(255) NOT NULL,
+  `name` VARCHAR(255) NOT NULL DEFAULT '',
+  -- queued | sent | failed. The outbox row remains the truth for delivery.
+  `status` VARCHAR(16) NOT NULL DEFAULT 'queued',
+  `outbox_id` VARCHAR(64) DEFAULT NULL,
+  `error` VARCHAR(500) DEFAULT NULL,
+  `created_at` DATETIME NOT NULL,
+  `sent_at` DATETIME DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uniq_campaign_recipient` (`campaign_id`, `email`),
+  KEY `idx_campaign_recipient_status` (`campaign_id`, `status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

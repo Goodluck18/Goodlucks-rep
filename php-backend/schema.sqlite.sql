@@ -39,6 +39,11 @@ CREATE TABLE IF NOT EXISTS users (
   -- Upgrade 2: the primary platform administrator. Assigned only from the
   -- server console (php-backend/assign_primary_admin.php); never by HTTP.
   is_primary_admin INTEGER NOT NULL DEFAULT 0,
+  -- Upgrade 2 Phase 3: the user directory and bulk email are their own powers,
+  -- granted from the server console like the other capabilities. Default deny.
+  can_manage_users INTEGER NOT NULL DEFAULT 0,
+  can_view_user_activity INTEGER NOT NULL DEFAULT 0,
+  can_send_bulk_email INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT
 );
@@ -939,3 +944,59 @@ CREATE TABLE IF NOT EXISTS email_templates (
 
 CREATE INDEX IF NOT EXISTS idx_email_template_type ON email_templates (target_type, status);
 CREATE INDEX IF NOT EXISTS idx_email_template_status ON email_templates (status);
+
+-- ===========================================================================
+-- Upgrade 2 Phase 3: bulk email campaigns and email preferences
+--
+-- One message per recipient: `email_campaign_recipients` points at the row in
+-- `email_outbox` that carries that one address. There is no recipient list in
+-- any single message, so no recipient can see another's address.
+-- ===========================================================================
+CREATE TABLE IF NOT EXISTS email_preferences (
+  email TEXT PRIMARY KEY,
+  user_id TEXT,
+  -- Marketing is opt-in: 0 until the address holder says otherwise.
+  marketing_opt_in INTEGER NOT NULL DEFAULT 0,
+  unsubscribe_token TEXT NOT NULL UNIQUE,
+  opted_in_at TEXT,
+  unsubscribed_at TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS email_campaigns (
+  id TEXT PRIMARY KEY,
+  subject TEXT NOT NULL,
+  body_html TEXT NOT NULL,
+  -- all | tenants | landlords | agents | admins | providers
+  audience TEXT NOT NULL DEFAULT 'all',
+  -- marketing (opt-in only) | service (non-optional account notices)
+  kind TEXT NOT NULL DEFAULT 'marketing',
+  -- draft | queued | sent | partly_failed
+  status TEXT NOT NULL DEFAULT 'draft',
+  created_by TEXT,
+  recipient_total INTEGER NOT NULL DEFAULT 0,
+  skipped_unsubscribed INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL,
+  updated_at TEXT,
+  queued_at TEXT,
+  completed_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_campaign_status ON email_campaigns (status, created_at);
+
+CREATE TABLE IF NOT EXISTS email_campaign_recipients (
+  id TEXT PRIMARY KEY,
+  campaign_id TEXT NOT NULL,
+  email TEXT NOT NULL,
+  name TEXT NOT NULL DEFAULT '',
+  -- queued | sent | failed. The outbox row remains the truth for delivery.
+  status TEXT NOT NULL DEFAULT 'queued',
+  outbox_id TEXT,
+  error TEXT,
+  created_at TEXT NOT NULL,
+  sent_at TEXT
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uniq_campaign_recipient ON email_campaign_recipients (campaign_id, email);
+CREATE INDEX IF NOT EXISTS idx_campaign_recipient_status ON email_campaign_recipients (campaign_id, status);

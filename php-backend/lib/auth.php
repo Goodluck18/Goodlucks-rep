@@ -318,9 +318,14 @@ function public_user(array $row): array
         // `feePolicySelfApprove` is true only for it. The flag itself is
         // exposed so the console can name the account honestly.
         $user['isPrimaryAdmin'] = is_primary_admin($row);
+        // Upgrade 2 Phase 3 adds the directory, activity and bulk-email
+        // capabilities. Like the others they default to false, are granted only
+        // from the server console, and every endpoint re-checks them.
         $user['capabilities'] = verification_capabilities($row)
             + finance_capabilities($row)
-            + viewing_capabilities($row);
+            + viewing_capabilities($row)
+            + directory_capabilities($row)
+            + ['sendBulkEmail' => can_send_bulk_email($row)];
     }
 
     return $user;

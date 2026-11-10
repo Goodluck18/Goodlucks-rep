@@ -3887,6 +3887,11 @@ describe('Fee policies & agent tiers (Increment E)', () => {
         // Upgrade 2: approving your OWN policy is denied for every administrator
         // except the primary platform administrator (who is not this account).
         feePolicySelfApprove: false,
+        // Upgrade 2 Phase 3: the user directory, the activity history and bulk
+        // email are separate powers, all default-deny for a new administrator.
+        manageUsers: false,
+        viewUserActivity: false,
+        sendBulkEmail: false,
       },
       'capabilities are default-deny for a new administrator'
     );

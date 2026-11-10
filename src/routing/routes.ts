@@ -175,6 +175,9 @@ export const ROLE_SECTIONS: Record<'tenant' | 'landlord' | 'agent' | 'admin', Se
       finance: 'finance',
       blog: 'blog',
       'email-templates': 'email-templates',
+      // Upgrade 2 Phase 3: the user directory and bulk email.
+      users: 'users',
+      'bulk-email': 'bulk-email',
     },
     canonical: {
       analytics: 'analytics',
@@ -189,6 +192,8 @@ export const ROLE_SECTIONS: Record<'tenant' | 'landlord' | 'agent' | 'admin', Se
       finance: 'finance',
       blog: 'blog',
       'email-templates': 'email-templates',
+      users: 'users',
+      'bulk-email': 'bulk-email',
     },
     fallback: 'analytics',
   },
