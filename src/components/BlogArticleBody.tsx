@@ -1,6 +1,6 @@
 import React from 'react';
 import { useApp } from '../context/AppContext';
-import { BlogPropertyCard } from './BlogPropertyCard';
+import { BlogPropertyShowcase } from './BlogPropertyShowcase';
 import type { BlogPropertyCard as BlogPropertyCardData } from '../types';
 import { Building2 } from 'lucide-react';
 import { splitShowcase } from '../lib/blogHtml';
@@ -55,19 +55,11 @@ export const BlogArticleBody: React.FC<Props> = ({
     navigate(href);
   };
 
+  // The cards sit in one compact, swipeable row (BlogPropertyShowcase) rather
+  // than a grid: a grid of live listings inside an article pushed the rest of
+  // the article off the screen.
   const showcase = cards.length > 0 ? (
-    <section className="my-8 space-y-3" aria-label="Listings mentioned in this article">
-      <div className="flex items-baseline justify-between gap-3 border-b border-line pb-2">
-        <h2 className="text-lg sm:text-xl font-black text-ink">{showcaseHeading}</h2>
-        <span className="text-[10px] uppercase tracking-wider text-ink/70">Live listings</span>
-      </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-        {cards.map((card) => (
-          <BlogPropertyCard key={card.propertyId} card={card} />
-        ))}
-      </div>
-      <p className="text-[11px] text-ink/70 leading-snug">{showcaseHint}</p>
-    </section>
+    <BlogPropertyShowcase cards={cards} heading={showcaseHeading} hint={showcaseHint} />
   ) : null;
 
   return (

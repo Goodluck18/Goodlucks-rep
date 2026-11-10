@@ -697,8 +697,9 @@ export const PropertyDetailView: React.FC = () => {
               </button>
             </div>
 
-            {/* Similar listings (Upgrade 2, A4): compact swipeable row on a
-                phone, the same two-column grid from `sm` upwards. */}
+            {/* Similar listings — the two-column grid this page has always used,
+                at every screen size. The horizontal card row is the blog
+                article's showcase, not a listing page's. */}
             <PropertyCardGrid
               properties={similarProperties}
               label="Similar listings"

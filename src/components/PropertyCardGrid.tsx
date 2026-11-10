@@ -6,88 +6,56 @@ interface PropertyCardGridProps {
   properties: Property[];
   onRequestViewing?: (property: Property) => void;
   /**
-   * The desktop/large-phone grid, exactly as the calling page had it before
-   * (Upgrade 2, A4 keeps every `sm+` layout unchanged). The strip below `sm`
-   * renders itself.
+   * The grid classes for this page. The default is the catalogue grid every
+   * listing page has always used — two cards per row on a phone, up to four on
+   * a large desktop.
    */
   gridClassName?: string;
-  /** Accessible name for the mobile strip and the grid. */
+  /** Accessible name for the list (used by tests and screen readers). */
   label: string;
   /**
    * Optional wrapper (the tenant dashboard puts a match badge over the card).
-   * It receives the layout the current breakpoint needs, so the badge sits on
-   * the compact card in the strip and on the full card in the grid.
+   * It is called once per property and must return the card; the grid supplies
+   * the key, so nothing here can escape the layout.
    */
-  renderCard?: (property: Property, layout: 'vertical' | 'horizontal') => React.ReactNode;
+  renderCard?: (property: Property) => React.ReactNode;
 }
 
 /**
- * The listing grid, with a mobile swipe strip (Upgrade 2, A4).
+ * The listing grid used by every page that shows properties: the home page, the
+ * browse page, a listing's "similar properties" and the tenant dashboard.
  *
- * Why
- * ---
- * On a phone the grid cards were full-width vertical cards: two per row, tall,
- * and every listing competed for the same screen height. On a phone the cards
- * are now SMALLER and HORIZONTAL (a compact photograph on the left, the details
- * on the right) and they sit in one horizontal row that the reader swipes to see
- * the next listing — the strip scrolls leftwards, one card at a time, with the
- * snap points lining each card up with the edge.
+ * It is deliberately a grid and nothing else. Property cards on these pages are
+ * ordinary vertical cards at every screen size — that is the layout the site is
+ * built around and the one the business asked to keep.
  *
- * From `sm` upwards nothing changes: the same grid classes the page already used
- * are applied, so tablet and desktop layouts are exactly as before.
- *
- * It is one component rather than five copies, so the mobile behaviour cannot
- * drift between the home page, the browse page, a listing page, the tenant
- * dashboard and the saved list.
- *
- * Accessibility: the strip is a real scroll container (not a hidden overflow on
- * the page), it has a name, each card is a list item, and the same cards are
- * reachable in the grid above `sm` — nothing is only available by swiping.
+ * The compact, swipeable, single-row presentation exists, but it belongs to the
+ * blog article showcase (`BlogPropertyShowcase`), where several listings have to
+ * sit inside an article without taking over the page. In Upgrade 2 the horizontal
+ * mobile strip was applied here instead, which quietly replaced the catalogue
+ * layout on every listing page; this component no longer has that mode, so the
+ * mistake cannot come back by accident.
  */
 export const PropertyCardGrid: React.FC<PropertyCardGridProps> = ({
   properties,
   onRequestViewing,
-  gridClassName = 'sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6',
+  gridClassName = 'grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6',
   label,
   renderCard,
 }) => {
-  const card = (property: Property, layout: 'vertical' | 'horizontal') => (
-    <PropertyCard
-      key={property.id}
-      property={property}
-      layout={layout}
-      onRequestViewing={onRequestViewing}
-    />
-  );
-
-  const render = (property: Property, layout: 'vertical' | 'horizontal') =>
-    renderCard ? renderCard(property, layout) : card(property, layout);
+  const render = (property: Property): React.ReactNode =>
+    renderCard ? (
+      renderCard(property)
+    ) : (
+      <PropertyCard property={property} onRequestViewing={onRequestViewing} />
+    );
 
   return (
-    <>
-      {/* Below `sm`: one row of compact horizontal cards, swipeable. */}
-      <div
-        role="list"
-        aria-label={`${label} — swipe sideways for more`}
-        data-property-strip=""
-        className="gl-property-strip -mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-2 sm:hidden"
-      >
-        {properties.map((property) => (
-          <div
-            key={property.id}
-            role="listitem"
-            className="w-[78%] max-w-[320px] shrink-0 snap-start"
-          >
-            {render(property, 'horizontal')}
-          </div>
-        ))}
-      </div>
-
-      {/* `sm` and above: the grid the page already had. */}
-      <div className={`hidden sm:grid ${gridClassName}`}>
-        {properties.map((property) => render(property, 'vertical'))}
-      </div>
-    </>
+    <div role="list" aria-label={label} data-property-grid="" className={`grid ${gridClassName}`}>
+      {properties.map((property) => (
+        <React.Fragment key={property.id}>{render(property)}</React.Fragment>
+      ))}
+    </div>
   );
 };
 

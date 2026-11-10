@@ -418,10 +418,10 @@ export const BrowseView: React.FC = () => {
           </button>
         </div>
 
-        {/* PROPERTY LIST (Upgrade 2, A4).
-            On a phone the listings are compact horizontal cards in one swipeable
-            row; from `sm` upwards they are the same two-to-four column grid as
-            before. `PropertyCardGrid` owns both so the pages cannot drift. */}
+        {/* PROPERTY LIST — the catalogue grid, two cards per row on a phone and
+            up to four on a desktop, at every screen size. The compact horizontal
+            card row belongs to blog articles only (`BlogPropertyShowcase`); a
+            listing page is not an article and must not borrow its layout. */}
         {filteredProperties.length > 0 ? (
           <PropertyCardGrid
             properties={filteredProperties}

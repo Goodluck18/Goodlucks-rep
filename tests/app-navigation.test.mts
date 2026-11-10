@@ -124,6 +124,8 @@ let signedIn: Record<string, unknown> | null = null;
 let stubNotifications: Array<Record<string, unknown>> = [];
 /** Listings the stubbed catalogue returns for the current test. */
 let stubProperties: Array<Record<string, unknown>> = [];
+/** Listings the signed-in account has saved, for the saved-properties test. */
+let stubSavedPropertyIds: string[] = [];
 /** The Learning Centre content the stubbed API serves for the current test. */
 let stubBlog: {
   posts: Array<Record<string, unknown>>;
@@ -284,7 +286,7 @@ globalThis.fetch = (async (input: RequestInfo | URL) => {
     return json({ success: true });
   }
   if (url.includes('/auth/me')) {
-    return json({ success: true, user: signedIn, savedPropertyIds: [] });
+    return json({ success: true, user: signedIn, savedPropertyIds: stubSavedPropertyIds });
   }
   // Notifications are per-test so the "nothing is marked read on open" rule can
   // be asserted against real content rather than an empty list.
@@ -359,6 +361,10 @@ globalThis.fetch = (async (input: RequestInfo | URL) => {
     }
     return json({ success: true, post: found });
   }
+  // The account's saved listings (the real endpoint is /api/saved-properties).
+  if (url.includes('/saved-properties')) {
+    return json({ success: true, propertyIds: stubSavedPropertyIds });
+  }
   for (const [fragment, body] of Object.entries(EMPTY)) {
     if (url.includes(fragment)) return json(body);
   }
@@ -400,12 +406,14 @@ async function renderAt(
   options: {
     notifications?: Array<Record<string, unknown>>;
     properties?: Array<Record<string, unknown>>;
+    savedPropertyIds?: string[];
     blog?: Partial<typeof stubBlog>;
   } = {}
 ) {
   signedIn = role ? userFor(role) : null;
   stubNotifications = options.notifications ?? [];
   stubProperties = options.properties ?? [];
+  stubSavedPropertyIds = options.savedPropertyIds ?? [];
   stubBlog = {
     posts: options.blog?.posts ?? [],
     featured: options.blog?.featured ?? [],
@@ -1434,6 +1442,119 @@ test('clicking a listing card opens the real property page', async () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
   });
   assert.equal(app.path(), '/property/prop-1');
+  await app.unmount();
+});
+
+/* -------------------------------------------------------------------------- */
+/* Property card presentations: the catalogue grid, and the article showcase  */
+/* -------------------------------------------------------------------------- */
+
+/** Cards on a page, whatever they are wrapped in. */
+const propertyCards = (container: HTMLElement) =>
+  [...container.querySelectorAll('article[itemtype="https://schema.org/RealEstateListing"]')] as HTMLElement[];
+
+/** The ancestor of `node` that carries the given class, if any. */
+const closestWithClass = (node: Element, className: string) => {
+  let current: Element | null = node;
+  while (current) {
+    if (current.classList?.contains(className)) return current;
+    current = current.parentElement;
+  }
+  return null;
+};
+
+test('the home page lists properties in the catalogue grid, not a swipe strip', async () => {
+  const app = await renderAt('/', null, { properties: [LANDLORD_LISTING, AGENT_LISTING] });
+
+  const grids = [...app.container.querySelectorAll('[data-property-grid]')];
+  assert.ok(grids.length >= 1, 'the home page renders the catalogue grid');
+  const grid = grids[0] as HTMLElement;
+  assert.ok(grid.classList.contains('grid'), 'the catalogue is a CSS grid');
+  assert.ok(!/overflow-x/.test(grid.className), 'the catalogue never scrolls sideways');
+  assert.equal(app.container.querySelectorAll('[data-blog-showcase]').length, 0, 'no article row here');
+
+  const cards = propertyCards(app.container);
+  assert.ok(cards.length >= 1, 'listings are actually rendered');
+  for (const card of cards) {
+    assert.ok(closestWithClass(card, 'grid'), 'every card sits inside the grid');
+    assert.equal(closestWithClass(card, 'gl-blog-showcase'), null, 'and none inside the article row');
+  }
+  await app.unmount();
+});
+
+test('the browse page lists properties in the catalogue grid, not a swipe strip', async () => {
+  const app = await renderAt('/properties', null, { properties: [LANDLORD_LISTING, AGENT_LISTING] });
+
+  const grid = app.container.querySelector('[data-property-grid]') as HTMLElement | null;
+  assert.ok(grid, 'the browse page renders the catalogue grid');
+  assert.ok(!/overflow-x/.test(grid.className));
+  assert.equal(app.container.querySelectorAll('[data-blog-showcase]').length, 0);
+
+  const cards = propertyCards(app.container);
+  assert.equal(cards.length, 2, 'both listings are shown');
+  for (const card of cards) assert.ok(closestWithClass(card, 'grid'));
+  await app.unmount();
+});
+
+test('a listing page shows its similar properties in the catalogue grid', async () => {
+  const app = await renderAt('/property/prop-landlord', null, {
+    properties: [LANDLORD_LISTING, AGENT_LISTING],
+  });
+
+  const cards = propertyCards(app.container);
+  assert.ok(cards.length >= 1, 'the similar listing is rendered');
+  const similar = cards.find((card) => /Agent-built/.test(card.textContent ?? '')) ?? cards[cards.length - 1];
+  assert.ok(closestWithClass(similar, 'grid'), 'similar properties use the catalogue grid');
+  assert.equal(closestWithClass(similar, 'gl-blog-showcase'), null, 'and never the article row');
+  assert.equal(app.container.querySelectorAll('[data-blog-showcase]').length, 0);
+  await app.unmount();
+});
+
+test('the tenant dashboard shows saved properties in the catalogue grid', async () => {
+  const app = await renderAt('/tenant/saved-properties', 'tenant', {
+    properties: [LANDLORD_LISTING, AGENT_LISTING],
+    savedPropertyIds: ['prop-landlord'],
+  });
+
+  const cards = propertyCards(app.container);
+  assert.ok(cards.length >= 1, 'the saved listing is rendered');
+  assert.ok(closestWithClass(cards[0], 'grid'), 'saved properties use the catalogue grid');
+  assert.equal(app.container.querySelectorAll('[data-blog-showcase]').length, 0, 'no article row here');
+  await app.unmount();
+});
+
+test('a blog article shows its listings as one horizontal, swipeable row', async () => {
+  const app = await renderAt('/blog/top-available-properties-east-legon', null, {
+    blog: { posts: [blogSummary()], post: blogArticle() },
+  });
+
+  const rows = [...app.container.querySelectorAll('[data-blog-showcase]')];
+  assert.equal(rows.length, 1, 'the article has exactly one showcase');
+  const row = rows[0] as HTMLElement;
+
+  // One row that scrolls inside its own box, rather than a grid that wraps.
+  assert.ok(row.classList.contains('gl-blog-showcase'), 'the row carries the scroll rules');
+  assert.ok(row.classList.contains('flex'), 'cards are laid out in a row');
+  assert.ok(row.classList.contains('overflow-x-auto'), 'the row is the scroll container');
+  assert.ok(!row.classList.contains('flex-wrap'), 'cards must not wrap onto a second line');
+  assert.ok(!row.classList.contains('grid'), 'the showcase is not a grid');
+  assert.equal(row.getAttribute('role'), 'list');
+  assert.equal(row.getAttribute('tabindex'), '0', 'a keyboard user can scroll the row');
+
+  // Every card is a fixed-width item of that row, so the cards stay equal.
+  const items = [...row.querySelectorAll('[role="listitem"]')] as HTMLElement[];
+  assert.equal(items.length, 2, 'one item per listing');
+  for (const item of items) {
+    assert.equal(item.parentElement, row, 'each card is a direct child of the row');
+    assert.match(item.className, /shrink-0/, 'cards keep their width instead of squeezing');
+  }
+
+  // The catalogue grid is not on this page at all.
+  assert.equal(app.container.querySelectorAll('[data-property-grid]').length, 0);
+
+  // The live data and the link survive the presentation change.
+  assert.match(row.textContent ?? '', /GH₵ 4,500/);
+  assert.equal(row.querySelectorAll('a[href="/property/prop-1"]').length > 0, true);
   await app.unmount();
 });
 
