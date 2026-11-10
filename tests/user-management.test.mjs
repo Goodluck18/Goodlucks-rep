@@ -24,7 +24,7 @@ import path from 'node:path';
 import process from 'node:process';
 
 import { startApiServer, runPhpScript } from '../scripts/php.mjs';
-import { ApiClient } from './helpers.mjs';
+import { ApiClient, approveProviderVerification } from './helpers.mjs';
 
 const projectRoot = path.resolve(import.meta.dirname, '..');
 const dataDir = path.join(projectRoot, '.data');
@@ -142,6 +142,12 @@ before(async () => {
   createUser(state.tenantEmail, 'Tenant-Password-123', TENANT_NAME, 'tenant', TENANT_PHONE);
   createUser(state.landlordEmail, 'Landlord-Password-123', LANDLORD_NAME, 'landlord', '+233 20 999 0001');
   createUser(state.agentEmail, 'Agent-Password-123', AGENT_NAME, 'agent', '+233 20 999 0002');
+
+  // The directory suite creates real listings, and listing is only open to a
+  // verified provider, so the landlord (and the agent, whose profile is shown in
+  // the directory) carry an approved identity.
+  approveProviderVerification(state.landlordEmail, env);
+  approveProviderVerification(state.agentEmail, env);
 
   for (const [client, email, password] of [
     [state.tenant, state.tenantEmail, 'Tenant-Password-123'],

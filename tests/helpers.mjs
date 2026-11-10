@@ -1,8 +1,26 @@
 /**
- * Shared test helpers: an HTTP client with a cookie jar and PNG generation.
+ * Shared test helpers: an HTTP client with a cookie jar, PNG generation, and the
+ * provider-verification fixture.
  */
 
 import zlib from 'node:zlib';
+import { runPhpScript } from '../scripts/php.mjs';
+
+/**
+ * Registration now needs an explicit legal acceptance, and the SERVER enforces
+ * it: a request without it is refused (422) and no account is created.
+ *
+ * Every fixture in this repository was written before that rule existed, so the
+ * client adds the acceptance the register form collects. A test that is checking
+ * the refusal path opts out by naming the fields itself (for example
+ * `termsAccepted: false`), and nothing here weakens the server-side check.
+ */
+export function withRegistrationConsent(path, body) {
+  if (path !== '/api/auth/register') return body;
+  if (!body || typeof body !== 'object' || body instanceof FormData) return body;
+  if ('termsAccepted' in body || 'privacyAcknowledged' in body) return body;
+  return { ...body, termsAccepted: true, privacyAcknowledged: true };
+}
 
 export class ApiClient {
   constructor(baseUrl) {
@@ -66,7 +84,7 @@ export class ApiClient {
     return this.request('GET', path, options);
   }
   post(path, body, options) {
-    return this.request('POST', path, { ...options, body });
+    return this.request('POST', path, { ...options, body: withRegistrationConsent(path, body) });
   }
   put(path, body, options) {
     return this.request('PUT', path, { ...options, body });
@@ -136,3 +154,24 @@ export function createPng(width, height) {
     chunk('IEND', Buffer.alloc(0)),
   ]);
 }
+
+/**
+ * Give an Agent/Landlord account an APPROVED identity verification.
+ *
+ * Verification is mandatory before listing, so any suite whose fixtures go on to
+ * submit properties has to start from a verified account. This seeds the records a
+ * reviewer's approval would have produced (identity row `approved`, one identity
+ * document, and for an agent the activated profile) through
+ * `tests/approve-verification.php` — it grants nothing a real approval does not.
+ *
+ * @param {string} email     the provider's email address
+ * @param {object} env       the run's PHP environment (DB path etc.)
+ * @param {string[]} extra   extra CLI flags, e.g. ['--activate-agent=0']
+ */
+export const approveProviderVerification = (email, env, extra = []) => {
+  const result = runPhpScript('tests/approve-verification.php', [`--email=${email}`, ...extra], env);
+  if (result.status !== 0) {
+    throw new Error(`approve-verification failed for ${email}: ${result.stdout}${result.stderr}`);
+  }
+  return JSON.parse(result.stdout.trim().split('\n').pop());
+};

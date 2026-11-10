@@ -701,7 +701,9 @@ function blog_post_property_refs(string $postId): array
 function blog_shape_property_card(array $row, string $displayRule, string $note, int $sortOrder, bool $forAdmin = false): ?array
 {
     $status = (string)($row['status'] ?? '');
-    $available = $status === 'active';
+    // A listing past its availability deadline is not available, even before
+    // the scheduled job writes `expired`.
+    $available = $status === 'active' && property_is_publicly_visible($row);
     if (!$forAdmin && !$available && $displayRule === 'hide_unavailable') {
         return null;
     }

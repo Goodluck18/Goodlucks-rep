@@ -1,5 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext';
+import { PropertyAvailabilityCard } from './PropertyAvailabilityCard';
+import { ProviderSuspensionNotice } from './ProviderSuspensionNotice';
+import { VerificationRequiredNotice } from './VerificationGate';
 import { api, messageForError } from '../services/apiService';
 import type { IdentityVerification } from '../types';
 import {
@@ -38,7 +41,9 @@ const PROPERTY_STATUS_LABEL: Record<string, string> = {
   pending: 'Pending review',
   rejected: 'Rejected',
   rented: 'Rented',
-  deactivated: 'Deactivated',
+  deactivated: 'Not available',
+  expired: 'Confirmation required',
+  suspended: 'Account suspended',
 };
 
 const PROPERTY_STATUS_TONE: Record<string, string> = {
@@ -47,6 +52,8 @@ const PROPERTY_STATUS_TONE: Record<string, string> = {
   rejected: 'bg-accent/20 text-ink border border-accent/30',
   rented: 'bg-blue-500/20 text-blue-700 border border-blue-500/30',
   deactivated: 'bg-line text-ink/70',
+  expired: 'bg-amber-500/20 text-amber-700 border border-amber-500/30',
+  suspended: 'bg-line text-ink/70',
 };
 
 const VERIFICATION_LABEL: Record<string, string> = {
@@ -81,6 +88,7 @@ export const LandlordDashboard: React.FC = () => {
     updateUserProfile,
     viewingSchedules,
     notifications,
+    refreshProperties,
     showErrorToast,
     showSuccessToast,
   } = useApp();
@@ -126,7 +134,8 @@ export const LandlordDashboard: React.FC = () => {
 
   const unreadNotifications = notifications.filter((n) => !n.read).length;
 
-  // Identity verification state (optional for landlords; never proof of ownership).
+  // Identity verification state. It is mandatory: an approved identity is what
+  // opens property listing for this account.
   const [identityStatus, setIdentityStatus] = useState<string | null>(null);
   useEffect(() => {
     if (!currentUser || currentUser.role !== 'landlord') return;
@@ -162,6 +171,31 @@ export const LandlordDashboard: React.FC = () => {
     setActionError(null);
     try {
       await updatePropertyStatus(id, status);
+    } catch (error) {
+      setActionError(messageForError(error));
+    }
+  };
+
+  /**
+   * The two availability answers. They replace the old status switch, which the
+   * server never honoured for a landlord: publishing is decided by the seven-day
+   * confirmation rule, not by a status field the client sends.
+   */
+  const handleWithdraw = async (id: string) => {
+    setActionError(null);
+    try {
+      await api.declinePropertyAvailability(id);
+      await refreshProperties();
+    } catch (error) {
+      setActionError(messageForError(error));
+    }
+  };
+
+  const handleRepublish = async (id: string) => {
+    setActionError(null);
+    try {
+      await api.confirmPropertyAvailability(id);
+      await refreshProperties();
     } catch (error) {
       setActionError(messageForError(error));
     }
@@ -215,14 +249,22 @@ export const LandlordDashboard: React.FC = () => {
             actions={
               <button
                 type="button"
-                onClick={() => setCurrentView('list-property')}
+                // Verification is mandatory, so an unverified account is sent to
+                // that step rather than to a form it cannot submit.
+                onClick={() =>
+                  currentUser?.canListProperties === false
+                    ? navigate('/landlord/verification')
+                    : setCurrentView('list-property')
+                }
                 className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-interactive text-ink text-xs font-extrabold hover:bg-interactive/90 transition-colors"
               >
                 <PlusCircle className="w-4 h-4" />
-                List a property
+                {currentUser?.canListProperties === false ? 'Verify to list' : 'List a property'}
               </button>
             }
           />
+
+          <VerificationRequiredNotice showAction={false} />
 
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
             <SummaryCard
@@ -386,13 +428,20 @@ export const LandlordDashboard: React.FC = () => {
             actions={
               <button
                 type="button"
-                onClick={() => setCurrentView('list-property')}
+                onClick={() =>
+                  currentUser?.canListProperties === false
+                    ? navigate('/landlord/verification')
+                    : setCurrentView('list-property')
+                }
                 className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-interactive text-ink text-xs font-extrabold hover:bg-interactive/90 transition-colors"
               >
-                <PlusCircle className="w-4 h-4" /> Add listing
+                <PlusCircle className="w-4 h-4" />{' '}
+                {currentUser?.canListProperties === false ? 'Verify to list' : 'Add listing'}
               </button>
             }
           />
+
+          <ProviderSuspensionNotice user={currentUser} />
 
           {myProperties.length === 0 ? (
             <EmptyState
@@ -402,10 +451,14 @@ export const LandlordDashboard: React.FC = () => {
               action={
                 <button
                   type="button"
-                  onClick={() => setCurrentView('list-property')}
+                  onClick={() =>
+                    currentUser?.canListProperties === false
+                      ? navigate('/landlord/verification')
+                      : setCurrentView('list-property')
+                  }
                   className="px-5 py-2.5 rounded-xl bg-interactive text-ink text-xs font-black"
                 >
-                  List a property
+                  {currentUser?.canListProperties === false ? 'Complete verification' : 'List a property'}
                 </button>
               }
             />
@@ -460,6 +513,9 @@ export const LandlordDashboard: React.FC = () => {
                           <>not set yet — Goodlucks Homes sets the viewing fee for every landlord listing.</>
                         )}
                       </p>
+                      {/* Seven-day availability renewal: the landlord's answer and
+                          the server's deadline. Nothing here decides visibility. */}
+                      <PropertyAvailabilityCard property={prop} onUpdated={refreshProperties} />
                       {prop.status === 'rejected' && prop.rejectionReason && (
                         <p className="text-[11px] text-ink leading-relaxed break-words">
                           Reason given: {prop.rejectionReason}
@@ -472,18 +528,18 @@ export const LandlordDashboard: React.FC = () => {
                     {prop.status === 'active' ? (
                       <button
                         type="button"
-                        onClick={() => void handleStatusChange(prop.id, 'deactivated')}
+                        onClick={() => void handleWithdraw(prop.id)}
                         className="px-3 py-1.5 rounded-lg bg-surface text-ink/70 hover:text-ink text-xs font-semibold flex items-center gap-1 border border-line"
                       >
-                        <Power className="w-3.5 h-3.5" /> Deactivate
+                        <Power className="w-3.5 h-3.5" /> Mark unavailable
                       </button>
-                    ) : prop.status === 'deactivated' ? (
+                    ) : prop.status === 'deactivated' || prop.status === 'expired' ? (
                       <button
                         type="button"
-                        onClick={() => void handleStatusChange(prop.id, 'active')}
+                        onClick={() => void handleRepublish(prop.id)}
                         className="px-3 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-700 hover:bg-emerald-500/30 text-xs font-semibold flex items-center gap-1 border border-emerald-500/30"
                       >
-                        <CheckCircle2 className="w-3.5 h-3.5" /> Reactivate
+                        <CheckCircle2 className="w-3.5 h-3.5" /> Confirm availability
                       </button>
                     ) : (
                       <span className="text-[11px] text-ink/70">
@@ -576,18 +632,8 @@ export const LandlordDashboard: React.FC = () => {
         <div className="space-y-4 animate-fadeIn">
           <SectionHeader
             title="Verification"
-            description="Identity verification is optional for landlords."
+            description="Required for every Agent/Landlord account before it can list properties."
           />
-          <div className="bg-surface border border-line rounded-2xl p-4">
-            <h2 className="text-sm font-bold text-ink flex items-center gap-2">
-              <ShieldCheck className="w-4 h-4 text-ink" /> Identity verification is optional
-            </h2>
-            <p className="text-[11px] text-ink/70 mt-1 leading-relaxed">
-              You can register and list properties without it. Verifying your identity does not verify that you own or
-              may let any particular property — ownership is a separate question and no listing is marked verified
-              because of this check.
-            </p>
-          </div>
           <VerificationPanel scope="landlord" />
         </div>
       )}

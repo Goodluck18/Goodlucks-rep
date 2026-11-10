@@ -99,7 +99,8 @@ test('the honest description of the platform is actually present', () => {
   const read = (path) => readFileSync(join(ROOT, path), 'utf8');
 
   const home = read('src/components/HomeView.tsx');
-  assert.match(home, /landlords and agents who list them/i, 'the homepage says who submits the listings');
+  // Correction: Agent first wherever both are named.
+  assert.match(home, /agents and landlords who list them/i, 'the homepage says who submits the listings');
   assert.match(home, /not an ownership check/i, 'the homepage says what the listing review is not');
 
   const footer = read('src/components/Footer.tsx');

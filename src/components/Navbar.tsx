@@ -56,7 +56,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAuth }) => {
    * logout are in it) and the page padding all share the 1216px that `max-w-7xl`
    * leaves on a desktop. A visitor's seven links need roughly 690px of that, so
    * the row only fits from `xl` up; a member has three links (plus, for a
-   * landlord or agent, the one primary action) and fits from `lg` up.
+   * agent or landlord, the one primary action) and fits from `lg` up.
    *
    * Before this, the row appeared at `md` for everybody — at 768px a visitor's
    * header was ~350px wider than the screen, which is what pushed the page

@@ -69,6 +69,11 @@ $requiredColumns = [
         // a claim, never a verification; NULL for every existing account so no
         // one is locked out or given a verification they never submitted.
         'official_name'       => "VARCHAR(200) DEFAULT NULL AFTER `name`",
+        // Upgrade 2 correction: the Agent/Landlord account's classification.
+        // Additive and nullable; NULL (every existing account) means "classified
+        // by the account's role", so no existing agent or landlord is asked to
+        // choose again and no row is rewritten.
+        'provider_category'   => "VARCHAR(16) DEFAULT NULL AFTER `role`",
         'password_hash'       => "VARCHAR(255) DEFAULT NULL AFTER `phone`",
         'bio'                 => "TEXT DEFAULT NULL AFTER `address`",
         // Increment D: least-privilege reviewer capabilities (default deny).
@@ -83,6 +88,15 @@ $requiredColumns = [
         // Increment G: reading money records and moving money are separate powers.
         'can_view_finance'             => "TINYINT(1) NOT NULL DEFAULT 0 AFTER `can_correct_viewings`",
         'can_confirm_remittances'      => "TINYINT(1) NOT NULL DEFAULT 0 AFTER `can_view_finance`",
+        // Seven-day availability renewal: an administrative suspension of an
+        // Agent/Landlord account, separate from identity verification. Every
+        // existing account defaults to 'active' — nobody is suspended by this.
+        'account_status'               => "VARCHAR(20) NOT NULL DEFAULT 'active' AFTER `is_primary_admin`",
+        'suspension_reason'            => "VARCHAR(500) DEFAULT NULL AFTER `account_status`",
+        'suspended_at'                 => "DATETIME DEFAULT NULL AFTER `suspension_reason`",
+        'suspended_by'                 => "VARCHAR(64) DEFAULT NULL AFTER `suspended_at`",
+        'reinstated_at'                => "DATETIME DEFAULT NULL AFTER `suspended_by`",
+        'reinstated_by'                => "VARCHAR(64) DEFAULT NULL AFTER `reinstated_at`",
         // Upgrade 2: the primary platform administrator. Assigned only from the
         // server console (assign_primary_admin.php); no HTTP route sets it, and
         // `role = 'admin'` does not imply it. Existing accounts stay 0.
@@ -92,6 +106,12 @@ $requiredColumns = [
         'can_manage_users'             => "TINYINT(1) NOT NULL DEFAULT 0 AFTER `is_primary_admin`",
         'can_view_user_activity'       => "TINYINT(1) NOT NULL DEFAULT 0 AFTER `can_manage_users`",
         'can_send_bulk_email'          => "TINYINT(1) NOT NULL DEFAULT 0 AFTER `can_view_user_activity`",
+        // Legal Pages (Terms & Conditions, Privacy Policy). Editing a draft and
+        // publishing it are separate capabilities; both default deny and are
+        // granted only from the server console (grant_legal.php). Existing
+        // administrators keep 0 — being an administrator grants neither.
+        'can_manage_legal'             => "TINYINT(1) NOT NULL DEFAULT 0 AFTER `can_send_bulk_email`",
+        'can_publish_legal'            => "TINYINT(1) NOT NULL DEFAULT 0 AFTER `can_manage_legal`",
         'updated_at'          => "DATETIME DEFAULT NULL",
     ],
     'properties' => [
@@ -133,6 +153,13 @@ $requiredColumns = [
         'viewing_terms_state'  => "VARCHAR(24) NOT NULL DEFAULT 'not_set' AFTER `viewing_terms_json`",
         'viewing_terms_updated_at' => "DATETIME DEFAULT NULL AFTER `viewing_terms_state`",
         'viewing_terms_approved_by' => "VARCHAR(64) DEFAULT NULL AFTER `viewing_terms_updated_at`",
+        // Seven-day availability renewal: when the listing went live, when the
+        // provider last confirmed it, and the deadline they must confirm by.
+        // Existing listings get a deadline from the backfill below, never a
+        // deletion and never an automatic expiry.
+        'published_at'              => "DATETIME DEFAULT NULL",
+        'availability_confirmed_at' => "DATETIME DEFAULT NULL",
+        'availability_due_at'       => "DATETIME DEFAULT NULL",
         'updated_at'           => "DATETIME DEFAULT NULL",
     ],
     'fee_policy_events' => [
@@ -292,7 +319,12 @@ $requiredTables = ['auth_sessions', 'enquiries', 'search_alerts', 'saved_propert
     'blog_categories', 'blog_posts', 'blog_post_properties', 'email_templates',
     // Upgrade 2 Phase 5: administrator-maintained area proximity, and the
     // approved tenant-contact disclosure chain.
-    'area_adjacency', 'contact_disclosures'];
+    'area_adjacency', 'contact_disclosures',
+    // Seven-day availability renewal: the append-only availability history.
+    'property_availability_events',
+    // Legal documents: the published versions the public pages serve, the
+    // drafts an administrator edits, and the per-account acceptances.
+    'legal_documents', 'legal_document_versions', 'legal_acceptances'];
 
 function existing_tables(PDO $pdo): array
 {
@@ -574,6 +606,24 @@ $backfills = [
                        AND `reversal_of_receipt_id` IS NULL
                        AND `adjustment_id` IS NOT NULL",
     ],
+    // Seven-day availability renewal: a listing that is live today cannot be
+    // given a deadline in the past — that would unpublish it the moment this
+    // correction ships. Existing published listings keep their original
+    // publication date (falling back to created_at) and get seven days from the
+    // moment of the upgrade. Nothing is expired by this backfill; the scheduled
+    // job only ever expires a listing whose deadline has genuinely passed.
+    'start the seven-day availability clock for listings that are already live' => [
+        'sql' => "UPDATE `properties`
+                     SET `published_at` = COALESCE(`published_at`, `created_at`),
+                         `availability_confirmed_at` = COALESCE(`availability_confirmed_at`, `created_at`),
+                         `availability_due_at` = :due
+                   WHERE `status` = 'active'
+                     AND `availability_due_at` IS NULL",
+        'probe' => "SELECT COUNT(*) FROM `properties`
+                     WHERE `status` = 'active'
+                       AND `availability_due_at` IS NULL",
+        'params' => [':due' => gmdate('Y-m-d H:i:s', time() + 7 * 86400)],
+    ],
 ];
 
 try {
@@ -703,7 +753,15 @@ foreach ($changes as $change) {
 if ($failed === null) {
     foreach ($pendingBackfills as $label => $backfill) {
         try {
-            $rows = $pdo->exec($backfill['sql']);
+            // A backfill may carry bound parameters (the availability clock
+            // needs "seven days from now" computed at run time).
+            if (!empty($backfill['params'])) {
+                $statement = $pdo->prepare($backfill['sql']);
+                $statement->execute($backfill['params']);
+                $rows = $statement->rowCount();
+            } else {
+                $rows = $pdo->exec($backfill['sql']);
+            }
             $applied[] = "data: {$label} ({$rows} rows)";
             echo "  data: {$label} ({$rows} rows)\n";
         } catch (Throwable $e) {

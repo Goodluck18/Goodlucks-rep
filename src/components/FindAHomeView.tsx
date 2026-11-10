@@ -73,18 +73,18 @@ export const FindAHomeView: React.FC<FindAHomeViewProps> = ({ onOpenAuth }) => {
   }
 
   // Guard Condition 2 (Correction 1): the visitor is signed in, but not as a
-  // tenant. Matching requests are a tenant action: landlords and agents list and
+  // tenant. Matching requests are a tenant action: agents and landlords list and
   // manage property, and an administrator has the console. The API refuses a
   // request from any of them (403) and from a guest (401), so this screen can
   // never be bypassed by hand-crafting the POST.
   if (currentRole !== 'tenant') {
+    // Agents and Landlords are one provider account type, so the screen names it
+    // that way — Agent first.
     const roleLabel =
-      currentRole === 'landlord' ? 'Landlord' : currentRole === 'agent' ? 'Agent' : 'Administrator';
+      currentRole === 'landlord' || currentRole === 'agent' ? 'Agent/Landlord' : 'Administrator';
     const roleDescription =
-      currentRole === 'landlord'
-        ? 'Landlords list properties and manage viewings.'
-        : currentRole === 'agent'
-        ? 'Agents submit listings and manage the viewings they handle.'
+      currentRole === 'landlord' || currentRole === 'agent'
+        ? 'Agent/Landlord accounts list properties and manage the viewings they handle.'
         : 'Administrators run the platform from the admin console.';
     return (
       <div className="min-h-screen bg-page text-ink py-12 px-4 sm:px-6 lg:px-8 flex items-center justify-center">
@@ -113,7 +113,7 @@ export const FindAHomeView: React.FC<FindAHomeViewProps> = ({ onOpenAuth }) => {
             </div>
             <div className="flex items-center gap-2 text-ink/70">
               <span className="w-2 h-2 rounded-full bg-amber-400" />
-              <span><strong>Landlord / Agent:</strong> Manage listings and viewings — not tenant requests</span>
+              <span><strong>Agent/Landlord:</strong> Manage listings and viewings — not tenant requests</span>
             </div>
           </div>
 

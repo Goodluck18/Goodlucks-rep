@@ -1,5 +1,14 @@
 export type UserRole = 'tenant' | 'landlord' | 'agent' | 'admin' | 'guest';
 
+/**
+ * The account group a visitor picks on the sign-in / registration screen.
+ *
+ * There are exactly two: a Tenant, and ONE Agent/Landlord account. 'provider' is
+ * never stored on an account — an Agent/Landlord account is stored as 'agent' or
+ * 'landlord' once it has chosen its classification during verification.
+ */
+export type AccountGroup = 'tenant' | 'provider' | 'agent' | 'landlord';
+
 export type AgentAccountStatus = 'pending_review' | 'active' | 'suspended';
 
 /**
@@ -154,6 +163,30 @@ export interface VerificationSummary {
   /** Task 03: the Ghana Card name given at registration (a claim, not a check). */
   officialName?: string;
   role?: string;
+  /**
+   * Upgrade 2 correction: 'agent' or 'landlord' once chosen, else 'pending' while
+   * the account still has to say which it is. That choice is step one here.
+   */
+  providerCategory?: 'agent' | 'landlord' | 'pending' | null;
+  classificationRequired?: boolean;
+  /** The account's professional classification, derived from the stored choice. */
+  classification?: 'agent' | 'landlord' | 'pending' | null;
+  /** True for a landlord account, so the form can ask for an operating location. */
+  isLandlord?: boolean;
+  /** The city or area the account operates from (prefills a landlord's verification). */
+  operatingLocation?: string;
+  /**
+   * The listing rule, straight from the server: verification is mandatory before
+   * a property can be submitted.
+   */
+  listing?: {
+    canList: boolean;
+    reason: string | null;
+    message: string;
+    identityStatus: string;
+    identityApproved: boolean;
+    verifiedLabel: string | null;
+  };
   encryptionActive: boolean;
   retentionDays: number;
   documentTypes: Array<{ value: string; label: string }>;
@@ -239,6 +272,17 @@ export interface StaffCapabilities {
    * implied by `financeView`: reading money is not the power to move it.
    */
   financeConfirm?: boolean;
+  /**
+   * Legal Pages: open the console, edit a draft, preview it, discard it. Default
+   * deny, granted only from the server console (`grant_legal.php`).
+   */
+  manageLegal?: boolean;
+  /**
+   * Legal Pages: publish a draft, restore an older version, and switch the
+   * re-acceptance prompt. Deliberately NOT implied by `manageLegal`: writing a
+   * policy is not the authority to make it the public policy.
+   */
+  publishLegal?: boolean;
 }
 
 export interface User {
@@ -259,6 +303,42 @@ export interface User {
   preferredBedrooms?: number;
   additionalNotes?: string;
   createdAt: string;
+  /**
+   * Agent/Landlord accounts only: the professional classification.
+   * `'pending'` means the account registered through the Agent/Landlord group
+   * and has not chosen Agent or Landlord yet (Upgrade 2 correction).
+   */
+  providerCategory?: 'agent' | 'landlord' | 'pending' | null;
+  /** True while an Agent/Landlord account still has to choose its classification. */
+  classificationRequired?: boolean;
+  /**
+   * Whether this Agent/Landlord account may submit listings. Verification is
+   * mandatory, so this is true only once an identity verification has been
+   * approved (and the account is not suspended). Server-derived.
+   */
+  canListProperties?: boolean;
+  /** Why listing is closed: classification_required | identity_* | suspended. */
+  listingBlockedReason?: string | null;
+  /** 'not_submitted' | 'pending_review' | 'under_review' | 'approved' | ... */
+  identityVerificationStatus?: string;
+  /** 'Verified Landlord' | 'Verified Agent Tier 1' | 'Verified Agent Tier 2' | null. */
+  verifiedLabel?: string | null;
+  /**
+   * The formal account state (this upgrade). A suspended Agent or Landlord keeps
+   * sign-in and read access but cannot create, publish or reactivate listings.
+   * It is separate from — and outranks — identity verification.
+   */
+  accountStatus?: 'active' | 'suspended';
+  /** Present for an account that has ever been suspended (imposed or lifted). */
+  suspension?: {
+    suspended: boolean;
+    status: 'active' | 'suspended';
+    reason: string;
+    suspendedAt: string;
+    suspendedBy: string;
+    reinstatedAt: string;
+    reinstatedBy: string;
+  };
   /** Present only on agent accounts (Increment C). */
   agentProfile?: AgentProfile | null;
   /** Present only on administrator accounts (Increment D). */
@@ -270,7 +350,97 @@ export interface User {
   isPrimaryAdmin?: boolean;
 }
 
-export type PropertyStatus = 'active' | 'pending' | 'rejected' | 'rented' | 'deactivated';
+/**
+ * The property lifecycle.
+ *
+ * `expired` and `suspended` were added with the seven-day availability rule and
+ * are deliberately distinct from `deactivated` (the provider said the property is
+ * gone) and from each other (nobody answered / the account was suspended).
+ */
+export type PropertyStatus =
+  | 'active'
+  | 'pending'
+  | 'rejected'
+  | 'rented'
+  | 'deactivated'
+  | 'expired'
+  | 'suspended';
+
+/** The derived availability state the API reports for a listing. */
+export type AvailabilityState =
+  | 'not_published'
+  | 'active_confirmed'
+  | 'due_soon'
+  | 'awaiting_confirmation'
+  | 'expired'
+  | 'unavailable'
+  | 'suspended'
+  | 'rented';
+
+/**
+ * Seven-day availability renewal, as the API derives it (never as the browser
+ * decides it). `publiclyVisible` is the server's own answer to "is this
+ * advertised right now".
+ */
+export interface PropertyAvailabilityRenewal {
+  state: AvailabilityState;
+  label: string;
+  publishedAt: string;
+  confirmedAt: string;
+  dueAt: string;
+  dueInSeconds?: number | null;
+  overdue: boolean;
+  publiclyVisible: boolean;
+  canConfirm: boolean;
+  canDeclareUnavailable: boolean;
+  awaitingProvider: boolean;
+  expiredAutomatically?: boolean;
+  withdrawnByProvider?: boolean;
+  explanation?: string;
+  periodDays?: number;
+}
+
+/** One entry of a listing's availability history. */
+export interface PropertyAvailabilityEvent {
+  id: string;
+  propertyId: string;
+  action: string;
+  label: string;
+  actorRole: 'provider' | 'admin' | 'system' | string;
+  actorName: string;
+  system: boolean;
+  source: string;
+  note: string;
+  dueAt: string;
+  createdAt: string;
+}
+
+/** A row of the administrator's availability console. */
+export interface AdminAvailabilityRow {
+  id: string;
+  title: string;
+  location: string;
+  status: PropertyStatus | string;
+  availability: PropertyAvailabilityRenewal;
+  provider: {
+    id: string;
+    name: string;
+    email: string;
+    role: string;
+    accountStatus: string;
+  };
+  lastAction: {
+    action: string;
+    label: string;
+    actorRole: string;
+    actorName: string;
+    system: boolean;
+    source: string;
+    note: string;
+    at: string;
+  };
+  canReactivate: boolean;
+}
 
 export type PropertyType = 
   | 'Apartment' 
@@ -371,7 +541,13 @@ export interface Property {
    */
   providerCommission?: { percent: number | null; note: string; isPlatformFee: boolean };
   nearbyPlaces: NearbyPlace[];
+  /** The listing's own availability copy ("Available Now"). */
   availability: string;
+  /**
+   * Seven-day availability renewal. Present on every listing the API shapes;
+   * the dates are detailed for the owner, the submitting agent and staff.
+   */
+  availabilityRenewal?: PropertyAvailabilityRenewal;
   featured?: boolean;
   viewsCount: number;
   enquiriesCount: number;
@@ -1533,6 +1709,11 @@ export interface AdminUserRecord {
   email: string;
   phone: string;
   role: 'tenant' | 'landlord' | 'agent' | 'admin';
+  /**
+   * An Agent/Landlord account's classification: 'pending' until the account
+   * chooses Agent or Landlord during verification (Upgrade 2 correction).
+   */
+  providerCategory?: 'agent' | 'landlord' | 'pending' | null;
   isVerified: boolean;
   createdAt: string;
   counts: {
@@ -1548,6 +1729,17 @@ export interface AdminUserRecord {
     documentsOnFile: number;
   };
   agentProfile: { accountStatus: string; canSubmitListings: boolean } | null;
+  /** The formal account state (this upgrade). Separate from verification. */
+  accountStatus?: 'active' | 'suspended';
+  suspension?: {
+    suspended: boolean;
+    status: 'active' | 'suspended';
+    reason: string;
+    suspendedAt: string;
+    suspendedBy: string;
+    reinstatedAt: string;
+    reinstatedBy: string;
+  };
   company?: string;
   address?: string;
   lastActiveAt?: string | null;
@@ -1610,4 +1802,92 @@ export interface AdminCampaignSummary {
     error: string;
     sentAt: string | null;
   }>;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Legal documents (Terms & Conditions, Privacy Policy)                       */
+/* -------------------------------------------------------------------------- */
+
+export type LegalDocumentType = 'terms' | 'privacy';
+
+/** One of the two public documents, without its body. */
+export interface LegalDocumentMeta {
+  type: LegalDocumentType;
+  slug: string;
+  title: string;
+  summary: string;
+  version: number;
+  /** ISO-8601. The date the published version takes effect. */
+  effectiveAt?: string | null;
+  updatedAt?: string | null;
+}
+
+/** The current PUBLISHED version, as the public page renders it. */
+export interface LegalDocument extends LegalDocumentMeta {
+  publishedAt?: string | null;
+  contentHtml: string;
+}
+
+/** Where one signed-in account stands on one document. */
+export interface LegalAcceptanceEntry {
+  currentVersion: number;
+  currentEffectiveAt?: string | null;
+  acceptedVersion: number | null;
+  acceptedAt: string | null;
+  acceptedSource?: string | null;
+  needsAcceptance: boolean;
+}
+
+export interface LegalAcceptanceState {
+  reacceptanceRequired: boolean;
+  terms: LegalAcceptanceEntry;
+  privacy: LegalAcceptanceEntry;
+}
+
+/**
+ * One stored version of a document. `status` distinguishes the editable draft
+ * from the published version and from versions that were published and later
+ * replaced (`superseded`) — the latter are kept whole, forever.
+ */
+export interface LegalVersionSummary {
+  id: string;
+  version: number;
+  status: 'draft' | 'published' | 'superseded';
+  title: string;
+  changeNote: string;
+  effectiveAt?: string | null;
+  createdAt?: string | null;
+  createdByName: string;
+  publishedAt?: string | null;
+  publishedByName: string;
+  restoredFromVersion: number | null;
+}
+
+export interface LegalVersionDetail extends LegalVersionSummary {
+  contentHtml: string;
+}
+
+/** An administrator's view of one document: published, draft and history. */
+export interface AdminLegalDocument {
+  type: LegalDocumentType;
+  slug: string;
+  title: string;
+  summary: string;
+  updatedAt: string | null;
+  published: LegalVersionDetail | null;
+  draft: LegalVersionDetail | null;
+  versions: LegalVersionSummary[];
+  historyCount: number;
+}
+
+/** The document list shown on the Legal Pages console tabs. */
+export interface AdminLegalSummary {
+  type: LegalDocumentType;
+  slug: string;
+  title: string;
+  summary: string;
+  published: LegalVersionSummary | null;
+  hasDraft: boolean;
+  draftUpdatedAt: string | null;
+  versionCount: number;
 }

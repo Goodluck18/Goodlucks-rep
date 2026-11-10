@@ -240,7 +240,14 @@ function property_resolve_segment(string $segment): ?array
 /** True when a listing is public (published) and may be previewed by a crawler. */
 function property_is_public(array $row): bool
 {
-    return in_array((string)($row['status'] ?? ''), ['active', 'rented'], true);
+    $status = (string)($row['status'] ?? '');
+    if ($status === 'rented') {
+        return true;
+    }
+    // A published listing past its availability deadline is not public: the
+    // share card must not advertise a property that has dropped out of the
+    // catalogue.
+    return $status === 'active' && property_is_publicly_visible($row);
 }
 
 /** The money label used in share previews and link text: `GH₵ 6,500`. */

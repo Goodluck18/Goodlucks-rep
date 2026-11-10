@@ -240,6 +240,14 @@ export const AdminAgentAccounts: React.FC = () => {
                           Can submit listings
                         </span>
                       )}
+                      {/* Listing needs an approved identity as well as an active,
+                          approved account; the server refuses it otherwise, so the
+                          console says so instead of implying the switch is enough. */}
+                      {agent.canSubmitListings && !agent.identityVerified && (
+                        <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-500/10 border border-amber-500/30 text-amber-700">
+                          Identity not approved — listing blocked
+                        </span>
+                      )}
                       {agent.agentTierLabel && (
                         <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-violet-500/10 border border-violet-500/30 text-violet-700">
                           {agent.agentTierLabel}

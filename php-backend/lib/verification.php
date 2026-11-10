@@ -334,6 +334,14 @@ function submit_identity_verification(array $user, array $input, array $document
         $errors['documentNumber'] = 'Enter the document number exactly as printed (6–32 characters).';
     }
 
+    // Upgrade 2 correction: a Landlord's verification is Ghana Card + the official
+    // name on it + the location they operate from. An Agent's operating base lives
+    // on the agent profile, so only a landlord is asked for it here.
+    $operatingLocation = clean_string($input['operatingLocation'] ?? ($user['address'] ?? ''), 200);
+    if ((string)($user['role'] ?? '') === 'landlord' && mb_strlen($operatingLocation) < 2) {
+        $errors['operatingLocation'] = 'Tell us the city or area you let property in.';
+    }
+
     $owned = verification_documents_for_submission($user, 'identity', $documentIds, $errors);
     if (!$owned) {
         $errors['documents'] = 'Upload at least one identity document for the reviewer to check.';
@@ -413,6 +421,15 @@ function submit_identity_verification(array $user, array $input, array $document
         );
     }
 
+    // A landlord's operating location belongs to the account it was given for, so
+    // the reviewer sees the same value the member sees.
+    if ($operatingLocation !== '' && $operatingLocation !== (string)($user['address'] ?? '')) {
+        db_exec(
+            'UPDATE users SET address = :address, updated_at = :updated WHERE id = :id',
+            [':address' => $operatingLocation, ':updated' => $now, ':id' => (string)$user['id']]
+        );
+    }
+
     // The audit entry records the fact of submission, never the number.
     audit_log('verification.identity_submitted', 'identity_verification', (string)$user['id'], [
         'documentType'     => $documentType,
@@ -420,6 +437,7 @@ function submit_identity_verification(array $user, array $input, array $document
         'numberRetained'   => $retained,
         'encryptionActive' => identity_encryption_enabled(),
         'subjectRole'      => (string)$user['role'],
+        'hasOperatingLocation' => $operatingLocation !== '',
     ]);
 
     // Task 03: submission itself notifies the owner (a receipt, not an approval)
@@ -428,7 +446,7 @@ function submit_identity_verification(array $user, array $input, array $document
     create_notification(
         (string)$user['id'],
         'Identity verification submitted',
-        'Your Ghana Card details and documents are with Goodlucks staff. This is not an approval: your identity stays unverified until a reviewer approves it.',
+        'Your Ghana Card details and documents are with Goodlucks staff. This is not an approval: listing properties opens when a reviewer approves your identity.',
         'info'
     );
     notify_verification_staff('identity', (string)($user['name'] ?? ''), (string)$user['id']);
@@ -830,11 +848,43 @@ function record_verification_decision(
         ]
     );
 
+    // Upgrade 2 correction: an approved identity IS the listing permission for an
+    // Agent/Landlord account. It is granted here, in the same transaction as the
+    // decision, so there is no separate step that could be forgotten — and a
+    // suspension set by staff is never undone by it.
+    $listingAccessGranted = false;
+    if ($scope === 'identity' && $targetStatus === 'approved') {
+        $listingAccessGranted = grant_listing_access_after_identity_approval($userId, $reviewer);
+    }
+
     // Task 03: the account holder hears about every decision, with the reason.
     try {
         notify_verification_subject($userId, $scope, $decision, $note);
         // Reaching the higher tier is its own event: it changes the share of
         // FUTURE commissions, so it is announced rather than left implicit.
+        if ($scope === 'identity' && $targetStatus === 'approved') {
+            $listing = provider_listing_state(find_user_by_id($userId));
+            $subject = find_user_by_id($userId);
+            if ($listing['canList']) {
+                create_notification(
+                    $userId,
+                    'You can now list properties',
+                    $listing['verifiedLabel'] !== null
+                        ? 'Your identity is approved, so your account is a ' . $listing['verifiedLabel']
+                            . '. You can submit properties for review from your dashboard.'
+                        : 'Your identity is approved. You can submit properties for review from your dashboard.',
+                    'success'
+                );
+            } elseif ($listing['reason'] === 'suspended') {
+                // Nothing is promised to a suspended account.
+                create_notification(
+                    $userId,
+                    'Identity approved',
+                    'Your identity is approved, but this account is suspended, so listing submissions stay closed.',
+                    'info'
+                );
+            }
+        }
         if ($scope === 'professional' && $targetStatus === 'approved') {
             $tier = agent_tier_state($userId);
             if (($tier['commissionTier'] ?? 'none') === 'higher') {
@@ -1023,6 +1073,173 @@ function review_verification_document(string $documentId, string $decision, stri
     return shape_verification_document($fresh ?? $row, true);
 }
 
+/**
+ * The one sentence used when listing is closed for want of verification. The API,
+ * the dashboards and the listing page all repeat it, so a member is never told a
+ * different rule depending on which door they knocked on.
+ */
+const LISTING_VERIFICATION_MESSAGE = 'Complete your identity verification to start listing properties on Goodlucks Homes.';
+
+/**
+ * Whether an Agent/Landlord account may submit listings (Upgrade 2 correction).
+ *
+ * Property listing is NOT open to a newly registered provider. The lifecycle is:
+ *
+ *   registration → Agent/Landlord account → Agent-or-Landlord choice →
+ *   identity verification → staff approval → listing access.
+ *
+ * This is the single place that answers "may this account list?", and it is
+ * derived on every read from records that already exist — the account's stored
+ * classification (`users.provider_category` / role), its row in
+ * `identity_verifications`, and, for an agent, the suspension state on its
+ * profile. Nothing is cached and nothing is granted by the client.
+ *
+ * It never creates an account type and never overrides an administrator: a
+ * suspended agent stays blocked even with an approved identity, and staff keep
+ * their console permissions.
+ *
+ * @return array{
+ *   isProvider: bool, canList: bool, reason: ?string, message: string,
+ *   classification: ?string, identityStatus: string, identityApproved: bool,
+ *   suspended: bool, verifiedLabel: ?string
+ * }
+ */
+function provider_listing_state(?array $user = null): array
+{
+    $user = $user ?? auth_user();
+    $role = $user !== null ? (string)($user['role'] ?? '') : '';
+    $isProvider = $role === 'agent' || $role === 'landlord';
+
+    if ($user === null || !$isProvider) {
+        // Tenants and administrators are not part of this rule: a tenant never
+        // lists, and an administrator works from the console.
+        return [
+            'isProvider'       => false,
+            'canList'          => $role === 'admin',
+            'reason'           => null,
+            'message'          => '',
+            'classification'   => null,
+            'identityStatus'   => 'not_submitted',
+            'identityApproved' => false,
+            'suspended'        => false,
+            'suspension'       => user_suspension_state($user),
+            'verifiedLabel'    => null,
+        ];
+    }
+
+    $userId = (string)$user['id'];
+    $classification = provider_category_state($user);
+
+    $identityRow = find_identity_verification($userId);
+    $identityStatus = $identityRow ? (string)$identityRow['status'] : 'not_submitted';
+    $identityApproved = $identityStatus === 'approved';
+
+    // Two sources, one rule. `users.account_status` is the formal suspension and
+    // applies to Agents and Landlords alike; a suspended agent profile from
+    // before this upgrade still counts, so no historic suspension is lost.
+    $suspension = user_suspension_state($user);
+    $suspended = $suspension['suspended'];
+    if ($role === 'agent') {
+        $profile = find_agent_profile_by_user($userId);
+        if ($profile !== null && (string)($profile['account_status'] ?? '') === 'suspended') {
+            $suspended = true;
+        }
+    }
+
+    $reason = null;
+    $message = '';
+    if ($classification === 'pending') {
+        $reason = 'classification_required';
+        // One sentence is used everywhere listing is refused, so the member is
+        // never told a different rule depending on which door they knocked on.
+        // The missing choice is carried in `reason`, and in the API's
+        // `fields.classificationRequired`, not in a second wording.
+        $message = LISTING_VERIFICATION_MESSAGE;
+    } elseif ($suspended) {
+        // Suspension outranks verification: the message never suggests that
+        // completing verification would reopen listing.
+        $reason = 'suspended';
+        $message = 'Your account is suspended, so you cannot publish listings. You can still sign in and view your records. Contact Goodlucks Homes.';
+    } elseif (!$identityApproved) {
+        $reason = 'identity_' . $identityStatus;
+        $message = match ($identityStatus) {
+            'pending_review', 'under_review' => 'Your identity verification is waiting for review. You can list properties as soon as it is approved.',
+            'rejected', 'resubmission_required' => 'Your identity verification was not approved. Correct it and resubmit to start listing properties.',
+            default => LISTING_VERIFICATION_MESSAGE,
+        };
+    }
+
+    $canList = $reason === null;
+
+    // What a verified account is, in the words the business uses. Derived, never
+    // stored: Tier 1 is an approved identity, Tier 2 adds an approved
+    // professional authorisation.
+    $verifiedLabel = null;
+    if ($canList) {
+        if ($role === 'landlord') {
+            $verifiedLabel = 'Verified Landlord';
+        } else {
+            $tier = agent_tier_state($userId);
+            $verifiedLabel = ($tier['commissionTier'] ?? 'none') === 'higher'
+                ? 'Verified Agent Tier 2'
+                : 'Verified Agent Tier 1';
+        }
+    }
+
+    return [
+        'isProvider'       => true,
+        'canList'          => $canList,
+        'reason'           => $reason,
+        'message'          => $message,
+        'classification'   => $classification,
+        'identityStatus'   => $identityStatus,
+        'identityApproved' => $identityApproved,
+        'suspended'        => $suspended,
+        'suspension'       => $suspension,
+        'verifiedLabel'    => $verifiedLabel,
+    ];
+}
+
+/**
+ * The one place a provider is granted listing access: an approved identity.
+ *
+ * Called when staff approve an identity verification. It does NOT approve a
+ * professional authorisation (that is the separate Tier 2 upgrade) and it does
+ * not touch an account that staff have suspended.
+ */
+function grant_listing_access_after_identity_approval(string $userId, array $reviewer): bool
+{
+    $user = find_user_by_id($userId);
+    if ($user === null || (string)$user['role'] !== 'agent') {
+        // A landlord needs no profile: its listing access is derived from the
+        // approved identity row itself.
+        return false;
+    }
+
+    $profile = find_agent_profile_by_user($userId);
+    if ($profile === null) {
+        return false;
+    }
+    if ((string)($profile['account_status'] ?? '') === 'suspended') {
+        // A suspension is an administrator decision; verifying an identity does
+        // not quietly reverse it.
+        return false;
+    }
+    if ((string)($profile['account_status'] ?? '') === 'active'
+        && (int)($profile['can_submit_listings'] ?? 0) === 1) {
+        return false;
+    }
+
+    set_agent_account_status(
+        $userId,
+        'active',
+        true,
+        'Identity verified — Agent Tier 1 listing access granted.',
+        (string)$reviewer['id']
+    );
+    return true;
+}
+
 /** Everything a subject sees about their own verification. */
 function verification_summary_for_user(array $user): array
 {
@@ -1049,9 +1266,33 @@ function verification_summary_for_user(array $user): array
         $professional['documents'] = $professionalDocs;
     }
 
+    // Upgrade 2 correction: verification is mandatory before listing, and the
+    // account is only classified as an Agent or a Landlord once it has been
+    // approved. The client renders the steps from these two blocks rather than
+    // keeping its own idea of what is required.
+    $listingState = provider_listing_state($user);
+
     return [
         'identity'     => $identity,
         'professional' => $professional,
+        'classification' => $listingState['classification'],
+        'classificationRequired' => $listingState['classification'] === 'pending',
+        'isLandlord'   => $isAgent === false && (string)($user['role'] ?? '') === 'landlord',
+        // Where the account says it operates. Required for a landlord's
+        // verification and used to prefill the identity form.
+        'operatingLocation' => (string)($user['address'] ?? ''),
+        'listing'      => [
+            'canList'          => $listingState['canList'],
+            'reason'           => $listingState['reason'],
+            'message'          => $listingState['message'],
+            'identityStatus'   => $listingState['identityStatus'],
+            'identityApproved' => $listingState['identityApproved'],
+            'verifiedLabel'    => $listingState['verifiedLabel'],
+            // Suspension is its own answer, never folded into verification: an
+            // approved identity with a suspended account still cannot list.
+            'suspended'        => $listingState['suspended'],
+            'suspension'       => $listingState['suspension'],
+        ],
         // Task 03: the official Ghana Card name supplied at registration. It is
         // offered as a starting value for the identity form and is never treated
         // as a check on its own.

@@ -169,7 +169,7 @@ function list_admin_users(array $filters, int $page, int $perPage): array
     $offset = (max(1, $page) - 1) * $perPage;
 
     $rows = db_all(
-        'SELECT id, name, email, phone, role, is_verified, created_at FROM users'
+        'SELECT id, name, email, phone, role, provider_category, is_verified, created_at FROM users'
         . $clause
         . ' ORDER BY created_at DESC, id DESC'
         . db_limit_clause($perPage, $offset),
@@ -267,6 +267,18 @@ function shape_directory_rows(array $rows): array
         db_all("SELECT user_id AS owner, COUNT(*) AS total FROM verification_documents WHERE user_id IN ($idList) GROUP BY user_id", $idParams)
     );
 
+    // Formal suspension (this upgrade), read in one extra query for the page so
+    // the directory SELECT stays exactly what it was: this screen never reads a
+    // password hash, and that is a property worth keeping literal.
+    $suspensions = [];
+    foreach (db_all(
+        "SELECT id, role, account_status, suspension_reason, suspended_at, suspended_by, reinstated_at, reinstated_by
+           FROM users WHERE id IN ($idList)",
+        $idParams
+    ) as $row) {
+        $suspensions[(string)$row['id']] = user_suspension_state($row);
+    }
+
     $agentProfiles = [];
     foreach (db_all("SELECT user_id, account_status, can_submit_listings FROM agent_profiles WHERE user_id IN ($idList)", $idParams) as $row) {
         $agentProfiles[(string)$row['user_id']] = [
@@ -286,6 +298,9 @@ function shape_directory_rows(array $rows): array
             'email'      => (string)$row['email'],
             'phone'      => (string)($row['phone'] ?? ''),
             'role'       => (string)$row['role'],
+            // 'pending' while an Agent/Landlord account has not yet said which
+            // it is; otherwise the stored classification.
+            'providerCategory' => provider_category_state($row),
             'isVerified' => (int)($row['is_verified'] ?? 0) === 1,
             'createdAt'  => to_iso($row['created_at'] ?? null),
             'counts'     => [
@@ -300,6 +315,14 @@ function shape_directory_rows(array $rows): array
                 'documentsOnFile'  => (int)($documents[$id] ?? 0),
             ],
             'agentProfile' => $agentProfiles[$id] ?? null,
+            // Formal account suspension (this upgrade). Exposed next to — never
+            // merged into — the verification block, because an approved identity
+            // with a suspended account still cannot list.
+            'accountStatus' => ($suspensions[$id]['status'] ?? 'active'),
+            'suspension'    => $suspensions[$id] ?? [
+                'suspended' => false, 'status' => 'active', 'reason' => '',
+                'suspendedAt' => '', 'suspendedBy' => '', 'reinstatedAt' => '', 'reinstatedBy' => '',
+            ],
         ];
     }
 
@@ -328,7 +351,7 @@ function keyed_counts(array $rows): array
 function admin_user_summary(string $userId): ?array
 {
     $row = db_one(
-        'SELECT id, name, email, phone, role, is_verified, company, address, created_at, updated_at
+        'SELECT id, name, email, phone, role, provider_category, is_verified, company, address, created_at, updated_at
            FROM users WHERE id = :id',
         [':id' => $userId]
     );
@@ -343,9 +366,25 @@ function admin_user_summary(string $userId): ?array
         [':id' => $userId]
     );
 
+    // The formal account state, from the account row itself.
+    $suspensionRow = db_one(
+        'SELECT id, role, account_status, suspension_reason, suspended_at, suspended_by, reinstated_at, reinstated_by
+           FROM users WHERE id = :id',
+        [':id' => $userId]
+    );
+    if ($suspensionRow !== null) {
+        $suspension = user_suspension_state($suspensionRow);
+        $shaped['accountStatus'] = $suspension['status'];
+        $shaped['suspension'] = $suspension;
+    }
+
     $shaped['company'] = (string)($row['company'] ?? '');
     $shaped['address'] = (string)($row['address'] ?? '');
     $shaped['lastActiveAt'] = $lastActivity !== null ? to_iso($lastActivity['created_at']) : null;
+    // Upgrade 2 correction: an Agent/Landlord account says which it is during
+    // verification, so staff need to see 'pending' — an account that has not
+    // chosen yet is not the same as one that chose Agent.
+    $shaped['providerCategory'] = provider_category_state($row);
 
     // Landlord / provider state, derived from real records. "Listing approved"
     // and "identity verified" stay separate, exactly as in Agent Accounts.
@@ -559,16 +598,22 @@ function admin_activity_feed(int $limit = 20): array
     }
 
     foreach (db_all(
-        'SELECT a.id, a.action, a.entity_type, a.entity_id, a.created_at, u.name AS actor_name
+        'SELECT a.id, a.action, a.entity_type, a.entity_id, a.created_at, a.actor_role, u.name AS actor_name
            FROM audit_logs a LEFT JOIN users u ON u.id = a.actor_id
           ORDER BY a.created_at DESC' . db_limit_clause($limit, 0)
     ) as $row) {
+        // An automated event (the availability job) has no actor; it is labelled
+        // as system-generated rather than attributed to whichever administrator
+        // happens to be signed in.
+        $system = (string)($row['actor_role'] ?? '') === 'system' || (string)($row['actor_name'] ?? '') === '';
         $entries[] = [
             'kind'   => 'action',
             'id'     => (string)($row['entity_id'] ?? ''),
             'title'  => activity_action_title((string)$row['action'], (string)$row['entity_type']),
-            'detail' => (string)($row['actor_name'] ?? 'System'),
+            'detail' => $system ? 'System' : (string)$row['actor_name'],
             'actor'  => (string)($row['actor_name'] ?? ''),
+            'system' => $system,
+            'action' => (string)$row['action'],
             'tab'    => activity_tab_for_entity((string)$row['entity_type']),
             'at'     => to_iso($row['created_at']),
         ];
@@ -612,6 +657,16 @@ function activity_action_title(string $action, string $entityType): string
         'campaign.queued'                => 'Bulk email queued',
         'user.capabilities_changed'      => 'Staff capabilities changed',
         'user.role_corrected'            => 'Account type corrected by staff',
+        // This upgrade: the seven-day availability cycle and account suspension.
+        'property.availability_confirmed'   => 'Provider confirmed the listing is still available',
+        'property.availability_declined'    => 'Provider declared the listing no longer available',
+        'property.availability_expired'     => 'Listing unpublished automatically (no availability confirmation)',
+        'property.availability_reactivated' => 'Listing reactivated with a fresh confirmation period',
+        'property.availability_reactivation_refused' => 'Administrator reactivation refused',
+        'property.availability_unpublished_suspension' => 'Listing unpublished (provider suspended)',
+        'property.availability_reopened'    => 'Listing reopened after reinstatement (confirmation required)',
+        'provider.suspended'                => 'Provider account suspended',
+        'provider.reinstated'               => 'Provider account reinstated',
     ];
 
     if (isset($labels[$action])) {

@@ -16,7 +16,23 @@ const PROPERTY_TYPES = [
     // vocabulary. The original seven stay valid so no existing listing breaks.
     'Flat', 'Detached', 'Semi-detached', 'Self-contained', 'House',
 ];
-const PROPERTY_STATUSES = ['active', 'pending', 'rejected', 'rented', 'deactivated'];
+/**
+ * The property lifecycle.
+ *
+ * `active`      — published and advertised
+ * `pending`     — submitted, waiting for staff approval
+ * `rejected`    — reviewed and not approved
+ * `rented`      — let; kept for the record
+ * `deactivated` — the provider said it is no longer available (deliberate)
+ * `expired`     — unpublished automatically because its seven-day availability
+ *                 confirmation was not received. Deliberately distinct from
+ *                 `deactivated`: the history says which of the two happened.
+ * `suspended`   — unpublished because the provider account is suspended
+ */
+const PROPERTY_STATUSES = ['active', 'pending', 'rejected', 'rented', 'deactivated', 'expired', 'suspended'];
+
+/** Statuses that are never part of the public catalogue. */
+const PROPERTY_PRIVATE_STATUSES = ['pending', 'rejected', 'deactivated', 'expired', 'suspended'];
 /**
  * The enquiry lifecycle (Upgrade 2, A10).
  *

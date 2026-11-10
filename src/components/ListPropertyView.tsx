@@ -23,11 +23,12 @@ import { api, messageForError } from '../services/apiService';
 import { PropertyImagePicker } from './PropertyImagePicker';
 
 interface ListPropertyViewProps {
-  onOpenAuth?: (mode?: 'login' | 'register', role?: 'tenant' | 'landlord') => void;
+  /** 'provider' preselects the single Agent/Landlord account in the sign-in modal. */
+  onOpenAuth?: (mode?: 'login' | 'register', role?: 'provider' | 'tenant') => void;
 }
 
 export const ListPropertyView: React.FC<ListPropertyViewProps> = ({ onOpenAuth }) => {
-  const { currentUser, currentRole, addProperty, setCurrentView } = useApp();
+  const { currentUser, currentRole, addProperty, setCurrentView, navigate } = useApp();
 
   const [title, setTitle] = useState('');
   const [location, setLocation] = useState('Cantonments, Accra');
@@ -154,13 +155,17 @@ export const ListPropertyView: React.FC<ListPropertyViewProps> = ({ onOpenAuth }
     }
   };
 
-  // Landlord Auth Guard Check
-  if (!currentUser || currentRole !== 'landlord') {
+  // Agent/Landlord guard. Agents and Landlords share one account, so both may
+  // list — the server still decides whether this particular account is allowed
+  // to submit (an agent needs an approved profile; a pending account must pick
+  // Agent or Landlord first).
+  const isProvider = currentRole === 'landlord' || currentRole === 'agent';
+  if (!currentUser || !isProvider) {
     return (
       <div className="min-h-[80vh] bg-surface text-ink py-12 px-4 sm:px-6 lg:px-8 flex items-center justify-center">
         <SEOHead
-          title="List Property for Rent - Landlord Portal | Goodlucks Homes Ghana"
-          description="List your property with Goodlucks Homes Ghana. Landlords and agents submit listings, our team reviews them before publishing, and viewing requests are arranged through the platform."
+          title="List Property for Rent - Agent/Landlord Portal | Goodlucks Homes Ghana"
+          description="List your property with Goodlucks Homes Ghana. Agents and landlords submit listings, our team reviews them before publishing, and viewing requests are arranged through the platform."
         />
         <div className="max-w-xl w-full bg-surface border border-line rounded-2xl p-6 sm:p-10 text-center space-y-6 shadow-lg animate-fadeIn">
           
@@ -171,17 +176,17 @@ export const ListPropertyView: React.FC<ListPropertyViewProps> = ({ onOpenAuth }
           <div className="space-y-3">
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-interactive/10 text-ink text-xs font-bold border border-interactive/20">
               <ShieldAlert className="w-3.5 h-3.5" />
-              Landlord Login Required
+              Agent/Landlord Sign-In Required
             </div>
             
             <h1 className="text-2xl sm:text-3xl font-extrabold text-ink tracking-tight">
-              {!currentUser ? 'Log In to List Your Property' : 'Landlord Account Required'}
+              {!currentUser ? 'Log In to List Your Property' : 'Agent/Landlord Account Required'}
             </h1>
             
             <p className="text-sm text-ink/70 leading-relaxed max-w-md mx-auto">
               {!currentUser
-                ? 'To keep every listing reviewed before it appears, you must log in or register as a Landlord on Goodlucks Homes to submit properties.'
-                : `You are currently signed in as ${currentUser.name} (${currentUser.role.toUpperCase()} Account). Please switch to a Landlord account to list properties.`}
+                ? 'To keep every listing reviewed before it appears, you must sign in or register an Agent/Landlord account on Goodlucks Homes to submit properties.'
+                : `You are currently signed in as ${currentUser.name} (${currentUser.role.toUpperCase()} Account). Please sign in with an Agent/Landlord account to list properties.`}
             </p>
           </div>
 
@@ -210,29 +215,29 @@ export const ListPropertyView: React.FC<ListPropertyViewProps> = ({ onOpenAuth }
               <>
                 <button
                   type="button"
-                  onClick={() => onOpenAuth && onOpenAuth('login', 'landlord')}
+                  onClick={() => onOpenAuth && onOpenAuth('login', 'provider')}
                   className="gl-btn gl-btn-primary w-full py-3.5 text-sm flex active:scale-98"
                 >
                   <Lock className="w-4 h-4" />
-                  <span>Log In as Landlord to List</span>
+                  <span>Log In as Agent/Landlord to List</span>
                 </button>
 
                 <div className="flex flex-col sm:flex-row gap-2 pt-1">
                   <button
                     type="button"
-                    onClick={() => onOpenAuth && onOpenAuth('login', 'landlord')}
+                    onClick={() => onOpenAuth && onOpenAuth('login', 'provider')}
                     className="flex-1 py-2.5 rounded-xl bg-surface text-ink border border-interactive/30 hover:bg-surface font-bold text-xs transition-colors flex items-center justify-center gap-1.5"
                   >
                     <Lock className="w-3.5 h-3.5" />
-                    <span>Existing Landlord Sign-In</span>
+                    <span>Existing Agent/Landlord Sign-In</span>
                   </button>
 
                   <button
                     type="button"
-                    onClick={() => onOpenAuth && onOpenAuth('register', 'landlord')}
+                    onClick={() => onOpenAuth && onOpenAuth('register', 'provider')}
                     className="flex-1 py-2.5 rounded-xl bg-page hover:bg-line text-ink font-semibold text-xs transition-colors"
                   >
-                    Register New Account
+                    Register as Agent/Landlord
                   </button>
                 </div>
               </>
@@ -240,10 +245,10 @@ export const ListPropertyView: React.FC<ListPropertyViewProps> = ({ onOpenAuth }
               <div className="flex flex-col sm:flex-row gap-3">
                 <button
                   type="button"
-                  onClick={() => onOpenAuth && onOpenAuth('login', 'landlord')}
+                  onClick={() => onOpenAuth && onOpenAuth('login', 'provider')}
                   className="gl-btn gl-btn-primary flex-1 py-3 text-sm"
                 >
-                  Switch to Landlord Account
+                  Switch to an Agent/Landlord Account
                 </button>
                 <button
                   type="button"
@@ -261,10 +266,92 @@ export const ListPropertyView: React.FC<ListPropertyViewProps> = ({ onOpenAuth }
     );
   }
 
+  // Verification is mandatory before listing. An account that has not chosen
+  // Agent/Landlord, whose identity is not approved, or that is suspended cannot
+  // submit — the server refuses it as well — so the form is replaced by the rule
+  // and the way to satisfy it.
+  if (currentUser.canListProperties === false) {
+    return (
+      <div className="min-h-[80vh] bg-surface text-ink py-12 px-4 flex items-center justify-center">
+        <SEOHead
+          title="Verification Required to List - Agent/Landlord | Goodlucks Homes"
+          description="Identity verification is required before an Agent or Landlord account can list property on Goodlucks Homes."
+        />
+        <div className="max-w-xl w-full bg-surface border border-amber-500/30 rounded-2xl p-6 sm:p-10 text-center space-y-5 shadow-lg">
+          <div className="w-16 h-16 rounded-2xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center mx-auto">
+            <ShieldAlert className="w-8 h-8 text-amber-700" />
+          </div>
+          <div className="space-y-2">
+            <span className="px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/25 text-[11px] font-extrabold uppercase tracking-wider text-ink">
+              Verification required
+            </span>
+            <h1 className="text-2xl font-black text-ink tracking-tight">Verify your identity to list</h1>
+            <p className="text-sm text-ink/70 leading-relaxed max-w-md mx-auto">
+              {currentUser.listingBlockedReason === 'classification_required'
+                ? 'Choose whether you are an Agent or a Landlord first — it is the first step of verification.'
+                : currentUser.identityVerificationStatus === 'pending_review' ||
+                    currentUser.identityVerificationStatus === 'under_review'
+                  ? 'Your identity verification is waiting for review. Listing opens as soon as it is approved.'
+                  : currentUser.identityVerificationStatus === 'rejected' ||
+                      currentUser.identityVerificationStatus === 'resubmission_required'
+                    ? 'Your identity verification was not approved. Correct it and resubmit to start listing properties.'
+                    : 'Complete your identity verification to start listing properties on Goodlucks Homes.'}
+            </p>
+          </div>
+          <div className="bg-page rounded-2xl border border-line p-4 text-left text-[11px] text-ink/70 space-y-1.5">
+            <div className="font-bold text-ink">What listing requires</div>
+            <div>1. An Agent or Landlord classification.</div>
+            <div>2. An approved Ghana Card identity verification.</div>
+            <div>3. Goodlucks staff approval — then the submission form opens.</div>
+          </div>
+          <button
+            type="button"
+            onClick={() => navigate(currentRole === 'landlord' ? '/landlord/verification' : '/agent/verification')}
+            className="gl-btn gl-btn-primary w-full py-3 text-sm"
+          >
+            Go to verification
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // An Agent/Landlord account that has not yet said which it is cannot submit a
+  // listing (the server refuses it too). Send it to that one question instead of
+  // showing a form that cannot be used.
+  if (currentUser.classificationRequired) {
+    return (
+      <div className="min-h-[80vh] bg-surface text-ink py-12 px-4 flex items-center justify-center">
+        <div className="max-w-xl w-full bg-surface border border-interactive/30 rounded-2xl p-6 sm:p-10 text-center space-y-5 shadow-lg">
+          <div className="w-16 h-16 rounded-2xl bg-interactive/20 border border-interactive/30 flex items-center justify-center mx-auto">
+            <ShieldAlert className="w-8 h-8" />
+          </div>
+          <div className="space-y-2">
+            <span className="px-3 py-1 rounded-full bg-interactive/10 border border-interactive/20 text-[11px] font-extrabold uppercase tracking-wider">
+              One more step
+            </span>
+            <h1 className="text-2xl font-black text-ink tracking-tight">Are you an Agent or a Landlord?</h1>
+            <p className="text-sm text-ink/70 leading-relaxed max-w-md mx-auto">
+              Your Agent/Landlord account has to say which one it is before it can submit a listing. It is the first
+              step of verification, it takes one click, and it is the same account — no second sign-up.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => navigate('/verify/classification')}
+            className="gl-btn gl-btn-primary w-full py-3 text-sm"
+          >
+            Choose Agent or Landlord
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-page text-ink py-10 px-4 sm:px-6 lg:px-8">
       <SEOHead
-        title="List Property for Rent - Landlord Portal | Goodlucks Homes Ghana"
+        title="List Property for Rent - Agent/Landlord Portal | Goodlucks Homes Ghana"
         description="List your apartment or house with Goodlucks Homes Ghana. Describe the property, submit it for review and receive viewing requests from tenants in Greater Accra."
       />
       <div className="max-w-4xl mx-auto space-y-8 animate-fadeIn">
@@ -273,7 +360,7 @@ export const ListPropertyView: React.FC<ListPropertyViewProps> = ({ onOpenAuth }
         <div className="text-center space-y-3">
           <div className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-interactive/10 text-ink text-xs font-bold border border-interactive/20">
             <Building2 className="w-4 h-4" />
-            Landlord Listing Portal
+            Agent/Landlord Listing Portal
           </div>
           <h1 className="text-3xl sm:text-4xl font-extrabold text-ink tracking-tight">
             List Your Property with Goodlucks Homes

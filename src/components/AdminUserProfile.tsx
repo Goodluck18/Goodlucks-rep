@@ -18,6 +18,93 @@ const KIND_META: Record<AdminUserActivityEntry['kind'], { label: string; icon: R
   action: { label: 'Staff action', icon: <FileText className="w-4 h-4" /> },
 };
 
+/**
+ * Formal suspension / reinstatement of an Agent or Landlord account.
+ *
+ * The two actions are deliberately separate, each with its own mandatory reason.
+ * Suspension is not verification: an approved identity stays approved and the
+ * account still cannot list. Reinstatement never republishes anything — each
+ * previously live listing waits for a fresh availability confirmation.
+ */
+const SuspensionPanel: React.FC<{
+  userId: string;
+  user: AdminUserRecord;
+  onUpdated: (user: AdminUserRecord) => void;
+}> = ({ userId, user, onUpdated }) => {
+  const suspended = user.accountStatus === 'suspended';
+  const [reason, setReason] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState<string | null>(null);
+
+  const submit = async () => {
+    setBusy(true);
+    setError(null);
+    setDone(null);
+    try {
+      const result = suspended
+        ? await api.reinstateProvider(userId, reason.trim())
+        : await api.suspendProvider(userId, reason.trim());
+      onUpdated(result.user as unknown as AdminUserRecord);
+      setReason('');
+      setDone(result.message);
+    } catch (err) {
+      setError(messageForError(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className={`gl-card p-5 space-y-3 ${suspended ? 'border-accent/40' : ''}`}>
+      <div className="flex items-center gap-2">
+        <ShieldAlert className="w-4 h-4 text-ink" />
+        <h3 className="text-sm font-bold text-ink">
+          {suspended ? 'Account suspended' : 'Suspend this account'}
+        </h3>
+      </div>
+      <p className="text-xs text-ink-muted">
+        {suspended
+          ? 'The account can still sign in and see its records, but it cannot create, publish or reactivate listings, and its live listings are not public. Reinstating it restores access; it does not republish anything, because each listing needs a fresh availability confirmation.'
+          : 'Suspension is separate from identity verification: a verified account that is suspended still cannot list. Live listings are removed from public view immediately and kept, with their history. The provider is told the reason.'}
+      </p>
+      {user.suspension?.reason && (
+        <p className="text-xs text-ink">
+          Recorded reason: {user.suspension.reason}
+          {user.suspension.suspendedBy ? ` — ${user.suspension.suspendedBy}` : ''}
+        </p>
+      )}
+      {user.suspension?.reinstatedAt && !suspended && (
+        <p className="text-xs text-ink-muted">
+          Last reinstated {formatWhen(user.suspension.reinstatedAt)}
+          {user.suspension.reinstatedBy ? ` by ${user.suspension.reinstatedBy}` : ''}
+        </p>
+      )}
+      <label className="block text-[11px] font-semibold text-ink-muted">
+        {suspended ? 'Why is the suspension being lifted?' : 'Why is this account being suspended?'}
+        <textarea
+          value={reason}
+          onChange={(event) => setReason(event.target.value)}
+          rows={2}
+          className="mt-1 w-full bg-page border border-line rounded-xl px-3 py-2 text-xs text-ink"
+          placeholder="At least 10 characters. The provider is shown this reason."
+        />
+      </label>
+      {error && <p role="alert" className="text-xs text-accent">{error}</p>}
+      {done && <p role="status" className="text-xs text-ink">{done}</p>}
+      <button
+        type="button"
+        onClick={() => void submit()}
+        disabled={busy || reason.trim().length < 10}
+        className="gl-button-secondary text-xs inline-flex items-center gap-2 disabled:opacity-50"
+      >
+        {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ShieldAlert className="w-3.5 h-3.5" />}
+        {suspended ? 'Reinstate account' : 'Suspend account'}
+      </button>
+    </div>
+  );
+};
+
 const formatWhen = (iso: string): string => {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return iso;
@@ -117,6 +204,9 @@ export const AdminUserProfile: React.FC<Props> = ({ userId, onBack }) => {
           </div>
           <div className="flex flex-wrap gap-2">
             <span className="gl-chip capitalize">{user.role}</span>
+            {user.providerCategory === 'pending' && (
+              <span className="gl-chip">Has not chosen Agent or Landlord yet</span>
+            )}
             <span className={`gl-chip ${user.isVerified ? 'text-success' : 'text-ink-muted'}`}>
               {user.isVerified ? 'Verified account' : 'Not verified'}
             </span>
@@ -163,6 +253,12 @@ export const AdminUserProfile: React.FC<Props> = ({ userId, onBack }) => {
             <p className="text-ink-muted">
               Last staff action: {user.lastActiveAt ? formatWhen(user.lastActiveAt) : 'none recorded'}
             </p>
+            {user.accountStatus === 'suspended' && (
+              <p className="text-ink font-bold">
+                Account suspended{user.suspension?.reason ? `: ${user.suspension.reason}` : ''}
+                {user.suspension?.suspendedAt ? ` (since ${formatWhen(user.suspension.suspendedAt)})` : ''}
+              </p>
+            )}
             {user.agentProfile && (
               <p className="text-ink-muted">
                 Agent status: {user.agentProfile.accountStatus.replace(/_/g, ' ')}
@@ -198,9 +294,10 @@ export const AdminUserProfile: React.FC<Props> = ({ userId, onBack }) => {
                 onChange={(event) => setNewRole(event.target.value as 'tenant' | 'landlord' | 'agent')}
                 className="mt-1 w-full bg-page border border-line rounded-xl px-3 py-2 text-xs text-ink"
               >
-                <option value="tenant">Tenant</option>
-                <option value="landlord">Landlord</option>
+                {/* Agent first, as everywhere the two are named together. */}
                 <option value="agent">Agent</option>
+                <option value="landlord">Landlord</option>
+                <option value="tenant">Tenant</option>
               </select>
             </label>
             <label className="sm:col-span-2 text-[11px] font-semibold text-ink-muted">
@@ -241,6 +338,10 @@ export const AdminUserProfile: React.FC<Props> = ({ userId, onBack }) => {
             Record correction
           </button>
         </div>
+      )}
+
+      {(user.role === 'agent' || user.role === 'landlord') && (
+        <SuspensionPanel userId={userId} user={user} onUpdated={setUser} />
       )}
 
       <div className="gl-card p-5 space-y-3">

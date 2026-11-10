@@ -39,7 +39,7 @@ export const HomeView: React.FC = () => {
     "name": "Goodlucks Homes",
     "url": `${SITE_ORIGIN}/`,
     "logo": "https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=800&q=80",
-    "description": "Property discovery and rental intermediary connecting tenants with landlords and agents in Greater Accra, Ghana.",
+    "description": "Property discovery and rental intermediary connecting tenants with agents and landlords in Greater Accra, Ghana.",
     "address": {
       "@type": "PostalAddress",
       "addressLocality": "Accra",
@@ -67,7 +67,7 @@ export const HomeView: React.FC = () => {
     <div className="space-y-16 pb-12 animate-fadeIn">
       <SEOHead
         title="Goodlucks Homes - Rentals & Real Estate in Greater Accra, Ghana"
-        description="Find rental apartments, houses and commercial property in Accra, Ghana. Listings are submitted by registered landlords and agents, reviewed before publishing, and viewings are arranged through Goodlucks Homes."
+        description="Find rental apartments, houses and commercial property in Accra, Ghana. Listings are submitted by registered agents and landlords, reviewed before publishing, and viewings are arranged through Goodlucks Homes."
         keywords="rentals Accra, homes for rent Ghana, East Legon apartments, Cantonments luxury homes, Airport Residential rental, Goodlucks Homes"
         jsonLd={homeJsonLd}
       />
@@ -88,7 +88,7 @@ export const HomeView: React.FC = () => {
           </h1>
 
           <p className="text-sm sm:text-base text-ink/70 max-w-xl mx-auto leading-relaxed">
-            Goodlucks Homes connects people looking for a home with the landlords and agents who list them. Browse the catalogue, request a viewing, and agree a time with the landlord or agent. Your tenancy agreement is completed directly with them.
+            Goodlucks Homes connects people looking for a home with the agents and landlords who list them. Browse the catalogue, request a viewing, and agree a time with the agent or landlord. Your tenancy agreement is completed directly with them.
           </p>
 
           {/* Search Control Bar */}
@@ -167,7 +167,7 @@ export const HomeView: React.FC = () => {
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-2 border-b border-line pb-4">
           <div>
             <div className="text-xs font-extrabold text-ink uppercase tracking-wider">
-              Submitted by registered landlords and agents
+              Submitted by registered agents and landlords
             </div>
             <h2 className="text-2xl sm:text-3xl font-black text-ink">
               Featured properties
@@ -230,7 +230,7 @@ export const HomeView: React.FC = () => {
               <div className="text-xs font-bold text-ink uppercase tracking-wider">Step 2</div>
               <h3 className="text-lg font-bold text-ink">Schedule Viewing</h3>
               <p className="text-xs text-ink/70 leading-relaxed">
-                Request a viewing on any listing. The request goes to the landlord or agent responsible for it, and they contact you to agree a time. Nothing is confirmed until you have both agreed.
+                Request a viewing on any listing. The request goes to the agent or landlord responsible for it, and they contact you to agree a time. Nothing is confirmed until you have both agreed.
               </p>
             </div>
 
@@ -242,7 +242,7 @@ export const HomeView: React.FC = () => {
               <div className="text-xs font-bold text-ink uppercase tracking-wider">Step 3</div>
               <h3 className="text-lg font-bold text-ink">Move In</h3>
               <p className="text-xs text-ink/70 leading-relaxed">
-                After the viewing, any viewing fee is paid as the listing states — never online. Your tenancy agreement is completed directly with the landlord or agent, outside the platform.
+                After the viewing, any viewing fee is paid as the listing states — never online. Your tenancy agreement is completed directly with the agent or landlord, outside the platform.
               </p>
             </div>
 
@@ -293,7 +293,7 @@ export const HomeView: React.FC = () => {
               <span>Viewing guidance</span>
             </div>
             <p className="text-xs text-ink/70 leading-relaxed">
-              Agree the time before you travel, meet the landlord or agent at the property, and view it before you commit to anything. A viewing fee, where one applies, is paid after the viewing — never online.
+              Agree the time before you travel, meet the agent or landlord at the property, and view it before you commit to anything. A viewing fee, where one applies, is paid after the viewing — never online.
             </p>
           </div>
 

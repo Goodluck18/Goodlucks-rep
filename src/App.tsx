@@ -5,11 +5,12 @@ import { Navbar } from './components/Navbar';
 import { Footer } from './components/Footer';
 import { MobileBottomNav } from './components/MobileBottomNav';
 import { AuthModal } from './components/AuthModal';
+import { LegalReacceptancePrompt } from './components/LegalReacceptancePrompt';
 import { ResetPasswordView } from './components/ResetPasswordView';
 import { HomeView } from './components/HomeView';
 import { NotFoundView } from './components/NotFoundView';
-import { accessDecision } from './routing/routes';
-import { UserRole } from './types';
+import { PROVIDER_CLASSIFICATION_PATH, accessDecision } from './routing/routes';
+import { AccountGroup, UserRole } from './types';
 
 // Everything below the home page is split into its own chunk: the landing view
 // stays instantly interactive while dashboards (the heaviest screens) load on
@@ -27,6 +28,15 @@ const AboutView = lazy(() => import('./components/AboutView').then((m) => ({ def
 const ContactView = lazy(() => import('./components/ContactView').then((m) => ({ default: m.ContactView })));
 const BlogView = lazy(() => import('./components/BlogView').then((m) => ({ default: m.BlogView })));
 const BlogPostView = lazy(() => import('./components/BlogPostView').then((m) => ({ default: m.BlogPostView })));
+const ProviderClassificationView = lazy(() =>
+  import('./components/ProviderClassificationView').then((m) => ({ default: m.ProviderClassificationView }))
+);
+// The two legal documents. One component for both: the page reads the latest
+// PUBLISHED version from the database, so changing the wording never needs a
+// deployment.
+const LegalPageView = lazy(() =>
+  import('./components/LegalPageView').then((m) => ({ default: m.LegalPageView }))
+);
 
 /** Lightweight placeholder shown while a lazy view chunk downloads. */
 const ViewFallback: React.FC = () => (
@@ -48,7 +58,9 @@ const AppContent: React.FC = () => {
     currentUser,
   } = useApp();
 
-  const [authInitialRole, setAuthInitialRole] = useState<'tenant' | 'landlord' | 'agent'>('tenant');
+  // The account group the visitor picked on the way in: Tenant, or the one
+  // Agent/Landlord account. Agent and Landlord are not separate sign-up types.
+  const [authInitialRole, setAuthInitialRole] = useState<AccountGroup>('tenant');
   // Where the auth modal was opened from, so closing it returns the visitor to
   // the page they were reading instead of dumping them on the home page.
   const authReturnTo = useRef<string | null>(null);
@@ -63,10 +75,7 @@ const AppContent: React.FC = () => {
    * screen can be linked, bookmarked and reloaded. The modal is still the same
    * component; it is simply driven by the route instead of local state.
    */
-  const handleOpenAuth = (
-    mode: 'login' | 'register' = 'login',
-    role: 'tenant' | 'landlord' | 'agent' = 'tenant'
-  ) => {
+  const handleOpenAuth = (mode: 'login' | 'register' = 'login', role: AccountGroup = 'tenant') => {
     setAuthInitialRole(role);
     if (!isAuthRoute) authReturnTo.current = route.path;
     navigate(mode === 'register' ? '/register' : '/login');
@@ -87,6 +96,19 @@ const AppContent: React.FC = () => {
     if (route.path !== target) navigate(target, { replace: true });
   };
 
+  /**
+   * An Agent/Landlord account that has not yet said whether it is an Agent or a
+   * Landlord is taken to that one question. It is the first step of verification,
+   * so a dashboard whose figures depend on the answer is not shown first — and
+   * nothing about the account changes apart from the page they land on.
+   */
+  useEffect(() => {
+    if (!currentUser?.classificationRequired) return;
+    if (route.name === 'agent' || route.name === 'landlord' || route.name === 'list-property') {
+      navigate(PROVIDER_CLASSIFICATION_PATH, { replace: true });
+    }
+  }, [currentUser?.classificationRequired, route.name, navigate]);
+
   /** The component for the current route (or null when a guard is redirecting). */
   const renderRoute = (): React.ReactNode => {
     switch (route.name) {
@@ -101,11 +123,16 @@ const AppContent: React.FC = () => {
       case 'list-property':
         return (
           <ListPropertyView
-            onOpenAuth={(mode, role) => handleOpenAuth(mode || 'login', role || 'landlord')}
+            onOpenAuth={(mode, role) => handleOpenAuth(mode || 'login', role || 'provider')}
           />
         );
       case 'about':
         return <AboutView />;
+      // Public, no sign-in, stable URLs, footer visible (never hidden here).
+      case 'terms-and-conditions':
+        return <LegalPageView documentType="terms" />;
+      case 'privacy-policy':
+        return <LegalPageView documentType="privacy" />;
       case 'contact':
         return <ContactView />;
       case 'blog':
@@ -126,6 +153,8 @@ const AppContent: React.FC = () => {
         return <LandlordDashboard />;
       case 'agent':
         return <AgentDashboard />;
+      case 'provider-classification':
+        return <ProviderClassificationView />;
       case 'not-found':
       default:
         return <NotFoundView path={route.path} />;
@@ -206,6 +235,11 @@ const AppContent: React.FC = () => {
 
       {/* Footer (Clean & minimal per specs) */}
       {!hideChrome && <Footer />}
+
+      {/* Only ever visible when an administrator has switched the re-acceptance
+          prompt on AND this account's acceptance is older than the published
+          Terms. Sign-in, browsing and the public pages never trigger it. */}
+      <LegalReacceptancePrompt />
 
       {/* Mobile Bottom Bar for native app feel */}
       {!hideChrome && <MobileBottomNav onOpenAuth={() => handleOpenAuth('login')} />}

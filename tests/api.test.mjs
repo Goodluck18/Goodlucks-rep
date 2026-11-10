@@ -16,7 +16,7 @@ import path from 'node:path';
 import process from 'node:process';
 
 import { startApiServer, runPhpScript } from '../scripts/php.mjs';
-import { ApiClient, createPng } from './helpers.mjs';
+import { ApiClient, approveProviderVerification, createPng } from './helpers.mjs';
 
 const projectRoot = path.resolve(import.meta.dirname, '..');
 const dataDir = path.join(projectRoot, '.data');
@@ -283,8 +283,14 @@ describe('Authentication & authorisation', () => {
     });
     assert.equal(res.status, 201);
     assert.equal(res.body.user.role, 'landlord');
+    assert.equal(res.body.user.isVerified, false, 'registering verifies nothing');
     state.landlordEmail = email;
     state.landlordId = res.body.user.id;
+
+    // This is the suite's working landlord: every later test that creates or
+    // edits a listing goes through the mandatory verification, so the fixture
+    // approves its identity here (the same records a reviewer's decision makes).
+    approveProviderVerification(email, state.testEnv);
   });
 
   test('wrong password is rejected and does not create a session', async () => {
@@ -1141,7 +1147,10 @@ describe('Agent accounts (Increment C)', () => {
       landlordId: landlord.id,
     });
     assert.equal(blocked.status, 403, JSON.stringify(blocked.body));
-    assert.match(blocked.body.error, /pending review/i);
+    // Upgrade 2 correction: the refusal names the missing verification, which is
+    // what stands between this pending agent and its first listing.
+    assert.equal(blocked.body.fields.verificationStatus, 'not_submitted');
+    assert.match(blocked.body.error, /Complete your identity verification/i);
 
     // Staff see the same pending state, and admins are the only ones who can
     // change it.
@@ -1275,6 +1284,10 @@ describe('Agent accounts (Increment C)', () => {
     });
     assert.equal(login.status, 200);
 
+    // Mandatory verification applies to landlords too: approve the identity the
+    // way a reviewer would, then the listing is allowed.
+    approveProviderVerification(landlordSignup.body.user.email, state.testEnv);
+
     const created = await client.post('/api/properties', {
       title: 'Landlord-owned listing after Increment C',
       location: 'Tema, Community 25',
@@ -1313,6 +1326,28 @@ describe('Agent accounts (Increment C)', () => {
     // Approval of an account is still not identity or licence verification.
     assert.equal(approval.body.profile.identityVerified, false);
     assert.equal(approval.body.profile.professionalAuthorisationVerified, false);
+
+    // Upgrade 2 correction: an activated account without an approved identity
+    // still cannot list. The server refuses it, with the rule spelled out.
+    const beforeVerification = await agent.clients.primary.post('/api/properties', {
+      title: 'Active but unverified agent listing attempt',
+      location: 'East Legon, Accra',
+      rentGhs: 6100,
+      description: 'An active account whose identity is not approved must still be refused.',
+      images: ['https://example.com/agent-unverified.jpg'],
+      viewingFeeGhs: 150,
+      viewingTerms: AGENT_VIEWING_TERMS,
+    });
+    assert.equal(beforeVerification.status, 403, JSON.stringify(beforeVerification.body));
+    assert.match(
+      beforeVerification.body.error,
+      /Complete your identity verification to start listing properties/i,
+      'the refusal names verification, not merely account approval'
+    );
+
+    // The identity approval is what opens listing, and the agent keeps the
+    // account it registered with.
+    approveProviderVerification(agent.users.primary.email, state.testEnv);
 
     const created = await agent.clients.primary.post('/api/properties', {
       title: 'Agent-submitted listing in East Legon',
@@ -1910,7 +1945,7 @@ describe('Identity verification & professional authorisation (Increment D)', () 
     assert.equal(stored.professional.registryChecked, false);
   });
 
-  test('a landlord can submit optional identity verification (tenants cannot)', async () => {
+  test('a landlord must submit identity verification, with an operating location (tenants cannot)', async () => {
     const email = uniqueEmail('verify-landlord');
     const password = 'Verify-Landlord-Pass-1';
     const created = runPhpScript(
@@ -1963,10 +1998,23 @@ describe('Identity verification & professional authorisation (Increment D)', () 
     assert.equal(frontOnly.status, 422);
     assert.match(String(frontOnly.body.fields.documents), /BACK of your Ghana Card/i);
 
+    // A landlord verification records where the landlord lets property: the
+    // submission is refused without it, because the classification is only
+    // meaningful with the area it operates in.
+    const withoutLocation = await client.post('/api/verification/identity', {
+      legalName: 'Kofi Verification Landlord',
+      documentType: 'ghana_card',
+      documentNumber: 'GHA-987654321-2',
+      documentIds: [d.docs.landlord, d.docs.landlordBack],
+    });
+    assert.equal(withoutLocation.status, 422, JSON.stringify(withoutLocation.body));
+    assert.match(String(withoutLocation.body.fields.operatingLocation), /area you let property/i);
+
     const submitted = await client.post('/api/verification/identity', {
       legalName: 'Kofi Verification Landlord',
       documentType: 'ghana_card',
       documentNumber: 'GHA-987654321-2',
+      operatingLocation: 'East Legon, Accra',
       documentIds: [d.docs.landlord, d.docs.landlordBack],
     });
     assert.equal(submitted.status, 201, JSON.stringify(submitted.body));
@@ -1976,6 +2024,11 @@ describe('Identity verification & professional authorisation (Increment D)', () 
     const own = await client.get('/api/verification');
     assert.equal(own.body.verification.professional, null, 'landlords have no professional track');
     assert.equal(own.body.verification.identity.establishesOwnership, false);
+    assert.equal(own.body.verification.isLandlord, true);
+    assert.equal(own.body.verification.operatingLocation, 'East Legon, Accra');
+    // Submitting is not listing: the account still cannot list until approval.
+    assert.equal(own.body.verification.listing.canList, false);
+    assert.equal(own.body.verification.listing.reason, 'identity_pending_review');
 
     // Tenants have no verification surface and need no documents.
     const tenantSignup = await visitor().post('/api/auth/register', {
@@ -2039,7 +2092,28 @@ describe('Identity verification & professional authorisation (Increment D)', () 
   });
 
   test('landlord identity approval does not verify property ownership', async () => {
-    // A property owned by this landlord, created before verification.
+    // Listing is closed until the identity is approved — proven here before the
+    // approval, so the test cannot accidentally pass on an unenforced rule.
+    const blocked = await d.landlord.client.post('/api/properties', {
+      title: 'Blocked before landlord verification',
+      location: 'Adenta, Accra',
+      rentGhs: 3000,
+      description: 'An unverified landlord must not be able to create a listing.',
+      images: ['https://images.unsplash.com/photo-1502672260266-1c1ef2d93688'],
+    });
+    assert.equal(blocked.status, 403, JSON.stringify(blocked.body));
+    // The identity was submitted in the previous test and is awaiting a reviewer,
+    // so the refusal reports that state rather than pretending nothing was filed.
+    assert.equal(blocked.body.fields.verificationStatus, 'pending_review');
+    assert.match(blocked.body.error, /identity verification/i);
+
+    const approvedIdentity = await d.admins.reviewer.client.post(
+      `/api/admin/verifications/${d.landlord.id}/identity/decision`,
+      { decision: 'approve', note: 'Landlord Ghana Card checked before the ownership test.' }
+    );
+    assert.equal(approvedIdentity.status, 200, JSON.stringify(approvedIdentity.body));
+
+    // A property owned by this landlord, created after identity approval.
     const property = await d.landlord.client.post('/api/properties', {
       title: 'Ownership stays unverified after identity approval',
       location: 'Adenta, Accra',
@@ -2054,13 +2128,6 @@ describe('Identity verification & professional authorisation (Increment D)', () 
     assert.equal(property.status, 201, JSON.stringify(property.body));
     d.landlord.propertyId = property.body.property.id;
     assert.equal(property.body.property.isLandlordVerified, false);
-
-    const approved = await d.admins.reviewer.client.post(
-      `/api/admin/verifications/${d.landlord.id}/identity/decision`,
-      { decision: 'approve', note: 'Landlord identity checked. Ownership is a separate question.' }
-    );
-    assert.equal(approved.status, 200, JSON.stringify(approved.body));
-    assert.equal(approved.body.identity.status, 'approved');
 
     const refreshed = await admin.get(`/api/properties/${d.landlord.propertyId}`);
     assert.equal(refreshed.status, 200);
@@ -3712,6 +3779,10 @@ describe('Fee policies & agent tiers (Increment E)', () => {
         manageUsers: false,
         viewUserActivity: false,
         sendBulkEmail: false,
+        // This upgrade: editing a legal draft and publishing it are two more
+        // separate powers, and both are default-deny for a new administrator.
+        manageLegal: false,
+        publishLegal: false,
       },
       'capabilities are default-deny for a new administrator'
     );
@@ -4360,6 +4431,9 @@ describe('Agent-led viewing lifecycle (Increment F)', () => {
         canSubmitListings: true,
       });
       assert.equal(approved.status, 200, JSON.stringify(approved.body));
+      // Verification is mandatory before listing, so an active fixture agent also
+      // carries the approved identity that a reviewer would have granted.
+      approveProviderVerification(email, state.testEnv);
     }
 
     f.agents[key] = account;
@@ -4380,6 +4454,8 @@ describe('Agent-led viewing lifecycle (Increment F)', () => {
     assert.equal(login.status, 200, JSON.stringify(login.body));
 
     const account = { client, id: JSON.parse(created.stdout.trim()).id, name: `F Landlord ${key}` };
+    // A fixture landlord that lists property carries an approved identity.
+    approveProviderVerification(email, state.testEnv);
     f.landlords[key] = account;
     return account;
   };
@@ -5219,14 +5295,17 @@ describe('Agent-led viewing lifecycle (Increment F)', () => {
     // Verification decisions are still separate from tier and from viewing.
     const verification = await f.agents.primary.client.get('/api/verification');
     assert.equal(verification.status, 200);
-    assert.equal(verification.body.verification.identity.status, 'not_submitted');
+    // This fixture agent lists property, which needs an approved identity.
+    assert.equal(verification.body.verification.identity.status, 'approved');
     assert.equal(verification.body.verification.agentTier.tier, 'standard');
-    // Increment E's tier rule is unchanged: a registered agent is Standard, and
-    // identity approval is surfaced as a separate status that the professional
-    // tier requires. Nothing here promotes anyone.
+    // Increment E's tier rule is unchanged: identity approval makes an agent
+    // Standard (Tier 1), and the professional authorisation remains a separate,
+    // higher tier that nothing here grants.
     assert.equal(verification.body.verification.agentTier.eligibleStandard, true);
-    assert.equal(verification.body.verification.agentTier.eligibleProfessional, false);
-    assert.equal(verification.body.verification.agentTier.identityStatus, 'not_submitted');
+    assert.equal(verification.body.verification.agentTier.eligibleProfessional, false, 'identity is not a licence');
+    assert.equal(verification.body.verification.agentTier.identityStatus, 'approved');
+    assert.equal(verification.body.verification.listing.canList, true);
+    assert.equal(verification.body.verification.listing.verifiedLabel, 'Verified Agent Tier 1');
   });
 });
 

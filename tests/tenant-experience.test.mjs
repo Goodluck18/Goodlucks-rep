@@ -17,7 +17,7 @@ import path from 'node:path';
 import process from 'node:process';
 
 import { startApiServer, runPhpScript } from '../scripts/php.mjs';
-import { ApiClient } from './helpers.mjs';
+import { ApiClient, approveProviderVerification } from './helpers.mjs';
 
 const projectRoot = path.resolve(import.meta.dirname, '..');
 const dataDir = path.join(projectRoot, '.data');
@@ -167,12 +167,18 @@ before(async () => {
     canSubmitListings: true,
   });
   assert.equal(activated.status, 200, JSON.stringify(activated.body));
+  // Verification is mandatory before listing, for this fixture agent too.
+  approveProviderVerification(AGENT_EMAIL, env);
 
   const agentLogin = await state.agent.post('/api/auth/login', {
     email: AGENT_EMAIL,
     password: 'Phase5-Agent-Password-1',
   });
   assert.equal(agentLogin.status, 200, JSON.stringify(agentLogin.body));
+
+  // The landlord listings below require an approved identity (mandatory
+  // verification), so the fixture account is verified first.
+  approveProviderVerification(LANDLORD_EMAIL, env);
 
   // Four real listings, so the scorer has something to rank honestly.
   state.properties.perfect = await createListing(state.landlord, {

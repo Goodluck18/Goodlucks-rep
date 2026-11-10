@@ -26,7 +26,7 @@ import path from 'node:path';
 import process from 'node:process';
 
 import { startApiServer, runPhpScript } from '../scripts/php.mjs';
-import { ApiClient } from './helpers.mjs';
+import { ApiClient, approveProviderVerification } from './helpers.mjs';
 
 const projectRoot = path.resolve(import.meta.dirname, '..');
 const dataDir = path.join(projectRoot, '.data');
@@ -115,12 +115,14 @@ before(async () => {
   created.agent = agent.client;
   created.agentId = agent.res.body.user.id;
 
-  // An agent may only list once staff have approved the account (Increment F).
+  // An agent may only list once staff have approved the account (Increment F)
+  // AND its identity verification has been approved (Upgrade 2 correction).
   const approvedAgent = await admin.post(`/api/admin/agents/${created.agentId}/status`, {
     accountStatus: 'active',
     canSubmitListings: true,
   });
   assert.equal(approvedAgent.status, 200, JSON.stringify(approvedAgent.body));
+  approveProviderVerification(agent.res.body.user.email, env);
 
   const tenant = await register({
     name: 'Phase 6 Tenant',
@@ -155,6 +157,8 @@ before(async () => {
   assert.equal(landlord.res.status, 201, JSON.stringify(landlord.res.body));
   created.landlord = landlord.client;
   created.landlordId = landlord.res.body.user.id;
+  // Verification is mandatory before listing, for a landlord as much as an agent.
+  approveProviderVerification(landlord.res.body.user.email, env);
 });
 
 after(() => {

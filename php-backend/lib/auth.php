@@ -249,6 +249,43 @@ function is_primary_admin(?array $user = null): bool
         && (int)($user['is_primary_admin'] ?? 0) === 1;
 }
 
+/**
+ * The provider classification of an account (Upgrade 2 correction).
+ *
+ * The website offers two account groups: Tenant, and one Agent/Landlord account.
+ * A provider chooses Agent or Landlord during verification; that choice is stored
+ * in `users.provider_category`.
+ *
+ * Returns 'pending' (registered, not chosen yet), 'agent', 'landlord', or null
+ * for an account that is not a provider at all.
+ *
+ * Accounts created before the column existed have no stored value. They are
+ * classified by their role — the choice they made at registration — so nothing
+ * is asked of them retroactively and no row needs rewriting.
+ */
+function provider_category_state(?array $user = null): ?string
+{
+    $user = $user ?? auth_user();
+    if ($user === null) {
+        return null;
+    }
+    $role = (string)($user['role'] ?? '');
+    if ($role !== 'agent' && $role !== 'landlord') {
+        return null;
+    }
+    $stored = strtolower(trim((string)($user['provider_category'] ?? '')));
+    if ($stored === 'pending' || $stored === 'agent' || $stored === 'landlord') {
+        return $stored;
+    }
+    return $role;
+}
+
+/** True while an Agent/Landlord account has not chosen Agent or Landlord yet. */
+function provider_classification_required(?array $user = null): bool
+{
+    return provider_category_state($user) === 'pending';
+}
+
 /** Ownership check used for landlord property access. */
 function can_manage_property(array $user, array $property): bool
 {
@@ -296,6 +333,34 @@ function public_user(array $row): array
         'createdAt'          => to_iso($row['created_at'] ?? null),
     ];
 
+    // This upgrade: the formal account state. It is reported for every account
+    // (a tenant is always 'active'), and the suspension record itself is included
+    // only for an account that has one — imposed, lifted, or both.
+    $suspension = user_suspension_state($row);
+    $user['accountStatus'] = $suspension['status'];
+    if ($suspension['suspended'] || $suspension['suspendedAt'] !== '' || $suspension['reinstatedAt'] !== '') {
+        $user['suspension'] = $suspension;
+    }
+
+    // Upgrade 2 correction: an Agent/Landlord account exposes its classification
+    // so the client can ask for the choice once, and never again after that.
+    $providerCategory = provider_category_state($row);
+    if ($providerCategory !== null) {
+        $user['providerCategory'] = $providerCategory;
+        $user['classificationRequired'] = $providerCategory === 'pending';
+
+        // Verification is mandatory before listing, so the client is told the
+        // answer instead of inferring it. The value is derived on the server from
+        // the stored records; it is not a client-side flag.
+        if (function_exists('provider_listing_state')) {
+            $listing = provider_listing_state($row);
+            $user['canListProperties'] = $listing['canList'];
+            $user['listingBlockedReason'] = $listing['reason'];
+            $user['identityVerificationStatus'] = $listing['identityStatus'];
+            $user['verifiedLabel'] = $listing['verifiedLabel'];
+        }
+    }
+
     // Increment C: an agent account carries its own profile (agency, operating
     // base, review status). Only ever the signed-in agent's own record.
     if ((string)($row['role'] ?? '') === 'agent') {
@@ -321,10 +386,14 @@ function public_user(array $row): array
         // Upgrade 2 Phase 3 adds the directory, activity and bulk-email
         // capabilities. Like the others they default to false, are granted only
         // from the server console, and every endpoint re-checks them.
+        // Legal Pages adds two more, also default deny: editing a draft and
+        // publishing it are separate powers, because writing a policy is not
+        // the authority to make it the public policy.
         $user['capabilities'] = verification_capabilities($row)
             + finance_capabilities($row)
             + viewing_capabilities($row)
             + directory_capabilities($row)
+            + legal_capabilities($row)
             + ['sendBulkEmail' => can_send_bulk_email($row)];
     }
 

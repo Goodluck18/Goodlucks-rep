@@ -112,7 +112,7 @@ function dispatch_price_drop_alerts(array $propertyRow, float $oldRent, float $n
             . '<span style="color:#08D9D6;font-size:18px;font-weight:bold;">Now ' . e(alert_money($newRent)) . '/month</span>'
             . ($target !== null ? '<br><span style="color:#38BDF8;font-size:13px;">Your target: below ' . e(alert_money($target)) . '</span>' : '')
             . '</div>'
-            . '<p style="color:#CBD5E1;font-size:14px;">Request a viewing through Goodlucks Homes and the landlord or agent '
+            . '<p style="color:#CBD5E1;font-size:14px;">Request a viewing through Goodlucks Homes and the agent or landlord '
             . 'will contact you to agree a time. Any viewing fee is this property\'s own fee, shown on its listing, and is never paid online.</p>'
             . '<p style="color:#94A3B8;font-size:12px;">Open the listing: ' . e(SITE_URL) . '/property/' . rawurlencode((string)$propertyId) . '</p>';
 
@@ -139,7 +139,9 @@ function dispatch_price_drop_alerts(array $propertyRow, float $oldRent, float $n
 function dispatch_search_alert_matches(array $propertyRow): int
 {
     $propertyId = (string)($propertyRow['id'] ?? '');
-    if ($propertyId === '' || ($propertyRow['status'] ?? '') !== 'active') {
+    // Availability is part of "is this public": alerts are only sent for a
+    // listing that is inside its seven-day confirmation period.
+    if ($propertyId === '' || ($propertyRow['status'] ?? '') !== 'active' || !property_is_publicly_visible($propertyRow)) {
         return 0;
     }
 
@@ -195,7 +197,7 @@ function dispatch_search_alert_matches(array $propertyRow): int
             . '<span style="color:#08D9D6;font-size:16px;font-weight:bold;">' . e(alert_money($rent)) . '/month</span><br>'
             . '<span style="color:#94A3B8;font-size:13px;">' . $bedrooms . ' bedrooms &bull; ' . (int)($propertyRow['bathrooms'] ?? 0) . ' bathrooms</span>'
             . '</div>'
-            . '<p style="color:#CBD5E1;font-size:14px;">Reply to this email or call +233 23 769 0080 and our team will help you arrange the viewing with the landlord or agent.</p>'
+            . '<p style="color:#CBD5E1;font-size:14px;">Reply to this email or call +233 23 769 0080 and our team will help you arrange the viewing with the agent or landlord.</p>'
             . '<p style="color:#94A3B8;font-size:12px;">View it: ' . e(SITE_URL) . '/property/' . rawurlencode((string)$propertyId) . '</p>';
 
         send_email(
@@ -223,7 +225,10 @@ function dispatch_search_alert_matches(array $propertyRow): int
 function run_search_alert_digest(): array
 {
     $properties = db_all(
-        "SELECT * FROM properties WHERE status = 'active' ORDER BY created_at DESC" . db_limit_clause(200, 0)
+        "SELECT * FROM properties WHERE status = 'active'"
+        . " AND availability_due_at IS NOT NULL AND availability_due_at > :now"
+        . ' ORDER BY created_at DESC' . db_limit_clause(200, 0),
+        [':now' => db_now()]
     );
 
     $emails = 0;

@@ -13,6 +13,7 @@ import {
   X,
 } from 'lucide-react';
 import { api, messageForError } from '../services/apiService';
+import { useApp } from '../context/AppContext';
 import {
   DOCUMENT_ACCEPT,
   DOCUMENT_MAX_BYTES,
@@ -76,10 +77,12 @@ const StatusPill: React.FC<{ status: string; map: Record<string, { label: string
 /**
  * Verification panel (Increment D).
  *
- * Used by agents (identity + professional authorisation) and by landlords
- * (optional identity only — tenants never see this). It states plainly what the
- * platform has and has not checked: no registry lookups, no licence implied by a
- * document, and an approved identity never means property ownership.
+ * Verification is MANDATORY for every Agent/Landlord account: an approved Ghana
+ * Card identity is what opens property listing. The panel therefore runs in
+ * steps — classification, identity, and (agents only) the optional Tier 2
+ * professional upgrade — and states what the platform has and has not checked: no
+ * registry lookups, no licence implied by a document, and no property inspection
+ * implied by an approved identity.
  */
 type DocSlotStatus = 'ready' | 'uploading' | 'uploaded' | 'failed';
 
@@ -238,6 +241,12 @@ export const VerificationPanel: React.FC<{ scope: 'agent' | 'landlord'; classNam
   scope,
   className = '',
 }) => {
+  const { chooseProviderCategory } = useApp();
+  // The one-time Agent / Landlord choice. It is normally made on its own page
+  // before the dashboard opens; this card is the same question for the account
+  // that reaches the panel some other way.
+  const [classificationChoice, setClassificationChoice] = useState<'agent' | 'landlord' | null>(null);
+  const [savingClassification, setSavingClassification] = useState(false);
   const [summary, setSummary] = useState<VerificationSummary | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -247,6 +256,9 @@ export const VerificationPanel: React.FC<{ scope: 'agent' | 'landlord'; classNam
 
   // Identity form state
   const [legalName, setLegalName] = useState('');
+  // A landlord's verification includes the location they let property in; it is
+  // prefilled from the account and kept if they correct it here.
+  const [operatingLocation, setOperatingLocation] = useState('');
   const [documentType, setDocumentType] = useState('ghana_card');
   const [documentNumber, setDocumentNumber] = useState('');
   /**
@@ -282,6 +294,7 @@ export const VerificationPanel: React.FC<{ scope: 'agent' | 'landlord'; classNam
       const result = await api.getVerification();
       setSummary(result.verification);
       setLegalName(result.verification.identity.legalName || '');
+      setOperatingLocation(result.verification.operatingLocation || '');
       setDocumentType(result.verification.identity.documentType || 'ghana_card');
       if (result.verification.professional) {
         setIssuingAuthority(result.verification.professional.issuingAuthority || '');
@@ -495,11 +508,12 @@ export const VerificationPanel: React.FC<{ scope: 'agent' | 'landlord'; classNam
         documentType,
         documentNumber: documentNumber.trim(),
         documentIds: ids,
+        operatingLocation: summary?.isLandlord ? operatingLocation.trim() : undefined,
       });
       setDocumentNumber('');
       clearAllIdentitySlots();
       await load();
-      setNotice('Identity submitted for review. A reviewer will check it — this does not grant any permission.');
+      setNotice('Identity submitted for review. Listing properties opens when a reviewer approves it.');
     } catch (err) {
       // The selections stay exactly as they were, so the member can fix the
       // problem and press submit again without choosing the files a second time.
@@ -597,10 +611,108 @@ export const VerificationPanel: React.FC<{ scope: 'agent' | 'landlord'; classNam
         </div>
       )}
 
+      {/* Verification is mandatory before listing. This states the position, the
+          steps and what happens next — no explanation of what is optional, because
+          nothing here is. */}
+      <div
+        className={`rounded-2xl border p-5 space-y-3 ${
+          summary.listing?.canList ? 'bg-interactive/10 border-interactive/40' : 'bg-amber-500/10 border-amber-500/30'
+        }`}
+      >
+        <h2 className="text-sm font-bold text-ink flex items-center gap-2">
+          {summary.listing?.canList ? (
+            <BadgeCheck className="w-4 h-4 text-ink" />
+          ) : (
+            <AlertTriangle className="w-4 h-4 text-amber-700" />
+          )}
+          {summary.listing?.canList
+            ? summary.listing.verifiedLabel || 'Verified'
+            : 'Verification is required before you can list properties'}
+        </h2>
+        <p className="text-[11px] text-ink/80 leading-relaxed">
+          {summary.listing?.canList
+            ? 'Your identity is approved, so this account can submit properties for review.'
+            : summary.listing?.message || 'Complete your identity verification to start listing properties on Goodlucks Homes.'}
+        </p>
+        {!summary.listing?.canList && (
+          <ol className="text-[11px] text-ink/70 space-y-1 list-decimal list-inside">
+            <li>
+              {summary.classificationRequired
+                ? 'Choose whether you are an Agent or a Landlord.'
+                : `Classification: ${summary.classification === 'landlord' ? 'Landlord' : 'Agent'}.`}
+            </li>
+            <li>Submit your Ghana Card details and photos{summary.isLandlord ? ', your official name and where you let property' : ''}.</li>
+            <li>Goodlucks staff review it. Listing opens when it is approved.</li>
+          </ol>
+        )}
+        {scope === 'agent' && summary.agentTier && (
+          <p className="text-[11px] text-ink/70">
+            Agent tier now: <strong className="text-ink">{summary.agentTier.commissionTierLabel}</strong>
+            {summary.agentTier.commissionEligible
+              ? ` — ${summary.agentTier.commissionPercent}% of an agreed commission.`
+              : ' — commission share starts once your identity is approved.'}
+          </p>
+        )}
+      </div>
+
+      {summary.classificationRequired && (
+        <div className="bg-surface border border-interactive/40 rounded-2xl p-5 space-y-3">
+          <h2 className="text-sm font-bold text-ink flex items-center gap-2">
+            <BadgeCheck className="w-4 h-4 text-ink" /> Step 1 — Choose Agent or Landlord
+          </h2>
+          <p className="text-[11px] text-ink/70 leading-relaxed">
+            This decides what your verification has to show and how your account is verified. It is the same account —
+            not a second registration or sign-in.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => setClassificationChoice('agent')}
+              aria-pressed={classificationChoice === 'agent'}
+              className={`text-left rounded-2xl border p-3 transition-colors ${
+                classificationChoice === 'agent' ? 'border-interactive bg-interactive/10' : 'border-line bg-surface'
+              }`}
+            >
+              <span className="block text-[11px] font-bold text-ink">Agent</span>
+              <span className="block text-[10px] text-ink/70">You list property for other people, with or without an agency.</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setClassificationChoice('landlord')}
+              aria-pressed={classificationChoice === 'landlord'}
+              className={`text-left rounded-2xl border p-3 transition-colors ${
+                classificationChoice === 'landlord' ? 'border-interactive bg-interactive/10' : 'border-line bg-surface'
+              }`}
+            >
+              <span className="block text-[11px] font-bold text-ink">Landlord</span>
+              <span className="block text-[10px] text-ink/70">You list property you own or manage yourself.</span>
+            </button>
+          </div>
+          <button
+            type="button"
+            disabled={!classificationChoice || savingClassification}
+            onClick={async () => {
+              if (!classificationChoice) return;
+              setSavingClassification(true);
+              setError(null);
+              const result = await chooseProviderCategory(classificationChoice);
+              setSavingClassification(false);
+              if (!result.ok) setError(result.error || 'We could not save your choice. Please try again.');
+            }}
+            className="gl-btn gl-btn-primary text-xs disabled:opacity-50"
+          >
+            {savingClassification ? 'Saving…' : 'Save my classification'}
+          </button>
+          <p className="text-[10px] text-ink/70">
+            This is set once. If it is wrong afterwards, Goodlucks staff correct it — you never need a second account.
+          </p>
+        </div>
+      )}
+
       {scope === 'agent' && summary.agentTier && (
         <div className="bg-surface border border-line rounded-2xl p-5 space-y-3">
           <h2 className="text-sm font-bold text-ink flex items-center gap-2">
-            <BadgeCheck className="w-4 h-4 text-ink" /> Your commission tier
+            <BadgeCheck className="w-4 h-4 text-ink" /> Your agent tier
           </h2>
 
           {/* Task 03: the two tiers and the exact percentage each one earns.
@@ -615,7 +727,7 @@ export const VerificationPanel: React.FC<{ scope: 'agent' | 'landlord'; classNam
               }`}
             >
               <p className="text-[11px] font-bold text-ink">
-                Tier A — Basic · {summary.agentTier.basicTierPercent ?? 60}% of an agreed commission
+                Agent Tier 1 · {summary.agentTier.basicTierPercent ?? 60}% of an agreed commission
               </p>
               <p className="text-[10px] text-ink/70">
                 Requires {summary.agentTier.basicTierRequires ?? 'an approved Ghana Card identity verification'}.
@@ -632,7 +744,7 @@ export const VerificationPanel: React.FC<{ scope: 'agent' | 'landlord'; classNam
               }`}
             >
               <p className="text-[11px] font-bold text-ink">
-                Higher tier · {summary.agentTier.higherTierPercent ?? 70}% of an agreed commission
+                Agent Tier 2 · {summary.agentTier.higherTierPercent ?? 70}% of an agreed commission
               </p>
               <p className="text-[10px] text-ink/70">
                 Requires {summary.agentTier.higherTierRequires ?? 'an approved identity AND an approved professional authorisation'}.
@@ -683,12 +795,11 @@ export const VerificationPanel: React.FC<{ scope: 'agent' | 'landlord'; classNam
           <div>
             <h2 className="text-sm font-bold text-ink flex items-center gap-2">
               <BadgeCheck className="w-4 h-4 text-ink" />
-              Identity verification
+              Step 2 — Identity verification (Ghana Card)
             </h2>
             <p className="text-[11px] text-ink/70 mt-1 max-w-xl">
-              {scope === 'agent'
-                ? 'A check that you are the person on the document. It is not a licence, and it says nothing about any property.'
-                : 'Optional for landlords. Identity is not proof that you own or may let any particular property.'}
+              Required for every Agent/Landlord account. Upload both sides of your Ghana Card and the number printed on
+              it; listing properties opens once staff approve it.
             </p>
           </div>
           <StatusPill status={identity.status} map={IDENTITY_STATUS_COPY} />
@@ -724,22 +835,14 @@ export const VerificationPanel: React.FC<{ scope: 'agent' | 'landlord'; classNam
           </dl>
         )}
 
-        {/* Task 05: this used to describe the server's key configuration to the
-            customer. What a member needs to know is who can see their documents
-            and for how long — and every sentence here is one the implementation
-            actually supports (private storage, capability-gated access with an
-            audit row, and the retention job). */}
+        {/* Short and true: private storage, restricted access, a retention limit,
+            and the one thing an approved identity does NOT mean. */}
         <div className="text-[10px] text-ink/70 leading-snug flex items-start gap-1.5">
           <ShieldAlert className="w-3.5 h-3.5 mt-0.5 shrink-0 text-amber-700" />
           <span>
-            Your documents are used only to check your identity and to administer your account. They are stored
-            privately and are never shown on your public profile or on a listing. Only you and authorised reviewers can
-            open them, and every time a document is opened it is recorded.
-            {summary.encryptionActive
-              ? ' The identity number you enter is held encrypted, and a reviewer can only reveal it for a review.'
-              : ' The full identity number you enter is not retained; a reviewer works from the uploaded document.'}{' '}
-            Documents are kept for {summary.retentionDays} days after a decision and are then deleted by the retention
-            job.
+            Your documents are stored privately, are never shown on your public profile or on a listing, and are
+            opened only by authorised reviewers (each opening is recorded). They are deleted{' '}
+            {summary.retentionDays} days after a decision. An approved identity confirms who you are — it is not an inspection of any property you list.
           </span>
         </div>
 
@@ -781,17 +884,35 @@ export const VerificationPanel: React.FC<{ scope: 'agent' | 'landlord'; classNam
           <form onSubmit={submitIdentity} className="space-y-3 border-t border-line pt-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <label className="block text-[11px] font-semibold text-ink/70">
-                Full legal name
+                Full official name
                 <input
                   type="text"
                   required
                   value={legalName}
                   onChange={(event) => setLegalName(event.target.value)}
-                  placeholder="As printed on the document"
+                  placeholder="As printed on your Ghana Card"
                   className="mt-1 w-full bg-page border border-line rounded-xl px-3 py-2 text-xs text-ink placeholder-ink/50 focus:outline-none focus:border-interactive"
                 />
                 {fieldErrors.legalName && <span className="text-[10px] text-ink">{fieldErrors.legalName}</span>}
               </label>
+
+              {/* A Landlord's verification also records where they let property. */}
+              {summary.isLandlord && (
+                <label className="block text-[11px] font-semibold text-ink/70">
+                  Operating location
+                  <input
+                    type="text"
+                    required
+                    value={operatingLocation}
+                    onChange={(event) => setOperatingLocation(event.target.value)}
+                    placeholder="City or area, e.g. East Legon, Accra"
+                    className="mt-1 w-full bg-page border border-line rounded-xl px-3 py-2 text-xs text-ink placeholder-ink/50 focus:outline-none focus:border-interactive"
+                  />
+                  {fieldErrors.operatingLocation && (
+                    <span className="text-[10px] text-ink">{fieldErrors.operatingLocation}</span>
+                  )}
+                </label>
+              )}
 
               <label className="block text-[11px] font-semibold text-ink/70">
                 Document type
@@ -913,11 +1034,12 @@ export const VerificationPanel: React.FC<{ scope: 'agent' | 'landlord'; classNam
             <div>
               <h2 className="text-sm font-bold text-ink flex items-center gap-2">
                 <FileText className="w-4 h-4 text-ink" />
-                Professional authorisation
+                Step 3 — Agent Tier 2 (professional authorisation)
               </h2>
               <p className="text-[11px] text-ink/70 mt-1 max-w-xl">
-                Separate from identity. Submitting a number does not make you licensed: Goodlucks does not check any
-                regulator's register, and a reviewer decides from the documents you provide.
+                An upgrade for an agent who has already been verified. Submit your licence or regulatory authorisation
+                with the document; staff review it, and approval moves the account to Agent Tier 2 and its higher
+                commission share. Uploading a document changes nothing by itself.
               </p>
             </div>
             <StatusPill status={professional.status} map={PROFESSIONAL_STATUS_COPY} />

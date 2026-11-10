@@ -5,10 +5,11 @@ import { Avatar, SectionHeader, type DashboardRole } from './DashboardShell';
 
 const MAX_AVATAR_BYTES = 2 * 1024 * 1024;
 const AVATAR_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+// Agents and Landlords share one account type, so the label names it whole.
 const ROLE_LABEL: Record<DashboardRole, string> = {
   tenant: 'Tenant',
-  landlord: 'Landlord',
-  agent: 'Agent',
+  landlord: 'Agent/Landlord',
+  agent: 'Agent/Landlord',
 };
 
 type PasswordField = 'currentPassword' | 'newPassword' | 'confirmPassword';

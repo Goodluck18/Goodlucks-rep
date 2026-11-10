@@ -101,7 +101,7 @@ export const PropertyDetailView: React.FC = () => {
           </div>
           <h1 className="text-xl font-black text-ink">This property is no longer available</h1>
           <p className="text-xs text-ink/70 leading-relaxed">
-            The listing you are looking for may have been rented or removed by the landlord.
+            The listing you are looking for may have been rented or removed by the agent or landlord.
             Browse our current available rentals, or ask us to find a similar home for you.
           </p>
           <div className="flex flex-col sm:flex-row gap-2 justify-center pt-2">
@@ -223,7 +223,7 @@ export const PropertyDetailView: React.FC = () => {
       />
       
       {/* Top Header Navigation */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-4 flex items-center justify-between">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-3 sm:pt-6 pb-2 sm:pb-4 flex items-center justify-between">
         <button
           onClick={() => setCurrentView('browse')}
           className="gl-btn gl-btn-secondary text-sm"
@@ -232,17 +232,10 @@ export const PropertyDetailView: React.FC = () => {
           Back to Properties
         </button>
 
+        {/* Sharing deliberately no longer sits here: it has its own clearly
+            labelled button below the gallery, where a visitor has just seen the
+            property. The top bar keeps Back and Save only. */}
         <div className="flex items-center gap-2">
-          <button
-            onClick={handleShare}
-            className="p-2.5 rounded-xl bg-page hover:bg-page text-ink/70 hover:text-ink transition-colors text-sm flex items-center gap-1.5"
-            title="Share this property"
-            aria-haspopup="dialog"
-          >
-            <Share2 className="w-4 h-4 text-ink" />
-            <span className="hidden sm:inline text-xs font-semibold">Share</span>
-          </button>
-
           <button
             onClick={() => toggleSaveProperty(property.id)}
             className={`p-2.5 rounded-xl transition-all ${
@@ -255,47 +248,47 @@ export const PropertyDetailView: React.FC = () => {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-5 sm:space-y-8">
         
         {/* Title & Price Bar */}
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 pb-4 border-b border-line">
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-2 sm:gap-4 pb-3 sm:pb-4 border-b border-line">
           <div className="space-y-1">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="px-3 py-1 rounded-full text-xs font-bold uppercase bg-interactive text-ink">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] lg:text-xs font-bold uppercase bg-interactive text-ink">
                 {property.propertyType}
               </span>
-              <span className="px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/20 text-emerald-700 border border-emerald-500/30">
+              <span className="px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] lg:text-xs font-semibold bg-emerald-500/20 text-emerald-700 border border-emerald-500/30">
                 {property.availability}
               </span>
               {property.featured && (
-                <span className="px-3 py-1 rounded-full text-xs font-bold bg-amber-500/20 text-amber-700 border border-amber-500/30 flex items-center gap-1">
+                <span className="px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] lg:text-xs font-bold bg-amber-500/20 text-amber-700 border border-amber-500/30 flex items-center gap-1">
                   <Sparkles className="w-3 h-3" /> Featured listing
                 </span>
               )}
             </div>
 
-            <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-ink tracking-tight break-words">
+            <h1 className="text-[20px] sm:text-[22px] md:text-[23px] lg:text-[30px] font-extrabold text-ink tracking-tight break-words">
               {property.title}
             </h1>
 
-            <div className="flex items-center gap-1.5 text-ink/70 text-sm font-medium">
-              <MapPin className="w-4 h-4 text-ink" />
+            <div className="flex items-center gap-1.5 text-ink/70 text-[12px] sm:text-[13px] lg:text-sm font-medium">
+              <MapPin className="w-3.5 h-3.5 md:w-4 md:h-4 text-ink" />
               <span>{property.location}</span>
             </div>
           </div>
 
-          <div className="flex flex-col items-start md:items-end gap-2.5 shrink-0">
-            <div className="gl-card p-4 flex items-baseline gap-2">
-              <span className="text-3xl font-extrabold text-accent-text">
+          <div className="flex flex-col items-start md:items-end gap-1.5 sm:gap-2.5 shrink-0">
+            <div className="gl-card p-2 sm:p-3 md:p-4 flex items-baseline gap-1.5 sm:gap-2">
+              <span className="text-[23px] sm:text-[25px] md:text-[25px] lg:text-[29px] font-extrabold text-accent-text leading-tight">
                 GH₵ {property.rentGhs.toLocaleString()}
               </span>
-              <span className="text-sm font-medium text-ink/70">/ month</span>
+              <span className="text-xs sm:text-sm font-medium text-ink/70 whitespace-nowrap">/ month</span>
             </div>
 
             <button
               id="notify-price-drop-btn-header"
               onClick={() => setShowPriceDropModal(true)}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-page hover:bg-page border border-line hover:border-interactive/40 text-ink hover:text-ink transition-all text-xs font-semibold cursor-pointer shadow-sm active:scale-95"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-page hover:bg-page border border-line hover:border-interactive/40 text-ink hover:text-ink transition-all text-xs font-semibold cursor-pointer shadow-sm active:scale-95"
               title="Get email alerts if this property's rent drops"
             >
               <Bell className="w-3.5 h-3.5 text-ink" />
@@ -335,6 +328,24 @@ export const PropertyDetailView: React.FC = () => {
               ))}
             </div>
           )}
+        </div>
+
+        {/* Share this property — directly below the gallery and its thumbnails.
+            Full width on a phone (easy to tap), sized to its label on a larger
+            screen. It opens the same share dialog as before: nothing about the
+            sharing workflow changed, only where it is offered. */}
+        <div className="pt-1">
+          <button
+            type="button"
+            onClick={handleShare}
+            title="Share this property"
+            aria-haspopup="dialog"
+            data-testid="share-property-button"
+            className="gl-btn gl-btn-secondary w-full sm:w-auto justify-center text-sm font-semibold"
+          >
+            <Share2 className="w-4 h-4" />
+            Share this property
+          </button>
         </div>
 
         {/* Main 2-Column Content Layout */}
@@ -512,17 +523,17 @@ export const PropertyDetailView: React.FC = () => {
             )}
 
             {/* Map Placeholder */}
-            <div className="space-y-3 bg-surface/40 p-6 rounded-2xl border border-line">
-              <div className="flex items-center justify-between">
-                <h2 className="text-xl font-bold text-ink">Location Map</h2>
-                <span className="text-xs text-ink/70 flex items-center gap-1">
-                  <Map className="w-4 h-4 text-ink" /> {property.location}
+            <div className="space-y-1 bg-surface/40 p-2 sm:p-4 rounded-2xl border border-line">
+              <div className="flex items-center justify-between gap-2">
+                <h2 className="text-base sm:text-lg font-bold text-ink">Location Map</h2>
+                <span className="text-[11px] sm:text-xs text-ink/70 flex items-center gap-1 min-w-0">
+                  <Map className="w-3.5 h-3.5 shrink-0 text-ink" /> <span className="truncate">{property.location}</span>
                 </span>
               </div>
-              <div className="h-48 rounded-xl bg-surface border border-line flex flex-col items-center justify-center text-center p-4 space-y-2">
-                <Compass className="w-10 h-10 text-ink" />
-                <div className="text-sm font-semibold text-ink">Interactive Location Map Preview</div>
-                <div className="text-xs text-ink/70 max-w-sm">
+              <div className="h-[72px] sm:h-20 rounded-xl bg-surface border border-line flex flex-col items-center justify-center text-center p-1 space-y-0.5">
+                <Compass className="w-5 h-5 text-ink shrink-0" />
+                <div className="text-[11px] sm:text-xs font-semibold text-ink">Interactive Location Map Preview</div>
+                <div className="text-[10px] leading-tight text-ink/70 max-w-sm">
                   {property.location} - Exact street address provided upon scheduling a viewing with Goodlucks Homes.
                 </div>
               </div>
@@ -546,7 +557,7 @@ export const PropertyDetailView: React.FC = () => {
                   Arrange Your Viewing Through Goodlucks
                 </h3>
                 <p className="text-xs text-ink/70 leading-relaxed">
-                  Goodlucks Homes facilitates property enquiries and viewing coordination between tenants, landlords and authorised agents. Any tenancy agreement is arranged directly between the tenant and landlord, outside the platform.
+                  Goodlucks Homes facilitates property enquiries and viewing coordination between tenants, authorised agents and landlords. Any tenancy agreement is arranged directly between the tenant and landlord, outside the platform.
                 </p>
               </div>
 
@@ -634,7 +645,7 @@ export const PropertyDetailView: React.FC = () => {
                 <div className="flex items-start gap-2">
                   <span className="w-1.5 h-1.5 rounded-full bg-interactive mt-1.5" />
                   <span>
-                    Confirm the time with the landlord or agent before you travel, meet them at the property, view it
+                    Confirm the time with the agent or landlord before you travel, meet them at the property, view it
                     before you commit, and pay any viewing fee as the terms above state — never online.
                   </span>
                 </div>

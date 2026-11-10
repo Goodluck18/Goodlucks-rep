@@ -1217,7 +1217,8 @@ test('the homepage never claims Goodlucks inspects, owns or manages the properti
   }
 
   // …and it says what the platform actually is.
-  assert.match(text, /landlords and agents/i);
+  // Correction: Agent comes first wherever the two are named together.
+  assert.match(text, /agents and landlords/i);
   assert.match(text, /request a viewing on any listing/i);
   assert.match(text, /not an ownership check/i);
   await app.unmount();
@@ -1258,7 +1259,7 @@ test('the viewing request explains this property\'s own fee and terms', async ()
   const app = await renderAt('/property/prop-landlord', null, { properties: [LANDLORD_LISTING] });
 
   assert.match(app.text(), /arrange your viewing through goodlucks/i);
-  assert.match(app.text(), /confirm the time with the landlord or agent/i);
+  assert.match(app.text(), /confirm the time with the agent or landlord/i);
 
   await app.click('Request Viewing Now');
   const modal = app.text();

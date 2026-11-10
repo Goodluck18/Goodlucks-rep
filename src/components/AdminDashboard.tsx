@@ -9,6 +9,8 @@ import { AdminAgentAccounts } from './AdminAgentAccounts';
 import { AdminManageListings } from './AdminManageListings';
 import { AdminEnquiries } from './AdminEnquiries';
 import { AdminUserManagement } from './AdminUserManagement';
+import { AdminPropertyAvailability } from './AdminPropertyAvailability';
+import { AdminLegalPages } from './AdminLegalPages';
 import { AdminBulkEmail } from './AdminBulkEmail';
 import { AdminActivityFeed } from './AdminActivityFeed';
 import { AdminFeePolicies } from './AdminFeePolicies';
@@ -40,6 +42,7 @@ import {
   Settings, 
   UserCheck, 
   Clock, 
+  Clock3,
   AlertCircle,
   Phone,
   MapPin,
@@ -128,7 +131,11 @@ export const AdminDashboard: React.FC = () => {
     // Upgrade 2 Phase 3: the user directory and bulk email are their own
     // console sections, reachable at /admin/users and /admin/bulk-email.
     | 'users'
-    | 'bulk-email';
+    | 'bulk-email'
+    // This upgrade: the seven-day availability console.
+    | 'availability'
+    // This upgrade: the Terms & Conditions / Privacy Policy editor and history.
+    | 'legal';
   const setActiveAdminTab = setSectionTab;
 
   // Real data export: CSV of the listings currently loaded from the API.
@@ -565,6 +572,20 @@ export const AdminDashboard: React.FC = () => {
             className={`gl-tab ${activeAdminTab === 'users' ? 'gl-tab-active' : ''}`}
           >
             <Users className="w-4 h-4" /> User Management
+          </button>
+
+          <button
+            onClick={() => setActiveAdminTab('availability')}
+            className={`gl-tab ${activeAdminTab === 'availability' ? 'gl-tab-active' : ''}`}
+          >
+            <Clock3 className="w-4 h-4" /> Property Availability
+          </button>
+
+          <button
+            onClick={() => setActiveAdminTab('legal')}
+            className={`gl-tab ${activeAdminTab === 'legal' ? 'gl-tab-active' : ''}`}
+          >
+            <FileText className="w-4 h-4" /> Legal Pages
           </button>
 
           <button
@@ -1076,6 +1097,16 @@ export const AdminDashboard: React.FC = () => {
         {/* TAB: User Management (Upgrade 2, A11 + A13) */}
         {activeAdminTab === 'users' && (
           <AdminUserManagement />
+        )}
+
+        {/* TAB: Seven-day property availability (this upgrade) */}
+        {activeAdminTab === 'availability' && (
+          <AdminPropertyAvailability />
+        )}
+
+        {/* TAB: Legal Pages — Terms & Conditions, Privacy Policy, version history */}
+        {activeAdminTab === 'legal' && (
+          <AdminLegalPages />
         )}
 
         {/* TAB: Bulk Email (Upgrade 2, A12) */}

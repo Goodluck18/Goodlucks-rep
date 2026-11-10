@@ -20,7 +20,7 @@ import path from 'node:path';
 import process from 'node:process';
 
 import { runPhpScript, startApiServer } from '../scripts/php.mjs';
-import { ApiClient, createPng } from './helpers.mjs';
+import { ApiClient, approveProviderVerification, createPng } from './helpers.mjs';
 
 const projectRoot = path.resolve(import.meta.dirname, '..');
 const dataDir = path.join(projectRoot, '.data');
@@ -59,7 +59,11 @@ const register = async (body) => {
   return { client, res };
 };
 
-const registerAgent = async (label, extra = {}) => {
+// Verification is mandatory before listing, so the fixed agents and landlords
+// below are signed up and then given an approved identity (the fixture in
+// tests/approve-verification.php). Tests that need an UNVERIFIED provider create
+// one directly with `register` instead.
+const registerAgent = async (label, extra = {}, { verified = true } = {}) => {
   const email = uniqueEmail(`agent-${label}`);
   const { client, res } = await register({
     name: `Agent ${label}`,
@@ -73,10 +77,11 @@ const registerAgent = async (label, extra = {}) => {
     ...extra,
   });
   assert.equal(res.status, 201, JSON.stringify(res.body));
+  if (verified) approveProviderVerification(email, env);
   return { client, id: res.body.user.id, email, name: res.body.user.name };
 };
 
-const registerLandlord = async (label) => {
+const registerLandlord = async (label, { verified = true } = {}) => {
   const email = uniqueEmail(`landlord-${label}`);
   const { client, res } = await register({
     name: `Landlord ${label}`,
@@ -89,6 +94,7 @@ const registerLandlord = async (label) => {
     city: 'Accra',
   });
   assert.equal(res.status, 201, JSON.stringify(res.body));
+  if (verified) approveProviderVerification(email, env);
   return { client, id: res.body.user.id, email, name: res.body.user.name };
 };
 
@@ -335,7 +341,7 @@ describe('Registration: two groups, provider category enforced server-side', () 
   });
 
   test('the official Ghana Card name given at registration is returned to its owner only', async () => {
-    const agent = await registerAgent('official-name', { officialName: 'Ama Serwaa Boateng' });
+    const agent = await registerAgent('official-name', { officialName: 'Ama Serwaa Boateng' }, { verified: false });
     const own = await agent.client.get('/api/verification');
     assert.equal(own.status, 200, JSON.stringify(own.body));
     assert.equal(own.body.verification.officialName, 'Ama Serwaa Boateng');
@@ -354,7 +360,7 @@ describe('Ghana Card identity verification', () => {
   const state = {};
 
   test('front and back are both required before a submission is accepted', async () => {
-    const agent = await registerAgent('identity-docs');
+    const agent = await registerAgent('identity-docs', {}, { verified: false });
     state.agent = agent;
 
     const frontOnly = await uploadDocument(agent.client, 'document_front', { filename: 'front.png' });
@@ -394,7 +400,7 @@ describe('Ghana Card identity verification', () => {
   });
 
   test('another account cannot read or submit somebody else\'s documents', async () => {
-    const other = await registerAgent('identity-other');
+    const other = await registerAgent('identity-other', {}, { verified: false });
     assert.equal((await other.client.get(`/api/verification-documents/${state.frontId}`)).status, 404);
 
     const steal = await submitIdentity(other, [state.frontId, state.backId]);
@@ -463,7 +469,7 @@ describe('Ghana Card identity verification', () => {
 
 describe('Per-document review (professional and identity documents)', () => {
   test('a reviewer records each document separately, and it never decides the verification', async () => {
-    const agent = await registerAgent('doc-review');
+    const agent = await registerAgent('doc-review', {}, { verified: false });
     const docs = await identityDocuments(agent);
     assert.equal((await submitIdentity(agent, docs)).status, 201);
 
@@ -530,7 +536,8 @@ describe('Professional verification and the higher commission tier', () => {
   });
 
   test('submitting documents alone does not upgrade the tier', async () => {
-    const agent = await state.landlord ? await registerAgent('professional') : await registerAgent('professional');
+    // Unverified at sign-up: this test walks identity → approval → Tier 2 itself.
+    const agent = await registerAgent('professional', {}, { verified: false });
     state.agent = agent;
 
     const docs = await identityDocuments(agent);
@@ -599,7 +606,9 @@ describe('Commission tiers: 60% Tier A, 70% higher, frozen per transaction', () 
   const state = {};
 
   test('a Tier A agent receives 60% and Goodlucks 40% of the agreed commission', async () => {
-    const agent = await registerAgent('commission-a');
+    // Unverified at sign-up: the test performs the identity submission and
+    // approval that make the agent Tier A.
+    const agent = await registerAgent('commission-a', {}, { verified: false });
     const reviewer = await createAdmin('commission-reviewer', { reviewer: true, documents: true });
     const docs = await identityDocuments(agent);
     assert.equal((await submitIdentity(agent, docs)).status, 201);
@@ -673,7 +682,7 @@ describe('Commission tiers: 60% Tier A, 70% higher, frozen per transaction', () 
   });
 
   test('an unverified agent has no commission share at all', async () => {
-    const agent = await registerAgent('commission-unverified');
+    const agent = await registerAgent('commission-unverified', {}, { verified: false });
     const created = await state.finance.client.post('/api/admin/finance/commissions', {
       propertyId: state.propertyId,
       agentUserId: agent.id,

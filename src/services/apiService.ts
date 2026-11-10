@@ -10,7 +10,11 @@
  */
 
 import type {
+  AccountGroup,
   AdminActivityEntry,
+  AdminAvailabilityRow,
+  PropertyAvailabilityEvent,
+  PropertyAvailabilityRenewal,
   AdminCampaign,
   AdminCampaignSummary,
   AdminUserActivityEntry,
@@ -47,6 +51,13 @@ import type {
   ViewingTermsValues,
   SearchAlertSubscription,
   FeePolicyStatus,
+  AdminLegalDocument,
+  AdminLegalSummary,
+  LegalAcceptanceState,
+  LegalDocument,
+  LegalDocumentMeta,
+  LegalDocumentType,
+  LegalVersionDetail,
   TenantRequest,
   User,
   ViewingFeeRecord,
@@ -178,6 +189,13 @@ export interface SessionInfo {
   user: User | null;
   role: string;
   savedPropertyIds: string[];
+  /**
+   * Where the signed-in account stands on the Terms and Conditions and the
+   * Privacy Policy. `reacceptanceRequired` is only true when an administrator
+   * has deliberately switched the prompt on — publishing a new version does not
+   * do it by itself.
+   */
+  legal?: LegalAcceptanceState | null;
 }
 
 export interface AdminStats extends AnalyticsStats {
@@ -297,7 +315,12 @@ export const api = {
   // -------------------------------------------------------------------------
   me: () => request<SessionInfo & { success: boolean }>('/auth/me'),
 
-  login: (email: string, password: string, role?: 'tenant' | 'landlord' | 'agent') =>
+  /**
+   * `group` is the account group the visitor picked, not a stored role:
+   * 'tenant', or 'provider' for the one Agent/Landlord account. ('agent' and
+   * 'landlord' are still accepted for older callers.)
+   */
+  login: (email: string, password: string, role?: AccountGroup) =>
     request<{ user: User }>('/auth/login', { method: 'POST', body: { email, password, role } }),
 
   adminLogin: (email: string, password: string, accessKey: string) =>
@@ -308,18 +331,65 @@ export const api = {
     email: string;
     phone: string;
     password: string;
-    role: 'tenant' | 'landlord' | 'agent';
+    /**
+     * The account group: 'tenant', or 'provider' for the single Agent/Landlord
+     * account. An Agent and a Landlord do not register separately — the account
+     * chooses which it is during verification.
+     */
+    role: AccountGroup;
     /** Optional city/town. Contact information only — never identity data. */
     city?: string;
-    /** Agent only: agency/business name, if there is one (Increment C). */
+    /** Agent/Landlord: agency/business name, if there is one. */
     agencyName?: string;
-    /** Agent only: the city the agent works from, not a home address. */
+    /** Agent/Landlord: the city the account works from, not a home address. */
     operatingCity?: string;
-    /** Task 03: Tenant, or Landlord / Agent. Must agree with `role`. */
-    providerCategory?: 'tenant' | 'landlord' | 'agent';
+    /** Not sent by the website: the classification is chosen at verification. */
+    providerCategory?: 'tenant' | 'landlord' | 'agent' | 'provider';
     /** Task 03: the official name on the Ghana Card (a claim, not a check). */
     officialName?: string;
+    /**
+     * The legal consent the register form collects. Both are required by the
+     * SERVER as well: a request without them is refused, so an account can never
+     * be created by skipping the checkbox. The server records the versions that
+     * are published at that moment; if the form sends the versions it displayed
+     * they must still be current.
+     */
+    termsAccepted: boolean;
+    privacyAcknowledged: boolean;
+    termsVersion?: number;
+    privacyVersion?: number;
   }) => request<{ user: User }>('/auth/register', { method: 'POST', body: data }),
+
+  // -------------------------------------------------------------------------
+  // Legal documents (Terms & Conditions, Privacy Policy)
+  // -------------------------------------------------------------------------
+  /** Both documents' title and current version, without their bodies. */
+  getLegalIndex: () => request<{ documents: LegalDocumentMeta[] }>('/legal'),
+
+  /** The current PUBLISHED version of one document. Drafts are never served. */
+  getLegalDocument: (slug: string) =>
+    request<{ document: LegalDocument }>(`/legal/${encodeURIComponent(slug)}`),
+
+  /**
+   * Record a fresh, explicit acceptance for the signed-in account. Used by the
+   * re-acceptance prompt; registration records its own acceptance server-side.
+   */
+  acceptLegalDocuments: (data: { termsAccepted: boolean; privacyAcknowledged: boolean }) =>
+    request<{ success: boolean; legal: LegalAcceptanceState; message: string }>(
+      '/account/legal-acceptance',
+      { method: 'POST', body: data }
+    ),
+
+  /**
+   * The one-time professional classification of an Agent/Landlord account.
+   * Chosen during verification; it decides whether the account is verified as an
+   * Agent or as a Landlord and cannot be changed by the account holder.
+   */
+  chooseProviderCategory: (category: 'agent' | 'landlord') =>
+    request<{ user: User; message: string }>('/account/classification', {
+      method: 'POST',
+      body: { category },
+    }),
 
   logout: () => request<{ success: boolean }>('/auth/logout', { method: 'POST' }),
 
@@ -388,6 +458,8 @@ export const api = {
     documentType: string;
     documentNumber: string;
     documentIds: string[];
+    /** A Landlord's verification also records where they let property. */
+    operatingLocation?: string;
   }) => request<{ identity: IdentityVerification }>('/verification/identity', { method: 'POST', body: data }),
 
   submitProfessionalAuthorisation: (data: {
@@ -561,6 +633,99 @@ export const api = {
       method: 'POST',
       body: { decision, note },
     }),
+
+  // -------------------------------------------------------------------------
+  // Seven-day availability renewal (this upgrade)
+  //
+  // The provider's two answers. The deadline itself is enforced by the server:
+  // nothing here decides whether a listing is public.
+  // -------------------------------------------------------------------------
+  confirmPropertyAvailability: (id: string, note = '') =>
+    request<{ success: boolean; message: string; property: Property }>(
+      `/properties/${encodeURIComponent(id)}/availability/confirm`,
+      { method: 'POST', body: { note } }
+    ),
+
+  declinePropertyAvailability: (id: string, note = '') =>
+    request<{ success: boolean; message: string; property: Property }>(
+      `/properties/${encodeURIComponent(id)}/availability/decline`,
+      { method: 'POST', body: { note } }
+    ),
+
+  propertyAvailabilityHistory: (id: string) =>
+    request<{
+      success: boolean;
+      history: PropertyAvailabilityEvent[];
+      availability: PropertyAvailabilityRenewal;
+    }>(`/properties/${encodeURIComponent(id)}/availability/history`),
+
+  /** Staff: the availability console, with counts for every filter. */
+  adminPropertyAvailability: (params: { filter?: string; q?: string; page?: number; perPage?: number } = {}) => {
+    const search = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== '') search.set(key, String(value));
+    });
+    const query = search.toString();
+    return request<{
+      success: boolean;
+      items: AdminAvailabilityRow[];
+      total: number;
+      counts: Record<string, number>;
+      page: number;
+      perPage: number;
+    }>(`/admin/property-availability${query ? `?${query}` : ''}`);
+  },
+
+  adminPropertyAvailabilityActivity: (params: { kind?: string; q?: string; page?: number; perPage?: number } = {}) => {
+    const search = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== '') search.set(key, String(value));
+    });
+    const query = search.toString();
+    return request<{
+      success: boolean;
+      items: Array<{
+        id: string;
+        at: string;
+        action: string;
+        label: string;
+        actorRole: string;
+        actorName: string;
+        system: boolean;
+        entityType: string;
+        entityId: string;
+        property: { id: string; title: string; location: string } | null;
+        account: { id: string; name: string; role: string } | null;
+        detail: { reason: string; note: string; source: string; automated: boolean };
+      }>;
+      total: number;
+      counts: Record<string, number>;
+    }>(`/admin/property-availability/activity${query ? `?${query}` : ''}`);
+  },
+
+  /** Staff: reactivate a listing. A reason and a confirmation source are required. */
+  adminReactivatePropertyAvailability: (
+    id: string,
+    data: { reason: string; confirmedWith: string; note?: string }
+  ) =>
+    request<{ success: boolean; message: string; property: Property }>(
+      `/admin/properties/${encodeURIComponent(id)}/availability/reactivate`,
+      { method: 'POST', body: data }
+    ),
+
+  /** Staff: suspend an Agent or Landlord account. */
+  suspendProvider: (userId: string, reason: string) =>
+    request<{ success: boolean; message: string; user: User; listingsUnpublished: number }>(
+      `/admin/users/${encodeURIComponent(userId)}/suspension`,
+      { method: 'POST', body: { reason } }
+    ),
+
+  /** Staff: lift a suspension. Nothing is republished automatically. */
+  reinstateProvider: (userId: string, reason: string) =>
+    request<{ success: boolean; message: string; user: User; listingsAwaitingConfirmation: number }>(
+      `/admin/users/${encodeURIComponent(userId)}/reinstatement`,
+      { method: 'POST', body: { reason } }
+    ),
 
   setPropertyStatus: (id: string, status: PropertyStatus) =>
     request<{ property: Property }>(`/properties/${encodeURIComponent(id)}/status`, {
@@ -1441,6 +1606,78 @@ export const api = {
     request<{ success: boolean; links: EmailTemplateLink[]; broken: EmailTemplateLink[]; html: string }>(
       '/admin/email-templates/check-links',
       { method: 'POST', body: { html } }
+    ),
+
+  // -------------------------------------------------------------------------
+  // Legal Pages (administrator)
+  //
+  // Editing and publishing are separate capabilities. Every call is refused by
+  // the server for an administrator who does not hold the matching one, so the
+  // console's hiding of a button is a convenience, never the control.
+  // -------------------------------------------------------------------------
+  adminLegalDocuments: () =>
+    request<{
+      success: boolean;
+      documents: AdminLegalSummary[];
+      capabilities: { manageLegal: boolean; publishLegal: boolean };
+      reacceptanceRequired: boolean;
+    }>('/admin/legal'),
+
+  adminLegalDocument: (type: LegalDocumentType) =>
+    request<{ success: boolean; document: AdminLegalDocument }>(
+      `/admin/legal/${encodeURIComponent(type)}`
+    ),
+
+  /** One stored version, whole — including versions that are no longer live. */
+  adminLegalVersion: (type: LegalDocumentType, version: number) =>
+    request<{ success: boolean; version: LegalVersionDetail }>(
+      `/admin/legal/${encodeURIComponent(type)}/versions/${version}`
+    ),
+
+  /** Save the draft. Never changes what the public page serves. */
+  adminLegalSaveDraft: (type: LegalDocumentType, contentHtml: string, title?: string) =>
+    request<{ success: boolean; draft: LegalVersionDetail; message: string }>(
+      `/admin/legal/${encodeURIComponent(type)}/draft`,
+      { method: 'PUT', body: { contentHtml, title } }
+    ),
+
+  /** Render a body exactly as the public page would, without saving it. */
+  adminLegalPreview: (type: LegalDocumentType, contentHtml: string) =>
+    request<{ success: boolean; preview: { type: string; title: string; contentHtml: string } }>(
+      `/admin/legal/${encodeURIComponent(type)}/preview`,
+      { method: 'POST', body: { contentHtml } }
+    ),
+
+  adminLegalPublish: (
+    type: LegalDocumentType,
+    data: { confirm: true; changeNote?: string; effectiveAt?: string }
+  ) =>
+    request<{ success: boolean; published: LegalVersionDetail; message: string }>(
+      `/admin/legal/${encodeURIComponent(type)}/publish`,
+      { method: 'POST', body: data }
+    ),
+
+  /** Restore an older version as a NEW publication; history is never rewritten. */
+  adminLegalRestore: (
+    type: LegalDocumentType,
+    data: { version: number; confirm: true; changeNote?: string }
+  ) =>
+    request<{ success: boolean; published: LegalVersionDetail; message: string }>(
+      `/admin/legal/${encodeURIComponent(type)}/restore`,
+      { method: 'POST', body: data }
+    ),
+
+  adminLegalDiscardDraft: (type: LegalDocumentType) =>
+    request<{ success: boolean; message: string }>(
+      `/admin/legal/${encodeURIComponent(type)}/draft`,
+      { method: 'DELETE' }
+    ),
+
+  /** Switch the re-acceptance prompt. Publishing alone never does this. */
+  adminLegalSetReacceptance: (required: boolean) =>
+    request<{ success: boolean; reacceptanceRequired: boolean; message: string }>(
+      '/admin/legal/reacceptance',
+      { method: 'PUT', body: { required } }
     ),
 };
 

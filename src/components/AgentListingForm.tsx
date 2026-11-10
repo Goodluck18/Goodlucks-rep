@@ -149,8 +149,8 @@ export const AgentListingForm: React.FC<{ canSubmit: boolean }> = ({ canSubmit }
           <Building2 className="w-4 h-4 text-amber-700" /> Submit a listing
         </h2>
         <p className="text-xs text-ink/70">
-          Listing submissions open once an administrator approves your agent account. Pending and suspended accounts
-          cannot submit.
+          Listing submissions open once your identity verification has been approved. An account that is unverified or
+          suspended cannot submit properties.
         </p>
       </div>
     );

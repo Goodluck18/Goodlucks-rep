@@ -63,8 +63,33 @@ function resolve_route(string $method, string $path): ?array
         ['GET',  '#^/auth/me$#', 'handle_me'],
         ['PUT',  '#^/profile$#', 'handle_update_profile'],
         ['POST', '#^/account/password$#', 'handle_change_password'],
+        // Upgrade 2 correction: the one-time professional classification of an
+        // Agent/Landlord account (Agent or Landlord), chosen during verification.
+        ['POST', '#^/account/classification$#', 'handle_choose_provider_category'],
         ['POST', '#^/account/avatar$#', 'handle_upload_avatar'],
         ['DELETE', '#^/account/avatar$#', 'handle_delete_avatar'],
+        // The signed-in account records a fresh, explicit acceptance of the
+        // legal documents. Nothing is recorded without the flags in the body.
+        ['POST', '#^/account/legal-acceptance$#', 'handle_account_legal_acceptance'],
+
+        // --- Legal documents (public) ------------------------------------
+        // Only the current PUBLISHED version is ever served here. A saved draft
+        // is not reachable from any public URL.
+        ['GET',  '#^/legal$#', 'handle_legal_index'],
+        ['GET',  '#^/legal/([A-Za-z0-9\-_]+)$#', 'handle_legal_document'],
+
+        // --- Legal documents (administrator console) ---------------------
+        // Editing needs can_manage_legal; publishing needs can_publish_legal.
+        // Both default to deny and are granted only from the server console.
+        ['GET',    '#^/admin/legal$#', 'handle_admin_legal_index'],
+        ['PUT',    '#^/admin/legal/reacceptance$#', 'handle_admin_legal_reacceptance'],
+        ['GET',    '#^/admin/legal/([a-z]+)$#', 'handle_admin_legal_document'],
+        ['GET',    '#^/admin/legal/([a-z]+)/versions/([0-9]+)$#', 'handle_admin_legal_version'],
+        ['PUT',    '#^/admin/legal/([a-z]+)/draft$#', 'handle_admin_legal_save_draft'],
+        ['DELETE', '#^/admin/legal/([a-z]+)/draft$#', 'handle_admin_legal_discard_draft'],
+        ['POST',   '#^/admin/legal/([a-z]+)/preview$#', 'handle_admin_legal_preview'],
+        ['POST',   '#^/admin/legal/([a-z]+)/publish$#', 'handle_admin_legal_publish'],
+        ['POST',   '#^/admin/legal/([a-z]+)/restore$#', 'handle_admin_legal_restore'],
 
         // --- Properties -------------------------------------------------
         ['GET',  '#^/matches$#', 'handle_matches'],
@@ -78,6 +103,12 @@ function resolve_route(string $method, string $path): ?array
         ['POST', '#^/properties/([A-Za-z0-9\-_]+)/verify$#', 'handle_property_verify'],
         // Task 03: a property's own viewing fee + viewing terms. Approving a
         // change is a staff decision; proposing one is the owner's/agent's.
+        // Seven-day availability renewal. The provider answers "still available"
+        // or "no longer available"; the deadline itself is enforced by the
+        // backend, never by the browser.
+        ['POST', '#^/properties/([A-Za-z0-9\-_]+)/availability/confirm$#', 'handle_property_availability_confirm'],
+        ['POST', '#^/properties/([A-Za-z0-9\-_]+)/availability/decline$#', 'handle_property_availability_decline'],
+        ['GET',  '#^/properties/([A-Za-z0-9\-_]+)/availability/history$#', 'handle_property_availability_history'],
         ['POST', '#^/properties/([A-Za-z0-9\-_]+)/viewing-terms$#', 'handle_request_viewing_terms'],
         ['GET',  '#^/properties/([A-Za-z0-9\-_]+)/viewing-terms/history$#', 'handle_viewing_terms_history'],
         // Task 03 update: the ONE general landlord viewing fee, controlled by an
@@ -87,6 +118,11 @@ function resolve_route(string $method, string $path): ?array
         ['GET',  '#^/admin/viewing-terms/changes$#', 'handle_admin_viewing_term_changes'],
         ['POST', '#^/admin/viewing-terms/changes/([A-Za-z0-9\-_]+)/decision$#', 'handle_admin_decide_viewing_term_change'],
         ['GET',  '#^/admin/properties$#', 'handle_admin_properties'],
+        // The availability console: awaiting confirmation, due soon, expired,
+        // draft, unavailable and reactivated listings, with counts.
+        ['GET',  '#^/admin/property-availability$#', 'handle_admin_property_availability'],
+        ['GET',  '#^/admin/property-availability/activity$#', 'handle_admin_property_availability_activity'],
+        ['POST', '#^/admin/properties/([A-Za-z0-9\-_]+)/availability/reactivate$#', 'handle_admin_property_availability_reactivate'],
 
         // --- Agent accounts (Increment C) --------------------------------
         // An agent reads and edits only their own profile. Status changes are
@@ -132,6 +168,10 @@ function resolve_route(string $method, string $path): ?array
         ['GET',  '#^/admin/users$#', 'handle_admin_users'],
         ['GET',  '#^/admin/users/([A-Za-z0-9\-_]+)$#', 'handle_admin_user_profile'],
         ['GET',  '#^/admin/users/([A-Za-z0-9\-_]+)/activity$#', 'handle_admin_user_activity'],
+        // This upgrade: formal suspension and reinstatement of an Agent or
+        // Landlord account. One pair of endpoints for both classifications.
+        ['POST', '#^/admin/users/([A-Za-z0-9\-_]+)/suspension$#', 'handle_admin_suspend_provider'],
+        ['POST', '#^/admin/users/([A-Za-z0-9\-_]+)/reinstatement$#', 'handle_admin_reinstate_provider'],
         // Upgrade 2 (E2): the only way a provider classification changes.
         ['POST', '#^/admin/users/([A-Za-z0-9\-_]+)/role$#', 'handle_admin_correct_user_role'],
         ['GET',  '#^/admin/activity$#', 'handle_admin_activity'],
@@ -362,43 +402,78 @@ function handle_register(): void
     if (!password_is_strong_enough($password)) {
         $validator->add('password', 'Password must be at least 8 characters.');
     }
-    // Increment C: agent is a first-class role, so an agent sign-up keeps the
-    // role it asked for. Anything outside this list (including "admin") is
-    // refused rather than silently coerced into a tenant account: a
-    // half-registered account with the wrong role is worse than an honest
-    // "not available". Privileged roles are never self-assigned.
+    // Upgrade 2 correction: the website offers exactly TWO account groups —
+    //   * Tenant
+    //   * Agent/Landlord  (ONE shared account type)
+    //
+    // An Agent and a Landlord are not separate account types and cannot register
+    // twice. A provider chooses its professional classification (Agent or
+    // Landlord) later, during verification; that choice is stored in
+    // `users.provider_category` and decides how the account is verified.
+    //
+    // A provider account starts on the 'agent' role because every provider
+    // capability is already closed for an agent with no approved profile — so a
+    // freshly registered Agent/Landlord account can do nothing until it is
+    // classified and verified. `provider_category = 'pending'` is what marks it.
+    //
+    // Older API clients that still send role 'agent' or 'landlord' are read as
+    // having made the choice at registration, exactly as before; nothing about
+    // their accounts changes.
     $requestedRole = is_string($input['role'] ?? null)
         ? strtolower(trim((string)$input['role']))
         : 'tenant';
     if ($requestedRole === '') {
         $requestedRole = 'tenant';
     }
-    $selfServiceRoles = ['tenant', 'landlord', 'agent'];
-    if (!in_array($requestedRole, $selfServiceRoles, true)) {
-        $validator->add(
-            'role',
-            'That account type is not available for self-registration. Choose tenant, landlord or agent.'
-        );
-    }
-    $role = in_array($requestedRole, $selfServiceRoles, true) ? $requestedRole : 'tenant';
-
-    // Task 03: registration offers exactly two groups — a Tenant, or a property
-    // provider (Landlord / Agent). The category a provider picks must agree with
-    // the role they asked for. A mismatch is refused rather than silently
-    // coerced: one account per person, and nobody gets a second role by
-    // registering again with a different label.
-    $providerCategory = is_string($input['providerCategory'] ?? $input['category'] ?? null)
+    $requestedCategory = is_string($input['providerCategory'] ?? $input['category'] ?? null)
         ? strtolower(trim((string)($input['providerCategory'] ?? $input['category'])))
         : '';
-    if ($providerCategory !== '') {
-        if (!in_array($providerCategory, ['tenant', 'landlord', 'agent'], true)) {
-            $validator->add('providerCategory', 'Choose Tenant, Landlord or Agent.');
-        } elseif ($providerCategory !== $requestedRole) {
-            $validator->add(
-                'providerCategory',
-                'The account category you chose does not match the account type. Pick Landlord or Agent once.'
-            );
+
+    $group = 'tenant';          // 'tenant' | 'provider'
+    $role = 'tenant';           // the role stored on the account
+    $classification = null;     // null | 'pending' | 'agent' | 'landlord'
+
+    if ($requestedRole === 'tenant') {
+        $group = 'tenant';
+    } elseif ($requestedRole === 'agent' || $requestedRole === 'landlord') {
+        // Legacy self-classification: the caller says what it is, so the account
+        // is stored already classified.
+        $group = 'provider';
+        $role = $requestedRole;
+        $classification = $requestedRole;
+    } elseif ($requestedRole === 'provider' || $requestedRole === 'agent_landlord') {
+        $group = 'provider';
+        if (in_array($requestedCategory, ['agent', 'landlord'], true)) {
+            $role = $requestedCategory;
+            $classification = $requestedCategory;
+        } else {
+            $role = 'agent';
+            $classification = 'pending';
         }
+    } else {
+        $validator->add(
+            'role',
+            'That account type is not available for self-registration. Choose Tenant or Agent/Landlord.'
+        );
+    }
+
+    if ($requestedCategory !== '' && !in_array($requestedCategory, ['tenant', 'provider', 'agent', 'landlord'], true)) {
+        $validator->add('providerCategory', 'Choose Tenant or Agent/Landlord.');
+    } elseif ($group === 'tenant' && ($requestedCategory === 'provider' || $requestedCategory === 'agent' || $requestedCategory === 'landlord')) {
+        $validator->add('providerCategory', 'Choose the Agent/Landlord account group to provide properties.');
+    } elseif (
+        in_array($requestedRole, ['agent', 'landlord'], true) &&
+        in_array($requestedCategory, ['agent', 'landlord'], true) &&
+        $requestedCategory !== $requestedRole
+    ) {
+        // A caller that names both must be consistent. The website no longer
+        // names either at registration — the account chooses at verification —
+        // so this only guards older clients, which are refused rather than
+        // silently given an account that disagrees with what they asked for.
+        $validator->add(
+            'providerCategory',
+            'The account category you chose does not match the account type. Pick Agent or Landlord once.'
+        );
     }
 
     // The official Ghana Card name is recorded when it is supplied. It is a
@@ -414,13 +489,40 @@ function handle_register(): void
     // it is where they work, and it is distinct from any home address.
     $agencyName = clean_string($input['agencyName'] ?? $input['company'] ?? '', 200);
     $operatingCity = clean_string($input['operatingCity'] ?? $input['city'] ?? $input['address'] ?? '', 120);
-    if ($role === 'agent') {
-        if ($operatingCity === '') {
-            $validator->add('operatingCity', 'Tell us the city you work from.');
-        }
+    // The city is required only when the account is an agent from the start and
+    // its profile is created here. A pending Agent/Landlord account may give it
+    // when it chooses Agent or Landlord — nothing is guessed on its behalf.
+    if ($role === 'agent' && $operatingCity === '') {
+        $validator->add('operatingCity', 'Tell us the city you work from.');
     }
+    $contactCity = clean_string($input['city'] ?? $input['address'] ?? '', 255);
+    if ($contactCity === '' && $group === 'provider') {
+        $contactCity = $operatingCity;
+    }
+
     if ($validator->fails()) {
         error_response('Please correct the highlighted fields.', 422, $validator->errors());
+    }
+
+    // -----------------------------------------------------------------------
+    // Legal consent (Terms and Conditions + Privacy Policy).
+    //
+    // Enforced HERE, not only in the browser: an account cannot be created by a
+    // caller that skips the checkbox, and the acceptance is written against the
+    // version that is published at the moment of registration. The Terms
+    // acceptance and the Privacy acknowledgement are two separate records.
+    //
+    // The browser is not trusted to say which version it accepted, but if it
+    // does and the document has moved on in the meantime, the registration is
+    // refused rather than recorded against the wrong text.
+    // -----------------------------------------------------------------------
+    $legal = legal_registration_acceptance($input);
+    if (!($legal['ok'] ?? false)) {
+        error_response(
+            (string)($legal['message'] ?? 'Please accept the Terms and Conditions to create an account.'),
+            (int)($legal['status'] ?? 422),
+            $legal['fields'] ?? null
+        );
     }
 
     $email = valid_email($input['email']);
@@ -437,12 +539,18 @@ function handle_register(): void
             'email'         => $email,
             'name'          => clean_string($input['name'], 120),
             'official_name' => $officialName !== '' ? $officialName : null,
+            // An Agent/Landlord account keeps the business name it gave, so the
+            // agent profile created at the classification step uses it instead of
+            // asking for it twice.
+            'company'       => $group === 'provider' ? $agencyName : '',
             'role'          => $role,
             'phone'         => (string)valid_phone($input['phone']),
             // City/town or general location. Ordinary contact information, not
             // identity verification; optional and stored on the existing
-            // users.address column so no schema change is needed.
-            'address'       => clean_string($input['city'] ?? $input['address'] ?? '', 255),
+            // users.address column so no schema change is needed. An
+            // Agent/Landlord account's base is kept here too, so the agent
+            // profile created at classification has it.
+            'address'       => $contactCity,
             'password_hash' => password_hash($password, PASSWORD_BCRYPT),
             'preferred_locations' => clean_string_list($input['preferredLocations'] ?? []),
             'budget_min'    => valid_money($input['budgetMin'] ?? null, 0),
@@ -456,11 +564,51 @@ function handle_register(): void
         throw $e;
     }
 
+    // The acceptance is recorded only once the account exists, so it always names
+    // a real account, the real published version and the real time. If it cannot
+    // be recorded, the account is removed again: an account without its consent
+    // record must not exist.
+    try {
+        legal_record_acceptance((string)$user['id'], 'terms', $legal['terms'], 'registration');
+        legal_record_acceptance((string)$user['id'], 'privacy', $legal['privacy'], 'registration');
+        audit_log('legal.accepted', 'user', (string)$user['id'], [
+            'source'          => 'registration',
+            'terms_version'   => (int)$legal['terms']['version_number'],
+            'privacy_version' => (int)$legal['privacy']['version_number'],
+        ]);
+    } catch (Throwable $e) {
+        try {
+            db_exec('DELETE FROM users WHERE id = :id', [':id' => $user['id']]);
+            db_exec('DELETE FROM legal_acceptances WHERE user_id = :id', [':id' => $user['id']]);
+        } catch (Throwable $ignored) {
+            // fall through to the error response
+        }
+        gl_log('error', 'Could not record legal acceptance at registration', ['error' => $e->getMessage()]);
+        error_response('We could not record your acceptance of the Terms and Conditions. Please try again.', 500);
+    }
+
+    // An Agent/Landlord account that has not chosen yet is marked 'pending'. The
+    // choice is made once, during verification; it is not a second sign-up.
+    if ($group === 'provider') {
+        db_exec('UPDATE users SET provider_category = :category WHERE id = :id', [
+            ':category' => $classification,
+            ':id'       => (string)$user['id'],
+        ]);
+        $user['provider_category'] = $classification;
+        audit_log('provider.registered', 'user', (string)$user['id'], [
+            'classification' => $classification,
+            'account_group'  => 'agent_landlord',
+        ]);
+    }
+
     // The agent profile is created with the account, in a deny-by-default state:
     // account_status 'pending_review' and can_submit_listings 0. Registration
     // never grants verification, authorisation or any operational permission.
+    // A pending Agent/Landlord account has no profile yet: the profile belongs to
+    // an account that has actually chosen to be an agent, so it is created by
+    // handle_choose_provider_category() at that moment.
     $agentProfile = null;
-    if ($role === 'agent') {
+    if ($role === 'agent' && $classification === 'agent') {
         try {
             $agentProfile = create_agent_profile((string)$user['id'], [
                 'agency_name'    => $agencyName,
@@ -489,19 +637,18 @@ function handle_register(): void
         'Welcome to Goodlucks Homes',
         email_html_template(
             'Welcome to Goodlucks Homes',
-            '<h3 style="color:#FFFFFF;margin:0 0 12px 0;">Your ' . e(ucfirst($role)) . ' account is ready</h3>'
+            '<h3 style="color:#FFFFFF;margin:0 0 12px 0;">Your ' . e($group === 'provider' ? 'Agent/Landlord' : 'Tenant') . ' account is ready</h3>'
             . '<p style="color:#CBD5E1;font-size:14px;">Hello ' . e($user['name']) . ',</p>'
             . '<p style="color:#CBD5E1;font-size:14px;">Your Goodlucks Homes account has been created successfully. '
-            . ($role === 'landlord'
-                ? 'You can now submit properties for verification from your landlord dashboard.'
-                : ($role === 'agent'
-                    ? 'Your agent account is pending review. You can complete your agent profile now; listing submissions open once an administrator approves your account.'
-                    : 'You can now save properties, request viewings and submit property-matching requests.'))
+            . ($group === 'provider'
+                ? 'Next, tell us whether you are an Agent or a Landlord: sign in and open Verification on your dashboard. '
+                    . 'Listing submissions open once your account is reviewed and approved.'
+                : 'You can now save properties, request viewings and submit property-matching requests.')
             . '</p>'
             . '<p style="color:#94A3B8;font-size:12px;">If you did not create this account, please contact ' . e(OFFICIAL_EMAIL) . ' immediately.</p>'
         ),
         'registration',
-        'Welcome to Goodlucks Homes - ' . ucfirst($role) . ' account created'
+        'Welcome to Goodlucks Homes - ' . ($group === 'provider' ? 'Agent/Landlord' : 'Tenant') . ' account created'
     );
 
     create_notification((string)$user['id'], 'Welcome to Goodlucks Homes', 'Your account has been created successfully.', 'success');
@@ -541,13 +688,31 @@ function handle_login(): void
         error_response('Administrator accounts must sign in through the admin console.', 403);
     }
 
-    // The role tab a client picked must match the account, so an agent cannot
-    // be nudged into a tenant session by the sign-in form.
-    $requestedRole = one_of($input['role'] ?? null, ['tenant', 'landlord', 'agent'], null);
-    if ($requestedRole !== null && $requestedRole !== $user['role']) {
+    // The account group a client picked must match the account, so nobody is
+    // nudged into the wrong session by the sign-in form.
+    //
+    // Upgrade 2 correction: the website offers two groups — Tenant, and ONE
+    // Agent/Landlord account. 'provider' is that group: it matches an agent and a
+    // landlord alike, and it is never stored on an account. 'agent' and
+    // 'landlord' are still accepted so older clients keep working.
+    $requestedRole = one_of($input['role'] ?? null, ['tenant', 'landlord', 'agent', 'provider', 'agent_landlord'], null);
+    if ($requestedRole === 'agent_landlord') {
+        $requestedRole = 'provider';
+    }
+    if ($requestedRole === 'provider') {
+        if (!in_array((string)$user['role'], ['agent', 'landlord'], true)) {
+            error_response(
+                'This email is registered as a Tenant account. Please sign in using the Tenant tab.',
+                403
+            );
+        }
+    } elseif ($requestedRole !== null && $requestedRole !== $user['role']) {
+        $groupLabel = $user['role'] === 'agent' || $user['role'] === 'landlord' ? 'Agent/Landlord' : ucfirst((string)$user['role']);
+        // "an Agent/Landlord account", "a Tenant account".
+        $article = in_array(strtolower($groupLabel[0]), ['a', 'e', 'i', 'o', 'u'], true) ? 'an' : 'a';
         error_response(
-            'This email is registered as a ' . ucfirst((string)$user['role']) . ' account. Please sign in using the '
-            . ucfirst((string)$user['role']) . ' tab.',
+            'This email is registered as ' . $article . ' ' . $groupLabel . ' account. Please sign in using the '
+            . $groupLabel . ' tab.',
             403
         );
     }
@@ -699,11 +864,25 @@ function handle_logout(): void
 function handle_me(): void
 {
     $user = auth_user();
+    // Where the signed-in account stands on the legal documents. Informational:
+    // the prompt it drives (`reacceptanceRequired`) is switched on deliberately by
+    // an administrator, because publishing a new version must not silently change
+    // what an existing account is allowed to do.
+    $legal = null;
+    if ($user !== null) {
+        try {
+            $legal = legal_acceptance_state($user);
+        } catch (Throwable $e) {
+            gl_log('warning', 'Could not read the legal acceptance state', ['error' => $e->getMessage()]);
+        }
+    }
+
     json_response([
         'success'        => true,
         'user'           => $user ? public_user($user) : null,
         'role'           => $user['role'] ?? 'guest',
         'savedPropertyIds' => $user ? list_saved_property_ids((string)$user['id']) : [],
+        'legal'          => $legal,
     ]);
 }
 
@@ -780,6 +959,97 @@ function handle_update_profile(): void
  * *other* session is revoked afterwards while the current one is kept, so the
  * person who just changed it stays signed in.
  */
+/**
+ * POST /account/classification
+ *
+ * The single professional classification of an Agent/Landlord account: an Agent
+ * or a Landlord. The website collects one account group at registration and asks
+ * this question once, during verification.
+ *
+ * What it changes
+ * ---------------
+ *  * 'agent'   → the account's role becomes 'agent' and its agent profile is
+ *                created in the normal deny-by-default state (pending review,
+ *                listings closed until staff approve it).
+ *  * 'landlord'→ the account's role becomes 'landlord'. No agent profile exists
+ *                or is created.
+ *
+ * It is available exactly once. A genuine mistake after that is corrected by
+ * staff through POST /admin/users/<id>/role, which is audited — the account
+ * holder cannot reclassify themselves, and cannot gain a second account by
+ * registering again.
+ *
+ * It grants nothing else: identity verification, listing approval and every
+ * other permission stay exactly as they were.
+ */
+function handle_choose_provider_category(): void
+{
+    $user = require_auth(['agent', 'landlord']);
+    enforce_rate_limit('provider-classification', 10, 3600, (string)$user['id']);
+
+    $input = request_json();
+    $category = is_string($input['category'] ?? $input['providerCategory'] ?? null)
+        ? strtolower(trim((string)($input['category'] ?? $input['providerCategory'])))
+        : '';
+
+    if (!in_array($category, ['agent', 'landlord'], true)) {
+        error_response('Choose whether you are an Agent or a Landlord.', 422, [
+            'category' => 'Choose Agent or Landlord.',
+        ]);
+    }
+
+    if (provider_category_state($user) !== 'pending') {
+        error_response(
+            'This account already has a classification. If it is wrong, ask Goodlucks staff to correct it — an account cannot be reclassified by signing up again.',
+            409,
+            ['category' => 'Already classified.']
+        );
+    }
+
+    $agencyName = (string)($user['company'] ?? '');
+    $operatingCity = (string)($user['address'] ?? '');
+
+    db_exec('UPDATE users SET role = :role, provider_category = :category WHERE id = :id', [
+        ':role'     => $category,
+        ':category' => $category,
+        ':id'       => (string)$user['id'],
+    ]);
+
+    if ($category === 'agent' && find_agent_profile_by_user((string)$user['id']) === null) {
+        $profile = create_agent_profile((string)$user['id'], [
+            'agency_name'    => $agencyName,
+            'operating_city' => $operatingCity,
+        ]);
+        audit_log('agent.registered', 'agent_profile', (string)$profile['id'], [
+            'operating_city'  => $operatingCity,
+            'has_agency_name' => $agencyName !== '',
+            'via'             => 'classification',
+        ]);
+    }
+
+    audit_log('provider.classified', 'user', (string)$user['id'], [
+        'category' => $category,
+        'from'     => 'pending',
+    ], $user);
+
+    create_notification(
+        (string)$user['id'],
+        'Classification saved',
+        $category === 'agent'
+            ? 'Your account is an Agent account. Verification is the next step.'
+            : 'Your account is a Landlord account. Verification is the next step.',
+        'success'
+    );
+
+    $fresh = find_user_by_id((string)$user['id']);
+    json_response([
+        'success' => true,
+        'message' => 'Saved. You can now complete verification as '
+            . ($category === 'agent' ? 'an Agent' : 'a Landlord') . '.',
+        'user'    => public_user($fresh ?? $user),
+    ]);
+}
+
 function handle_change_password(): void
 {
     $user = require_auth();
@@ -1146,21 +1416,80 @@ function handle_set_agent_status(array $params): void
 // immutable history. No endpoint here touches receipts, fees, listings or
 // tenancy agreements.
 // ===========================================================================
+/**
+ * The listing gate (Upgrade 2 correction).
+ *
+ * Verification is mandatory before property listing. A provider account that has
+ * not chosen Agent or Landlord, whose identity is not approved, or that has been
+ * suspended cannot submit a property — whatever the client shows or hides. The
+ * check is here so every submission route goes through it, and an administrator
+ * keeps working from the console.
+ */
+function require_provider_listing_access(array $user): void
+{
+    if ((string)($user['role'] ?? '') === 'admin') {
+        return;
+    }
+    $state = provider_listing_state($user);
+    if ($state['canList']) {
+        return;
+    }
+    $fields = [
+        'verificationRequired' => $state['message'],
+        'verificationStatus'   => $state['identityStatus'],
+    ];
+    if ($state['reason'] === 'classification_required') {
+        $fields['classificationRequired'] = 'Choose Agent or Landlord to continue.';
+    }
+    if ($state['reason'] === 'suspended') {
+        // The client must be able to tell a suspension from a verification gap.
+        $fields['accountSuspended'] = 'Your account is suspended.';
+        $fields['suspensionReason'] = (string)($state['suspension']['reason'] ?? '');
+    }
+    error_response($state['message'], 403, $fields);
+}
+
+/**
+ * Refuse a provider action until the account has chosen Agent or Landlord.
+ *
+ * The choice is the first step of verification and it decides what the account
+ * actually is, so nothing a provider does — uploading proof of identity, applying
+ * for a professional authorisation, submitting a listing — can start before it.
+ */
+function require_provider_classification(array $user): void
+{
+    if (!provider_classification_required($user)) {
+        return;
+    }
+    error_response(
+        'Tell us whether you are an Agent or a Landlord first — it is the first step of verification on your dashboard.',
+        409,
+        ['classificationRequired' => 'Choose Agent or Landlord to continue.']
+    );
+}
+
 function handle_get_verification(): void
 {
-    // Landlords may complete identity verification voluntarily; tenants never
+    // An Agent/Landlord account completes identity verification; tenants never
     // need to (tenant registration is unchanged and requires no documents).
     $user = require_auth(['agent', 'landlord']);
 
+    $summary = verification_summary_for_user($user);
+    // Upgrade 2 correction: verification begins with the one-time Agent or
+    // Landlord choice, so the panel can show it as step one.
+    $summary['providerCategory'] = provider_category_state($user);
+    $summary['classificationRequired'] = provider_classification_required($user);
+
     json_response([
         'success'      => true,
-        'verification' => verification_summary_for_user($user),
+        'verification' => $summary,
     ]);
 }
 
 function handle_upload_verification_document(): void
 {
     $user = require_auth(['agent', 'landlord']);
+    require_provider_classification($user);
     enforce_rate_limit('verification-upload', 40, 3600);
 
     if (!isset($_FILES['file']) || !is_array($_FILES['file'])) {
@@ -1216,6 +1545,7 @@ function handle_upload_verification_document(): void
 function handle_submit_identity_verification(): void
 {
     $user = require_auth(['agent', 'landlord']);
+    require_provider_classification($user);
     enforce_rate_limit('verification-submit', 20, 3600);
 
     $existing = find_identity_verification((string)$user['id']);
@@ -1244,6 +1574,7 @@ function handle_submit_identity_verification(): void
 function handle_submit_professional_authorisation(): void
 {
     $user = require_auth(['agent']);
+    require_provider_classification($user);
     enforce_rate_limit('verification-submit', 20, 3600);
 
     $existing = find_professional_authorisation((string)$user['id']);
@@ -1472,12 +1803,15 @@ function handle_list_properties(): void
             $filters = ['landlordId' => $user['id']];
         }
     } elseif (is_admin($user) && query_param('all') === '1') {
+        // Staff see the whole catalogue, including expired listings: that is the
+        // point of the availability console.
         $filters = [];
         if (query_param('status')) {
             $filters['status'] = (string)query_param('status');
         }
     } else {
-        $filters = ['status' => $statuses];
+        // The public catalogue: published AND inside its confirmation period.
+        $filters = ['status' => $statuses, 'availabilityCurrent' => true];
     }
 
     $filters['q'] = query_param('q');
@@ -1521,7 +1855,11 @@ function handle_get_property(array $params): void
     }
 
     $user = auth_user();
-    $isPublic = in_array($row['status'], ['active', 'rented'], true);
+    // A listing whose availability deadline has passed is not public, even if
+    // the scheduled job has not yet written `expired` (rented listings keep
+    // their page: the record of a let property is still useful).
+    $isPublic = in_array($row['status'], ['active', 'rented'], true)
+        && ((string)$row['status'] === 'rented' || property_is_publicly_visible($row));
     if (!$isPublic && !is_admin($user) && !($user && can_manage_property($user, $row))) {
         // Do not reveal that a hidden listing exists.
         error_response('Property not found.', 404);
@@ -1684,6 +2022,10 @@ function handle_create_property(): void
 {
     $user = require_auth(['landlord', 'agent', 'admin']);
     enforce_rate_limit('property-create', 30, 3600);
+    // Verification is mandatory before listing: the classification is chosen,
+    // the identity is approved, and the account is not suspended. One rule for
+    // both provider roles — a landlord is not exempt.
+    require_provider_listing_access($user);
 
     $input = request_json();
 
@@ -1694,11 +2036,14 @@ function handle_create_property(): void
     $agentProfile = null;
     if ($isAgentSubmission) {
         $agentProfile = find_agent_profile_by_user((string)$user['id']);
+        // The gate above already required an approved identity. This second check
+        // is the administrator's suspension switch: it can close submissions on an
+        // otherwise verified agent, and nothing here can reopen them.
         if (!agent_can_submit_listings($agentProfile)) {
             error_response(
-                'Your agent account is still pending review, so listing submissions are not open yet.',
+                'Listing submissions are closed on this agent account. Contact Goodlucks Homes if you think this is wrong.',
                 403,
-                ['agentStatus' => 'Agent listing submissions require an approved account.']
+                ['agentStatus' => 'Agent listing submissions are closed for this account.']
             );
         }
 
@@ -1839,8 +2184,15 @@ function handle_create_property(): void
     }
 
     // An admin can publish immediately; landlords go to the queue and are
-    // matched when approved.
+    // matched when approved. A listing that goes live here starts its seven-day
+    // availability clock at the same moment it becomes public.
     if ($created && ($created['status'] ?? '') === 'active') {
+        $created = start_property_availability_cycle(
+            $created,
+            ['role' => (string)$user['role'], 'id' => (string)$user['id'], 'name' => (string)$user['name']],
+            'staff_dashboard',
+            'published'
+        );
         try {
             dispatch_search_alert_matches($created);
         } catch (Throwable $e) {
@@ -1902,6 +2254,12 @@ function handle_update_property(array $params): void
     $id = (string)($params[0] ?? '');
     // Agents edit only listings they submitted (see can_manage_property).
     $user = require_auth(['landlord', 'agent', 'admin']);
+
+    // Upgrade 2 correction: editing a listing is a listing action, so the same
+    // verification rule applies as at creation. Without this, a provider whose
+    // verification was never approved could create nothing but still rewrite an
+    // existing advert. Administrators are exempt (they moderate).
+    require_provider_listing_access($user);
 
     $row = find_property($id);
     if (!$row) {
@@ -2057,6 +2415,27 @@ function handle_property_status(array $params): void
 
     $wasActive = ((string)($row['status'] ?? '')) === 'active';
 
+    // Suspension outranks every other publication rule: a listing whose
+    // responsible account is suspended cannot be approved into public view, no
+    // matter who asks. The refusal names the cause so staff know what to fix.
+    if ($status === 'active') {
+        $provider = availability_provider_for($row);
+        if ($provider !== null) {
+            $providerState = provider_listing_state($provider);
+            // Only the suspension is re-checked on this existing approval path:
+            // identity verification is enforced where a provider submits or
+            // republishes, so historic listings approved before this upgrade can
+            // still be moderated without inventing a new refusal for them.
+            if ($providerState['suspended']) {
+                error_response(
+                    'This listing cannot be published: the responsible account is suspended.',
+                    409,
+                    ['provider' => $providerState['message'], 'accountSuspended' => 'The account is suspended.']
+                );
+            }
+        }
+    }
+
     // Task 03 update: a landlord listing is published with the administrator's
     // general viewing fee attached. The fee is applied here too, so a listing
     // that was submitted before the fee was configured still gets it. When no
@@ -2084,10 +2463,19 @@ function handle_property_status(array $params): void
         reject_pending_change_on_property_rejection($row, $user, clean_string($input['note'] ?? '', 500));
     }
 
-    // Going live is the moment saved searches should hear about it.
+    // Going live is the moment saved searches should hear about it — and the
+    // moment the seven-day availability clock starts. `start_property_availability_cycle`
+    // records the original publication date the first time only, so a listing
+    // that is republished after an expiry keeps its history.
     if ($status === 'active' && !$wasActive) {
         $live = find_property($id);
         if ($live) {
+            $live = start_property_availability_cycle(
+                $live,
+                ['role' => (string)$user['role'], 'id' => (string)$user['id'], 'name' => (string)$user['name']],
+                'admin_console',
+                'published'
+            );
             try {
                 dispatch_search_alert_matches($live);
             } catch (Throwable $e) {
@@ -2161,6 +2549,163 @@ function handle_property_status(array $params): void
  * "Verified" is a physical-inspection claim made by Goodlucks staff, so it is
  * never set by the client and never defaults to true.
  */
+/**
+ * Seven-day availability renewal: the provider's own answers.
+ *
+ * One endpoint per answer, both authorised the same way (the signed-in account
+ * must own or have submitted the listing) and both enforced on the server: the
+ * dashboard is a convenience, never the rule.
+ */
+function handle_property_availability_confirm(array $params): void
+{
+    $id = (string)($params[0] ?? '');
+    $user = require_auth(['landlord', 'agent', 'admin']);
+    $row = find_property($id);
+    if (!$row || !can_manage_property($user, $row)) {
+        // The same answer for "missing" and "not yours": ownership is never
+        // confirmed to an account that does not hold it.
+        error_response('Property not found.', 404);
+    }
+
+    $input = request_json();
+    $result = confirm_property_availability(
+        $row,
+        $user,
+        is_admin($user) ? 'admin_console' : 'provider_dashboard',
+        clean_string($input['note'] ?? '', 500)
+    );
+    if (!$result['ok']) {
+        error_response($result['error'], $result['code'] ?? 422, $result['fields'] ?? []);
+    }
+
+    json_response([
+        'success'  => true,
+        'message'  => $result['reactivated']
+            ? 'Availability confirmed. Your listing is published again with a fresh seven-day confirmation period.'
+            : 'Availability confirmed. Your listing stays published and the next confirmation is due in seven days.',
+        'property' => shape_property($result['property']),
+    ]);
+}
+
+function handle_property_availability_decline(array $params): void
+{
+    $id = (string)($params[0] ?? '');
+    $user = require_auth(['landlord', 'agent', 'admin']);
+    $row = find_property($id);
+    if (!$row || !can_manage_property($user, $row)) {
+        error_response('Property not found.', 404);
+    }
+
+    $input = request_json();
+    $note = clean_string($input['note'] ?? $input['reason'] ?? '', 500);
+    $result = withdraw_property_availability($row, $user, $note);
+    if (!$result['ok']) {
+        error_response($result['error'], $result['code'] ?? 422, $result['fields'] ?? []);
+    }
+
+    json_response([
+        'success'  => true,
+        'message'  => 'Marked as no longer available. It is no longer publicly advertised; the listing and its photographs are kept.',
+        'property' => shape_property($result['property']),
+    ]);
+}
+
+/** The listing's availability history: owner, submitting agent and staff. */
+function handle_property_availability_history(array $params): void
+{
+    $id = (string)($params[0] ?? '');
+    $user = require_auth(['landlord', 'agent', 'admin']);
+    $row = find_property($id);
+    if (!$row || !can_manage_property($user, $row)) {
+        error_response('Property not found.', 404);
+    }
+    json_response([
+        'success' => true,
+        'history' => property_availability_history($id),
+        'availability' => property_availability_state($row),
+    ]);
+}
+
+/**
+ * The administrator's availability console.
+ *
+ * Filters: all | active | due_soon | awaiting | expired | draft | unavailable |
+ * reactivated | suspended. `q` searches title, location, provider and id.
+ */
+function handle_admin_property_availability(): void
+{
+    require_admin();
+    $result = admin_property_availability_list([
+        'filter'  => (string)query_param('filter', ''),
+        'q'       => (string)query_param('q', ''),
+        'page'    => (int)query_param('page', 1),
+        'perPage' => (int)query_param('perPage', 50),
+    ]);
+    $result['success'] = true;
+    json_response($result);
+}
+
+/**
+ * The activity side of the availability console: confirmations, declines,
+ * automatic expiries, reactivations and provider suspensions, newest first.
+ */
+function handle_admin_property_availability_activity(): void
+{
+    require_admin();
+    $result = admin_availability_activity([
+        'kind'    => (string)query_param('kind', ''),
+        'q'       => (string)query_param('q', ''),
+        'page'    => (int)query_param('page', 1),
+        'perPage' => (int)query_param('perPage', 50),
+    ]);
+    $result['success'] = true;
+    json_response($result);
+}
+
+/**
+ * Administrative reactivation. A reason is required, and the source of the
+ * availability confirmation is recorded with it, because an administrator is
+ * asserting a fact about the property on the provider's behalf.
+ */
+function handle_admin_property_availability_reactivate(array $params): void
+{
+    $admin = require_admin();
+    $id = (string)($params[0] ?? '');
+    $row = find_property($id);
+    if (!$row) {
+        error_response('Property not found.', 404);
+    }
+
+    $input = request_json();
+    $reason = clean_string($input['reason'] ?? '', 500);
+    $source = clean_string($input['confirmedWith'] ?? $input['source'] ?? '', 120);
+    if (mb_strlen($reason) < 10) {
+        error_response(
+            'Record the reason for the reactivation (at least 10 characters).',
+            422,
+            ['reason' => 'Explain how the availability was established.']
+        );
+    }
+    if ($source === '') {
+        error_response(
+            'Record how availability was confirmed (for example: telephone call with the agent).',
+            422,
+            ['confirmedWith' => 'Say who confirmed the property is still available.']
+        );
+    }
+
+    $result = admin_reactivate_property_availability($row, $admin, $reason, $source, clean_string($input['note'] ?? '', 500));
+    if (!$result['ok']) {
+        error_response($result['error'], $result['code'] ?? 422, $result['fields'] ?? []);
+    }
+
+    json_response([
+        'success'  => true,
+        'message'  => 'Listing reactivated with a fresh seven-day confirmation period. The reason is recorded.',
+        'property' => shape_property($result['property']),
+    ]);
+}
+
 function handle_property_verify(array $params): void
 {
     require_admin();
@@ -2589,6 +3134,63 @@ function handle_update_enquiry(array $params): void
 // Every endpoint here re-checks its capability server-side. The console hides a
 // screen it cannot use, but hiding is never the enforcement.
 // ===========================================================================
+/**
+ * Formal suspension of an Agent or Landlord account (this upgrade).
+ *
+ * Both classifications go through the same two endpoints, because suspension is
+ * an account state, not a role feature. Reinstatement is deliberately a separate
+ * action with its own reason: lifting a suspension is not the same decision as
+ * imposing one, and neither is the same as verifying an identity.
+ */
+function handle_admin_suspend_provider(array $params): void
+{
+    $admin = require_admin();
+    $userId = (string)($params[0] ?? '');
+    $target = find_user_by_id($userId);
+    if (!$target) {
+        error_response('Account not found.', 404);
+    }
+
+    $input = request_json();
+    $result = suspend_provider($target, $admin, (string)($input['reason'] ?? ''));
+    if (!$result['ok']) {
+        error_response($result['error'], 422, $result['fields'] ?? []);
+    }
+
+    json_response([
+        'success' => true,
+        'message' => 'Account suspended. ' . (int)($result['unpublished'] ?? 0)
+            . ' live listing(s) were removed from public view and every record is kept.',
+        'user' => public_user($result['user']),
+        'listingsUnpublished' => (int)($result['unpublished'] ?? 0),
+    ]);
+}
+
+function handle_admin_reinstate_provider(array $params): void
+{
+    $admin = require_admin();
+    $userId = (string)($params[0] ?? '');
+    $target = find_user_by_id($userId);
+    if (!$target) {
+        error_response('Account not found.', 404);
+    }
+
+    $input = request_json();
+    $result = reinstate_provider($target, $admin, (string)($input['reason'] ?? ''));
+    if (!$result['ok']) {
+        error_response($result['error'], 422, $result['fields'] ?? []);
+    }
+
+    json_response([
+        'success' => true,
+        'message' => 'Account reinstated. Identity verification and classification are unchanged. '
+            . (int)($result['awaitingConfirmation'] ?? 0)
+            . ' listing(s) now wait for a fresh availability confirmation — none were republished automatically.',
+        'user' => public_user($result['user']),
+        'listingsAwaitingConfirmation' => (int)($result['awaitingConfirmation'] ?? 0),
+    ]);
+}
+
 function handle_admin_users(): void
 {
     $admin = require_admin();
@@ -2671,7 +3273,8 @@ function handle_admin_user_profile(array $params): void
 /**
  * Correct an account's provider classification (Upgrade 2, E2).
  *
- * A provider's type — tenant, landlord or agent — is chosen at registration and
+ * A provider's classification — Agent or Landlord — is chosen during verification
+ * (an Agent/Landlord account is stored on the agent or landlord role), and
  * is final once the account has been verified. This endpoint exists for the one
  * case that justifies changing it: the person picked the wrong one, or staff
  * recorded the wrong one, and the account is now telling tenants something
@@ -2699,7 +3302,7 @@ function handle_admin_correct_user_role(array $params): void
     $role = strtolower(clean_string($input['role'] ?? '', 20));
 
     if (!in_array($role, ['tenant', 'landlord', 'agent'], true)) {
-        error_response('Choose tenant, landlord or agent.', 422, ['role' => 'Choose tenant, landlord or agent.']);
+        error_response('Choose Agent, Landlord or Tenant.', 422, ['role' => 'Choose Agent, Landlord or Tenant.']);
     }
     if (mb_strlen($reason) < 10) {
         error_response(
@@ -2726,6 +3329,15 @@ function handle_admin_correct_user_role(array $params): void
 
     $from = (string)$target['role'];
     set_user_role((string)$target['id'], $role);
+
+    // The professional classification follows the role: a staff correction is
+    // also the only way an Agent/Landlord account changes the Agent-or-Landlord
+    // choice it made during verification, and it must clear 'pending' so the
+    // account is not still asked to choose.
+    db_exec('UPDATE users SET provider_category = :category WHERE id = :id', [
+        ':category' => $role === 'tenant' ? null : $role,
+        ':id'       => (string)$target['id'],
+    ]);
 
     // Becoming an agent needs an agent profile to review: create it in the
     // normal pending state so staff approve it through the Agent Accounts
@@ -5183,7 +5795,7 @@ function handle_sitemap(): void
         ];
     }
 
-    $result = query_properties(['status' => 'active', 'perPage' => 500]);
+    $result = query_properties(['status' => 'active', 'perPage' => 500, 'availabilityCurrent' => true]);
     foreach ($result['items'] as $property) {
         $updated = (string)($property['updatedAt'] ?? '');
         $timestamp = $updated !== '' ? strtotime($updated) : false;
@@ -5270,7 +5882,7 @@ function handle_ai_describe(): void
     }
 
     $fallback = sprintf(
-        'A %d-bedroom %s in %s, with %s. The listing was submitted through Goodlucks Homes, which reviews it before publishing and passes viewing requests to the landlord or agent. '
+        'A %d-bedroom %s in %s, with %s. The listing was submitted through Goodlucks Homes, which reviews it before publishing and passes viewing requests to the agent or landlord. '
         . 'View the property before you commit. Monthly rent is GH₵ %s.',
         $bedrooms,
         $type,
@@ -5374,7 +5986,7 @@ function handle_matches(): void
     }
 
     $curated = array_map('strval', (array)($request['matchedPropertyIds'] ?? []));
-    $result = query_properties(['status' => 'active', 'perPage' => 120]);
+    $result = query_properties(['status' => 'active', 'perPage' => 120, 'availabilityCurrent' => true]);
 
     $scored = [];
     foreach ($result['items'] as $property) {

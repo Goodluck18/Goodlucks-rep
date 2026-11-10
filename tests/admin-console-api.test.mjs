@@ -20,7 +20,7 @@ import path from 'node:path';
 import process from 'node:process';
 
 import { startApiServer, runPhpScript } from '../scripts/php.mjs';
-import { ApiClient } from './helpers.mjs';
+import { ApiClient, approveProviderVerification } from './helpers.mjs';
 
 const projectRoot = path.resolve(import.meta.dirname, '..');
 const dataDir = path.join(projectRoot, '.data');
@@ -109,7 +109,12 @@ describe('Admin console search and filters (Upgrade 2, A6–A10)', () => {
     assert.equal(adminLogin.status, 200, JSON.stringify(adminLogin.body));
 
     c.client.guest = consoleClient();
-    c.client.landlord = await createUser(uniqueEmail('console-landlord'), 'Console-Landlord-Pass-1', 'Console Landlord', 'landlord');
+    const landlordEmail = uniqueEmail('console-landlord');
+    c.client.landlord = await createUser(landlordEmail, 'Console-Landlord-Pass-1', 'Console Landlord', 'landlord');
+    // Verification is mandatory before listing, so this suite's landlord is
+    // approved the way a reviewer would approve it. The console tests below are
+    // about the console, not about the verification gate.
+    approveProviderVerification(landlordEmail, testEnv);
     c.tenantEmail = uniqueEmail('console-tenant');
     c.client.tenant = await createUser(c.tenantEmail, 'Console-Tenant-Pass-1', 'Console Tenant', 'tenant');
   });
