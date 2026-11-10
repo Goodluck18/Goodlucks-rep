@@ -211,3 +211,53 @@ None of these results are claimed until they are observed.
   truth; it matches "Phase 3 pushed + Phase 4 in progress" exactly.
 - Results of the interrupted `test:api` run. They are re-run from scratch and
   reported only when observed.
+
+---
+
+## Appendix — outcome of section 9, and the two later recoveries
+
+This report was written after a stop during Phase 4. It is left intact as the record of that moment. This appendix
+brings it up to date, so that nobody reads section 9 as still-open work.
+
+### A.1 Section 9 is complete
+
+| Section 9 task | Outcome |
+|---|---|
+| Run the Phase 4 verification set | Done — `test:api` group 345 / 345, both Phase 4 suites 12 / 12, `tsc` clean, build ✓ |
+| Fix failures caused by Phase 4 | None were caused by Phase 4; the pre-existing PHP-WASM wedge is documented and worked around |
+| Write the Phase 4 report | `docs/UPGRADE2_PHASE4_REPORT_2026-11-10.md` |
+| Commit and push Phase 4 | `5316609` |
+| Phases 5–8 in order | `fed5ac8` (5), `1ccd747` (6), `61736ac` + `a68f729` (7), and the Phase 8 review in `docs/UPGRADE2_FINAL_REPORT_2026-11-10.md` |
+
+### A.2 A second recovery, after Phase 6
+
+The sandbox was re-provisioned once more between Phases 6 and 7. The same procedure was applied, and it is the one to
+reuse if this ever happens again:
+
+1. `git fetch origin`, then `git ls-remote --heads origin` — confirm the branch still exists on the remote (it did).
+2. Compare the worktree against the branch commit with
+   `git ls-tree -r --format='%(objectname) %(path)' <commit>` plus a local `sha1("blob <len>\0<content>")` of each file.
+   248 of 248 files were hash-identical to `61736ac`, so nothing was lost.
+3. Archive the worktree to `/tmp` **before** touching Git (`tar czf /tmp/recovery/worktree.tgz .`), then
+   `git reset --mixed origin/arena/1dbf260c-goodlucks-rep`, then `npm ci`.
+4. Only then continue work.
+
+Two lessons worth keeping:
+
+* `git diff --stat <commit>` lists untracked-but-identical files as deletions and will convince you that work is missing
+  when it is not. Hash-verify instead; never trust the stat alone.
+* `/tmp` does not survive a restore. Any helper script kept there must be rebuilt; do not plan on finding it.
+
+### A.3 What the Phase 7 re-audit found
+
+`61736ac` implemented E1 as "tenants lose access to receipts". The audit text (section 5.10 and requirement row E1) asks
+for the feature to be deleted. Phase 8 caught the difference from the requirement text, not from a test failure, which is
+exactly why the standing rule is "verify against the requirement, not against a progress message". `a68f729` completes
+the removal and the Phase 7 report now describes what was actually shipped.
+
+### A.4 Standing state at the end of this appendage
+
+* Latest commit on `arena/1dbf260c-goodlucks-rep`: the Phase 8 report commit (parent `a68f729`).
+* `main`: still `ad2bb0a`, untouched.
+* Deployed: nothing. Production database: untouched.
+* Regression: 751 / 751 across 30 files.
