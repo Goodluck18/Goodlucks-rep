@@ -11,6 +11,7 @@ import {
   TenantRequest,
   ToastNotification,
   AccountGroup,
+  LegalAcceptanceState,
   User,
   UserRole,
   ViewingSchedule,
@@ -225,6 +226,13 @@ interface AppContextType {
    * every endpoint re-checks the capability.
    */
   refreshSession: () => Promise<void>;
+  /** Where the signed-in account stands on the Terms and the Privacy Policy. */
+  legalAcceptance: LegalAcceptanceState | null;
+  /**
+   * Record a fresh acceptance for the signed-in account. Registration records
+   * its own acceptance server-side; this is the explicit re-acceptance path.
+   */
+  acceptLegalDocuments: (data: { termsAccepted: boolean; privacyAcknowledged: boolean }) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -278,6 +286,12 @@ function initialRoute(): RouteState {
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  /**
+   * Where the signed-in account stands on the legal documents. Reported by the
+   * server (/auth/me); the prompt it drives is only shown when an administrator
+   * has deliberately switched it on.
+   */
+  const [legalAcceptance, setLegalAcceptance] = useState<LegalAcceptanceState | null>(null);
   const [isBooting, setIsBooting] = useState(true);
   const [bootError, setBootError] = useState<string | null>(null);
   const [bootAttempt, setBootAttempt] = useState(0);
@@ -468,6 +482,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const session = await api.me();
         if (cancelled) return;
         setCurrentUser(session.user);
+        setLegalAcceptance(session.legal ?? null);
         if (session.user) {
           setSavedPropertyIds(session.savedPropertyIds);
         }
@@ -698,6 +713,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       operatingCity?: string;
       providerCategory?: 'tenant' | 'landlord' | 'agent' | 'provider';
       officialName?: string;
+      /**
+       * The legal consent collected by the register form. The SERVER requires
+       * both as well, so this is not a UI-only check: registration without them
+       * is refused, and the acceptance is recorded against the version that is
+       * published at the moment the account is created.
+       */
+      termsAccepted: boolean;
+      privacyAcknowledged: boolean;
     }): Promise<SignInResult> => {
       try {
         const result = await api.register(data);
@@ -1174,6 +1197,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       const session = await api.me();
       setCurrentUser(session.user);
+      setLegalAcceptance(session.legal ?? null);
       if (session.user) {
         setSavedPropertyIds(session.savedPropertyIds);
       }
@@ -1182,6 +1206,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // its own error and the next request re-checks permissions server-side.
     }
   }, []);
+
+  /**
+   * Record a fresh acceptance. The server decides which version is current; the
+   * client never sends one, so an old page cannot record agreement to new text.
+   */
+  const acceptLegalDocuments = useCallback(
+    async (data: { termsAccepted: boolean; privacyAcknowledged: boolean }) => {
+      const result = await api.acceptLegalDocuments(data);
+      setLegalAcceptance(result.legal);
+      showSuccessToast('Thank you', result.message);
+    },
+    [showSuccessToast]
+  );
 
   const value = useMemo<AppContextType>(
     () => ({
@@ -1249,6 +1286,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       runEmailOutbox,
       refreshAdminData,
       refreshSession,
+      legalAcceptance,
+      acceptLegalDocuments,
     }),
     [
       currentUser,

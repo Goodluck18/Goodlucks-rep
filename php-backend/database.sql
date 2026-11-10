@@ -71,6 +71,8 @@ CREATE TABLE IF NOT EXISTS `users` (
   `can_manage_users` TINYINT(1) NOT NULL DEFAULT 0,
   `can_view_user_activity` TINYINT(1) NOT NULL DEFAULT 0,
   `can_send_bulk_email` TINYINT(1) NOT NULL DEFAULT 0,
+  `can_manage_legal` TINYINT(1) NOT NULL DEFAULT 0,
+  `can_publish_legal` TINYINT(1) NOT NULL DEFAULT 0,
   -- Seven-day availability renewal: an administrative restriction on an
   -- Agent/Landlord account, kept separate from identity verification. Every
   -- existing account is 'active', so the migration suspends nobody.
@@ -1369,4 +1371,64 @@ CREATE TABLE IF NOT EXISTS `property_availability_events` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `uniq_availability_event` (`property_id`, `action`, `cycle_key`),
   KEY `idx_availability_event_created` (`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ===========================================================================
+-- Legal documents, published versions and recorded acceptances
+-- (Terms & Conditions, Privacy Policy, registration consent)
+--
+-- The public pages serve the CURRENT PUBLISHED version. Drafts are never
+-- public. Rows are append-only: a publication adds a version, a restoration
+-- adds another version copying an older one, and an acceptance records exactly
+-- which version one account agreed to.
+-- ===========================================================================
+CREATE TABLE IF NOT EXISTS `legal_documents` (
+  `id` VARCHAR(64) NOT NULL,
+  `document_type` VARCHAR(32) NOT NULL,
+  `slug` VARCHAR(120) NOT NULL,
+  `title` VARCHAR(255) NOT NULL,
+  `summary` VARCHAR(500) NOT NULL DEFAULT '',
+  `current_version_id` VARCHAR(64) DEFAULT NULL,
+  `created_at` DATETIME NOT NULL,
+  `updated_at` DATETIME DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uniq_legal_document_type` (`document_type`),
+  UNIQUE KEY `uniq_legal_document_slug` (`slug`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `legal_document_versions` (
+  `id` VARCHAR(64) NOT NULL,
+  `document_id` VARCHAR(64) NOT NULL,
+  `version_number` INT NOT NULL,
+  -- draft | published | superseded
+  `status` VARCHAR(16) NOT NULL DEFAULT 'draft',
+  `title` VARCHAR(255) NOT NULL DEFAULT '',
+  `content_html` LONGTEXT,
+  `change_note` VARCHAR(500) NOT NULL DEFAULT '',
+  `effective_at` DATETIME DEFAULT NULL,
+  `created_by` VARCHAR(64) DEFAULT NULL,
+  `created_by_name` VARCHAR(255) NOT NULL DEFAULT '',
+  `created_at` DATETIME NOT NULL,
+  `updated_at` DATETIME DEFAULT NULL,
+  `published_at` DATETIME DEFAULT NULL,
+  `published_by` VARCHAR(64) DEFAULT NULL,
+  `published_by_name` VARCHAR(255) NOT NULL DEFAULT '',
+  `restored_from_version` INT DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uniq_legal_version` (`document_id`, `version_number`),
+  KEY `idx_legal_version_status` (`document_id`, `status`, `version_number`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `legal_acceptances` (
+  `id` VARCHAR(64) NOT NULL,
+  `user_id` VARCHAR(64) NOT NULL,
+  `document_type` VARCHAR(32) NOT NULL,
+  `version_id` VARCHAR(64) NOT NULL,
+  `version_number` INT NOT NULL,
+  -- registration | reacceptance
+  `source` VARCHAR(32) NOT NULL DEFAULT 'registration',
+  `accepted_at` DATETIME NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uniq_legal_acceptance` (`user_id`, `document_type`, `version_number`),
+  KEY `idx_legal_acceptance_document` (`document_type`, `version_number`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

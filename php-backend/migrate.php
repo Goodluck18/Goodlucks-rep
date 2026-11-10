@@ -106,6 +106,12 @@ $requiredColumns = [
         'can_manage_users'             => "TINYINT(1) NOT NULL DEFAULT 0 AFTER `is_primary_admin`",
         'can_view_user_activity'       => "TINYINT(1) NOT NULL DEFAULT 0 AFTER `can_manage_users`",
         'can_send_bulk_email'          => "TINYINT(1) NOT NULL DEFAULT 0 AFTER `can_view_user_activity`",
+        // Legal Pages (Terms & Conditions, Privacy Policy). Editing a draft and
+        // publishing it are separate capabilities; both default deny and are
+        // granted only from the server console (grant_legal.php). Existing
+        // administrators keep 0 — being an administrator grants neither.
+        'can_manage_legal'             => "TINYINT(1) NOT NULL DEFAULT 0 AFTER `can_send_bulk_email`",
+        'can_publish_legal'            => "TINYINT(1) NOT NULL DEFAULT 0 AFTER `can_manage_legal`",
         'updated_at'          => "DATETIME DEFAULT NULL",
     ],
     'properties' => [
@@ -315,7 +321,10 @@ $requiredTables = ['auth_sessions', 'enquiries', 'search_alerts', 'saved_propert
     // approved tenant-contact disclosure chain.
     'area_adjacency', 'contact_disclosures',
     // Seven-day availability renewal: the append-only availability history.
-    'property_availability_events'];
+    'property_availability_events',
+    // Legal documents: the published versions the public pages serve, the
+    // drafts an administrator edits, and the per-account acceptances.
+    'legal_documents', 'legal_document_versions', 'legal_acceptances'];
 
 function existing_tables(PDO $pdo): array
 {

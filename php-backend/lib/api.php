@@ -68,6 +68,28 @@ function resolve_route(string $method, string $path): ?array
         ['POST', '#^/account/classification$#', 'handle_choose_provider_category'],
         ['POST', '#^/account/avatar$#', 'handle_upload_avatar'],
         ['DELETE', '#^/account/avatar$#', 'handle_delete_avatar'],
+        // The signed-in account records a fresh, explicit acceptance of the
+        // legal documents. Nothing is recorded without the flags in the body.
+        ['POST', '#^/account/legal-acceptance$#', 'handle_account_legal_acceptance'],
+
+        // --- Legal documents (public) ------------------------------------
+        // Only the current PUBLISHED version is ever served here. A saved draft
+        // is not reachable from any public URL.
+        ['GET',  '#^/legal$#', 'handle_legal_index'],
+        ['GET',  '#^/legal/([A-Za-z0-9\-_]+)$#', 'handle_legal_document'],
+
+        // --- Legal documents (administrator console) ---------------------
+        // Editing needs can_manage_legal; publishing needs can_publish_legal.
+        // Both default to deny and are granted only from the server console.
+        ['GET',    '#^/admin/legal$#', 'handle_admin_legal_index'],
+        ['PUT',    '#^/admin/legal/reacceptance$#', 'handle_admin_legal_reacceptance'],
+        ['GET',    '#^/admin/legal/([a-z]+)$#', 'handle_admin_legal_document'],
+        ['GET',    '#^/admin/legal/([a-z]+)/versions/([0-9]+)$#', 'handle_admin_legal_version'],
+        ['PUT',    '#^/admin/legal/([a-z]+)/draft$#', 'handle_admin_legal_save_draft'],
+        ['DELETE', '#^/admin/legal/([a-z]+)/draft$#', 'handle_admin_legal_discard_draft'],
+        ['POST',   '#^/admin/legal/([a-z]+)/preview$#', 'handle_admin_legal_preview'],
+        ['POST',   '#^/admin/legal/([a-z]+)/publish$#', 'handle_admin_legal_publish'],
+        ['POST',   '#^/admin/legal/([a-z]+)/restore$#', 'handle_admin_legal_restore'],
 
         // --- Properties -------------------------------------------------
         ['GET',  '#^/matches$#', 'handle_matches'],
@@ -482,6 +504,27 @@ function handle_register(): void
         error_response('Please correct the highlighted fields.', 422, $validator->errors());
     }
 
+    // -----------------------------------------------------------------------
+    // Legal consent (Terms and Conditions + Privacy Policy).
+    //
+    // Enforced HERE, not only in the browser: an account cannot be created by a
+    // caller that skips the checkbox, and the acceptance is written against the
+    // version that is published at the moment of registration. The Terms
+    // acceptance and the Privacy acknowledgement are two separate records.
+    //
+    // The browser is not trusted to say which version it accepted, but if it
+    // does and the document has moved on in the meantime, the registration is
+    // refused rather than recorded against the wrong text.
+    // -----------------------------------------------------------------------
+    $legal = legal_registration_acceptance($input);
+    if (!($legal['ok'] ?? false)) {
+        error_response(
+            (string)($legal['message'] ?? 'Please accept the Terms and Conditions to create an account.'),
+            (int)($legal['status'] ?? 422),
+            $legal['fields'] ?? null
+        );
+    }
+
     $email = valid_email($input['email']);
     if (find_user_by_email((string)$email)) {
         // One account per person: a second registration never creates a second
@@ -519,6 +562,29 @@ function handle_register(): void
             error_response('An account with this email already exists.', 409);
         }
         throw $e;
+    }
+
+    // The acceptance is recorded only once the account exists, so it always names
+    // a real account, the real published version and the real time. If it cannot
+    // be recorded, the account is removed again: an account without its consent
+    // record must not exist.
+    try {
+        legal_record_acceptance((string)$user['id'], 'terms', $legal['terms'], 'registration');
+        legal_record_acceptance((string)$user['id'], 'privacy', $legal['privacy'], 'registration');
+        audit_log('legal.accepted', 'user', (string)$user['id'], [
+            'source'          => 'registration',
+            'terms_version'   => (int)$legal['terms']['version_number'],
+            'privacy_version' => (int)$legal['privacy']['version_number'],
+        ]);
+    } catch (Throwable $e) {
+        try {
+            db_exec('DELETE FROM users WHERE id = :id', [':id' => $user['id']]);
+            db_exec('DELETE FROM legal_acceptances WHERE user_id = :id', [':id' => $user['id']]);
+        } catch (Throwable $ignored) {
+            // fall through to the error response
+        }
+        gl_log('error', 'Could not record legal acceptance at registration', ['error' => $e->getMessage()]);
+        error_response('We could not record your acceptance of the Terms and Conditions. Please try again.', 500);
     }
 
     // An Agent/Landlord account that has not chosen yet is marked 'pending'. The
@@ -798,11 +864,25 @@ function handle_logout(): void
 function handle_me(): void
 {
     $user = auth_user();
+    // Where the signed-in account stands on the legal documents. Informational:
+    // the prompt it drives (`reacceptanceRequired`) is switched on deliberately by
+    // an administrator, because publishing a new version must not silently change
+    // what an existing account is allowed to do.
+    $legal = null;
+    if ($user !== null) {
+        try {
+            $legal = legal_acceptance_state($user);
+        } catch (Throwable $e) {
+            gl_log('warning', 'Could not read the legal acceptance state', ['error' => $e->getMessage()]);
+        }
+    }
+
     json_response([
         'success'        => true,
         'user'           => $user ? public_user($user) : null,
         'role'           => $user['role'] ?? 'guest',
         'savedPropertyIds' => $user ? list_saved_property_ids((string)$user['id']) : [],
+        'legal'          => $legal,
     ]);
 }
 

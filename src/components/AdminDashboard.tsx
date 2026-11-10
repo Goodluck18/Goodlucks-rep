@@ -10,6 +10,7 @@ import { AdminManageListings } from './AdminManageListings';
 import { AdminEnquiries } from './AdminEnquiries';
 import { AdminUserManagement } from './AdminUserManagement';
 import { AdminPropertyAvailability } from './AdminPropertyAvailability';
+import { AdminLegalPages } from './AdminLegalPages';
 import { AdminBulkEmail } from './AdminBulkEmail';
 import { AdminActivityFeed } from './AdminActivityFeed';
 import { AdminFeePolicies } from './AdminFeePolicies';
@@ -132,7 +133,9 @@ export const AdminDashboard: React.FC = () => {
     | 'users'
     | 'bulk-email'
     // This upgrade: the seven-day availability console.
-    | 'availability';
+    | 'availability'
+    // This upgrade: the Terms & Conditions / Privacy Policy editor and history.
+    | 'legal';
   const setActiveAdminTab = setSectionTab;
 
   // Real data export: CSV of the listings currently loaded from the API.
@@ -576,6 +579,13 @@ export const AdminDashboard: React.FC = () => {
             className={`gl-tab ${activeAdminTab === 'availability' ? 'gl-tab-active' : ''}`}
           >
             <Clock3 className="w-4 h-4" /> Property Availability
+          </button>
+
+          <button
+            onClick={() => setActiveAdminTab('legal')}
+            className={`gl-tab ${activeAdminTab === 'legal' ? 'gl-tab-active' : ''}`}
+          >
+            <FileText className="w-4 h-4" /> Legal Pages
           </button>
 
           <button
@@ -1092,6 +1102,11 @@ export const AdminDashboard: React.FC = () => {
         {/* TAB: Seven-day property availability (this upgrade) */}
         {activeAdminTab === 'availability' && (
           <AdminPropertyAvailability />
+        )}
+
+        {/* TAB: Legal Pages — Terms & Conditions, Privacy Policy, version history */}
+        {activeAdminTab === 'legal' && (
+          <AdminLegalPages />
         )}
 
         {/* TAB: Bulk Email (Upgrade 2, A12) */}

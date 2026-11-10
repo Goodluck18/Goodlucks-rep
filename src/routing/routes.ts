@@ -44,6 +44,11 @@ export type RouteName =
   | 'login'
   | 'register'
   | 'reset-password'
+  // The two legal documents are public pages at a fixed, unchangeable URL. They
+  // are served from the database (the latest published version), never from
+  // hardcoded page content.
+  | 'terms-and-conditions'
+  | 'privacy-policy'
   | 'admin-login'
   | 'admin'
   | 'tenant'
@@ -178,6 +183,8 @@ export const ROLE_SECTIONS: Record<'tenant' | 'landlord' | 'agent' | 'admin', Se
       'bulk-email': 'bulk-email',
       // This upgrade: the seven-day availability console.
       availability: 'availability',
+      // Legal Pages: Terms & Conditions, Privacy Policy and their version history.
+      legal: 'legal',
     },
     canonical: {
       analytics: 'analytics',
@@ -195,6 +202,7 @@ export const ROLE_SECTIONS: Record<'tenant' | 'landlord' | 'agent' | 'admin', Se
       users: 'users',
       'bulk-email': 'bulk-email',
       availability: 'availability',
+      legal: 'legal',
     },
     fallback: 'analytics',
   },
@@ -218,6 +226,11 @@ const PUBLIC_PATHS: Record<string, RouteName> = {
   '/login': 'login',
   '/register': 'register',
   '/reset-password': 'reset-password',
+  // Terms & Conditions and Privacy Policy. Public, no sign-in, stable URLs that
+  // the footer and the register form link to; the content is the latest
+  // published version from the database.
+  '/terms-and-conditions': 'terms-and-conditions',
+  '/privacy-policy': 'privacy-policy',
   '/admin-login': 'admin-login',
 };
 

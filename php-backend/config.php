@@ -290,4 +290,10 @@ require_once GL_ROOT . '/lib/email_templates.php';
 require_once GL_ROOT . '/lib/users_admin.php';
 require_once GL_ROOT . '/lib/campaigns.php';
 require_once GL_ROOT . '/lib/blog_api.php';
+// Legal documents (Terms & Conditions, Privacy Policy): the published versions
+// the public pages read, the draft an administrator edits, and the acceptance
+// records attached to an account. Seeded once from lib/legal_content.php, then
+// owned by the database.
+require_once GL_ROOT . '/lib/legal_content.php';
+require_once GL_ROOT . '/lib/legal.php';
 require_once GL_ROOT . '/lib/api.php';

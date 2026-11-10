@@ -60,6 +60,10 @@ CREATE TABLE IF NOT EXISTS users (
   can_manage_users INTEGER NOT NULL DEFAULT 0,
   can_view_user_activity INTEGER NOT NULL DEFAULT 0,
   can_send_bulk_email INTEGER NOT NULL DEFAULT 0,
+  -- Legal Pages: edit the legal drafts, and publish them. Two powers, both
+  -- default deny, granted only from the server console (grant_legal.php).
+  can_manage_legal INTEGER NOT NULL DEFAULT 0,
+  can_publish_legal INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT
 );
@@ -1119,3 +1123,81 @@ CREATE INDEX IF NOT EXISTS idx_availability_event_property
   ON property_availability_events (property_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_availability_event_created
   ON property_availability_events (created_at);
+
+-- ===========================================================================
+-- Legal documents, their published versions and recorded acceptances
+-- (Task: Terms & Conditions, Privacy Policy and registration consent)
+--
+-- The public pages read the CURRENT PUBLISHED version from these tables. The
+-- text is never hardcoded into the website, and a saved draft is never visible
+-- to a visitor: only a row whose status is 'published' and that is referenced by
+-- legal_documents.current_version_id can be served publicly.
+--
+-- Nothing here is ever deleted or rewritten. A publication adds a row; a
+-- restoration adds another row that copies an older one. An acceptance is an
+-- append-only record of what one account agreed to, and to which version.
+-- ===========================================================================
+CREATE TABLE IF NOT EXISTS legal_documents (
+  id TEXT PRIMARY KEY,
+  -- terms | privacy. A future legal document adds a type; no redesign.
+  document_type TEXT NOT NULL UNIQUE,
+  -- The public path segment: terms-and-conditions | privacy-policy.
+  slug TEXT NOT NULL UNIQUE,
+  title TEXT NOT NULL,
+  summary TEXT NOT NULL DEFAULT '',
+  -- The published version the public page serves. NULL until first publication.
+  current_version_id TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS legal_document_versions (
+  id TEXT PRIMARY KEY,
+  document_id TEXT NOT NULL,
+  version_number INTEGER NOT NULL,
+  -- draft | published | superseded
+  --   draft      : editable, never public, at most one per document
+  --   published  : the version the public page serves
+  --   superseded : was published, replaced by a newer publication. Kept whole.
+  status TEXT NOT NULL DEFAULT 'draft',
+  title TEXT NOT NULL DEFAULT '',
+  content_html TEXT NOT NULL DEFAULT '',
+  -- The administrator's note for this version (why it changed). Shown in history.
+  change_note TEXT NOT NULL DEFAULT '',
+  effective_at TEXT,
+  created_by TEXT,
+  created_by_name TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT,
+  published_at TEXT,
+  published_by TEXT,
+  published_by_name TEXT NOT NULL DEFAULT '',
+  -- Set when this publication restored an earlier version, so the history says
+  -- "restored from v3" instead of pretending it was freshly written.
+  restored_from_version INTEGER
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uniq_legal_version
+  ON legal_document_versions (document_id, version_number);
+CREATE INDEX IF NOT EXISTS idx_legal_version_status
+  ON legal_document_versions (document_id, status, version_number);
+
+CREATE TABLE IF NOT EXISTS legal_acceptances (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  -- terms | privacy. Terms acceptance and the Privacy acknowledgement are two
+  -- separate records: accepting one is never evidence of the other.
+  document_type TEXT NOT NULL,
+  version_id TEXT NOT NULL,
+  version_number INTEGER NOT NULL,
+  -- registration | reacceptance
+  source TEXT NOT NULL DEFAULT 'registration',
+  accepted_at TEXT NOT NULL
+);
+
+-- One record per account, document and version: a repeat submission (a double
+-- click, or a retried request) is idempotent, and no existing record is changed.
+CREATE UNIQUE INDEX IF NOT EXISTS uniq_legal_acceptance
+  ON legal_acceptances (user_id, document_type, version_number);
+CREATE INDEX IF NOT EXISTS idx_legal_acceptance_document
+  ON legal_acceptances (document_type, version_number);

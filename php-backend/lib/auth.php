@@ -386,10 +386,14 @@ function public_user(array $row): array
         // Upgrade 2 Phase 3 adds the directory, activity and bulk-email
         // capabilities. Like the others they default to false, are granted only
         // from the server console, and every endpoint re-checks them.
+        // Legal Pages adds two more, also default deny: editing a draft and
+        // publishing it are separate powers, because writing a policy is not
+        // the authority to make it the public policy.
         $user['capabilities'] = verification_capabilities($row)
             + finance_capabilities($row)
             + viewing_capabilities($row)
             + directory_capabilities($row)
+            + legal_capabilities($row)
             + ['sendBulkEmail' => can_send_bulk_email($row)];
     }
 

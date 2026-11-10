@@ -232,17 +232,10 @@ export const PropertyDetailView: React.FC = () => {
           Back to Properties
         </button>
 
+        {/* Sharing deliberately no longer sits here: it has its own clearly
+            labelled button below the gallery, where a visitor has just seen the
+            property. The top bar keeps Back and Save only. */}
         <div className="flex items-center gap-2">
-          <button
-            onClick={handleShare}
-            className="p-2.5 rounded-xl bg-page hover:bg-page text-ink/70 hover:text-ink transition-colors text-sm flex items-center gap-1.5"
-            title="Share this property"
-            aria-haspopup="dialog"
-          >
-            <Share2 className="w-4 h-4 text-ink" />
-            <span className="hidden sm:inline text-xs font-semibold">Share</span>
-          </button>
-
           <button
             onClick={() => toggleSaveProperty(property.id)}
             className={`p-2.5 rounded-xl transition-all ${
@@ -335,6 +328,24 @@ export const PropertyDetailView: React.FC = () => {
               ))}
             </div>
           )}
+        </div>
+
+        {/* Share this property — directly below the gallery and its thumbnails.
+            Full width on a phone (easy to tap), sized to its label on a larger
+            screen. It opens the same share dialog as before: nothing about the
+            sharing workflow changed, only where it is offered. */}
+        <div className="pt-1">
+          <button
+            type="button"
+            onClick={handleShare}
+            title="Share this property"
+            aria-haspopup="dialog"
+            data-testid="share-property-button"
+            className="gl-btn gl-btn-secondary w-full sm:w-auto justify-center text-sm font-semibold"
+          >
+            <Share2 className="w-4 h-4" />
+            Share this property
+          </button>
         </div>
 
         {/* Main 2-Column Content Layout */}

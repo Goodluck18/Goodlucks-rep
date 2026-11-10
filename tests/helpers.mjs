@@ -6,6 +6,22 @@
 import zlib from 'node:zlib';
 import { runPhpScript } from '../scripts/php.mjs';
 
+/**
+ * Registration now needs an explicit legal acceptance, and the SERVER enforces
+ * it: a request without it is refused (422) and no account is created.
+ *
+ * Every fixture in this repository was written before that rule existed, so the
+ * client adds the acceptance the register form collects. A test that is checking
+ * the refusal path opts out by naming the fields itself (for example
+ * `termsAccepted: false`), and nothing here weakens the server-side check.
+ */
+export function withRegistrationConsent(path, body) {
+  if (path !== '/api/auth/register') return body;
+  if (!body || typeof body !== 'object' || body instanceof FormData) return body;
+  if ('termsAccepted' in body || 'privacyAcknowledged' in body) return body;
+  return { ...body, termsAccepted: true, privacyAcknowledged: true };
+}
+
 export class ApiClient {
   constructor(baseUrl) {
     this.baseUrl = baseUrl;
@@ -68,7 +84,7 @@ export class ApiClient {
     return this.request('GET', path, options);
   }
   post(path, body, options) {
-    return this.request('POST', path, { ...options, body });
+    return this.request('POST', path, { ...options, body: withRegistrationConsent(path, body) });
   }
   put(path, body, options) {
     return this.request('PUT', path, { ...options, body });

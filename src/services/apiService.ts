@@ -51,6 +51,13 @@ import type {
   ViewingTermsValues,
   SearchAlertSubscription,
   FeePolicyStatus,
+  AdminLegalDocument,
+  AdminLegalSummary,
+  LegalAcceptanceState,
+  LegalDocument,
+  LegalDocumentMeta,
+  LegalDocumentType,
+  LegalVersionDetail,
   TenantRequest,
   User,
   ViewingFeeRecord,
@@ -182,6 +189,13 @@ export interface SessionInfo {
   user: User | null;
   role: string;
   savedPropertyIds: string[];
+  /**
+   * Where the signed-in account stands on the Terms and Conditions and the
+   * Privacy Policy. `reacceptanceRequired` is only true when an administrator
+   * has deliberately switched the prompt on — publishing a new version does not
+   * do it by itself.
+   */
+  legal?: LegalAcceptanceState | null;
 }
 
 export interface AdminStats extends AnalyticsStats {
@@ -333,7 +347,38 @@ export const api = {
     providerCategory?: 'tenant' | 'landlord' | 'agent' | 'provider';
     /** Task 03: the official name on the Ghana Card (a claim, not a check). */
     officialName?: string;
+    /**
+     * The legal consent the register form collects. Both are required by the
+     * SERVER as well: a request without them is refused, so an account can never
+     * be created by skipping the checkbox. The server records the versions that
+     * are published at that moment; if the form sends the versions it displayed
+     * they must still be current.
+     */
+    termsAccepted: boolean;
+    privacyAcknowledged: boolean;
+    termsVersion?: number;
+    privacyVersion?: number;
   }) => request<{ user: User }>('/auth/register', { method: 'POST', body: data }),
+
+  // -------------------------------------------------------------------------
+  // Legal documents (Terms & Conditions, Privacy Policy)
+  // -------------------------------------------------------------------------
+  /** Both documents' title and current version, without their bodies. */
+  getLegalIndex: () => request<{ documents: LegalDocumentMeta[] }>('/legal'),
+
+  /** The current PUBLISHED version of one document. Drafts are never served. */
+  getLegalDocument: (slug: string) =>
+    request<{ document: LegalDocument }>(`/legal/${encodeURIComponent(slug)}`),
+
+  /**
+   * Record a fresh, explicit acceptance for the signed-in account. Used by the
+   * re-acceptance prompt; registration records its own acceptance server-side.
+   */
+  acceptLegalDocuments: (data: { termsAccepted: boolean; privacyAcknowledged: boolean }) =>
+    request<{ success: boolean; legal: LegalAcceptanceState; message: string }>(
+      '/account/legal-acceptance',
+      { method: 'POST', body: data }
+    ),
 
   /**
    * The one-time professional classification of an Agent/Landlord account.
@@ -1561,6 +1606,78 @@ export const api = {
     request<{ success: boolean; links: EmailTemplateLink[]; broken: EmailTemplateLink[]; html: string }>(
       '/admin/email-templates/check-links',
       { method: 'POST', body: { html } }
+    ),
+
+  // -------------------------------------------------------------------------
+  // Legal Pages (administrator)
+  //
+  // Editing and publishing are separate capabilities. Every call is refused by
+  // the server for an administrator who does not hold the matching one, so the
+  // console's hiding of a button is a convenience, never the control.
+  // -------------------------------------------------------------------------
+  adminLegalDocuments: () =>
+    request<{
+      success: boolean;
+      documents: AdminLegalSummary[];
+      capabilities: { manageLegal: boolean; publishLegal: boolean };
+      reacceptanceRequired: boolean;
+    }>('/admin/legal'),
+
+  adminLegalDocument: (type: LegalDocumentType) =>
+    request<{ success: boolean; document: AdminLegalDocument }>(
+      `/admin/legal/${encodeURIComponent(type)}`
+    ),
+
+  /** One stored version, whole — including versions that are no longer live. */
+  adminLegalVersion: (type: LegalDocumentType, version: number) =>
+    request<{ success: boolean; version: LegalVersionDetail }>(
+      `/admin/legal/${encodeURIComponent(type)}/versions/${version}`
+    ),
+
+  /** Save the draft. Never changes what the public page serves. */
+  adminLegalSaveDraft: (type: LegalDocumentType, contentHtml: string, title?: string) =>
+    request<{ success: boolean; draft: LegalVersionDetail; message: string }>(
+      `/admin/legal/${encodeURIComponent(type)}/draft`,
+      { method: 'PUT', body: { contentHtml, title } }
+    ),
+
+  /** Render a body exactly as the public page would, without saving it. */
+  adminLegalPreview: (type: LegalDocumentType, contentHtml: string) =>
+    request<{ success: boolean; preview: { type: string; title: string; contentHtml: string } }>(
+      `/admin/legal/${encodeURIComponent(type)}/preview`,
+      { method: 'POST', body: { contentHtml } }
+    ),
+
+  adminLegalPublish: (
+    type: LegalDocumentType,
+    data: { confirm: true; changeNote?: string; effectiveAt?: string }
+  ) =>
+    request<{ success: boolean; published: LegalVersionDetail; message: string }>(
+      `/admin/legal/${encodeURIComponent(type)}/publish`,
+      { method: 'POST', body: data }
+    ),
+
+  /** Restore an older version as a NEW publication; history is never rewritten. */
+  adminLegalRestore: (
+    type: LegalDocumentType,
+    data: { version: number; confirm: true; changeNote?: string }
+  ) =>
+    request<{ success: boolean; published: LegalVersionDetail; message: string }>(
+      `/admin/legal/${encodeURIComponent(type)}/restore`,
+      { method: 'POST', body: data }
+    ),
+
+  adminLegalDiscardDraft: (type: LegalDocumentType) =>
+    request<{ success: boolean; message: string }>(
+      `/admin/legal/${encodeURIComponent(type)}/draft`,
+      { method: 'DELETE' }
+    ),
+
+  /** Switch the re-acceptance prompt. Publishing alone never does this. */
+  adminLegalSetReacceptance: (required: boolean) =>
+    request<{ success: boolean; reacceptanceRequired: boolean; message: string }>(
+      '/admin/legal/reacceptance',
+      { method: 'PUT', body: { required } }
     ),
 };
 

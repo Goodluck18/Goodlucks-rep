@@ -272,6 +272,17 @@ export interface StaffCapabilities {
    * implied by `financeView`: reading money is not the power to move it.
    */
   financeConfirm?: boolean;
+  /**
+   * Legal Pages: open the console, edit a draft, preview it, discard it. Default
+   * deny, granted only from the server console (`grant_legal.php`).
+   */
+  manageLegal?: boolean;
+  /**
+   * Legal Pages: publish a draft, restore an older version, and switch the
+   * re-acceptance prompt. Deliberately NOT implied by `manageLegal`: writing a
+   * policy is not the authority to make it the public policy.
+   */
+  publishLegal?: boolean;
 }
 
 export interface User {
@@ -1791,4 +1802,92 @@ export interface AdminCampaignSummary {
     error: string;
     sentAt: string | null;
   }>;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Legal documents (Terms & Conditions, Privacy Policy)                       */
+/* -------------------------------------------------------------------------- */
+
+export type LegalDocumentType = 'terms' | 'privacy';
+
+/** One of the two public documents, without its body. */
+export interface LegalDocumentMeta {
+  type: LegalDocumentType;
+  slug: string;
+  title: string;
+  summary: string;
+  version: number;
+  /** ISO-8601. The date the published version takes effect. */
+  effectiveAt?: string | null;
+  updatedAt?: string | null;
+}
+
+/** The current PUBLISHED version, as the public page renders it. */
+export interface LegalDocument extends LegalDocumentMeta {
+  publishedAt?: string | null;
+  contentHtml: string;
+}
+
+/** Where one signed-in account stands on one document. */
+export interface LegalAcceptanceEntry {
+  currentVersion: number;
+  currentEffectiveAt?: string | null;
+  acceptedVersion: number | null;
+  acceptedAt: string | null;
+  acceptedSource?: string | null;
+  needsAcceptance: boolean;
+}
+
+export interface LegalAcceptanceState {
+  reacceptanceRequired: boolean;
+  terms: LegalAcceptanceEntry;
+  privacy: LegalAcceptanceEntry;
+}
+
+/**
+ * One stored version of a document. `status` distinguishes the editable draft
+ * from the published version and from versions that were published and later
+ * replaced (`superseded`) — the latter are kept whole, forever.
+ */
+export interface LegalVersionSummary {
+  id: string;
+  version: number;
+  status: 'draft' | 'published' | 'superseded';
+  title: string;
+  changeNote: string;
+  effectiveAt?: string | null;
+  createdAt?: string | null;
+  createdByName: string;
+  publishedAt?: string | null;
+  publishedByName: string;
+  restoredFromVersion: number | null;
+}
+
+export interface LegalVersionDetail extends LegalVersionSummary {
+  contentHtml: string;
+}
+
+/** An administrator's view of one document: published, draft and history. */
+export interface AdminLegalDocument {
+  type: LegalDocumentType;
+  slug: string;
+  title: string;
+  summary: string;
+  updatedAt: string | null;
+  published: LegalVersionDetail | null;
+  draft: LegalVersionDetail | null;
+  versions: LegalVersionSummary[];
+  historyCount: number;
+}
+
+/** The document list shown on the Legal Pages console tabs. */
+export interface AdminLegalSummary {
+  type: LegalDocumentType;
+  slug: string;
+  title: string;
+  summary: string;
+  published: LegalVersionSummary | null;
+  hasDraft: boolean;
+  draftUpdatedAt: string | null;
+  versionCount: number;
 }

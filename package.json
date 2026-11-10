@@ -12,7 +12,7 @@
     "lint": "tsc --noEmit",
     "dev:web": "tsx server.ts",
     "api:dev": "node scripts/api-dev.mjs",
-    "test:api": "node --test --test-concurrency=1 tests/api.test.mjs tests/account-settings.test.mjs tests/task03.test.mjs tests/migration.test.mjs tests/concurrency.test.mjs tests/access-control.test.mjs tests/primary-admin.test.mjs tests/tenant-contact.test.mjs tests/admin-console-api.test.mjs tests/user-management.test.mjs tests/bulk-email.test.mjs tests/provider-classification.test.mjs tests/listing-verification.test.mjs tests/property-availability.test.mjs",
+    "test:api": "node --test --test-concurrency=1 tests/api.test.mjs tests/account-settings.test.mjs tests/task03.test.mjs tests/migration.test.mjs tests/concurrency.test.mjs tests/access-control.test.mjs tests/primary-admin.test.mjs tests/tenant-contact.test.mjs tests/admin-console-api.test.mjs tests/user-management.test.mjs tests/bulk-email.test.mjs tests/provider-classification.test.mjs tests/listing-verification.test.mjs tests/property-availability.test.mjs tests/legal-pages.test.mjs",
     "test:routing": "node --import tsx --test tests/routing.test.mts",
     "test:navigation": "node --import tsx --test tests/app-navigation.test.mts",
     "test:content": "node --test tests/content.test.mjs",
@@ -38,7 +38,9 @@
     "test:classification": "node --test --test-concurrency=1 tests/provider-classification.test.mjs",
     "test:listing-verification": "node --test --test-concurrency=1 tests/listing-verification.test.mjs",
     "test:availability": "node --test --test-concurrency=1 tests/property-availability.test.mjs",
-    "test:receipts-removed-phase7": "node --test --test-concurrency=1 tests/tenant-receipts-removed-phase7.test.mjs"
+    "test:receipts-removed-phase7": "node --test --test-concurrency=1 tests/tenant-receipts-removed-phase7.test.mjs",
+    "test:legal": "node --test --test-concurrency=1 tests/legal-pages.test.mjs",
+    "test:legal-ui": "node --import tsx --test tests/legal-ui.test.mts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

@@ -5,6 +5,7 @@ import { Navbar } from './components/Navbar';
 import { Footer } from './components/Footer';
 import { MobileBottomNav } from './components/MobileBottomNav';
 import { AuthModal } from './components/AuthModal';
+import { LegalReacceptancePrompt } from './components/LegalReacceptancePrompt';
 import { ResetPasswordView } from './components/ResetPasswordView';
 import { HomeView } from './components/HomeView';
 import { NotFoundView } from './components/NotFoundView';
@@ -29,6 +30,12 @@ const BlogView = lazy(() => import('./components/BlogView').then((m) => ({ defau
 const BlogPostView = lazy(() => import('./components/BlogPostView').then((m) => ({ default: m.BlogPostView })));
 const ProviderClassificationView = lazy(() =>
   import('./components/ProviderClassificationView').then((m) => ({ default: m.ProviderClassificationView }))
+);
+// The two legal documents. One component for both: the page reads the latest
+// PUBLISHED version from the database, so changing the wording never needs a
+// deployment.
+const LegalPageView = lazy(() =>
+  import('./components/LegalPageView').then((m) => ({ default: m.LegalPageView }))
 );
 
 /** Lightweight placeholder shown while a lazy view chunk downloads. */
@@ -121,6 +128,11 @@ const AppContent: React.FC = () => {
         );
       case 'about':
         return <AboutView />;
+      // Public, no sign-in, stable URLs, footer visible (never hidden here).
+      case 'terms-and-conditions':
+        return <LegalPageView documentType="terms" />;
+      case 'privacy-policy':
+        return <LegalPageView documentType="privacy" />;
       case 'contact':
         return <ContactView />;
       case 'blog':
@@ -223,6 +235,11 @@ const AppContent: React.FC = () => {
 
       {/* Footer (Clean & minimal per specs) */}
       {!hideChrome && <Footer />}
+
+      {/* Only ever visible when an administrator has switched the re-acceptance
+          prompt on AND this account's acceptance is older than the published
+          Terms. Sign-in, browsing and the public pages never trigger it. */}
+      <LegalReacceptancePrompt />
 
       {/* Mobile Bottom Bar for native app feel */}
       {!hideChrome && <MobileBottomNav onOpenAuth={() => handleOpenAuth('login')} />}

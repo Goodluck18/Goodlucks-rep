@@ -3779,6 +3779,10 @@ describe('Fee policies & agent tiers (Increment E)', () => {
         manageUsers: false,
         viewUserActivity: false,
         sendBulkEmail: false,
+        // This upgrade: editing a legal draft and publishing it are two more
+        // separate powers, and both are default-deny for a new administrator.
+        manageLegal: false,
+        publishLegal: false,
       },
       'capabilities are default-deny for a new administrator'
     );

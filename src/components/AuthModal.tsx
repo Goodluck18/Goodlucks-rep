@@ -52,11 +52,34 @@ export const AuthModal: React.FC<AuthModalProps> = ({ initialMode = 'login', ini
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  /**
+   * The legal consent, unchecked by default and required for BOTH account types.
+   *
+   * One checkbox carries the two statements the register form must collect, but
+   * the server records them as two separate acceptances (Terms, then Privacy),
+   * each against the version that is published at that moment. The server
+   * enforces this too: a registration that skips it is refused, so this is a
+   * courtesy to the person filling the form, not the control.
+   */
+  const [legalAccepted, setLegalAccepted] = useState(false);
+  const legalError =
+    fieldErrors.legalAccepted || fieldErrors.termsAccepted || fieldErrors.privacyAcknowledged || '';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setFieldErrors({});
+
+    // Registering needs the consent first. Nothing is sent to the server until
+    // the box is ticked (and the server checks again, independently).
+    if (mode === 'register' && !legalAccepted) {
+      setError('Please accept the Terms and Conditions and acknowledge the Privacy Policy before creating an account.');
+      setFieldErrors({
+        legalAccepted: 'Tick the box to confirm you accept the Terms and Conditions and acknowledge the Privacy Policy.',
+      });
+      return;
+    }
+
     setIsSubmitting(true);
 
     if (mode === 'forgot') {
@@ -90,6 +113,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({ initialMode = 'login', ini
             // Landlord this is gets chosen once, during verification.
             role: group,
             officialName: isProvider ? officialName.trim() || undefined : undefined,
+            // A single checkbox, two statements: the server stores the Terms
+            // acceptance and the Privacy acknowledgement separately.
+            termsAccepted: legalAccepted,
+            privacyAcknowledged: legalAccepted,
           });
 
     setIsSubmitting(false);
@@ -376,10 +403,67 @@ export const AuthModal: React.FC<AuthModalProps> = ({ initialMode = 'login', ini
             </div>
             )}
 
+            {mode === 'register' && (
+              <div className="rounded-xl border border-line bg-page/70 p-3">
+                <label htmlFor="legal-consent" className="flex items-start gap-2.5 cursor-pointer">
+                  <input
+                    id="legal-consent"
+                    type="checkbox"
+                    checked={legalAccepted}
+                    onChange={(e) => {
+                      setLegalAccepted(e.target.checked);
+                      if (e.target.checked) {
+                        setFieldErrors((prev) => {
+                          const next = { ...prev };
+                          delete next.legalAccepted;
+                          delete next.termsAccepted;
+                          delete next.privacyAcknowledged;
+                          return next;
+                        });
+                      }
+                    }}
+                    aria-describedby={legalError ? 'legal-consent-error' : undefined}
+                    aria-invalid={legalError ? true : undefined}
+                    className="mt-0.5 h-4 w-4 shrink-0 rounded border-line accent-interactive focus:ring-2 focus:ring-interactive/50"
+                  />
+                  <span className="text-[11px] leading-relaxed text-ink">
+                    I have read and agree to the{' '}
+                    <a
+                      href="/terms-and-conditions"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-semibold text-ink underline decoration-1 underline-offset-2 hover:bg-interactive/10 rounded px-0.5"
+                    >
+                      Terms and Conditions
+                    </a>{' '}
+                    and acknowledge the{' '}
+                    <a
+                      href="/privacy-policy"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-semibold text-ink underline decoration-1 underline-offset-2 hover:bg-interactive/10 rounded px-0.5"
+                    >
+                      Privacy Policy
+                    </a>
+                    .
+                  </span>
+                </label>
+                {legalError && (
+                  <p id="legal-consent-error" role="alert" className="text-[11px] font-semibold text-accent-text mt-2">
+                    {legalError}
+                  </p>
+                )}
+                <p className="text-[10px] text-ink/60 mt-2">
+                  The links open in a new tab, so anything you have typed here stays exactly where it is.
+                </p>
+              </div>
+            )}
+
             <button
               type="submit"
               disabled={isSubmitting}
-              className="gl-btn gl-btn-primary w-full"
+              aria-disabled={mode === 'register' && !legalAccepted}
+              className="gl-btn gl-btn-primary w-full disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {isSubmitting ? (
                 <>
