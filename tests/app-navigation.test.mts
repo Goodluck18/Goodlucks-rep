@@ -851,10 +851,10 @@ test('a visitor opening /receipts is sent to sign in and sees no receipt data', 
   await app.unmount();
 });
 
-test('a signed-in member still reaches their payment records', async () => {
+test('a tenant opening /receipts is sent to their own dashboard (Upgrade 2, E1)', async () => {
   const app = await renderAt('/receipts', 'tenant');
-  assert.equal(app.path(), '/receipts');
-  assert.match(app.text(), /rent payment records/i);
+  assert.equal(app.path(), '/tenant/dashboard');
+  assert.ok(!/rent payment records/i.test(app.text()), 'no rent-receipt screen for a tenant');
   await app.unmount();
 });
 

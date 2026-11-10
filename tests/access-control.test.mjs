@@ -213,7 +213,7 @@ describe('Correction 1: only a tenant can submit a rent request', () => {
 /* Correction 2 — receipts are private                                        */
 /* -------------------------------------------------------------------------- */
 
-describe('Correction 2: receipts need a signed-in account', () => {
+describe('Correction 2 / Upgrade 2 E1: receipts need a signed-in provider account', () => {
   test('a visitor cannot read the receipt list or a single record', async () => {
     const list = await clients.guest.get('/api/receipts');
     assert.equal(list.status, 401);
@@ -229,15 +229,16 @@ describe('Correction 2: receipts need a signed-in account', () => {
     assert.equal((await clients.agent.get('/api/receipts')).status, 403);
   });
 
-  test('the signed-in parties keep their access', async () => {
+  test('a tenant has no rent-receipt surface at all (Upgrade 2, E1)', async () => {
     const tenant = await clients.tenant.get('/api/receipts');
-    assert.equal(tenant.status, 200);
-    assert.ok(Array.isArray(tenant.body.receipts));
-    assert.equal(tenant.body.issuingEnabled, false, 'issuing stays off until the payment model ships');
+    assert.equal(tenant.status, 403, 'the tenant rent-receipt view was removed, not hidden');
+  });
 
+  test('the landlord and staff keep their access', async () => {
     const landlord = await clients.landlord.get('/api/receipts');
     assert.equal(landlord.status, 200);
     assert.ok(Array.isArray(landlord.body.receipts));
+    assert.equal(landlord.body.issuingEnabled, false, 'issuing stays off until the payment model ships');
 
     const staff = await clients.admin.get('/api/receipts');
     assert.equal(staff.status, 200);
@@ -279,7 +280,11 @@ describe('Correction 2: receipts need a signed-in account', () => {
     const id = list.body.receipts[0].id;
     assert.equal((await clients.guest.get(`/api/receipts/${id}`)).status, 401);
     assert.equal((await clients.admin.get(`/api/receipts/${id}`)).status, 200);
-    assert.equal((await clients.tenant.get(`/api/receipts/${id}`)).status, 200, 'the tenant keeps access');
+    assert.equal(
+      (await clients.tenant.get(`/api/receipts/${id}`)).status,
+      403,
+      'E1: a tenant no longer reads a receipt, even one that names them'
+    );
     assert.equal((await clients.landlord.get(`/api/receipts/${id}`)).status, 200, 'the landlord keeps access');
     assert.equal((await clients.agent.get(`/api/receipts/${id}`)).status, 403);
   });

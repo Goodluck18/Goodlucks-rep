@@ -366,7 +366,7 @@ test('public pages stay public for every role', () => {
   }
 });
 
-test('receipts are account business: a guest is sent to sign in, members are allowed', () => {
+test('receipts are provider business: a guest signs in, a tenant is redirected', () => {
   const route = parseLocation('/receipts');
   assert.equal(route.name, 'receipts');
 
@@ -375,7 +375,13 @@ test('receipts are account business: a guest is sent to sign in, members are all
   assert.equal((guest as { next: string }).next, '/receipts');
   assert.equal((guest as { to: string }).to, '/login?next=%2Freceipts');
 
-  for (const role of ['tenant', 'landlord', 'agent', 'admin'] as UserRole[]) {
+  // Upgrade 2 (E1): the tenant rent-receipt screen is gone. Opening the URL does
+  // not show a tenant's records or a landlord's — it returns them home.
+  const tenant = accessDecision(route, 'tenant', route.path);
+  assert.equal(tenant.action, 'redirect');
+  assert.equal((tenant as { to: string }).to, dashboardPath('tenant'));
+
+  for (const role of ['landlord', 'agent', 'admin'] as UserRole[]) {
     assert.equal(accessDecision(route, role, route.path).action, 'allow', `${role} keeps access`);
   }
 });

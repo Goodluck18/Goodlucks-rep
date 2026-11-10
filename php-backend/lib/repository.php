@@ -383,38 +383,18 @@ function user_can_read_receipt(array $user, array $row): bool
 
     $userId = (string)($user['id'] ?? '');
 
-    // Either party named on the record may read it.
-    foreach (['tenant_user_id', 'landlord_user_id'] as $column) {
-        $linkedId = (string)($row[$column] ?? '');
-        if ($linkedId !== '' && $linkedId === $userId) {
-            return true;
-        }
-    }
-
-    // A linked record never falls back to weaker matching.
-    if (trim((string)($row['tenant_user_id'] ?? '')) !== ''
-        || trim((string)($row['landlord_user_id'] ?? '')) !== ''
-    ) {
+    // Upgrade 2 (E1): the tenant side of a rent receipt is gone. A tenant is
+    // never a reader of a receipt, and the legacy phone-number fallback that
+    // used to attribute an unlinked record to a tenant went with it — that
+    // fallback was the weakest link in this check anyway. What remains is
+    // staff, and the landlord actually linked to the record.
+    if ((string)($user['role'] ?? '') !== 'landlord') {
         return false;
     }
 
-    // Legacy records only carry the tenant's name and phone. Landlords are not
-    // matched by name here (anyone can register under any name), so a legacy
-    // record without a linked landlord stays visible to staff only.
-    if ((string)($user['role'] ?? '') === 'landlord') {
-        return false;
-    }
+    $linkedLandlordId = trim((string)($row['landlord_user_id'] ?? ''));
 
-    $receiptPhone = phone_key((string)($row['tenant_phone'] ?? ''));
-    $userPhone = phone_key((string)($user['phone'] ?? ''));
-
-    if ($receiptPhone === '' || $receiptPhone !== $userPhone) {
-        return false;
-    }
-
-    // Refuse to attribute a legacy record to a number shared by several
-    // accounts (see phone_shared_by_multiple_accounts()).
-    return !phone_shared_by_multiple_accounts($receiptPhone);
+    return $linkedLandlordId !== '' && $linkedLandlordId === $userId;
 }
 
 function shape_receipt(array $row): array
@@ -2273,11 +2253,12 @@ function create_receipt(array $data): array
 /**
  * Receipts the viewer may read.
  *
- * Administrators see every receipt; landlords and tenants see the records they
- * are linked to by user id. Legacy rows (no links) are attributed to a tenant by
- * phone number only when that number belongs to exactly one account; they are
- * never attributed by name, and never to a landlord, because anyone can register
- * under any name or phone.
+ * Administrators see every receipt; a landlord sees the records whose stored
+ * `landlord_user_id` is their own account. Tenants have no rent-receipt surface
+ * any more (Upgrade 2, E1): the rows are kept, the fee ledger that reads them is
+ * untouched, but a tenant account is never a reader. Unlinked legacy rows stay
+ * visible to staff only — they are never attributed by name or phone, because
+ * anyone can register under any name or phone.
  */
 function list_receipts(?array $user = null, int $limit = 200): array
 {
@@ -2291,31 +2272,21 @@ function list_receipts(?array $user = null, int $limit = 200): array
         return array_map('shape_receipt', $rows);
     }
 
+    // E1: only the landlord link is queried, because only a landlord can read a
+    // receipt now. A tenant id in the request can never widen this.
+    if ((string)$user['role'] !== 'landlord') {
+        return [];
+    }
+
     $userId = (string)$user['id'];
-    $linked = db_all(
+    $rows = db_all(
         'SELECT * FROM rent_receipts
-         WHERE tenant_user_id = :uid OR landlord_user_id = :uid
+         WHERE landlord_user_id = :uid
          ORDER BY created_at DESC' . db_limit_clause($limit, 0),
         [':uid' => $userId]
     );
 
-    $legacy = db_all(
-        "SELECT * FROM rent_receipts
-         WHERE (tenant_user_id IS NULL OR tenant_user_id = '')
-           AND (landlord_user_id IS NULL OR landlord_user_id = '')
-         ORDER BY created_at DESC" . db_limit_clause(500, 0)
-    );
-
-    $rows = $linked;
-    foreach ($legacy as $row) {
-        if (user_can_read_receipt($user, $row)) {
-            $rows[] = $row;
-        }
-    }
-
-    usort($rows, static fn($a, $b) => strcmp((string)$b['created_at'], (string)$a['created_at']));
-
-    return array_map('shape_receipt', array_slice($rows, 0, $limit));
+    return array_map('shape_receipt', $rows);
 }
 
 /** Fetch one receipt row for authorisation checks. */

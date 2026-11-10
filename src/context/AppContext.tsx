@@ -443,21 +443,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return;
     }
 
-    const [requests, viewings, notificationsResult, alerts, savedResult, receiptResult] = await Promise.all([
+    // Upgrade 2 (E1): a tenant has no rent-receipt surface, so the tenant branch
+    // does not ask for one. The records stay in the database and remain readable
+    // by staff and by the landlord they belong to.
+    const [requests, viewings, notificationsResult, alerts, savedResult] = await Promise.all([
       api.listTenantRequests().catch(() => ({ requests: [] })),
       api.listViewings().catch(() => ({ viewings: [] })),
       api.listNotifications().catch(() => ({ notifications: [] })),
       api.listSearchAlerts().catch(() => ({ alerts: [] })),
       api.listSaved().catch(() => ({ propertyIds: [] })),
-      api.listReceipts().catch(() => ({ receipts: [], issuingEnabled: false })),
     ]);
     setTenantRequests(requests.requests);
     setViewingSchedules(viewings.viewings);
     setNotifications(notificationsResult.notifications);
     setSearchAlerts(alerts.alerts);
     setSavedPropertyIds(savedResult.propertyIds);
-    setReceipts(receiptResult.receipts);
-    setReceiptIssuingEnabled(Boolean(receiptResult.issuingEnabled));
+    setReceipts([]);
+    setReceiptIssuingEnabled(false);
   }, []);
 
   const refreshAll = useCallback(

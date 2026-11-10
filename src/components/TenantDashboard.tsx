@@ -22,7 +22,7 @@ import {
   Plus,
   Search,
   Check,
-  FileCheck,
+  CalendarCheck,
   ArrowRight,
 } from 'lucide-react';
 import {
@@ -608,10 +608,10 @@ export const TenantDashboard: React.FC = () => {
               </button>
               <button
                 type="button"
-                onClick={() => setCurrentView('receipts')}
+                onClick={() => navigate('/tenant/viewings')}
                 className="px-3 py-2.5 rounded-xl bg-surface border border-line text-xs font-bold text-ink hover:border-interactive/40 transition-colors flex items-center gap-1.5"
               >
-                <FileCheck className="w-3.5 h-3.5 text-ink" /> My payment records
+                <CalendarCheck className="w-3.5 h-3.5 text-ink" /> My viewings
               </button>
             </div>
           </section>

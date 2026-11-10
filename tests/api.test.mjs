@@ -1002,14 +1002,15 @@ describe('Receipt access control', () => {
     assert.ok(access.receiptId, 'helper must return the receipt id');
   });
 
-  test('receipt lists are scoped to the people concerned', async () => {
+  test('receipt lists are scoped to the landlord party and staff', async () => {
+    // Upgrade 2 (E1): the tenant rent-receipt view is gone, for the named party
+    // as much as for a stranger. The row itself is still there for staff and for
+    // the landlord it belongs to.
     const tenantSees = await clients['access-tenant-a'].get('/api/receipts');
-    assert.equal(tenantSees.status, 200);
-    assert.ok(tenantSees.body.receipts.some((r) => r.id === access.receiptId));
+    assert.equal(tenantSees.status, 403, 'a tenant is not a reader of rent receipts any more');
 
     const strangerTenant = await clients['access-tenant-b'].get('/api/receipts');
-    assert.equal(strangerTenant.status, 200);
-    assert.ok(!strangerTenant.body.receipts.some((r) => r.id === access.receiptId));
+    assert.equal(strangerTenant.status, 403);
 
     const landlordSees = await clients['access-landlord-a'].get('/api/receipts');
     assert.ok(landlordSees.body.receipts.some((r) => r.id === access.receiptId));
@@ -1021,17 +1022,18 @@ describe('Receipt access control', () => {
     assert.ok(staff.body.receipts.some((r) => r.id === access.receiptId));
   });
 
-  test('a single receipt is only readable by its parties and staff', async () => {
+  test('a single receipt is only readable by its landlord party and staff', async () => {
+    // E1: the tenant named on the record is no longer among its readers.
     const party = await clients['access-tenant-a'].get(`/api/receipts/${access.receiptId}`);
-    assert.equal(party.status, 200);
-    assert.equal(party.body.receipt.id, access.receiptId);
+    assert.equal(party.status, 403);
 
     const landlordParty = await clients['access-landlord-a'].get(`/api/receipts/${access.receiptId}`);
     assert.equal(landlordParty.status, 200);
 
-    // Strangers get 404, not 403, so ids cannot be probed for existence.
+    // E1: a tenant is refused by role before the record is even looked up, so a
+    // tenant gets 403 whether or not the id exists — ids stay unprobeable.
     const strangerTenant = await clients['access-tenant-b'].get(`/api/receipts/${access.receiptId}`);
-    assert.equal(strangerTenant.status, 404);
+    assert.equal(strangerTenant.status, 403);
 
     const strangerLandlord = await clients['access-landlord-b'].get(`/api/receipts/${access.receiptId}`);
     assert.equal(strangerLandlord.status, 404);
@@ -2689,7 +2691,7 @@ describe('Receipt labelling and legacy attribution', () => {
     assert.equal(fetched.body.receipt.recordState, 'reported');
   });
 
-  test('a legacy record is never attributed to a shared phone number', async () => {
+  test('a legacy record is never attributed to a tenant, shared phone number or not', async () => {
     const phone = '+233 24 999 0003';
     const emailA = uniqueEmail('shared-a');
     const emailB = uniqueEmail('shared-b');
@@ -2724,12 +2726,13 @@ describe('Receipt labelling and legacy attribution', () => {
     const loginB = await clientB.post('/api/auth/login', { email: emailB, password });
     assert.equal(loginB.status, 200, JSON.stringify(loginB.body));
 
-    // Ambiguous number: neither account may see or open the record.
+    // Upgrade 2 (E1): a tenant is refused outright, so the ambiguity is settled
+    // even more firmly than before — neither account can reach the list or the
+    // record, shared phone number or not.
     for (const client of [clientA, clientB]) {
       const list = await client.get('/api/receipts');
-      assert.equal(list.status, 200);
-      assert.ok(!list.body.receipts.some((receipt) => receipt.id === receiptId));
-      assert.equal((await client.get(`/api/receipts/${receiptId}`)).status, 404);
+      assert.equal(list.status, 403);
+      assert.equal((await client.get(`/api/receipts/${receiptId}`)).status, 403);
     }
 
     // Staff still see it — the record is not lost, only unattributable.

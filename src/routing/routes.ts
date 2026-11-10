@@ -528,6 +528,13 @@ export function accessDecision(route: RouteState, role: UserRole, currentPath: s
     return { action: 'login', to: `/login${buildQuery({ next: route.path })}`, next: route.path };
   }
 
+  // Upgrade 2 (E1): tenants have no rent-receipt screen. Typing the URL does not
+  // render a landlord's payment records to a tenant — it goes back to their own
+  // dashboard. The records themselves are untouched.
+  if (route.name === 'receipts' && role === 'tenant') {
+    return { action: 'redirect', to: dashboardPath('tenant') };
+  }
+
   if (route.name === 'admin-login') {
     // An admin who opens the admin login screen is already signed in: send them
     // to the console instead of asking for the access key again.

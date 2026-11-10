@@ -4374,7 +4374,11 @@ function handle_unsave_property(array $params): void
 // ===========================================================================
 function handle_list_receipts(): void
 {
-    $user = require_auth(['admin', 'landlord', 'tenant']);
+    // Upgrade 2 (E1): tenants no longer have a rent-receipt surface at all. The
+    // records themselves stay in `rent_receipts` (and the fee ledger that reads
+    // them stays intact) — this is about who may open the screen, not about
+    // deleting history.
+    $user = require_auth(['admin', 'landlord']);
     json_response([
         'success'        => true,
         'receipts'       => list_receipts($user, 200),
@@ -4390,7 +4394,7 @@ function handle_list_receipts(): void
  */
 function handle_get_receipt(array $params): void
 {
-    $user = require_auth(['admin', 'landlord', 'tenant']);
+    $user = require_auth(['admin', 'landlord']);
     $row = find_receipt((string)($params[0] ?? ''));
     if (!$row || !user_can_read_receipt($user, $row)) {
         error_response('Receipt not found.', 404);
