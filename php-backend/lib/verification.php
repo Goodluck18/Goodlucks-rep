@@ -91,6 +91,11 @@ function is_verification_reviewer(?array $user = null): bool
     if ($user === null || (string)($user['role'] ?? '') !== 'admin') {
         return false;
     }
+    // Upgrade 2: the primary platform administrator reviews identity checks
+    // without a separate grant. No other account is affected.
+    if (is_primary_admin($user)) {
+        return true;
+    }
     return (int)($user['can_review_verifications'] ?? 0) === 1;
 }
 
@@ -99,6 +104,11 @@ function can_access_identity_documents(?array $user = null): bool
     $user = $user ?? auth_user();
     if (!is_verification_reviewer($user)) {
         return false;
+    }
+    // Upgrade 2: reviewer status is necessary but not sufficient for everybody
+    // else; the primary administrator is the one account that holds both.
+    if (is_primary_admin($user)) {
+        return true;
     }
     return (int)($user['can_access_identity_documents'] ?? 0) === 1;
 }

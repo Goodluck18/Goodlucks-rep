@@ -275,6 +275,92 @@ function require_viewing_view(array $viewing, ?array $user): array
 }
 
 // ---------------------------------------------------------------------------
+// Tenant contact disclosure (Upgrade 2, step 1)
+//
+// A tenant's phone number and email address are private. Goodlucks staff see
+// them (they arrange viewings), and the tenant always sees their own record.
+// An AGENT or LANDLORD does not: until an administrator explicitly approves
+// sharing, the API returns those two fields empty and says why, so the console
+// can show an honest state instead of a blank row.
+//
+// This is deliberately a seam at the serialisation boundary — `shape_viewing()`
+// stays the trusted internal record so the code that emails the tenant still has
+// the real address. The full request → review → approve → revoke workflow ships
+// in Phase 5; until then every non-staff viewer is withheld, with no exceptions.
+// ---------------------------------------------------------------------------
+
+/**
+ * Is this viewer allowed to see the tenant's phone number and email address?
+ *
+ * @return array{visible:bool, state:string, reason:string}
+ */
+function viewing_tenant_contact_state(array $viewing, ?array $viewer): array
+{
+    if ($viewer === null) {
+        return [
+            'visible' => false,
+            'state'   => 'withheld',
+            'reason'  => 'Sign in to see this request.',
+        ];
+    }
+
+    if (is_admin($viewer)) {
+        return ['visible' => true, 'state' => 'staff', 'reason' => ''];
+    }
+
+    $userId = (string)($viewer['id'] ?? '');
+    $role = (string)($viewer['role'] ?? '');
+
+    // The tenant's own record: always theirs.
+    if ($role === 'tenant') {
+        $ownerId = (string)($viewing['tenantUserId'] ?? '');
+        if ($ownerId !== '' && $ownerId === $userId) {
+            return ['visible' => true, 'state' => 'own_record', 'reason' => ''];
+        }
+        $ownerEmail = strtolower(trim((string)($viewing['tenantEmail'] ?? '')));
+        $viewerEmail = strtolower(trim((string)($viewer['email'] ?? '')));
+        if ($ownerEmail !== '' && $ownerEmail === $viewerEmail) {
+            return ['visible' => true, 'state' => 'own_record', 'reason' => ''];
+        }
+    }
+
+    if ($role === 'agent' || $role === 'landlord') {
+        return [
+            'visible' => false,
+            'state'   => 'withheld_pending_approval',
+            'reason'  => 'Goodlucks shares a tenant\'s phone number and email address only after an administrator approves it. Message the viewing desk to arrange contact.',
+        ];
+    }
+
+    return [
+        'visible' => false,
+        'state'   => 'withheld',
+        'reason'  => 'You do not have access to this contact detail.',
+    ];
+}
+
+/**
+ * Shape a viewing for one viewer, withholding the tenant's contact details when
+ * that viewer is not entitled to them. Every API response that returns a viewing
+ * to a non-staff caller goes through this function.
+ */
+function viewing_for_viewer(array $viewing, ?array $viewer): array
+{
+    $state = viewing_tenant_contact_state($viewing, $viewer);
+
+    $viewing['tenantContactVisible'] = $state['visible'];
+    $viewing['tenantContactState'] = $state['state'];
+    $viewing['tenantContactReason'] = $state['reason'];
+
+    if (!$state['visible']) {
+        $viewing['tenantPhone'] = '';
+        $viewing['tenantEmail'] = '';
+    }
+
+    return $viewing;
+}
+
+// ---------------------------------------------------------------------------
 // Appointment slots
 // ---------------------------------------------------------------------------
 
@@ -894,7 +980,13 @@ function viewing_assign_agent(array $viewing, ?string $agentUserId, array $admin
 
 function is_viewing_corrector(array $user): bool
 {
-    return (string)($user['role'] ?? '') === 'admin' && !empty($user['can_correct_viewings']);
+    if ((string)($user['role'] ?? '') !== 'admin') {
+        return false;
+    }
+    // Upgrade 2: the primary platform administrator may correct a viewing
+    // record without a separate grant; every other administrator still needs
+    // `can_correct_viewings`, and the correction is audited either way.
+    return is_primary_admin($user) || !empty($user['can_correct_viewings']);
 }
 
 function require_viewing_corrector(): array

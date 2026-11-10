@@ -3855,6 +3855,9 @@ describe('Fee policies & agent tiers (Increment E)', () => {
         financeConfirm: false,
         // Increment F: viewing corrections are default-deny too.
         viewingCorrections: false,
+        // Upgrade 2: approving your OWN policy is denied for every administrator
+        // except the primary platform administrator (who is not this account).
+        feePolicySelfApprove: false,
       },
       'capabilities are default-deny for a new administrator'
     );

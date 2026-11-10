@@ -36,6 +36,9 @@ CREATE TABLE IF NOT EXISTS users (
   -- Increment G: reading financial records and moving money are separate powers.
   can_view_finance INTEGER NOT NULL DEFAULT 0,
   can_confirm_remittances INTEGER NOT NULL DEFAULT 0,
+  -- Upgrade 2: the primary platform administrator. Assigned only from the
+  -- server console (php-backend/assign_primary_admin.php); never by HTTP.
+  is_primary_admin INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT
 );
@@ -472,6 +475,9 @@ CREATE TABLE IF NOT EXISTS fee_policies (
   submitted_at TEXT,
   approved_by TEXT,
   approved_at TEXT,
+  -- Upgrade 2: 1 only when the primary administrator approved its own policy.
+  self_approved INTEGER NOT NULL DEFAULT 0,
+  self_approved_at TEXT,
   rejected_by TEXT,
   rejected_at TEXT,
   rejection_reason TEXT,

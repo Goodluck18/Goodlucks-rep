@@ -214,6 +214,12 @@ export interface StaffCapabilities {
   feePolicyManage?: boolean;
   /** Approve/reject/activate/deactivate fee policies (Increment E). */
   feePolicyApprove?: boolean;
+  /**
+   * Approve a fee policy this same account created. True for the primary
+   * platform administrator only; every other administrator needs a second
+   * administrator, and the server enforces it.
+   */
+  feePolicySelfApprove?: boolean;
   /** Correct a closed viewing record with an audited reason (Increment F). */
   viewingCorrections?: boolean;
   /** Read the money ledger, remittances and commissions (Increment G). */
@@ -248,6 +254,11 @@ export interface User {
   agentProfile?: AgentProfile | null;
   /** Present only on administrator accounts (Increment D). */
   capabilities?: StaffCapabilities;
+  /**
+   * True for the primary platform administrator account only. It is assigned
+   * from the server console, never by the application.
+   */
+  isPrimaryAdmin?: boolean;
 }
 
 export type PropertyStatus = 'active' | 'pending' | 'rejected' | 'rented' | 'deactivated';
@@ -473,8 +484,22 @@ export interface ViewingSchedule {
   id: string;
   tenantRequestId: string;
   tenantName: string;
+  /**
+   * Empty when the viewer is not entitled to it. An agent or landlord sees a
+   * tenant's phone number and email address only after an administrator approves
+   * sharing (`tenantContactVisible`); staff and the tenant always see them.
+   */
   tenantPhone: string;
   tenantEmail?: string;
+  /** True when this viewer may see the tenant's contact details. */
+  tenantContactVisible?: boolean;
+  /**
+   * `staff` | `own_record` (visible) · `withheld_pending_approval` | `withheld`
+   * (not visible). The full approval workflow arrives with the disclosure queue.
+   */
+  tenantContactState?: string;
+  /** Plain-language explanation shown in place of the withheld details. */
+  tenantContactReason?: string;
   /** The tenant account, when the request came from a signed-in tenant. */
   tenantUserId: string;
   /** The agent responsible. Set from the listing's submitter, or by staff. */
@@ -1111,6 +1136,12 @@ export interface FeePolicy {
   submittedAt: string;
   approvedBy: string;
   approvedAt: string;
+  /**
+   * True only when the primary administrator approved a policy it created
+   * itself. Shown as a fact in the console so the exception is visible.
+   */
+  selfApproved?: boolean;
+  selfApprovedAt?: string;
   rejectedBy: string;
   rejectedAt: string;
   rejectionReason: string;

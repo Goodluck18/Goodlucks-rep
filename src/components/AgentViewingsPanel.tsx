@@ -157,9 +157,16 @@ const ViewingCard: React.FC<{ viewing: ViewingSchedule }> = ({ viewing }) => {
             <MapPin className="w-3 h-3" /> {viewing.propertyLocation}
           </p>
           <p className="text-[11px] text-ink/70">
-            {viewing.tenantName} · {viewing.tenantPhone}
-            {viewing.tenantEmail ? ` · ${viewing.tenantEmail}` : ''}
+            {viewing.tenantName}
+            {viewing.tenantContactVisible !== false && viewing.tenantPhone ? ` · ${viewing.tenantPhone}` : ''}
+            {viewing.tenantContactVisible !== false && viewing.tenantEmail ? ` · ${viewing.tenantEmail}` : ''}
           </p>
+          {viewing.tenantContactVisible === false && (
+            <p className="text-[10px] text-ink/70 flex items-start gap-1">
+              <Info className="w-3 h-3 mt-0.5 shrink-0" />
+              Contact details are shared by Goodlucks only after an administrator approves it.
+            </p>
+          )}
           <p className="text-[11px] text-ink/70 flex items-center gap-1">
             <Calendar className="w-3 h-3" />
             {viewing.isConfirmed ? 'Agreed slot' : 'Requested slot'}:{' '}

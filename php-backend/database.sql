@@ -54,6 +54,13 @@ CREATE TABLE IF NOT EXISTS `users` (
   `can_correct_viewings` TINYINT(1) NOT NULL DEFAULT 0,
   `can_view_finance` TINYINT(1) NOT NULL DEFAULT 0,
   `can_confirm_remittances` TINYINT(1) NOT NULL DEFAULT 0,
+  -- Upgrade 2: the PRIMARY platform administrator. Exactly one account holds
+  -- this (assigned only from the server console by
+  -- php-backend/assign_primary_admin.php). It is the union of every staff
+  -- capability, and it is the only account allowed to approve a fee policy it
+  -- created itself. It is NOT implied by `role = 'admin'`, and no HTTP route can
+  -- set it.
+  `is_primary_admin` TINYINT(1) NOT NULL DEFAULT 0,
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` DATETIME DEFAULT NULL,
   PRIMARY KEY (`id`),
@@ -617,6 +624,12 @@ CREATE TABLE IF NOT EXISTS `fee_policies` (
   `submitted_at` DATETIME DEFAULT NULL,
   `approved_by` VARCHAR(64) DEFAULT NULL,
   `approved_at` DATETIME DEFAULT NULL,
+  -- Upgrade 2: set only when the PRIMARY administrator approved a policy they
+  -- created themselves. Every other administrator still needs a second person.
+  -- The exception is recorded, not hidden, so the trail shows who approved what
+  -- and why the separation-of-duties rule did not apply.
+  `self_approved` TINYINT(1) NOT NULL DEFAULT 0,
+  `self_approved_at` DATETIME DEFAULT NULL,
   `rejected_by` VARCHAR(64) DEFAULT NULL,
   `rejected_at` DATETIME DEFAULT NULL,
   `rejection_reason` TEXT DEFAULT NULL,

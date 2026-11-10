@@ -2936,8 +2936,31 @@ function handle_create_viewing(): void
         // on the request.
         'viewingTerms' => $approvedTerms,
         'awaitingAgent'=> true,
+        // The person who just submitted this request typed these details in this
+        // same call, so echoing them back reveals nothing they do not already
+        // know. Every READ of a viewing goes through `viewing_payload()`.
         'viewing'      => $viewing,
     ], 201);
+}
+
+/**
+ * Shape a viewing for the person making THIS request.
+ *
+ * The tenant's phone number and email address are withheld from agents and
+ * landlords until an administrator approves sharing (Upgrade 2 security fix;
+ * the full approval workflow lands in Phase 5). Staff and the tenant themselves
+ * are unaffected. Every viewing payload in this file passes through here, so a
+ * new endpoint cannot forget the rule.
+ */
+function viewing_payload(array $viewing): array
+{
+    return viewing_for_viewer($viewing, auth_user());
+}
+
+/** @param array<int,array> $viewings */
+function viewing_payload_list(array $viewings): array
+{
+    return array_map('viewing_payload', $viewings);
 }
 
 /**
@@ -2971,7 +2994,7 @@ function handle_list_viewings(): void
 
         json_response([
             'success'  => true,
-            'viewings' => $viewings,
+            'viewings' => viewing_payload_list($viewings),
             'counts'   => [
                 'total'      => count($viewings),
                 'overdue'    => count($overdue),
@@ -2993,21 +3016,27 @@ function handle_list_viewings(): void
                 403
             );
         }
-        json_response(['success' => true, 'viewings' => list_viewings_filtered(['agentUserId' => (string)$user['id']], 200)]);
+        json_response([
+            'success'  => true,
+            'viewings' => viewing_payload_list(list_viewings_filtered(['agentUserId' => (string)$user['id']], 200)),
+        ]);
         return;
     }
 
     if ($role === 'landlord') {
-        json_response(['success' => true, 'viewings' => list_viewings_filtered(['landlordId' => (string)$user['id']], 200)]);
+        json_response([
+            'success'  => true,
+            'viewings' => viewing_payload_list(list_viewings_filtered(['landlordId' => (string)$user['id']], 200)),
+        ]);
         return;
     }
 
     json_response([
         'success'  => true,
-        'viewings' => list_viewings_filtered([
+        'viewings' => viewing_payload_list(list_viewings_filtered([
             'tenantUserId' => (string)$user['id'],
             'tenantEmail'  => (string)($user['email'] ?? ''),
-        ], 100),
+        ], 100)),
     ]);
 }
 
@@ -3028,7 +3057,7 @@ function handle_get_viewing(array $params): void
 
     $detail = [
         'success'        => true,
-        'viewing'        => $viewing,
+        'viewing'        => viewing_payload($viewing),
         'history'        => list_viewing_events($id),
         'access'         => ['role' => $access['role'], 'canAct' => $access['canAct']],
         'allowedActions' => $access['canAct'] ? viewing_allowed_actions($viewing, $access['role']) : [],
@@ -3096,7 +3125,7 @@ function handle_viewing_action(array $params): void
             json_response([
                 'success' => true,
                 'message' => 'Proposed ' . $updated['date'] . ' at ' . $updated['time'] . '. The tenant still has to agree.',
-                'viewing' => $updated,
+                'viewing' => viewing_payload($updated),
             ]);
             return;
 
@@ -3111,7 +3140,7 @@ function handle_viewing_action(array $params): void
             json_response([
                 'success' => true,
                 'message' => 'Appointment confirmed for ' . $updated['date'] . ' at ' . $updated['time'] . '.',
-                'viewing' => $updated,
+                'viewing' => viewing_payload($updated),
             ]);
             return;
 
@@ -3129,7 +3158,7 @@ function handle_viewing_action(array $params): void
             json_response([
                 'success' => true,
                 'message' => 'Rescheduled to ' . $updated['date'] . ' at ' . $updated['time'] . '. The previous slot is kept in the history.',
-                'viewing' => $updated,
+                'viewing' => viewing_payload($updated),
             ]);
             return;
 
@@ -3143,7 +3172,7 @@ function handle_viewing_action(array $params): void
             json_response([
                 'success' => true,
                 'message' => 'Reschedule request recorded. The appointment is not moved until a new time is agreed.',
-                'viewing' => $updated,
+                'viewing' => viewing_payload($updated),
             ]);
             return;
 
@@ -3156,7 +3185,7 @@ function handle_viewing_action(array $params): void
             json_response([
                 'success' => true,
                 'message' => 'Viewing cancelled. The reason is recorded in the history.',
-                'viewing' => $updated,
+                'viewing' => viewing_payload($updated),
             ]);
             return;
 
@@ -3173,7 +3202,7 @@ function handle_viewing_action(array $params): void
             json_response([
                 'success' => true,
                 'message' => 'Viewing marked complete. No payment has been recorded by this action.',
-                'viewing' => $updated,
+                'viewing' => viewing_payload($updated),
             ]);
             return;
 
@@ -3196,7 +3225,7 @@ function handle_viewing_action(array $params): void
             json_response([
                 'success' => true,
                 'message' => 'Recorded: ' . ($who === 'tenant' ? 'the tenant did not attend' : 'the agent did not attend') . '.',
-                'viewing' => $updated,
+                'viewing' => viewing_payload($updated),
             ]);
             return;
 
@@ -3208,7 +3237,7 @@ function handle_viewing_action(array $params): void
             json_response([
                 'success' => true,
                 'message' => 'Recorded that the viewing could not proceed.',
-                'viewing' => $updated,
+                'viewing' => viewing_payload($updated),
             ]);
             return;
     }
@@ -3228,7 +3257,7 @@ function handle_admin_viewing_detail(array $params): void
 
     json_response([
         'success'        => true,
-        'viewing'        => $viewing,
+        'viewing'        => viewing_payload($viewing),
         'history'        => list_viewing_events($id),
         'financial'      => viewing_financial_state($viewing),
         'landlordUserId' => (string)($viewing['landlordUserId'] ?? ''),
@@ -3256,7 +3285,7 @@ function handle_correct_viewing(array $params): void
     json_response([
         'success' => true,
         'message' => 'Correction recorded. The previous status is kept in the audit trail.',
-        'viewing' => $updated,
+        'viewing' => viewing_payload($updated),
     ]);
 }
 
@@ -3276,7 +3305,7 @@ function handle_assign_viewing_agent(array $params): void
     json_response([
         'success' => true,
         'message' => 'Viewing assigned to the agent.',
-        'viewing' => $updated,
+        'viewing' => viewing_payload($updated),
     ]);
 }
 
@@ -3412,7 +3441,8 @@ function handle_update_viewing(array $params): void
         }
     }
 
-    json_response(['success' => true, 'viewing' => find_viewing($id)]);
+    $finalViewing = find_viewing($id);
+    json_response(['success' => true, 'viewing' => $finalViewing ? viewing_payload($finalViewing) : null]);
 }
 
 // ===========================================================================

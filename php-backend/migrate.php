@@ -83,6 +83,10 @@ $requiredColumns = [
         // Increment G: reading money records and moving money are separate powers.
         'can_view_finance'             => "TINYINT(1) NOT NULL DEFAULT 0 AFTER `can_correct_viewings`",
         'can_confirm_remittances'      => "TINYINT(1) NOT NULL DEFAULT 0 AFTER `can_view_finance`",
+        // Upgrade 2: the primary platform administrator. Assigned only from the
+        // server console (assign_primary_admin.php); no HTTP route sets it, and
+        // `role = 'admin'` does not imply it. Existing accounts stay 0.
+        'is_primary_admin'             => "TINYINT(1) NOT NULL DEFAULT 0 AFTER `can_confirm_remittances`",
         'updated_at'          => "DATETIME DEFAULT NULL",
     ],
     'properties' => [
@@ -224,6 +228,10 @@ $requiredColumns = [
         'rejected_at'          => "DATETIME DEFAULT NULL AFTER `rejected_by`",
         'rejection_reason'     => "TEXT DEFAULT NULL AFTER `rejected_at`",
         'activated_by'         => "VARCHAR(64) DEFAULT NULL AFTER `rejection_reason`",
+        // Upgrade 2: records that the primary administrator approved a policy it
+        // created itself. Existing rows stay 0.
+        'self_approved'        => "TINYINT(1) NOT NULL DEFAULT 0 AFTER `approved_at`",
+        'self_approved_at'     => "DATETIME DEFAULT NULL AFTER `self_approved`",
         'activated_at'         => "DATETIME DEFAULT NULL AFTER `activated_by`",
         'deactivated_by'       => "VARCHAR(64) DEFAULT NULL AFTER `activated_at`",
         'deactivated_at'       => "DATETIME DEFAULT NULL AFTER `deactivated_by`",

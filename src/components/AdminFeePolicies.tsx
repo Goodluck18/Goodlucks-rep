@@ -286,6 +286,9 @@ export const AdminFeePolicies: React.FC = () => {
   const capabilities = currentUser?.capabilities;
   const canManage = Boolean(capabilities?.feePolicyManage);
   const canApprove = Boolean(capabilities?.feePolicyApprove);
+  // True for the primary platform administrator only. The server enforces it;
+  // this only decides which explanatory sentence is shown.
+  const canSelfApprove = Boolean(capabilities?.feePolicySelfApprove);
   const canRead = canManage || canApprove;
 
   const [overview, setOverview] = useState<FeePolicyOverview | null>(null);
@@ -497,6 +500,18 @@ export const AdminFeePolicies: React.FC = () => {
           {canApprove && !canManage && ' — you can approve policies, but not draft them.'}
           {canManage && !canApprove && ' — you can draft policies, but not approve them.'}
         </p>
+        {canSelfApprove ? (
+          <p className="text-ink">
+            This is the <span className="font-bold">primary administrator</span> account: it may approve a policy it
+            created itself. The approval is recorded as a self-approval, and every other administrator still needs a
+            different administrator to approve theirs.
+          </p>
+        ) : (
+          <p className="text-ink/70">
+            A policy is approved by a different administrator from the one who created it. Only the primary platform
+            administrator may approve its own.
+          </p>
+        )}
         <p className="text-ink/70">
           Active policies: {overview.counts.active ?? 0} · awaiting approval: {overview.counts.pending_approval ?? 0} ·
           drafts: {overview.counts.draft ?? 0}
@@ -553,6 +568,13 @@ export const AdminFeePolicies: React.FC = () => {
                     {policy.effectiveTo ? ` → ${policy.effectiveTo}` : ' (no end date)'} · version {policy.version}
                     {policy.approved && policy.approvedAt ? ` · approved ${new Date(policy.approvedAt).toLocaleDateString()}` : ' · not approved'}
                   </p>
+                  {policy.selfApproved && (
+                    <p className="text-[10px] text-ink flex items-start gap-1">
+                      <ShieldCheck className="w-3 h-3 mt-0.5 shrink-0" />
+                      Approved by the primary administrator, who also drafted it. Recorded on the
+                      policy and in the audit trail; other administrators still need a second person.
+                    </p>
+                  )}
                   {policy.rejectionReason && (
                     <p className="text-[10px] text-ink">Rejected: {policy.rejectionReason}</p>
                   )}

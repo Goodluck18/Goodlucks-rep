@@ -139,6 +139,12 @@ const FEE_POLICY_CURRENCY = 'GHS';
 function is_fee_policy_manager(?array $user = null): bool
 {
     $user = $user ?? auth_user();
+    // Upgrade 2: the primary platform administrator holds every staff
+    // capability without needing a separate grant. No other administrator is
+    // affected: their stored flag is still the only thing that counts.
+    if (is_primary_admin($user)) {
+        return true;
+    }
     return $user !== null
         && (string)($user['role'] ?? '') === 'admin'
         && (int)($user['can_manage_fee_policies'] ?? 0) === 1;
@@ -147,9 +153,25 @@ function is_fee_policy_manager(?array $user = null): bool
 function is_fee_policy_approver(?array $user = null): bool
 {
     $user = $user ?? auth_user();
+    if (is_primary_admin($user)) {
+        return true;
+    }
     return $user !== null
         && (string)($user['role'] ?? '') === 'admin'
         && (int)($user['can_approve_fee_policies'] ?? 0) === 1;
+}
+
+/**
+ * True only for the primary administrator (Upgrade 2).
+ *
+ * Approving your own policy is a separation-of-duties exception, so it is
+ * granted to exactly one named account rather than to "administrators" as a
+ * class. Everything that depends on it (the approval guard, the capability hint
+ * in the console) reads this function, so the rule cannot drift.
+ */
+function is_fee_policy_self_approver(?array $user = null): bool
+{
+    return is_primary_admin($user);
 }
 
 function require_fee_policy_manager(): array
@@ -199,6 +221,10 @@ function finance_capabilities(array $user): array
         // neither is implied by ordinary administration.
         'financeView'      => function_exists('finance_can_view') && finance_can_view($user),
         'financeConfirm'   => function_exists('finance_can_confirm') && finance_can_confirm($user),
+        // Upgrade 2: true for the primary administrator only. It says that this
+        // account may approve a policy it created itself; every other
+        // administrator still needs a different administrator to approve.
+        'feePolicySelfApprove' => is_fee_policy_self_approver($user),
     ];
 }
 
@@ -629,6 +655,10 @@ function shape_fee_policy(array $row): array
         'submittedAt' => to_iso($row['submitted_at'] ?? null),
         'approvedBy'  => (string)($row['approved_by'] ?? ''),
         'approvedAt'  => to_iso($row['approved_at'] ?? null),
+        // Upgrade 2: true only where the primary administrator approved its own
+        // policy. Shaped as a fact, not as a permission.
+        'selfApproved'   => (int)($row['self_approved'] ?? 0) === 1,
+        'selfApprovedAt' => to_iso($row['self_approved_at'] ?? null),
         'rejectedBy'  => (string)($row['rejected_by'] ?? ''),
         'rejectedAt'  => to_iso($row['rejected_at'] ?? null),
         'rejectionReason' => (string)($row['rejection_reason'] ?? ''),
@@ -862,9 +892,16 @@ function approve_fee_policy(string $id, array $actor, string $note = ''): array
     if (fee_policy_normalise_status((string)$row['status']) !== 'pending_approval') {
         throw new InvalidArgumentException('Only a policy awaiting approval can be approved.');
     }
+    $selfApproval = (string)($row['created_by'] ?? '') === (string)$actor['id'];
     // Separation of duties: the person who drafted the financial terms cannot be
     // the person who approves them, even when they hold both capabilities.
-    if ((string)($row['created_by'] ?? '') === (string)$actor['id']) {
+    //
+    // Upgrade 2 exception: the PRIMARY administrator may approve a policy it
+    // created itself (the platform's fee terms are that account's decision to
+    // make). The exception is recorded on the row and in the event trail, and it
+    // never reaches an ordinary administrator — `is_fee_policy_self_approver()`
+    // is true only for the primary account.
+    if ($selfApproval && !is_fee_policy_self_approver($actor)) {
         throw new InvalidArgumentException('A policy must be approved by a different administrator from the one who created it.');
     }
     if ($note === '') {
@@ -873,12 +910,16 @@ function approve_fee_policy(string $id, array $actor, string $note = ''): array
 
     db_exec(
         'UPDATE fee_policies
-            SET status = :status, approved_by = :by, approved_at = :at, updated_at = :updated
+            SET status = :status, approved_by = :by, approved_at = :at,
+                self_approved = :self_approved, self_approved_at = :self_approved_at,
+                updated_at = :updated
           WHERE id = :id AND status = :pending',
         [
             ':status'  => 'approved',
             ':by'      => (string)$actor['id'],
             ':at'      => db_now(),
+            ':self_approved'    => $selfApproval ? 1 : 0,
+            ':self_approved_at' => $selfApproval ? db_now() : null,
             ':updated' => db_now(),
             ':id'      => $id,
             ':pending' => 'pending_approval',
@@ -886,7 +927,14 @@ function approve_fee_policy(string $id, array $actor, string $note = ''): array
     );
 
     $updated = find_fee_policy($id) ?? [];
-    record_fee_policy_event($updated, 'approved', $actor, $note, 'pending_approval', 'approved');
+    record_fee_policy_event(
+        $updated,
+        $selfApproval ? 'approved_by_creator' : 'approved',
+        $actor,
+        $selfApproval ? ('Primary administrator self-approval. ' . $note) : $note,
+        'pending_approval',
+        'approved'
+    );
     return $updated;
 }
 

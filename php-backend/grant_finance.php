@@ -28,8 +28,11 @@
  * There is deliberately no HTTP endpoint that grants these: a stolen admin
  * session must not be able to widen its own financial authority.
  *
- * Note: even an account holding both capabilities cannot approve a policy it
- * created itself — `approve_fee_policy()` refuses that outright.
+ * Note: an account holding both capabilities still cannot approve a policy it
+ * created itself — `approve_fee_policy()` refuses that outright. The single
+ * exception is the PRIMARY platform administrator (users.is_primary_admin),
+ * assigned only by php-backend/assign_primary_admin.php; that account needs no
+ * grant from this script, and this script cannot make anyone primary.
  */
 
 declare(strict_types=1);
