@@ -288,9 +288,9 @@ process under PHP-WASM, not a code failure; every suite is green in the recorded
 
 ## 10. Commit and branch
 
-* Branch: `arena/40f19dd4-goodlucks-rep`
-* Commit: recorded on the branch as the single phase commit that contains this report (see `git log -1`). Not merged
-  into `main`; not deployed.
+* Branch: `arena/40f19dd4-goodlucks-rep` (pushed to `origin`)
+* Commit: **`96d18b8`** — "Add public legal pages, admin legal console, and mandatory registration consent"
+* `main` is untouched (`9d318ba`); nothing has been merged or deployed.
 
 ---
 
