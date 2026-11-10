@@ -11,7 +11,6 @@ import {
   Facebook,
   Music2,
   ShieldCheck,
-  ArrowUpRight,
 } from 'lucide-react';
 import { BRAND_CONTACT, BRAND_HANDLE, BRAND_SOCIALS } from '../config/brand';
 
@@ -160,20 +159,12 @@ export const Footer: React.FC = () => {
                 );
               })}
             </div>
-            <p className="mt-4 text-[11px] text-ink/55 leading-relaxed">
-              Listings are submitted by independent agents and landlords. Verification confirms an identity — it is
-              not a physical inspection of a property.
-            </p>
           </div>
         </div>
 
         {/* Bottom bar */}
         <div className="mt-9 pt-5 border-t border-line flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-xs text-ink/60">
           <span>© {new Date().getFullYear()} Goodlucks Homes. A Goodlucks Platforms Subsidiary. All rights reserved.</span>
-          <button type="button" onClick={go('/register')} className="gl-footer-link !px-0 inline-flex items-center gap-1">
-            Create an account
-            <ArrowUpRight className="w-3.5 h-3.5" />
-          </button>
         </div>
       </div>
     </footer>
