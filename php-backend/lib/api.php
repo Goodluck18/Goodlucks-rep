@@ -215,6 +215,12 @@ function resolve_route(string $method, string $path): ?array
         ['POST', '#^/admin/fee-policies/([A-Za-z0-9\-_]+)/reject$#', 'handle_reject_fee_policy'],
         ['POST', '#^/admin/fee-policies/([A-Za-z0-9\-_]+)/activate$#', 'handle_activate_fee_policy'],
         ['POST', '#^/admin/fee-policies/([A-Za-z0-9\-_]+)/deactivate$#', 'handle_deactivate_fee_policy'],
+        // Deleting is allowed only for a policy that never priced anything and
+        // never went through approval; everything else is history.
+        ['DELETE', '#^/admin/fee-policies/([A-Za-z0-9\-_]+)$#', 'handle_delete_fee_policy'],
+        // Every agent's derived tier, read-only: a tier decides how a real
+        // commission is split, so it follows verification, never a dropdown.
+        ['GET',  '#^/admin/agent-tiers$#', 'handle_admin_agent_tier_overview'],
         ['GET',  '#^/admin/agents/([A-Za-z0-9\-_]+)/tier$#', 'handle_admin_agent_tier'],
 
         // --- Remittances, reconciliation & rental commissions (Increment G) ---
@@ -4604,6 +4610,44 @@ function handle_deactivate_fee_policy(array $params): void
     ]);
 
     json_response(['success' => true, 'policy' => shape_fee_policy($policy)]);
+}
+
+function handle_delete_fee_policy(array $params): void
+{
+    $user = require_fee_policy_manager();
+    enforce_rate_limit('fee-policy-write', 60, 3600);
+    $id = (string)($params[0] ?? '');
+    if (!find_fee_policy($id)) {
+        error_response('Fee policy not found.', 404);
+    }
+
+    $input = request_json();
+    try {
+        $result = delete_fee_policy($id, $user, (string)($input['reason'] ?? ''));
+    } catch (FeePolicyConflictException $e) {
+        // 409: the request is understood but the record is history.
+        json_response([
+            'success'  => false,
+            'error'    => $e->getMessage(),
+            'code'     => 'policy_is_history',
+            'policyId' => $id,
+        ], 409);
+    } catch (InvalidArgumentException $e) {
+        error_response($e->getMessage(), 422);
+    }
+
+    json_response(['success' => true] + $result);
+}
+
+/** Every agent's derived tier. Read-only: there is no endpoint that sets a tier. */
+function handle_admin_agent_tier_overview(): void
+{
+    $staff = require_fee_policy_staff();
+
+    json_response(admin_agent_tier_overview() + [
+        'success'      => true,
+        'capabilities' => finance_capabilities($staff),
+    ]);
 }
 
 /** Eligibility for one agent. Read-only: there is no endpoint that sets a tier. */

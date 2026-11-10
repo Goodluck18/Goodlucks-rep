@@ -119,6 +119,11 @@ $requiredColumns = [
         'viewing_terms_approved_by' => "VARCHAR(64) DEFAULT NULL AFTER `viewing_terms_updated_at`",
         'updated_at'           => "DATETIME DEFAULT NULL",
     ],
+    'fee_policy_events' => [
+        // Upgrade 2 Phase 4: old -> new values on every event. Existing events
+        // keep NULL, which the console reads as "no field changes recorded".
+        'changes_json' => "LONGTEXT DEFAULT NULL AFTER `note`",
+    ],
     'verification_documents' => [
         // Task 03: per-document reviewer outcome. Existing documents keep
         // 'pending' — no outcome is invented for a document nobody reviewed.

@@ -937,6 +937,9 @@ CREATE TABLE IF NOT EXISTS `fee_policy_events` (
   `from_status` VARCHAR(24) NOT NULL DEFAULT '',
   `to_status` VARCHAR(24) NOT NULL DEFAULT '',
   `note` TEXT DEFAULT NULL,
+  -- Upgrade 2 Phase 4: the values that changed, so the trail shows old → new
+  -- rather than only the fact that something was edited.
+  `changes_json` LONGTEXT DEFAULT NULL,
   `actor_id` VARCHAR(64) DEFAULT NULL,
   `actor_name` VARCHAR(200) DEFAULT NULL,
   `created_at` DATETIME(6) NOT NULL,

@@ -701,6 +701,9 @@ CREATE TABLE IF NOT EXISTS fee_policy_events (
   from_status TEXT NOT NULL DEFAULT '',
   to_status TEXT NOT NULL DEFAULT '',
   note TEXT,
+  -- Upgrade 2 Phase 4: the values that changed, so the trail shows old -> new
+  -- rather than only the fact that something was edited.
+  changes_json TEXT,
   actor_id TEXT,
   actor_name TEXT,
   created_at TEXT NOT NULL

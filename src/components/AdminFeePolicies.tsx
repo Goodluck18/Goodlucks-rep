@@ -18,8 +18,10 @@ import {
   ShieldAlert,
   ShieldCheck,
   StopCircle,
+  Trash2,
   XCircle,
 } from 'lucide-react';
+import AdminAgentTiers from './AdminAgentTiers';
 
 /**
  * Fee-policy administration (Increment E).
@@ -34,6 +36,26 @@ import {
 
 const money = (value: number | null): string =>
   value === null ? '—' : `GH₵ ${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+/** Plain-English names for the actions stored in the trail. */
+const actionLabels: Record<string, string> = {
+  created: 'Created',
+  updated: 'Draft edited',
+  submitted: 'Submitted for approval',
+  approved: 'Approved',
+  approved_by_creator: 'Approved by its own creator (primary administrator)',
+  rejected: 'Rejected',
+  activated: 'Activated',
+  deactivated: 'Deactivated',
+  deleted: 'Deleted',
+};
+
+const readableValue = (value: unknown): string => {
+  if (value === null || value === undefined || value === '') return '—';
+  if (typeof value === 'boolean') return value ? 'yes' : 'no';
+  if (typeof value === 'number') return value.toLocaleString(undefined, { maximumFractionDigits: 2 });
+  return String(value);
+};
 
 const statusStyles: Record<FeePolicyStatusKind, string> = {
   draft: 'bg-line/20 text-ink border-line',
@@ -301,6 +323,9 @@ export const AdminFeePolicies: React.FC = () => {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [note, setNote] = useState('');
   const [history, setHistory] = useState<{ policy: FeePolicy; events: FeePolicyEvent[] } | null>(null);
+  const [deleting, setDeleting] = useState<FeePolicy | null>(null);
+  const [deleteReason, setDeleteReason] = useState('');
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setIsLoading(true);
@@ -392,6 +417,29 @@ export const AdminFeePolicies: React.FC = () => {
     }
   };
 
+  const runDelete = async (policy: FeePolicy) => {
+    const reason = deleteReason.trim();
+    if (reason.length < 3) {
+      setDeleteError('Record why this policy is being removed.');
+      return;
+    }
+    setBusyId(policy.id);
+    setDeleteError(null);
+    try {
+      await api.deleteFeePolicy(policy.id, reason);
+      showSuccessToast('Policy deleted', `${policy.name} was removed. It never priced anything.`);
+      setDeleting(null);
+      setDeleteReason('');
+      await load();
+    } catch (err) {
+      // 409 means the record is history (already approved or already priced a
+      // transaction); the server says why, and the policy stays.
+      setDeleteError(messageForError(err));
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   const openHistory = async (policy: FeePolicy) => {
     try {
       const result = await api.getFeePolicy(policy.id);
@@ -445,8 +493,9 @@ export const AdminFeePolicies: React.FC = () => {
           </h3>
           <p className="text-[11px] text-ink/70 max-w-2xl">
             Creating a policy, approving it and switching it on are three separate acts. Approval must come from a
-            different administrator from the one who drafted it, and nothing is applied to a fee unless an authorised
-            administrator applies it explicitly.
+            different administrator from the one who drafted it — except for the primary platform administrator, who
+            may approve a policy it drafted itself, recorded as a self-approval. Nothing is applied to a fee unless an
+            authorised administrator applies it explicitly.
           </p>
         </div>
         <div className="flex gap-2 shrink-0">
@@ -517,6 +566,8 @@ export const AdminFeePolicies: React.FC = () => {
           drafts: {overview.counts.draft ?? 0}
         </p>
       </div>
+
+      <AdminAgentTiers />
 
       {(showForm || editing) && canManage && (
         <FeePolicyForm
@@ -641,6 +692,19 @@ export const AdminFeePolicies: React.FC = () => {
                       <StopCircle className="w-3 h-3" /> Deactivate
                     </button>
                   )}
+                  {canManage && policy.status === 'draft' && (
+                    <button
+                      onClick={() => {
+                        setDeleting(policy);
+                        setDeleteReason('');
+                        setDeleteError(null);
+                      }}
+                      className="px-2.5 py-1 rounded-md bg-page hover:bg-accent/15 text-ink text-[11px] flex items-center gap-1"
+                      title="Only a draft that never went through approval can be deleted; anything decided on stays as history."
+                    >
+                      <Trash2 className="w-3 h-3" /> Delete
+                    </button>
+                  )}
                   <button
                     onClick={() => void openHistory(policy)}
                     className="px-2.5 py-1 rounded-md bg-page hover:bg-line text-ink text-[11px] flex items-center gap-1"
@@ -670,6 +734,45 @@ export const AdminFeePolicies: React.FC = () => {
         ledger.
       </p>
 
+      {deleting && (
+        <div className="fixed inset-0 z-50 bg-ink/60 backdrop-blur-sm p-2 sm:p-6 overflow-y-auto">
+          <div className="max-w-lg mx-auto bg-surface border border-accent/30 rounded-2xl p-5 space-y-3 my-6">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h4 className="text-sm font-bold text-ink">Delete “{deleting.name}”?</h4>
+                <p className="text-[11px] text-ink/70">
+                  Only a draft that never went through approval can be deleted. Anything already decided on stays as
+                  history — the server refuses and nothing is removed.
+                </p>
+              </div>
+              <button
+                onClick={() => setDeleting(null)}
+                className="px-3 py-1.5 rounded-lg bg-page text-ink/70 text-[11px] font-bold"
+              >
+                Cancel
+              </button>
+            </div>
+            <textarea
+              value={deleteReason}
+              onChange={(e) => setDeleteReason(e.target.value)}
+              rows={2}
+              placeholder="Why is this draft being removed? (recorded in the audit trail)"
+              className="w-full bg-page border border-line rounded-xl px-3 py-2 text-[11px] text-ink"
+            />
+            {deleteError && <p className="text-[11px] text-ink">{deleteError}</p>}
+            <div className="flex justify-end gap-2">
+              <button
+                disabled={busyId === deleting.id}
+                onClick={() => void runDelete(deleting)}
+                className="px-3 py-1.5 rounded-lg bg-accent text-ink text-[11px] font-extrabold disabled:opacity-50 flex items-center gap-1.5"
+              >
+                <Trash2 className="w-3.5 h-3.5" /> Delete policy
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {history && (
         <div className="fixed inset-0 z-50 bg-ink/60 backdrop-blur-sm p-2 sm:p-6 overflow-y-auto">
           <div className="max-w-2xl mx-auto bg-surface border border-line rounded-2xl p-5 space-y-4 my-6">
@@ -690,7 +793,7 @@ export const AdminFeePolicies: React.FC = () => {
             <ul className="space-y-1.5">
               {history.events.map((event) => (
                 <li key={event.id} className="text-[11px] bg-surface border border-line rounded-lg px-3 py-2 text-ink/70">
-                  <span className="font-bold text-ink">{event.action}</span>{' '}
+                  <span className="font-bold text-ink">{actionLabels[event.action] ?? event.action}</span>{' '}
                   <span className="text-ink/70">
                     {event.fromStatus} → {event.toStatus}
                   </span>
@@ -699,6 +802,16 @@ export const AdminFeePolicies: React.FC = () => {
                     · {event.actorName || 'system'} · {new Date(event.at).toLocaleString()}
                   </span>
                   {event.note && <p className="text-ink/70 mt-1">{event.note}</p>}
+                  {event.changes && event.changes.length > 0 && (
+                    <ul className="mt-1 space-y-0.5">
+                      {event.changes.map((change) => (
+                        <li key={change.field} className="text-ink/70">
+                          <span className="font-semibold text-ink/70">{change.label}:</span>{' '}
+                          {readableValue(change.from)} → {readableValue(change.to)}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </li>
               ))}
             </ul>

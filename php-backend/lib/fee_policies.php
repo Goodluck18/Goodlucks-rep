@@ -705,13 +705,13 @@ function list_fee_policies(array $filters = [], int $limit = 200): array
 // Policy history (append-only)
 // ---------------------------------------------------------------------------
 
-function record_fee_policy_event(array $policy, string $action, ?array $actor, string $note = '', ?string $fromStatus = null, ?string $toStatus = null): void
+function record_fee_policy_event(array $policy, string $action, ?array $actor, string $note = '', ?string $fromStatus = null, ?string $toStatus = null, array $changes = []): void
 {
     db_exec(
         'INSERT INTO fee_policy_events (id, policy_id, action, from_status, to_status, note,
-                                        actor_id, actor_name, created_at)
+                                        changes_json, actor_id, actor_name, created_at)
          VALUES (:id, :policy_id, :action, :from_status, :to_status, :note,
-                 :actor_id, :actor_name, :created_at)',
+                 :changes, :actor_id, :actor_name, :created_at)',
         [
             ':id'          => new_id('fpe'),
             ':policy_id'   => (string)$policy['id'],
@@ -719,6 +719,7 @@ function record_fee_policy_event(array $policy, string $action, ?array $actor, s
             ':from_status' => $fromStatus ?? fee_policy_normalise_status((string)($policy['status'] ?? '')),
             ':to_status'   => $toStatus ?? fee_policy_normalise_status((string)($policy['status'] ?? '')),
             ':note'        => clean_string($note, 1000),
+            ':changes'     => $changes === [] ? null : json_encode($changes, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
             ':actor_id'    => (string)($actor['id'] ?? ''),
             ':actor_name'  => clean_string($actor['name'] ?? 'system', 200),
             ':created_at'  => db_now_precise(),
@@ -739,6 +740,9 @@ function list_fee_policy_events(string $policyId, int $limit = 100): array
         'fromStatus'=> fee_policy_normalise_status((string)($row['from_status'] ?? '')),
         'toStatus'  => fee_policy_normalise_status((string)($row['to_status'] ?? '')),
         'note'      => (string)($row['note'] ?? ''),
+        // Upgrade 2 Phase 4: what changed, field by field (empty for events
+        // written before the column existed, which is stated as such).
+        'changes'   => fee_policy_event_changes($row['changes_json'] ?? null),
         'actorId'   => (string)($row['actor_id'] ?? ''),
         'actorName' => (string)($row['actor_name'] ?? ''),
         'at'        => to_iso($row['created_at'] ?? null),
@@ -849,7 +853,16 @@ function update_fee_policy(string $id, array $input, array $actor): array
     );
 
     $updated = find_fee_policy($id) ?? [];
-    record_fee_policy_event($updated, 'updated', $actor, 'Draft edited.', 'draft', 'draft');
+    $changes = fee_policy_changes_between($row, $updated);
+    record_fee_policy_event(
+        $updated,
+        'updated',
+        $actor,
+        $changes === [] ? 'Draft saved without changing any value.' : 'Draft edited.',
+        'draft',
+        'draft',
+        $changes
+    );
 
     return $updated;
 }
@@ -1547,4 +1560,263 @@ class FeePolicyConflictException extends InvalidArgumentException
         parent::__construct($message);
         $this->conflictPolicyId = $conflictPolicyId;
     }
+}
+
+// ---------------------------------------------------------------------------
+// Upgrade 2 Phase 4 — readable history, guarded deletion, agent tier overview
+// ---------------------------------------------------------------------------
+
+/** Fields whose old and new values are recorded when a draft is edited. */
+const FEE_POLICY_TRACKED_FIELDS = [
+    'name'                => 'Name',
+    'description'         => 'Description',
+    'agentTier'           => 'Agent tier',
+    'category'            => 'Category',
+    'calculationMethod'   => 'Calculation method',
+    'agentSharePercent'   => 'Agent share (%)',
+    'goodlucksSharePercent' => 'Goodlucks share (%)',
+    'agentShareFixedGhs'  => 'Agent share (GHS)',
+    'goodlucksShareFixedGhs' => 'Goodlucks share (GHS)',
+    'effectiveFrom'       => 'Effective from',
+    'effectiveTo'         => 'Effective to',
+    'notes'               => 'Internal notes',
+];
+
+/**
+ * The field-by-field difference between two versions of a policy.
+ *
+ * Only fields that actually changed are returned, so the trail never claims an
+ * edit that did not happen.
+ *
+ * @return array<string, array{label: string, from: mixed, to: mixed}>
+ */
+function fee_policy_changes_between(array $before, array $after): array
+{
+    $old = shape_fee_policy($before);
+    $new = shape_fee_policy($after);
+    $changes = [];
+
+    foreach (FEE_POLICY_TRACKED_FIELDS as $field => $label) {
+        $from = $old[$field] ?? null;
+        $to = $new[$field] ?? null;
+        if ($from === $to) {
+            continue;
+        }
+        // Numeric columns come back as strings from PDO; compare loosely but
+        // report the real values.
+        if ((is_int($from) || is_float($from) || is_numeric($from))
+            && (is_int($to) || is_float($to) || is_numeric($to))
+            && (float)$from === (float)$to) {
+            continue;
+        }
+        $changes[$field] = ['label' => $label, 'from' => $from, 'to' => $to];
+    }
+
+    return $changes;
+}
+
+/** Decode a stored change payload into a shaped, readable list. */
+function fee_policy_event_changes($value): array
+{
+    if (!is_string($value) || trim($value) === '') {
+        return [];
+    }
+    $decoded = json_decode($value, true);
+    if (!is_array($decoded)) {
+        return [];
+    }
+
+    $changes = [];
+    foreach ($decoded as $field => $change) {
+        if (!is_array($change)) {
+            continue;
+        }
+        $changes[] = [
+            'field' => (string)$field,
+            'label' => (string)($change['label'] ?? $field),
+            'from'  => $change['from'] ?? null,
+            'to'    => $change['to'] ?? null,
+        ];
+    }
+
+    return $changes;
+}
+
+/**
+ * What a policy has priced, if anything.
+ *
+ * A policy that appears in a snapshot has already priced a real transaction.
+ * Snapshots are frozen history: nothing may remove the policy they name.
+ *
+ * @return array{snapshots: int, transactions: array<int, string>}
+ */
+function fee_policy_usage(string $policyId): array
+{
+    $snapshots = (int)db_value(
+        'SELECT COUNT(*) FROM fee_policy_snapshots WHERE policy_id = :id',
+        [':id' => $policyId]
+    );
+
+    $transactions = [];
+    if ($snapshots > 0) {
+        foreach (db_all(
+            'SELECT transaction_type, transaction_id FROM fee_policy_snapshots
+              WHERE policy_id = :id' . db_limit_clause(10, 0),
+            [':id' => $policyId]
+        ) as $row) {
+            $transactions[] = (string)$row['transaction_type'] . ' ' . (string)$row['transaction_id'];
+        }
+    }
+
+    return ['snapshots' => $snapshots, 'transactions' => $transactions];
+}
+
+/**
+ * Delete a policy that never priced anything (A9: "delete", with history kept).
+ *
+ * Allowed only for a `draft` or a `rejected` policy that has no snapshot and was
+ * never submitted. Anything else is refused with the reason, because approving,
+ * activating or pricing a policy is history and history is not deleted. The
+ * refusal names "deactivate" as the correct action for a live policy.
+ *
+ * @return array{deleted: array<string, mixed>, reason: string}
+ */
+function delete_fee_policy(string $id, array $actor, string $reason = ''): array
+{
+    $row = find_fee_policy($id);
+    if (!$row) {
+        throw new InvalidArgumentException('Fee policy not found.');
+    }
+
+    $status = fee_policy_normalise_status((string)$row['status']);
+    if ($status !== 'draft') {
+        // Once anyone has decided on a policy, that decision is history. A live
+        // policy is deactivated; a rejected one stays rejected.
+        throw new FeePolicyConflictException(
+            'Only a draft policy that never went through approval can be deleted. This one is '
+            . str_replace('_', ' ', $status)
+            . (in_array($status, ['active', 'approved', 'expired'], true)
+                ? ': deactivate it instead, so the record of what it priced stays intact.'
+                : ': its decision stands as history.'),
+            $id
+        );
+    }
+
+    $usage = fee_policy_usage($id);
+    if ($usage['snapshots'] > 0) {
+        throw new FeePolicyConflictException(
+            'This policy has already priced '
+            . $usage['snapshots']
+            . ' transaction(s) and its snapshots are history. It cannot be deleted.',
+            $id
+        );
+    }
+
+    $decided = (int)db_value(
+        "SELECT COUNT(*) FROM fee_policy_events
+          WHERE policy_id = :id AND action IN ('submitted', 'approved', 'activated', 'deactivated')",
+        [':id' => $id]
+    );
+    if ($decided > 0) {
+        throw new FeePolicyConflictException(
+            'This policy has already gone through approval. Its trail is history: deactivate it instead.',
+            $id
+        );
+    }
+
+    $identity = [
+        'id'       => (string)$row['id'],
+        'name'     => (string)($row['name'] ?? ''),
+        'tier'     => (string)($row['tier'] ?? ''),
+        'category' => (string)($row['category'] ?? ''),
+        'status'   => $status,
+    ];
+
+    // The audit row is written before the delete so the trail names what went.
+    audit_log('fee_policy.deleted', 'fee_policy', $id, [
+        'policy' => $identity,
+        'reason' => clean_string($reason, 300),
+        'snapshots' => 0,
+    ], $actor);
+
+    db_exec('DELETE FROM fee_policy_events WHERE policy_id = :id', [':id' => $id]);
+    db_exec("DELETE FROM fee_policies WHERE id = :id AND status = 'draft'", [':id' => $id]);
+
+    return ['deleted' => $identity, 'reason' => (string)$reason];
+}
+
+/**
+ * Every agent, with the tier their verification currently earns (A9).
+ *
+ * Tiers are derived from approved verification — they are not assigned by hand,
+ * because a tier decides how a real commission is split. An administrator
+ * changes a tier by deciding that agent's verification, which is already
+ * audited. The response says so, so the console cannot imply otherwise.
+ */
+function admin_agent_tier_overview(): array
+{
+    $agents = db_all(
+        "SELECT u.id, u.name, u.email, p.agency_name, u.created_at,
+                p.account_status, p.can_submit_listings
+           FROM users u
+           LEFT JOIN agent_profiles p ON p.user_id = u.id
+          WHERE u.role = 'agent'
+          ORDER BY u.name ASC"
+    );
+
+    $rows = [];
+    $counts = ['standard' => 0, 'professional' => 0, 'no_commission_tier' => 0];
+
+    foreach ($agents as $agent) {
+        $state = agent_tier_state((string)$agent['id']);
+        if ($state['tier'] === 'professional') {
+            $counts['professional']++;
+        } else {
+            $counts['standard']++;
+        }
+        if (!$state['commissionEligible']) {
+            $counts['no_commission_tier']++;
+        }
+
+        $rows[] = [
+            'userId'            => (string)$agent['id'],
+            'name'              => (string)$agent['name'],
+            'email'             => (string)$agent['email'],
+            'agencyName'        => (string)($agent['agency_name'] ?? ''),
+            'accountStatus'     => (string)($agent['account_status'] ?? 'no_profile'),
+            'canSubmitListings' => (int)($agent['can_submit_listings'] ?? 0) === 1,
+            'tier'              => $state['tier'],
+            'tierLabel'         => $state['tierLabel'],
+            'commissionTier'    => $state['commissionTier'],
+            'commissionTierLabel' => $state['commissionTierLabel'],
+            'commissionPercent' => $state['commissionPercent'],
+            'goodlucksPercent'  => $state['goodlucksPercent'],
+            'commissionEligible'=> $state['commissionEligible'],
+            'identityStatus'    => $state['identityStatus'],
+            'professionalStatus'=> $state['professionalStatus'],
+            'createdAt'         => to_iso($agent['created_at'] ?? null),
+        ];
+    }
+
+    return [
+        'agents' => $rows,
+        'counts' => $counts + ['total' => count($rows)],
+        'rules'  => [
+            'standard' => [
+                'label'     => AGENT_TIERS['standard'],
+                'percent'   => (float)AGENT_TIER_COMMISSION['standard']['percent'],
+                'requires'  => AGENT_TIER_COMMISSION['standard']['requires'],
+            ],
+            'professional' => [
+                'label'     => AGENT_TIERS['professional'],
+                'percent'   => (float)AGENT_TIER_COMMISSION['professional']['percent'],
+                'requires'  => AGENT_TIER_COMMISSION['professional']['requires'],
+            ],
+            'noTierPercent' => AGENT_NO_TIER_PERCENT,
+        ],
+        'derived' => true,
+        'note' => 'A tier is derived from approved verification, not assigned by hand: it decides how a real '
+            . 'commission is split. Change an agent\'s tier by deciding their identity or professional '
+            . 'authorisation on the Verification screen, which is audited.',
+    ];
 }

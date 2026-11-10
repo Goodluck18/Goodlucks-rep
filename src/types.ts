@@ -1171,15 +1171,57 @@ export interface FeePolicy {
   applicable: boolean;
 }
 
+export interface FeePolicyEventChange {
+  field: string;
+  label: string;
+  from: string | number | boolean | null;
+  to: string | number | boolean | null;
+}
+
 export interface FeePolicyEvent {
   id: string;
   action: string;
   fromStatus: FeePolicyStatusKind;
   toStatus: FeePolicyStatusKind;
   note: string;
+  /** Phase 4: what changed, field by field. Empty for events written earlier. */
+  changes: FeePolicyEventChange[];
   actorId: string;
   actorName: string;
   at: string;
+}
+
+/**
+ * Every agent with the commission tier their verification currently earns.
+ * There is no endpoint that sets a tier by hand.
+ */
+export interface AdminAgentTierRow {
+  userId: string;
+  name: string;
+  email: string;
+  agencyName: string;
+  accountStatus: string;
+  canSubmitListings: boolean;
+  tier: AgentTier;
+  tierLabel: string;
+  commissionTier: string;
+  commissionTierLabel: string;
+  commissionPercent: number;
+  goodlucksPercent: number;
+  commissionEligible: boolean;
+  identityStatus: string;
+  professionalStatus: string;
+  createdAt: string;
+}
+
+export interface AdminAgentTiers {
+  success: boolean;
+  agents: AdminAgentTierRow[];
+  counts: { standard: number; professional: number; no_commission_tier: number; total: number };
+  rules: Record<string, { label: string; percent: number; requires: string } | number>;
+  derived: boolean;
+  note: string;
+  capabilities?: StaffCapabilities;
 }
 
 export interface FeePolicyOverview {

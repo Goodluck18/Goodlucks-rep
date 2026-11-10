@@ -23,6 +23,7 @@ import type {
   FeePolicyInput,
   FeePolicyOverview,
   FeePolicySnapshot,
+  AdminAgentTiers,
   IdentityVerification,
   ProfessionalAuthorisation,
   VerificationDecisionEntry,
@@ -1156,6 +1157,17 @@ export const api = {
       method: 'POST',
       body: { reason },
     }),
+
+  // Phase 4: deletes a policy that never priced anything and never went through
+  // approval. Anything else is refused with 409 and must be deactivated instead.
+  deleteFeePolicy: (id: string, reason: string) =>
+    request<{
+      success: boolean;
+      deleted: { id: string; name: string; tier: string; category: string; status: string };
+      reason: string;
+    }>(`/admin/fee-policies/${encodeURIComponent(id)}`, { method: 'DELETE', body: { reason } }),
+
+  adminAgentTiers: () => request<AdminAgentTiers>('/admin/agent-tiers'),
 
   getAgentTier: (userId: string) =>
     request<{ agent: { userId: string; name: string; email: string }; tier: AgentTierState }>(
