@@ -10,6 +10,7 @@
  */
 
 import type {
+  AccountGroup,
   AdminActivityEntry,
   AdminCampaign,
   AdminCampaignSummary,
@@ -297,7 +298,12 @@ export const api = {
   // -------------------------------------------------------------------------
   me: () => request<SessionInfo & { success: boolean }>('/auth/me'),
 
-  login: (email: string, password: string, role?: 'tenant' | 'landlord' | 'agent') =>
+  /**
+   * `group` is the account group the visitor picked, not a stored role:
+   * 'tenant', or 'provider' for the one Agent/Landlord account. ('agent' and
+   * 'landlord' are still accepted for older callers.)
+   */
+  login: (email: string, password: string, role?: AccountGroup) =>
     request<{ user: User }>('/auth/login', { method: 'POST', body: { email, password, role } }),
 
   adminLogin: (email: string, password: string, accessKey: string) =>
@@ -308,18 +314,34 @@ export const api = {
     email: string;
     phone: string;
     password: string;
-    role: 'tenant' | 'landlord' | 'agent';
+    /**
+     * The account group: 'tenant', or 'provider' for the single Agent/Landlord
+     * account. An Agent and a Landlord do not register separately — the account
+     * chooses which it is during verification.
+     */
+    role: AccountGroup;
     /** Optional city/town. Contact information only — never identity data. */
     city?: string;
-    /** Agent only: agency/business name, if there is one (Increment C). */
+    /** Agent/Landlord: agency/business name, if there is one. */
     agencyName?: string;
-    /** Agent only: the city the agent works from, not a home address. */
+    /** Agent/Landlord: the city the account works from, not a home address. */
     operatingCity?: string;
-    /** Task 03: Tenant, or Landlord / Agent. Must agree with `role`. */
-    providerCategory?: 'tenant' | 'landlord' | 'agent';
+    /** Not sent by the website: the classification is chosen at verification. */
+    providerCategory?: 'tenant' | 'landlord' | 'agent' | 'provider';
     /** Task 03: the official name on the Ghana Card (a claim, not a check). */
     officialName?: string;
   }) => request<{ user: User }>('/auth/register', { method: 'POST', body: data }),
+
+  /**
+   * The one-time professional classification of an Agent/Landlord account.
+   * Chosen during verification; it decides whether the account is verified as an
+   * Agent or as a Landlord and cannot be changed by the account holder.
+   */
+  chooseProviderCategory: (category: 'agent' | 'landlord') =>
+    request<{ user: User; message: string }>('/account/classification', {
+      method: 'POST',
+      body: { category },
+    }),
 
   logout: () => request<{ success: boolean }>('/auth/logout', { method: 'POST' }),
 

@@ -63,6 +63,9 @@ function resolve_route(string $method, string $path): ?array
         ['GET',  '#^/auth/me$#', 'handle_me'],
         ['PUT',  '#^/profile$#', 'handle_update_profile'],
         ['POST', '#^/account/password$#', 'handle_change_password'],
+        // Upgrade 2 correction: the one-time professional classification of an
+        // Agent/Landlord account (Agent or Landlord), chosen during verification.
+        ['POST', '#^/account/classification$#', 'handle_choose_provider_category'],
         ['POST', '#^/account/avatar$#', 'handle_upload_avatar'],
         ['DELETE', '#^/account/avatar$#', 'handle_delete_avatar'],
 
@@ -362,43 +365,78 @@ function handle_register(): void
     if (!password_is_strong_enough($password)) {
         $validator->add('password', 'Password must be at least 8 characters.');
     }
-    // Increment C: agent is a first-class role, so an agent sign-up keeps the
-    // role it asked for. Anything outside this list (including "admin") is
-    // refused rather than silently coerced into a tenant account: a
-    // half-registered account with the wrong role is worse than an honest
-    // "not available". Privileged roles are never self-assigned.
+    // Upgrade 2 correction: the website offers exactly TWO account groups —
+    //   * Tenant
+    //   * Agent/Landlord  (ONE shared account type)
+    //
+    // An Agent and a Landlord are not separate account types and cannot register
+    // twice. A provider chooses its professional classification (Agent or
+    // Landlord) later, during verification; that choice is stored in
+    // `users.provider_category` and decides how the account is verified.
+    //
+    // A provider account starts on the 'agent' role because every provider
+    // capability is already closed for an agent with no approved profile — so a
+    // freshly registered Agent/Landlord account can do nothing until it is
+    // classified and verified. `provider_category = 'pending'` is what marks it.
+    //
+    // Older API clients that still send role 'agent' or 'landlord' are read as
+    // having made the choice at registration, exactly as before; nothing about
+    // their accounts changes.
     $requestedRole = is_string($input['role'] ?? null)
         ? strtolower(trim((string)$input['role']))
         : 'tenant';
     if ($requestedRole === '') {
         $requestedRole = 'tenant';
     }
-    $selfServiceRoles = ['tenant', 'landlord', 'agent'];
-    if (!in_array($requestedRole, $selfServiceRoles, true)) {
-        $validator->add(
-            'role',
-            'That account type is not available for self-registration. Choose tenant, landlord or agent.'
-        );
-    }
-    $role = in_array($requestedRole, $selfServiceRoles, true) ? $requestedRole : 'tenant';
-
-    // Task 03: registration offers exactly two groups — a Tenant, or a property
-    // provider (Landlord / Agent). The category a provider picks must agree with
-    // the role they asked for. A mismatch is refused rather than silently
-    // coerced: one account per person, and nobody gets a second role by
-    // registering again with a different label.
-    $providerCategory = is_string($input['providerCategory'] ?? $input['category'] ?? null)
+    $requestedCategory = is_string($input['providerCategory'] ?? $input['category'] ?? null)
         ? strtolower(trim((string)($input['providerCategory'] ?? $input['category'])))
         : '';
-    if ($providerCategory !== '') {
-        if (!in_array($providerCategory, ['tenant', 'landlord', 'agent'], true)) {
-            $validator->add('providerCategory', 'Choose Tenant, Landlord or Agent.');
-        } elseif ($providerCategory !== $requestedRole) {
-            $validator->add(
-                'providerCategory',
-                'The account category you chose does not match the account type. Pick Landlord or Agent once.'
-            );
+
+    $group = 'tenant';          // 'tenant' | 'provider'
+    $role = 'tenant';           // the role stored on the account
+    $classification = null;     // null | 'pending' | 'agent' | 'landlord'
+
+    if ($requestedRole === 'tenant') {
+        $group = 'tenant';
+    } elseif ($requestedRole === 'agent' || $requestedRole === 'landlord') {
+        // Legacy self-classification: the caller says what it is, so the account
+        // is stored already classified.
+        $group = 'provider';
+        $role = $requestedRole;
+        $classification = $requestedRole;
+    } elseif ($requestedRole === 'provider' || $requestedRole === 'agent_landlord') {
+        $group = 'provider';
+        if (in_array($requestedCategory, ['agent', 'landlord'], true)) {
+            $role = $requestedCategory;
+            $classification = $requestedCategory;
+        } else {
+            $role = 'agent';
+            $classification = 'pending';
         }
+    } else {
+        $validator->add(
+            'role',
+            'That account type is not available for self-registration. Choose Tenant or Agent/Landlord.'
+        );
+    }
+
+    if ($requestedCategory !== '' && !in_array($requestedCategory, ['tenant', 'provider', 'agent', 'landlord'], true)) {
+        $validator->add('providerCategory', 'Choose Tenant or Agent/Landlord.');
+    } elseif ($group === 'tenant' && ($requestedCategory === 'provider' || $requestedCategory === 'agent' || $requestedCategory === 'landlord')) {
+        $validator->add('providerCategory', 'Choose the Agent/Landlord account group to provide properties.');
+    } elseif (
+        in_array($requestedRole, ['agent', 'landlord'], true) &&
+        in_array($requestedCategory, ['agent', 'landlord'], true) &&
+        $requestedCategory !== $requestedRole
+    ) {
+        // A caller that names both must be consistent. The website no longer
+        // names either at registration — the account chooses at verification —
+        // so this only guards older clients, which are refused rather than
+        // silently given an account that disagrees with what they asked for.
+        $validator->add(
+            'providerCategory',
+            'The account category you chose does not match the account type. Pick Agent or Landlord once.'
+        );
     }
 
     // The official Ghana Card name is recorded when it is supplied. It is a
@@ -414,11 +452,17 @@ function handle_register(): void
     // it is where they work, and it is distinct from any home address.
     $agencyName = clean_string($input['agencyName'] ?? $input['company'] ?? '', 200);
     $operatingCity = clean_string($input['operatingCity'] ?? $input['city'] ?? $input['address'] ?? '', 120);
-    if ($role === 'agent') {
-        if ($operatingCity === '') {
-            $validator->add('operatingCity', 'Tell us the city you work from.');
-        }
+    // The city is required only when the account is an agent from the start and
+    // its profile is created here. A pending Agent/Landlord account may give it
+    // when it chooses Agent or Landlord — nothing is guessed on its behalf.
+    if ($role === 'agent' && $operatingCity === '') {
+        $validator->add('operatingCity', 'Tell us the city you work from.');
     }
+    $contactCity = clean_string($input['city'] ?? $input['address'] ?? '', 255);
+    if ($contactCity === '' && $group === 'provider') {
+        $contactCity = $operatingCity;
+    }
+
     if ($validator->fails()) {
         error_response('Please correct the highlighted fields.', 422, $validator->errors());
     }
@@ -437,12 +481,18 @@ function handle_register(): void
             'email'         => $email,
             'name'          => clean_string($input['name'], 120),
             'official_name' => $officialName !== '' ? $officialName : null,
+            // An Agent/Landlord account keeps the business name it gave, so the
+            // agent profile created at the classification step uses it instead of
+            // asking for it twice.
+            'company'       => $group === 'provider' ? $agencyName : '',
             'role'          => $role,
             'phone'         => (string)valid_phone($input['phone']),
             // City/town or general location. Ordinary contact information, not
             // identity verification; optional and stored on the existing
-            // users.address column so no schema change is needed.
-            'address'       => clean_string($input['city'] ?? $input['address'] ?? '', 255),
+            // users.address column so no schema change is needed. An
+            // Agent/Landlord account's base is kept here too, so the agent
+            // profile created at classification has it.
+            'address'       => $contactCity,
             'password_hash' => password_hash($password, PASSWORD_BCRYPT),
             'preferred_locations' => clean_string_list($input['preferredLocations'] ?? []),
             'budget_min'    => valid_money($input['budgetMin'] ?? null, 0),
@@ -456,11 +506,28 @@ function handle_register(): void
         throw $e;
     }
 
+    // An Agent/Landlord account that has not chosen yet is marked 'pending'. The
+    // choice is made once, during verification; it is not a second sign-up.
+    if ($group === 'provider') {
+        db_exec('UPDATE users SET provider_category = :category WHERE id = :id', [
+            ':category' => $classification,
+            ':id'       => (string)$user['id'],
+        ]);
+        $user['provider_category'] = $classification;
+        audit_log('provider.registered', 'user', (string)$user['id'], [
+            'classification' => $classification,
+            'account_group'  => 'agent_landlord',
+        ]);
+    }
+
     // The agent profile is created with the account, in a deny-by-default state:
     // account_status 'pending_review' and can_submit_listings 0. Registration
     // never grants verification, authorisation or any operational permission.
+    // A pending Agent/Landlord account has no profile yet: the profile belongs to
+    // an account that has actually chosen to be an agent, so it is created by
+    // handle_choose_provider_category() at that moment.
     $agentProfile = null;
-    if ($role === 'agent') {
+    if ($role === 'agent' && $classification === 'agent') {
         try {
             $agentProfile = create_agent_profile((string)$user['id'], [
                 'agency_name'    => $agencyName,
@@ -489,19 +556,18 @@ function handle_register(): void
         'Welcome to Goodlucks Homes',
         email_html_template(
             'Welcome to Goodlucks Homes',
-            '<h3 style="color:#FFFFFF;margin:0 0 12px 0;">Your ' . e(ucfirst($role)) . ' account is ready</h3>'
+            '<h3 style="color:#FFFFFF;margin:0 0 12px 0;">Your ' . e($group === 'provider' ? 'Agent/Landlord' : 'Tenant') . ' account is ready</h3>'
             . '<p style="color:#CBD5E1;font-size:14px;">Hello ' . e($user['name']) . ',</p>'
             . '<p style="color:#CBD5E1;font-size:14px;">Your Goodlucks Homes account has been created successfully. '
-            . ($role === 'landlord'
-                ? 'You can now submit properties for verification from your landlord dashboard.'
-                : ($role === 'agent'
-                    ? 'Your agent account is pending review. You can complete your agent profile now; listing submissions open once an administrator approves your account.'
-                    : 'You can now save properties, request viewings and submit property-matching requests.'))
+            . ($group === 'provider'
+                ? 'Next, tell us whether you are an Agent or a Landlord: sign in and open Verification on your dashboard. '
+                    . 'Listing submissions open once your account is reviewed and approved.'
+                : 'You can now save properties, request viewings and submit property-matching requests.')
             . '</p>'
             . '<p style="color:#94A3B8;font-size:12px;">If you did not create this account, please contact ' . e(OFFICIAL_EMAIL) . ' immediately.</p>'
         ),
         'registration',
-        'Welcome to Goodlucks Homes - ' . ucfirst($role) . ' account created'
+        'Welcome to Goodlucks Homes - ' . ($group === 'provider' ? 'Agent/Landlord' : 'Tenant') . ' account created'
     );
 
     create_notification((string)$user['id'], 'Welcome to Goodlucks Homes', 'Your account has been created successfully.', 'success');
@@ -541,13 +607,31 @@ function handle_login(): void
         error_response('Administrator accounts must sign in through the admin console.', 403);
     }
 
-    // The role tab a client picked must match the account, so an agent cannot
-    // be nudged into a tenant session by the sign-in form.
-    $requestedRole = one_of($input['role'] ?? null, ['tenant', 'landlord', 'agent'], null);
-    if ($requestedRole !== null && $requestedRole !== $user['role']) {
+    // The account group a client picked must match the account, so nobody is
+    // nudged into the wrong session by the sign-in form.
+    //
+    // Upgrade 2 correction: the website offers two groups — Tenant, and ONE
+    // Agent/Landlord account. 'provider' is that group: it matches an agent and a
+    // landlord alike, and it is never stored on an account. 'agent' and
+    // 'landlord' are still accepted so older clients keep working.
+    $requestedRole = one_of($input['role'] ?? null, ['tenant', 'landlord', 'agent', 'provider', 'agent_landlord'], null);
+    if ($requestedRole === 'agent_landlord') {
+        $requestedRole = 'provider';
+    }
+    if ($requestedRole === 'provider') {
+        if (!in_array((string)$user['role'], ['agent', 'landlord'], true)) {
+            error_response(
+                'This email is registered as a Tenant account. Please sign in using the Tenant tab.',
+                403
+            );
+        }
+    } elseif ($requestedRole !== null && $requestedRole !== $user['role']) {
+        $groupLabel = $user['role'] === 'agent' || $user['role'] === 'landlord' ? 'Agent/Landlord' : ucfirst((string)$user['role']);
+        // "an Agent/Landlord account", "a Tenant account".
+        $article = in_array(strtolower($groupLabel[0]), ['a', 'e', 'i', 'o', 'u'], true) ? 'an' : 'a';
         error_response(
-            'This email is registered as a ' . ucfirst((string)$user['role']) . ' account. Please sign in using the '
-            . ucfirst((string)$user['role']) . ' tab.',
+            'This email is registered as ' . $article . ' ' . $groupLabel . ' account. Please sign in using the '
+            . $groupLabel . ' tab.',
             403
         );
     }
@@ -780,6 +864,97 @@ function handle_update_profile(): void
  * *other* session is revoked afterwards while the current one is kept, so the
  * person who just changed it stays signed in.
  */
+/**
+ * POST /account/classification
+ *
+ * The single professional classification of an Agent/Landlord account: an Agent
+ * or a Landlord. The website collects one account group at registration and asks
+ * this question once, during verification.
+ *
+ * What it changes
+ * ---------------
+ *  * 'agent'   → the account's role becomes 'agent' and its agent profile is
+ *                created in the normal deny-by-default state (pending review,
+ *                listings closed until staff approve it).
+ *  * 'landlord'→ the account's role becomes 'landlord'. No agent profile exists
+ *                or is created.
+ *
+ * It is available exactly once. A genuine mistake after that is corrected by
+ * staff through POST /admin/users/<id>/role, which is audited — the account
+ * holder cannot reclassify themselves, and cannot gain a second account by
+ * registering again.
+ *
+ * It grants nothing else: identity verification, listing approval and every
+ * other permission stay exactly as they were.
+ */
+function handle_choose_provider_category(): void
+{
+    $user = require_auth(['agent', 'landlord']);
+    enforce_rate_limit('provider-classification', 10, 3600, (string)$user['id']);
+
+    $input = request_json();
+    $category = is_string($input['category'] ?? $input['providerCategory'] ?? null)
+        ? strtolower(trim((string)($input['category'] ?? $input['providerCategory'])))
+        : '';
+
+    if (!in_array($category, ['agent', 'landlord'], true)) {
+        error_response('Choose whether you are an Agent or a Landlord.', 422, [
+            'category' => 'Choose Agent or Landlord.',
+        ]);
+    }
+
+    if (provider_category_state($user) !== 'pending') {
+        error_response(
+            'This account already has a classification. If it is wrong, ask Goodlucks staff to correct it — an account cannot be reclassified by signing up again.',
+            409,
+            ['category' => 'Already classified.']
+        );
+    }
+
+    $agencyName = (string)($user['company'] ?? '');
+    $operatingCity = (string)($user['address'] ?? '');
+
+    db_exec('UPDATE users SET role = :role, provider_category = :category WHERE id = :id', [
+        ':role'     => $category,
+        ':category' => $category,
+        ':id'       => (string)$user['id'],
+    ]);
+
+    if ($category === 'agent' && find_agent_profile_by_user((string)$user['id']) === null) {
+        $profile = create_agent_profile((string)$user['id'], [
+            'agency_name'    => $agencyName,
+            'operating_city' => $operatingCity,
+        ]);
+        audit_log('agent.registered', 'agent_profile', (string)$profile['id'], [
+            'operating_city'  => $operatingCity,
+            'has_agency_name' => $agencyName !== '',
+            'via'             => 'classification',
+        ]);
+    }
+
+    audit_log('provider.classified', 'user', (string)$user['id'], [
+        'category' => $category,
+        'from'     => 'pending',
+    ], $user);
+
+    create_notification(
+        (string)$user['id'],
+        'Classification saved',
+        $category === 'agent'
+            ? 'Your account is an Agent account. Verification is the next step.'
+            : 'Your account is a Landlord account. Verification is the next step.',
+        'success'
+    );
+
+    $fresh = find_user_by_id((string)$user['id']);
+    json_response([
+        'success' => true,
+        'message' => 'Saved. You can now complete verification as '
+            . ($category === 'agent' ? 'an Agent' : 'a Landlord') . '.',
+        'user'    => public_user($fresh ?? $user),
+    ]);
+}
+
 function handle_change_password(): void
 {
     $user = require_auth();
@@ -1146,21 +1321,47 @@ function handle_set_agent_status(array $params): void
 // immutable history. No endpoint here touches receipts, fees, listings or
 // tenancy agreements.
 // ===========================================================================
+/**
+ * Refuse a provider action until the account has chosen Agent or Landlord.
+ *
+ * The choice is the first step of verification and it decides what the account
+ * actually is, so nothing a provider does — uploading proof of identity, applying
+ * for a professional authorisation, submitting a listing — can start before it.
+ */
+function require_provider_classification(array $user): void
+{
+    if (!provider_classification_required($user)) {
+        return;
+    }
+    error_response(
+        'Tell us whether you are an Agent or a Landlord first — it is the first step of verification on your dashboard.',
+        409,
+        ['classificationRequired' => 'Choose Agent or Landlord to continue.']
+    );
+}
+
 function handle_get_verification(): void
 {
-    // Landlords may complete identity verification voluntarily; tenants never
+    // An Agent/Landlord account completes identity verification; tenants never
     // need to (tenant registration is unchanged and requires no documents).
     $user = require_auth(['agent', 'landlord']);
 
+    $summary = verification_summary_for_user($user);
+    // Upgrade 2 correction: verification begins with the one-time Agent or
+    // Landlord choice, so the panel can show it as step one.
+    $summary['providerCategory'] = provider_category_state($user);
+    $summary['classificationRequired'] = provider_classification_required($user);
+
     json_response([
         'success'      => true,
-        'verification' => verification_summary_for_user($user),
+        'verification' => $summary,
     ]);
 }
 
 function handle_upload_verification_document(): void
 {
     $user = require_auth(['agent', 'landlord']);
+    require_provider_classification($user);
     enforce_rate_limit('verification-upload', 40, 3600);
 
     if (!isset($_FILES['file']) || !is_array($_FILES['file'])) {
@@ -1216,6 +1417,7 @@ function handle_upload_verification_document(): void
 function handle_submit_identity_verification(): void
 {
     $user = require_auth(['agent', 'landlord']);
+    require_provider_classification($user);
     enforce_rate_limit('verification-submit', 20, 3600);
 
     $existing = find_identity_verification((string)$user['id']);
@@ -1244,6 +1446,7 @@ function handle_submit_identity_verification(): void
 function handle_submit_professional_authorisation(): void
 {
     $user = require_auth(['agent']);
+    require_provider_classification($user);
     enforce_rate_limit('verification-submit', 20, 3600);
 
     $existing = find_professional_authorisation((string)$user['id']);
@@ -1684,6 +1887,10 @@ function handle_create_property(): void
 {
     $user = require_auth(['landlord', 'agent', 'admin']);
     enforce_rate_limit('property-create', 30, 3600);
+    // Upgrade 2 correction: an Agent/Landlord account chooses which it is before
+    // it can submit anything, so a listing never arrives from an account whose
+    // own classification (and therefore its fee rules) is still unknown.
+    require_provider_classification($user);
 
     $input = request_json();
 
@@ -2671,7 +2878,8 @@ function handle_admin_user_profile(array $params): void
 /**
  * Correct an account's provider classification (Upgrade 2, E2).
  *
- * A provider's type — tenant, landlord or agent — is chosen at registration and
+ * A provider's classification — Agent or Landlord — is chosen during verification
+ * (an Agent/Landlord account is stored on the agent or landlord role), and
  * is final once the account has been verified. This endpoint exists for the one
  * case that justifies changing it: the person picked the wrong one, or staff
  * recorded the wrong one, and the account is now telling tenants something
@@ -2699,7 +2907,7 @@ function handle_admin_correct_user_role(array $params): void
     $role = strtolower(clean_string($input['role'] ?? '', 20));
 
     if (!in_array($role, ['tenant', 'landlord', 'agent'], true)) {
-        error_response('Choose tenant, landlord or agent.', 422, ['role' => 'Choose tenant, landlord or agent.']);
+        error_response('Choose Agent, Landlord or Tenant.', 422, ['role' => 'Choose Agent, Landlord or Tenant.']);
     }
     if (mb_strlen($reason) < 10) {
         error_response(
@@ -2726,6 +2934,15 @@ function handle_admin_correct_user_role(array $params): void
 
     $from = (string)$target['role'];
     set_user_role((string)$target['id'], $role);
+
+    // The professional classification follows the role: a staff correction is
+    // also the only way an Agent/Landlord account changes the Agent-or-Landlord
+    // choice it made during verification, and it must clear 'pending' so the
+    // account is not still asked to choose.
+    db_exec('UPDATE users SET provider_category = :category WHERE id = :id', [
+        ':category' => $role === 'tenant' ? null : $role,
+        ':id'       => (string)$target['id'],
+    ]);
 
     // Becoming an agent needs an agent profile to review: create it in the
     // normal pending state so staff approve it through the Agent Accounts
@@ -5270,7 +5487,7 @@ function handle_ai_describe(): void
     }
 
     $fallback = sprintf(
-        'A %d-bedroom %s in %s, with %s. The listing was submitted through Goodlucks Homes, which reviews it before publishing and passes viewing requests to the landlord or agent. '
+        'A %d-bedroom %s in %s, with %s. The listing was submitted through Goodlucks Homes, which reviews it before publishing and passes viewing requests to the agent or landlord. '
         . 'View the property before you commit. Monthly rent is GH₵ %s.',
         $bedrooms,
         $type,

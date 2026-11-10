@@ -521,7 +521,7 @@ function update_user(string $id, array $fields): void
 function set_user_role(string $id, string $role): void
 {
     if (!in_array($role, ['tenant', 'landlord', 'agent'], true)) {
-        throw new InvalidArgumentException('Only tenant, landlord or agent can be assigned here.');
+        throw new InvalidArgumentException('Only Agent, Landlord or Tenant can be assigned here.');
     }
     db_exec(
         'UPDATE users SET role = :role, updated_at = :updated WHERE id = :id',

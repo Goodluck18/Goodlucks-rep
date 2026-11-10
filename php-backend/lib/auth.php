@@ -249,6 +249,43 @@ function is_primary_admin(?array $user = null): bool
         && (int)($user['is_primary_admin'] ?? 0) === 1;
 }
 
+/**
+ * The provider classification of an account (Upgrade 2 correction).
+ *
+ * The website offers two account groups: Tenant, and one Agent/Landlord account.
+ * A provider chooses Agent or Landlord during verification; that choice is stored
+ * in `users.provider_category`.
+ *
+ * Returns 'pending' (registered, not chosen yet), 'agent', 'landlord', or null
+ * for an account that is not a provider at all.
+ *
+ * Accounts created before the column existed have no stored value. They are
+ * classified by their role — the choice they made at registration — so nothing
+ * is asked of them retroactively and no row needs rewriting.
+ */
+function provider_category_state(?array $user = null): ?string
+{
+    $user = $user ?? auth_user();
+    if ($user === null) {
+        return null;
+    }
+    $role = (string)($user['role'] ?? '');
+    if ($role !== 'agent' && $role !== 'landlord') {
+        return null;
+    }
+    $stored = strtolower(trim((string)($user['provider_category'] ?? '')));
+    if ($stored === 'pending' || $stored === 'agent' || $stored === 'landlord') {
+        return $stored;
+    }
+    return $role;
+}
+
+/** True while an Agent/Landlord account has not chosen Agent or Landlord yet. */
+function provider_classification_required(?array $user = null): bool
+{
+    return provider_category_state($user) === 'pending';
+}
+
 /** Ownership check used for landlord property access. */
 function can_manage_property(array $user, array $property): bool
 {
@@ -295,6 +332,14 @@ function public_user(array $row): array
         'additionalNotes'    => (string)($row['additional_notes'] ?? ''),
         'createdAt'          => to_iso($row['created_at'] ?? null),
     ];
+
+    // Upgrade 2 correction: an Agent/Landlord account exposes its classification
+    // so the client can ask for the choice once, and never again after that.
+    $providerCategory = provider_category_state($row);
+    if ($providerCategory !== null) {
+        $user['providerCategory'] = $providerCategory;
+        $user['classificationRequired'] = $providerCategory === 'pending';
+    }
 
     // Increment C: an agent account carries its own profile (agency, operating
     // base, review status). Only ever the signed-in agent's own record.

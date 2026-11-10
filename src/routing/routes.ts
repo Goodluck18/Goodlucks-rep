@@ -40,6 +40,7 @@ export type RouteName =
   | 'blog'
   | 'blog-post'
   | 'list-property'
+  | 'provider-classification'
   | 'login'
   | 'register'
   | 'reset-password'
@@ -207,6 +208,10 @@ const PUBLIC_PATHS: Record<string, RouteName> = {
   // the index is a real page and never a prefix of an article URL.
   '/blog': 'blog',
   '/list-property': 'list-property',
+  // Upgrade 2 correction: the one-time Agent-or-Landlord choice an Agent/Landlord
+  // account makes during verification. It is a page of that account, not a
+  // separate registration or sign-in.
+  '/verify/classification': 'provider-classification',
   '/login': 'login',
   '/register': 'register',
   '/reset-password': 'reset-password',
@@ -295,6 +300,12 @@ export function dashboardPath(role: UserRole | string): string {
   if (role === 'tenant' || role === 'landlord' || role === 'agent') return `/${role}/dashboard`;
   return '/login';
 }
+
+/**
+ * Where an Agent/Landlord account chooses whether it is an Agent or a Landlord.
+ * The choice is part of verification and belongs to the same account.
+ */
+export const PROVIDER_CLASSIFICATION_PATH = '/verify/classification';
 
 /** The role that owns a protected account area, or null for public pages. */
 export function roleForSection(name: string): 'tenant' | 'landlord' | 'agent' | 'admin' | null {
@@ -524,6 +535,16 @@ export function accessDecision(route: RouteState, role: UserRole, currentPath: s
     return { action: 'allow' };
   }
 
+  // The classification page belongs to whichever Agent/Landlord role the account
+  // is on at the time, and to nothing else.
+  if (route.name === 'provider-classification') {
+    if (role === 'guest') {
+      return { action: 'login', to: `/login${buildQuery({ next: route.path })}`, next: route.path };
+    }
+    if (role === 'agent' || role === 'landlord') return { action: 'allow' };
+    return { action: 'forbidden', to: dashboardPath(role) };
+  }
+
   const owner = roleForSection(route.name);
   if (!owner) return { action: 'allow' };
 
@@ -566,6 +587,8 @@ export function viewForRoute(route: RouteState): string {
       return 'blog-post';
     case 'list-property':
       return 'list-property';
+    case 'provider-classification':
+      return 'provider-classification';
     case 'login':
       return 'home';
     case 'register':
@@ -625,6 +648,8 @@ export function pathForView(view: string, role: UserRole, current: RouteState): 
       return current.name === 'blog-post' ? current.path : '/blog';
     case 'list-property':
       return '/list-property';
+    case 'provider-classification':
+      return PROVIDER_CLASSIFICATION_PATH;
     case 'admin-login':
       return '/admin-login';
     case 'property-detail':

@@ -26,6 +26,11 @@ CREATE TABLE IF NOT EXISTS `users` (
   -- NULL until they supply it, so nobody is locked out.
   `official_name` VARCHAR(200) DEFAULT NULL,
   `role` VARCHAR(32) NOT NULL DEFAULT 'tenant',
+  -- Upgrade 2 correction: the Agent/Landlord account's professional
+  -- classification. 'pending' = registered through the Agent/Landlord group and
+  -- not chosen yet; 'agent'/'landlord' = the choice; NULL = a tenant, or an
+  -- account created before this column (classified by its role).
+  `provider_category` VARCHAR(16) DEFAULT NULL,
   `phone` VARCHAR(64) NOT NULL DEFAULT '',
   `password_hash` VARCHAR(255) DEFAULT NULL,
   `avatar` TEXT DEFAULT NULL,

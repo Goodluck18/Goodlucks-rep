@@ -69,6 +69,11 @@ $requiredColumns = [
         // a claim, never a verification; NULL for every existing account so no
         // one is locked out or given a verification they never submitted.
         'official_name'       => "VARCHAR(200) DEFAULT NULL AFTER `name`",
+        // Upgrade 2 correction: the Agent/Landlord account's classification.
+        // Additive and nullable; NULL (every existing account) means "classified
+        // by the account's role", so no existing agent or landlord is asked to
+        // choose again and no row is rewritten.
+        'provider_category'   => "VARCHAR(16) DEFAULT NULL AFTER `role`",
         'password_hash'       => "VARCHAR(255) DEFAULT NULL AFTER `phone`",
         'bio'                 => "TEXT DEFAULT NULL AFTER `address`",
         // Increment D: least-privilege reviewer capabilities (default deny).

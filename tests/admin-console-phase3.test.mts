@@ -64,7 +64,9 @@ test('A11: the directory searches and filters on the server', () => {
 
 test('A11: the endpoint requires its capability and never selects a password hash', () => {
   assert.match(apiPhp, /function handle_admin_users\(\): void[\s\S]{0,240}can_manage_users\(\$admin\)/);
-  assert.match(usersPhp, /SELECT id, name, email, phone, role, is_verified, created_at FROM users/);
+  // An explicit column list (never `SELECT *`); provider_category is read so the
+  // directory can show an Agent/Landlord account that has not chosen yet.
+  assert.match(usersPhp, /SELECT id, name, email, phone, role, provider_category, is_verified, created_at FROM users/);
   assert.ok(!/'SELECT \*'/.test(usersPhp), 'the directory must never select every column');
   // The word may appear in a comment explaining the rule; the SQL must not
   // name the column.

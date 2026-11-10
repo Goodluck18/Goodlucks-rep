@@ -10,12 +10,14 @@ import {
   SearchAlertSubscription,
   TenantRequest,
   ToastNotification,
+  AccountGroup,
   User,
   UserRole,
   ViewingSchedule,
 } from '../types';
 import { ToastContainer } from '../components/ToastContainer';
 import {
+  PROVIDER_CLASSIFICATION_PATH,
   RouteState,
   accessDecision,
   dashboardPath,
@@ -126,27 +128,31 @@ interface AppContextType {
   dismissToast: (id: string) => void;
 
   // Auth
-  login: (email: string, password: string, role?: 'tenant' | 'landlord' | 'agent') => Promise<SignInResult>;
+  /** `group` is Tenant, or the one Agent/Landlord account. */
+  login: (email: string, password: string, group?: AccountGroup) => Promise<SignInResult>;
   register: (data: {
     name: string;
     email: string;
     phone: string;
     password: string;
-    role: 'tenant' | 'landlord' | 'agent';
+    /** Tenant, or the one Agent/Landlord account (never a separate role choice). */
+    role: AccountGroup;
     /** Optional city/town (contact information, not identity data). */
     city?: string;
-    /** Agent only: agency/business name, if any (Increment C). */
+    /** Agent/Landlord: agency/business name, if any. */
     agencyName?: string;
-    /** Agent only: the city the agent works from, not their home address. */
+    /** Agent/Landlord: the city the account works from, not a home address. */
     operatingCity?: string;
-    /**
-     * Task 03: the registration group the account belongs to. It must agree with
-     * `role`; the server refuses a mismatch rather than converting an account.
-     */
-    providerCategory?: 'tenant' | 'landlord' | 'agent';
+    /** Not sent by the website: the classification is chosen at verification. */
+    providerCategory?: 'tenant' | 'landlord' | 'agent' | 'provider';
     /** Task 03: the official name on the Ghana Card (a claim, not a check). */
     officialName?: string;
   }) => Promise<SignInResult>;
+  /**
+   * The one-time Agent / Landlord classification of an Agent/Landlord account.
+   * It is asked during verification and is not a second registration or login.
+   */
+  chooseProviderCategory: (category: 'agent' | 'landlord') => Promise<SignInResult>;
   adminLogin: (email: string, password: string, accessKey: string) => Promise<SignInResult>;
   logout: () => Promise<void>;
   updateUserProfile: (data: Partial<User> & { password?: string }) => Promise<SignInResult>;
@@ -660,13 +666,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   );
 
   const login = useCallback(
-    async (email: string, password: string, role?: 'tenant' | 'landlord' | 'agent'): Promise<SignInResult> => {
+    async (email: string, password: string, group?: AccountGroup): Promise<SignInResult> => {
       try {
-        const result = await api.login(email, password, role);
+        const result = await api.login(email, password, group);
         await handleSignIn(result.user);
         showSuccessToast('Welcome Back!', `Signed in as ${result.user.name}`);
-        // Back to the page they were sent away from, or their own dashboard.
-        navigate(destinationAfterAuth(result.user.role), { replace: true });
+        // An Agent/Landlord account that has not chosen its classification lands
+        // on the choice first: nothing else on the dashboard is usable until it
+        // has decided.
+        const after = result.user.classificationRequired
+          ? PROVIDER_CLASSIFICATION_PATH
+          : destinationAfterAuth(result.user.role);
+        navigate(after, { replace: true });
         return { ok: true };
       } catch (error) {
         return { ok: false, error: messageForError(error), fields: (error as any)?.fields || {} };
@@ -681,18 +692,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       email: string;
       phone: string;
       password: string;
-      role: 'tenant' | 'landlord' | 'agent';
+      role: AccountGroup;
       city?: string;
       agencyName?: string;
       operatingCity?: string;
-      providerCategory?: 'tenant' | 'landlord' | 'agent';
+      providerCategory?: 'tenant' | 'landlord' | 'agent' | 'provider';
       officialName?: string;
     }): Promise<SignInResult> => {
       try {
         const result = await api.register(data);
         await handleSignIn(result.user);
         showSuccessToast('Account Created', `Welcome to Goodlucks Homes, ${result.user.name}!`);
-        navigate(destinationAfterAuth(result.user.role), { replace: true });
+        // A new Agent/Landlord account is asked for its classification as the
+        // first step of verification — still the same account, still signed in.
+        const after = result.user.classificationRequired
+          ? PROVIDER_CLASSIFICATION_PATH
+          : destinationAfterAuth(result.user.role);
+        navigate(after, { replace: true });
         return { ok: true };
       } catch (error) {
         return { ok: false, error: messageForError(error), fields: (error as any)?.fields || {} };
@@ -760,6 +776,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     },
     [currentUser, showSuccessToast]
+  );
+
+  /**
+   * The one-time Agent / Landlord classification of an Agent/Landlord account.
+   * Chosen once, during verification. It keeps the same account and the same
+   * session — only the classification, and therefore the dashboard it belongs to,
+   * changes.
+   */
+  const chooseProviderCategory = useCallback(
+    async (category: 'agent' | 'landlord'): Promise<SignInResult> => {
+      try {
+        const result = await api.chooseProviderCategory(category);
+        await handleSignIn(result.user);
+        showSuccessToast(
+          category === 'agent' ? 'Agent account' : 'Landlord account',
+          category === 'agent'
+            ? 'Saved. Complete verification to be verified as an Agent.'
+            : 'Saved. Complete verification to be verified as a Landlord.'
+        );
+        navigate(dashboardPath(category), { replace: true });
+        return { ok: true };
+      } catch (error) {
+        return { ok: false, error: messageForError(error), fields: (error as any)?.fields || {} };
+      }
+    },
+    [handleSignIn, navigate, showSuccessToast]
   );
 
   /**
@@ -1175,6 +1217,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       logout,
       updateUserProfile,
       updateAgentProfile,
+      chooseProviderCategory,
       changePassword,
       uploadAvatar,
       removeAvatar,
@@ -1240,6 +1283,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       logout,
       updateUserProfile,
       updateAgentProfile,
+      chooseProviderCategory,
       changePassword,
       uploadAvatar,
       removeAvatar,

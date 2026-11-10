@@ -89,6 +89,11 @@ recorded — and include the reviewer's note. "Started review" stays in-app: it 
 
 ### E2 — the classification is chosen at registration and final after that
 
+> **Superseded in part (Agent-first correction, 2026-10-30).** The classification is no longer chosen at registration.
+> The website offers two account groups — Tenant, and one Agent/Landlord account — and the Agent-or-Landlord choice is
+> made once, at verification. The staff correction endpoint described below is unchanged, and is now also the only way
+> to change a classification after it is made. See `docs/AGENT_FIRST_CORRECTION_2026-10-30.md`.
+
 Registration already offers tenant, landlord and agent, with no "agent acting for a landlord" language left anywhere in
 the codebase. What was missing was the **only** legitimate way to fix a genuine mistake. Added
 `POST /api/admin/users/:id/role`:

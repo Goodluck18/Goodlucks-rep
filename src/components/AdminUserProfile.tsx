@@ -117,6 +117,9 @@ export const AdminUserProfile: React.FC<Props> = ({ userId, onBack }) => {
           </div>
           <div className="flex flex-wrap gap-2">
             <span className="gl-chip capitalize">{user.role}</span>
+            {user.providerCategory === 'pending' && (
+              <span className="gl-chip">Has not chosen Agent or Landlord yet</span>
+            )}
             <span className={`gl-chip ${user.isVerified ? 'text-success' : 'text-ink-muted'}`}>
               {user.isVerified ? 'Verified account' : 'Not verified'}
             </span>
@@ -198,9 +201,10 @@ export const AdminUserProfile: React.FC<Props> = ({ userId, onBack }) => {
                 onChange={(event) => setNewRole(event.target.value as 'tenant' | 'landlord' | 'agent')}
                 className="mt-1 w-full bg-page border border-line rounded-xl px-3 py-2 text-xs text-ink"
               >
-                <option value="tenant">Tenant</option>
-                <option value="landlord">Landlord</option>
+                {/* Agent first, as everywhere the two are named together. */}
                 <option value="agent">Agent</option>
+                <option value="landlord">Landlord</option>
+                <option value="tenant">Tenant</option>
               </select>
             </label>
             <label className="sm:col-span-2 text-[11px] font-semibold text-ink-muted">

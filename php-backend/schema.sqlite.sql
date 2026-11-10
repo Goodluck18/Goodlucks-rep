@@ -13,6 +13,13 @@ CREATE TABLE IF NOT EXISTS users (
   -- never a verification). NULL for existing accounts, which are not locked out.
   official_name TEXT,
   role TEXT NOT NULL DEFAULT 'tenant',
+  -- Upgrade 2 correction: an Agent/Landlord account chooses its professional
+  -- classification during verification. 'pending' means the account registered
+  -- through the Agent/Landlord group and has not chosen yet; 'agent'/'landlord'
+  -- record the choice; NULL is every tenant and every account created before
+  -- this column existed (those are classified by their role, so nobody is sent
+  -- back through the choice).
+  provider_category TEXT,
   phone TEXT NOT NULL DEFAULT '',
   password_hash TEXT,
   avatar TEXT,

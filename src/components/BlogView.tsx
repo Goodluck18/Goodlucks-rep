@@ -78,7 +78,7 @@ export const BlogView: React.FC = () => {
         '@type': 'CollectionPage',
         name: 'Goodlucks Homes Learning Centre',
         description:
-          'Guides to renting in Ghana for tenants, landlords and agents, and how the Goodlucks Homes platform works.',
+          'Guides to renting in Ghana for tenants, agents and landlords, and how the Goodlucks Homes platform works.',
         url: `${SITE_ORIGIN}/blog`,
         isPartOf: { '@type': 'WebSite', name: 'Goodlucks Homes', url: SITE_ORIGIN },
       },
@@ -113,7 +113,7 @@ export const BlogView: React.FC = () => {
         }
         description={
           activeCategory?.description ||
-          'Practical guides to renting in Ghana: finding a home, arranging a viewing, landlord responsibilities, agent onboarding and how Goodlucks Homes works.'
+          'Practical guides to renting in Ghana: finding a home, arranging a viewing, agent onboarding, landlord responsibilities and how Goodlucks Homes works.'
         }
         canonicalUrl={`${SITE_ORIGIN}/blog${activeCategory ? `?category=${encodeURIComponent(activeCategory.slug)}` : ''}`}
         jsonLd={jsonLd}
@@ -129,7 +129,7 @@ export const BlogView: React.FC = () => {
             Renting in Ghana, explained
           </h1>
           <p className="text-sm sm:text-base text-ink/70 max-w-2xl leading-relaxed">
-            Guides for tenants, landlords and agents: how viewings are arranged, what a listing review does and
+            Guides for tenants, agents and landlords: how viewings are arranged, what a listing review does and
             does not cover, how fees and commissions work, and what to check before you pay anything. Written by the
             Goodlucks Homes team from the way the platform actually works.
           </p>

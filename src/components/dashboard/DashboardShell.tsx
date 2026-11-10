@@ -44,8 +44,8 @@ interface DashboardShellProps {
 
 const ROLE_LABEL: Record<DashboardRole, string> = {
   tenant: 'Tenant account',
-  landlord: 'Landlord account',
-  agent: 'Agent account',
+  landlord: 'Agent/Landlord account',
+  agent: 'Agent/Landlord account',
 };
 
 /**

@@ -169,7 +169,7 @@ function list_admin_users(array $filters, int $page, int $perPage): array
     $offset = (max(1, $page) - 1) * $perPage;
 
     $rows = db_all(
-        'SELECT id, name, email, phone, role, is_verified, created_at FROM users'
+        'SELECT id, name, email, phone, role, provider_category, is_verified, created_at FROM users'
         . $clause
         . ' ORDER BY created_at DESC, id DESC'
         . db_limit_clause($perPage, $offset),
@@ -286,6 +286,9 @@ function shape_directory_rows(array $rows): array
             'email'      => (string)$row['email'],
             'phone'      => (string)($row['phone'] ?? ''),
             'role'       => (string)$row['role'],
+            // 'pending' while an Agent/Landlord account has not yet said which
+            // it is; otherwise the stored classification.
+            'providerCategory' => provider_category_state($row),
             'isVerified' => (int)($row['is_verified'] ?? 0) === 1,
             'createdAt'  => to_iso($row['created_at'] ?? null),
             'counts'     => [
@@ -328,7 +331,7 @@ function keyed_counts(array $rows): array
 function admin_user_summary(string $userId): ?array
 {
     $row = db_one(
-        'SELECT id, name, email, phone, role, is_verified, company, address, created_at, updated_at
+        'SELECT id, name, email, phone, role, provider_category, is_verified, company, address, created_at, updated_at
            FROM users WHERE id = :id',
         [':id' => $userId]
     );
@@ -346,6 +349,10 @@ function admin_user_summary(string $userId): ?array
     $shaped['company'] = (string)($row['company'] ?? '');
     $shaped['address'] = (string)($row['address'] ?? '');
     $shaped['lastActiveAt'] = $lastActivity !== null ? to_iso($lastActivity['created_at']) : null;
+    // Upgrade 2 correction: an Agent/Landlord account says which it is during
+    // verification, so staff need to see 'pending' — an account that has not
+    // chosen yet is not the same as one that chose Agent.
+    $shaped['providerCategory'] = provider_category_state($row);
 
     // Landlord / provider state, derived from real records. "Listing approved"
     // and "identity verified" stay separate, exactly as in Agent Accounts.

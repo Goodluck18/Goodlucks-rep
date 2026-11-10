@@ -101,7 +101,7 @@ export const PropertyDetailView: React.FC = () => {
           </div>
           <h1 className="text-xl font-black text-ink">This property is no longer available</h1>
           <p className="text-xs text-ink/70 leading-relaxed">
-            The listing you are looking for may have been rented or removed by the landlord.
+            The listing you are looking for may have been rented or removed by the agent or landlord.
             Browse our current available rentals, or ask us to find a similar home for you.
           </p>
           <div className="flex flex-col sm:flex-row gap-2 justify-center pt-2">
@@ -546,7 +546,7 @@ export const PropertyDetailView: React.FC = () => {
                   Arrange Your Viewing Through Goodlucks
                 </h3>
                 <p className="text-xs text-ink/70 leading-relaxed">
-                  Goodlucks Homes facilitates property enquiries and viewing coordination between tenants, landlords and authorised agents. Any tenancy agreement is arranged directly between the tenant and landlord, outside the platform.
+                  Goodlucks Homes facilitates property enquiries and viewing coordination between tenants, authorised agents and landlords. Any tenancy agreement is arranged directly between the tenant and landlord, outside the platform.
                 </p>
               </div>
 
@@ -634,7 +634,7 @@ export const PropertyDetailView: React.FC = () => {
                 <div className="flex items-start gap-2">
                   <span className="w-1.5 h-1.5 rounded-full bg-interactive mt-1.5" />
                   <span>
-                    Confirm the time with the landlord or agent before you travel, meet them at the property, view it
+                    Confirm the time with the agent or landlord before you travel, meet them at the property, view it
                     before you commit, and pay any viewing fee as the terms above state — never online.
                   </span>
                 </div>

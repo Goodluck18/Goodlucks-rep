@@ -1,5 +1,14 @@
 export type UserRole = 'tenant' | 'landlord' | 'agent' | 'admin' | 'guest';
 
+/**
+ * The account group a visitor picks on the sign-in / registration screen.
+ *
+ * There are exactly two: a Tenant, and ONE Agent/Landlord account. 'provider' is
+ * never stored on an account — an Agent/Landlord account is stored as 'agent' or
+ * 'landlord' once it has chosen its classification during verification.
+ */
+export type AccountGroup = 'tenant' | 'provider' | 'agent' | 'landlord';
+
 export type AgentAccountStatus = 'pending_review' | 'active' | 'suspended';
 
 /**
@@ -154,6 +163,12 @@ export interface VerificationSummary {
   /** Task 03: the Ghana Card name given at registration (a claim, not a check). */
   officialName?: string;
   role?: string;
+  /**
+   * Upgrade 2 correction: 'agent' or 'landlord' once chosen, else 'pending' while
+   * the account still has to say which it is. That choice is step one here.
+   */
+  providerCategory?: 'agent' | 'landlord' | 'pending' | null;
+  classificationRequired?: boolean;
   encryptionActive: boolean;
   retentionDays: number;
   documentTypes: Array<{ value: string; label: string }>;
@@ -259,6 +274,14 @@ export interface User {
   preferredBedrooms?: number;
   additionalNotes?: string;
   createdAt: string;
+  /**
+   * Agent/Landlord accounts only: the professional classification.
+   * `'pending'` means the account registered through the Agent/Landlord group
+   * and has not chosen Agent or Landlord yet (Upgrade 2 correction).
+   */
+  providerCategory?: 'agent' | 'landlord' | 'pending' | null;
+  /** True while an Agent/Landlord account still has to choose its classification. */
+  classificationRequired?: boolean;
   /** Present only on agent accounts (Increment C). */
   agentProfile?: AgentProfile | null;
   /** Present only on administrator accounts (Increment D). */
@@ -1533,6 +1556,11 @@ export interface AdminUserRecord {
   email: string;
   phone: string;
   role: 'tenant' | 'landlord' | 'agent' | 'admin';
+  /**
+   * An Agent/Landlord account's classification: 'pending' until the account
+   * chooses Agent or Landlord during verification (Upgrade 2 correction).
+   */
+  providerCategory?: 'agent' | 'landlord' | 'pending' | null;
   isVerified: boolean;
   createdAt: string;
   counts: {

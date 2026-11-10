@@ -41,7 +41,7 @@ function email_template_targets(): array
 {
     return [
         'enquiry_confirmation' => 'Enquiry received (visitor)',
-        'enquiry_received'     => 'New enquiry (landlord or agent)',
+        'enquiry_received'     => 'New enquiry (agent or landlord)',
         'viewing_requested'    => 'Viewing request received',
         'viewing_update'       => 'Viewing update',
         'match_found'          => 'Property matches available',

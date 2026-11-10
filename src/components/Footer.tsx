@@ -42,7 +42,7 @@ export const Footer: React.FC = () => {
 
         {/* Short Company Description */}
         <p className="text-sm text-ink/70 max-w-xl leading-relaxed">
-          Goodlucks Homes is a property discovery and rental intermediary in Ghana. We connect people looking for a home with the landlords and agents who list them, arrange viewings, and keep the enquiries and records in one place. We do not own or manage the properties listed here.
+          Goodlucks Homes is a property discovery and rental intermediary in Ghana. We connect people looking for a home with the agents and landlords who list them, arrange viewings, and keep the enquiries and records in one place. We do not own or manage the properties listed here.
         </p>
 
         {/* Task 07: one footer entry to the Learning Centre, so a reader can

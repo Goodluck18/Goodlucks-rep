@@ -12,7 +12,7 @@
     "lint": "tsc --noEmit",
     "dev:web": "tsx server.ts",
     "api:dev": "node scripts/api-dev.mjs",
-    "test:api": "node --test --test-concurrency=1 tests/api.test.mjs tests/account-settings.test.mjs tests/task03.test.mjs tests/migration.test.mjs tests/concurrency.test.mjs tests/access-control.test.mjs tests/primary-admin.test.mjs tests/tenant-contact.test.mjs tests/admin-console-api.test.mjs tests/user-management.test.mjs tests/bulk-email.test.mjs",
+    "test:api": "node --test --test-concurrency=1 tests/api.test.mjs tests/account-settings.test.mjs tests/task03.test.mjs tests/migration.test.mjs tests/concurrency.test.mjs tests/access-control.test.mjs tests/primary-admin.test.mjs tests/tenant-contact.test.mjs tests/admin-console-api.test.mjs tests/user-management.test.mjs tests/bulk-email.test.mjs tests/provider-classification.test.mjs",
     "test:routing": "node --import tsx --test tests/routing.test.mts",
     "test:navigation": "node --import tsx --test tests/app-navigation.test.mts",
     "test:content": "node --test tests/content.test.mjs",
@@ -35,6 +35,7 @@
     "test:tenant-experience": "node --test tests/tenant-experience.test.mjs",
     "test:admin-console-phase5": "node --import tsx --test tests/admin-console-phase5.test.mts",
     "test:provider-phase6": "node --test --test-concurrency=1 tests/provider-experience-phase6.test.mjs",
+    "test:classification": "node --test --test-concurrency=1 tests/provider-classification.test.mjs",
     "test:receipts-removed-phase7": "node --test --test-concurrency=1 tests/tenant-receipts-removed-phase7.test.mjs"
   },
   "dependencies": {

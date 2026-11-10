@@ -14,13 +14,13 @@ const FAQ_DATA: FAQItem[] = [
     id: 'faq-1',
     category: 'General',
     question: 'What does Goodlucks Homes do?',
-    answer: 'Goodlucks Homes is a property discovery and rental intermediary. Landlords and agents submit listings, our team reviews each one before it is published, and tenants use the platform to find homes, request viewings and keep track of the arrangements. We do not draft, sign or store tenancy agreements - tenants and landlords complete their agreement directly with each other - and we do not provide legal or licensed professional services.'
+    answer: 'Goodlucks Homes is a property discovery and rental intermediary. Agents and landlords submit listings, our team reviews each one before it is published, and tenants use the platform to find homes, request viewings and keep track of the arrangements. We do not draft, sign or store tenancy agreements - tenants and landlords complete their agreement directly with each other - and we do not provide legal or licensed professional services.'
   },
   {
     id: 'faq-2',
     category: 'Tenants',
     question: 'How does property matching work for tenants?',
-    answer: 'Submit your preferred areas, number of bedrooms and budget in GH₵ through the "Find a Home" page. We score the live listings against your request and show the closest matches on your dashboard with the reason each one was suggested. A match is a suggestion, not a reservation: the property still has to be available and you still agree the viewing with the landlord or agent.'
+    answer: 'Submit your preferred areas, number of bedrooms and budget in GH₵ through the "Find a Home" page. We score the live listings against your request and show the closest matches on your dashboard with the reason each one was suggested. A match is a suggestion, not a reservation: the property still has to be available and you still agree the viewing with the agent or landlord.'
   },
   {
     id: 'faq-3',
@@ -31,14 +31,14 @@ const FAQ_DATA: FAQItem[] = [
   {
     id: 'faq-4',
     category: 'Landlords',
-    question: 'How do landlords list properties on Goodlucks Homes?',
-    answer: 'Property owners, or agents acting with the owner\'s agreement, can create an account and submit the property\'s details, photos, location and rent in GH₵. A member of our team reviews the listing before it is published. That review covers the listing itself - it is not a physical inspection of the property, and it is not proof of ownership or of the rent.'
+    question: 'How do Agents and landlords list properties on Goodlucks Homes?',
+    answer: 'Property owners, or agents acting with the owner\'s agreement, register one Agent/Landlord account, choose Agent or Landlord at verification, and submit the property\'s details, photos, location and rent in GH₵. A member of our team reviews the listing before it is published. That review covers the listing itself - it is not a physical inspection of the property, and it is not proof of ownership or of the rent.'
   },
   {
     id: 'faq-5',
     category: 'General',
     question: 'Why are enquiries and viewings arranged through Goodlucks Homes?',
-    answer: 'Listings do not publish the landlord\'s or agent\'s phone number. Enquiries and viewing requests are sent through the platform, which keeps a record of what was asked and when, and the landlord or agent then contacts you to agree a time. If something goes wrong with an arrangement you can reach our team, and we can see the same record you can.'
+    answer: 'Listings do not publish the landlord\'s or agent\'s phone number. Enquiries and viewing requests are sent through the platform, which keeps a record of what was asked and when, and the agent or landlord then contacts you to agree a time. If something goes wrong with an arrangement you can reach our team, and we can see the same record you can.'
   },
   {
     id: 'faq-6',
@@ -72,7 +72,7 @@ export const AboutView: React.FC = () => {
     <div className="min-h-screen bg-page text-ink py-12 px-4 sm:px-6 lg:px-8">
       <SEOHead
         title="About Goodlucks Homes - Rental Intermediary in Ghana"
-        description="How Goodlucks Homes works in Accra, Ghana: listings from registered landlords and agents, reviewed before publishing, with viewings arranged through the platform."
+        description="How Goodlucks Homes works in Accra, Ghana: listings from registered agents and landlords, reviewed before publishing, with viewings arranged through the platform."
         keywords="About Goodlucks Homes, rentals Ghana, property intermediary Accra, viewing arrangements Ghana"
         jsonLd={faqJsonLd}
       />
@@ -86,7 +86,7 @@ export const AboutView: React.FC = () => {
           </div>
           <h1 className="text-3xl sm:text-4xl font-black text-ink">About Goodlucks Homes</h1>
           <p className="text-sm text-ink/70 max-w-xl mx-auto leading-relaxed">
-            A rental platform that connects people looking for a home with the landlords and agents who list them, with every listing reviewed before it is published.
+            A rental platform that connects people looking for a home with the agents and landlords who list them, with every listing reviewed before it is published.
           </p>
         </div>
 
@@ -94,10 +94,10 @@ export const AboutView: React.FC = () => {
         <div className="gl-card p-8 space-y-4">
           <h2 className="text-xl font-bold text-ink">Our Intermediary Model</h2>
           <p className="text-sm text-ink leading-relaxed">
-            Goodlucks Homes is the <strong>intermediary</strong> between the people who list properties and the people looking for them. Landlords and agents submit the listings; we review them, publish them, and take the enquiries and viewing requests that follow.
+            Goodlucks Homes is the <strong>intermediary</strong> between the people who list properties and the people looking for them. Agents and landlords submit the listings; we review them, publish them, and take the enquiries and viewing requests that follow.
           </p>
           <p className="text-sm text-ink/70 leading-relaxed">
-            We pass each enquiry and viewing request to the landlord or agent responsible for the property, and both sides keep the same record of what was asked and agreed. Goodlucks Homes is not a law firm and does not manage the properties: tenants and landlords meet and complete their tenancy agreement between themselves, outside the platform.
+            We pass each enquiry and viewing request to the agent or landlord responsible for the property, and both sides keep the same record of what was asked and agreed. Goodlucks Homes is not a law firm and does not manage the properties: tenants and landlords meet and complete their tenancy agreement between themselves, outside the platform.
           </p>
         </div>
 
@@ -112,7 +112,7 @@ export const AboutView: React.FC = () => {
           <div className="bg-surface p-6 rounded-2xl border border-line space-y-2">
             <Users className="w-8 h-8 text-ink" />
             <h3 className="font-bold text-base text-ink">Viewings arranged</h3>
-            <p className="text-xs text-ink/70">You request a viewing here and agree the time with the landlord or agent. Your request, the agreed time and any fee are recorded on the platform.</p>
+            <p className="text-xs text-ink/70">You request a viewing here and agree the time with the agent or landlord. Your request, the agreed time and any fee are recorded on the platform.</p>
           </div>
 
           <div className="bg-surface p-6 rounded-2xl border border-line space-y-2">

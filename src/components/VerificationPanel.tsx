@@ -13,6 +13,7 @@ import {
   X,
 } from 'lucide-react';
 import { api, messageForError } from '../services/apiService';
+import { useApp } from '../context/AppContext';
 import {
   DOCUMENT_ACCEPT,
   DOCUMENT_MAX_BYTES,
@@ -238,6 +239,12 @@ export const VerificationPanel: React.FC<{ scope: 'agent' | 'landlord'; classNam
   scope,
   className = '',
 }) => {
+  const { chooseProviderCategory } = useApp();
+  // The one-time Agent / Landlord choice. It is normally made on its own page
+  // before the dashboard opens; this card is the same question for the account
+  // that reaches the panel some other way.
+  const [classificationChoice, setClassificationChoice] = useState<'agent' | 'landlord' | null>(null);
+  const [savingClassification, setSavingClassification] = useState(false);
   const [summary, setSummary] = useState<VerificationSummary | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -594,6 +601,60 @@ export const VerificationPanel: React.FC<{ scope: 'agent' | 'landlord'; classNam
         >
           {error ? <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" /> : <Lock className="w-4 h-4 shrink-0 mt-0.5 text-ink" />}
           <span className="flex-1">{error || notice}</span>
+        </div>
+      )}
+
+      {summary.classificationRequired && (
+        <div className="bg-surface border border-interactive/40 rounded-2xl p-5 space-y-3">
+          <h2 className="text-sm font-bold text-ink flex items-center gap-2">
+            <BadgeCheck className="w-4 h-4 text-ink" /> Step 1 of verification: are you an Agent or a Landlord?
+          </h2>
+          <p className="text-[11px] text-ink/70 leading-relaxed">
+            Your Agent/Landlord account is one account for both. Choose which one you are and this same account is
+            verified as that — there is no second registration and no separate sign-in.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => setClassificationChoice('agent')}
+              aria-pressed={classificationChoice === 'agent'}
+              className={`text-left rounded-2xl border p-3 transition-colors ${
+                classificationChoice === 'agent' ? 'border-interactive bg-interactive/10' : 'border-line bg-surface'
+              }`}
+            >
+              <span className="block text-[11px] font-bold text-ink">Agent</span>
+              <span className="block text-[10px] text-ink/70">You list property for other people, with or without an agency.</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setClassificationChoice('landlord')}
+              aria-pressed={classificationChoice === 'landlord'}
+              className={`text-left rounded-2xl border p-3 transition-colors ${
+                classificationChoice === 'landlord' ? 'border-interactive bg-interactive/10' : 'border-line bg-surface'
+              }`}
+            >
+              <span className="block text-[11px] font-bold text-ink">Landlord</span>
+              <span className="block text-[10px] text-ink/70">You list property you own or manage yourself.</span>
+            </button>
+          </div>
+          <button
+            type="button"
+            disabled={!classificationChoice || savingClassification}
+            onClick={async () => {
+              if (!classificationChoice) return;
+              setSavingClassification(true);
+              setError(null);
+              const result = await chooseProviderCategory(classificationChoice);
+              setSavingClassification(false);
+              if (!result.ok) setError(result.error || 'We could not save your choice. Please try again.');
+            }}
+            className="gl-btn gl-btn-primary text-xs disabled:opacity-50"
+          >
+            {savingClassification ? 'Saving…' : 'Save my classification'}
+          </button>
+          <p className="text-[10px] text-ink/70">
+            This is set once. If it is wrong afterwards, Goodlucks staff correct it — you never need a second account.
+          </p>
         </div>
       )}
 

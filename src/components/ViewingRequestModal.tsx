@@ -31,12 +31,14 @@ export const ViewingRequestModal: React.FC<ViewingRequestModalProps> = ({ proper
 
   if (!property) return null;
 
-  const isLandlord = currentUser?.role === 'landlord';
+  // Agents and Landlords are the one provider account, and neither requests a
+  // viewing as a tenant.
+  const isProvider = currentUser?.role === 'landlord' || currentUser?.role === 'agent';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    if (isLandlord) return;
+    if (isProvider) return;
 
     if (!tenantName.trim() || !tenantPhone.trim()) {
       setError('Please add your name and phone number so our agent can reach you.');
@@ -93,18 +95,18 @@ export const ViewingRequestModal: React.FC<ViewingRequestModalProps> = ({ proper
 
         {/* Scrollable Content Body */}
         <div className="overflow-y-auto flex-1 pr-1 space-y-4 pt-1 pb-1">
-          {isLandlord ? (
+          {isProvider ? (
           <div className="text-center py-4 space-y-5">
             <div className="w-16 h-16 rounded-2xl bg-amber-500/20 text-amber-700 border border-amber-500/30 flex items-center justify-center mx-auto">
               <ShieldAlert className="w-8 h-8" />
             </div>
             <div className="space-y-2">
               <span className="px-3 py-1 rounded-full text-[10px] font-extrabold bg-amber-500/10 text-amber-700 border border-amber-500/20 uppercase tracking-wider">
-                Landlord Account Detected
+                Agent/Landlord Account Detected
               </span>
               <h3 className="text-xl font-bold text-ink">Viewing Requests Restricted</h3>
               <p className="text-xs text-ink/70 max-w-sm mx-auto leading-relaxed">
-                You are currently logged in as a <strong>Landlord</strong>. Landlords manage property listings, while scheduling viewings and matching properties are reserved for prospective <strong>Tenants</strong>.
+                You are signed in with an <strong>Agent/Landlord</strong> account. That account lists properties and answers viewing requests; requesting a viewing and matching homes are reserved for prospective <strong>Tenants</strong>.
               </p>
             </div>
             <div className="flex flex-col sm:flex-row gap-2 pt-2 justify-center">
@@ -112,7 +114,7 @@ export const ViewingRequestModal: React.FC<ViewingRequestModalProps> = ({ proper
                 onClick={() => { onClose(); setCurrentView('dashboard'); }}
                 className="gl-btn gl-btn-primary px-5 py-2.5 text-xs"
               >
-                Go to Landlord Dashboard
+                Go to Your Dashboard
               </button>
               <button
                 onClick={onClose}

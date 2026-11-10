@@ -2,11 +2,17 @@ import React, { useRef, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { useModalA11y } from '../hooks/useModalA11y';
 import { api } from '../services/apiService';
+import type { AccountGroup } from '../types';
 import { X, Building2, ShieldCheck, User, Mail, Lock, Phone, MapPin, ArrowRight, MailCheck } from 'lucide-react';
 
 interface AuthModalProps {
   initialMode?: 'login' | 'register';
-  initialRole?: 'tenant' | 'landlord' | 'agent';
+  /**
+   * The account group to preselect: Tenant, or the one Agent/Landlord account.
+   * Agent and Landlord are never separate sign-up choices — the account says
+   * which it is during verification.
+   */
+  initialRole?: AccountGroup;
   onClose: () => void;
   /**
    * Told whenever the visitor switches between signing in and registering, so
@@ -25,7 +31,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({ initialMode = 'login', ini
   const [resetSent, setResetSent] = useState<string | null>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
   const dialogProps = useModalA11y(dialogRef, onClose);
-  const [selectedRole, setSelectedRole] = useState<'tenant' | 'landlord' | 'agent'>(initialRole);
+  // Exactly two groups. 'provider' is the shared Agent/Landlord account.
+  const [group, setGroup] = useState<'tenant' | 'provider'>(
+    initialRole === 'landlord' || initialRole === 'agent' || initialRole === 'provider' ? 'provider' : 'tenant'
+  );
+  const isProvider = group === 'provider';
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -65,22 +75,21 @@ export const AuthModal: React.FC<AuthModalProps> = ({ initialMode = 'login', ini
 
     const result =
       mode === 'login'
-        ? await login(email.trim(), password, selectedRole)
+        ? await login(email.trim(), password, group)
         : await register({
             name: name.trim(),
             email: email.trim(),
             phone: phone.trim(),
-            // For an agent the city is the operating base, sent as its own field
-            // so it is never confused with a home address.
-            city: selectedRole === 'agent' ? undefined : city.trim(),
-            operatingCity: selectedRole === 'agent' ? city.trim() : undefined,
-            agencyName: selectedRole === 'agent' ? agencyName.trim() : undefined,
+            // An Agent/Landlord account gives the city it works from as its own
+            // field, so it is never confused with a home address.
+            city: isProvider ? undefined : city.trim(),
+            operatingCity: isProvider ? city.trim() : undefined,
+            agencyName: isProvider ? agencyName.trim() || undefined : undefined,
             password,
-            role: selectedRole,
-            // The group the visitor picked (Tenant, or a property provider).
-            // The server refuses a category that disagrees with the role.
-            providerCategory: selectedRole,
-            officialName: selectedRole === 'tenant' ? undefined : officialName.trim() || undefined,
+            // Tenant, or the single Agent/Landlord account. Which of Agent or
+            // Landlord this is gets chosen once, during verification.
+            role: group,
+            officialName: isProvider ? officialName.trim() || undefined : undefined,
           });
 
     setIsSubmitting(false);
@@ -128,67 +137,43 @@ export const AuthModal: React.FC<AuthModalProps> = ({ initialMode = 'login', ini
             </p>
           </div>
 
-          {/* Role Selector — Task 03: two groups only. A property provider must
-              then say whether they are a Landlord or an Agent; that choice is
-              final for the account and cannot be swapped by registering again. */}
+          {/* Account group — exactly two: Tenant, or the one Agent/Landlord
+              account. Whether the account is an Agent or a Landlord is chosen
+              once, during verification; it is not a third sign-up type. */}
           <div className={`space-y-2 ${mode === 'forgot' ? 'hidden' : ''}`}>
-            <label className="block text-xs font-semibold text-ink/70">Account group:</label>
+            <label className="block text-xs font-semibold text-ink/70">Account type:</label>
             <div className="grid grid-cols-2 gap-1.5 bg-surface p-1 rounded-2xl border border-line text-xs">
               <button
                 type="button"
-                onClick={() => setSelectedRole('tenant')}
+                onClick={() => setGroup('tenant')}
                 className={`py-2 rounded-xl font-bold transition-all ${
-                  selectedRole === 'tenant' ? 'bg-interactive text-ink shadow-md' : 'text-ink/70 hover:text-ink'
+                  group === 'tenant' ? 'bg-interactive text-ink shadow-md' : 'text-ink/70 hover:text-ink'
                 }`}
               >
                 Tenant
               </button>
               <button
                 type="button"
-                onClick={() => setSelectedRole(selectedRole === 'tenant' ? 'landlord' : selectedRole)}
+                onClick={() => setGroup('provider')}
                 className={`py-2 rounded-xl font-bold transition-all ${
-                  selectedRole !== 'tenant' ? 'bg-interactive text-ink shadow-md' : 'text-ink/70 hover:text-ink'
+                  isProvider ? 'bg-interactive text-ink shadow-md' : 'text-ink/70 hover:text-ink'
                 }`}
               >
-                Agent / Landlord
+                Agent/Landlord
               </button>
             </div>
 
-            {selectedRole !== 'tenant' && (
-              <div className="space-y-1.5">
-                <label className="block text-[11px] font-semibold text-ink/70">
-                  Property provider type <span className="text-ink">*</span>
-                </label>
-                <div className="grid grid-cols-2 gap-1.5 bg-surface p-1 rounded-2xl border border-line text-[11px]">
-                  <button
-                    type="button"
-                    onClick={() => setSelectedRole('landlord')}
-                    className={`py-1.5 rounded-xl font-bold transition-all ${
-                      selectedRole === 'landlord' ? 'bg-line text-ink' : 'text-ink/70 hover:text-ink'
-                    }`}
-                  >
-                    Landlord (I own property)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedRole('agent')}
-                    className={`py-1.5 rounded-xl font-bold transition-all ${
-                      selectedRole === 'agent' ? 'bg-line text-ink' : 'text-ink/70 hover:text-ink'
-                    }`}
-                  >
-                    Agent (I act for landlords)
-                  </button>
-                </div>
-                <p className="text-[10px] text-ink/70">
-                  This choice is fixed for the account. Goodlucks keeps landlord and agent accounts separate, and moving
-                  between them is a staff-reviewed change, not a second sign-up.
-                </p>
-                {(fieldErrors.providerCategory || fieldErrors.role) && (
-                  <p className="text-[11px] text-ink">
-                    {fieldErrors.providerCategory || fieldErrors.role}
-                  </p>
-                )}
-              </div>
+            {isProvider && mode === 'register' && (
+              <p className="text-[10px] text-ink/70 leading-relaxed">
+                One account for Agents and Landlords. After you register, verification asks whether you are an{' '}
+                <strong>Agent</strong> or a <strong>Landlord</strong> — you do not choose here and you never need a second
+                account.
+              </p>
+            )}
+            {(fieldErrors.role || fieldErrors.providerCategory) && (
+              <p className="text-[11px] font-semibold text-accent-text">
+                {fieldErrors.role || fieldErrors.providerCategory}
+              </p>
             )}
           </div>
 
@@ -198,21 +183,15 @@ export const AuthModal: React.FC<AuthModalProps> = ({ initialMode = 'login', ini
               <ShieldCheck className="w-4 h-4 text-ink" />
               {mode === 'forgot'
                 ? 'Password reset link'
-                : `${selectedRole === 'tenant' ? 'Tenant' : selectedRole === 'landlord' ? 'Landlord' : 'Agent'} ${
-                    mode === 'login' ? 'sign-in' : 'registration'
-                  }`}
+                : `${isProvider ? 'Agent/Landlord' : 'Tenant'} ${mode === 'login' ? 'sign-in' : 'registration'}`}
             </div>
             <p className="text-[11px] text-ink/70 leading-tight">
               {mode === 'forgot'
                 ? 'Enter your account email and we will send a single-use link. It expires in one hour.'
-                : selectedRole === 'agent'
-                  ? 'Agent accounts are reviewed before listing submissions open. Registering does not verify your identity, ' +
-                    'your licence or your authority to act for a landlord.'
-                  : 'We use your details to run your account and, for providers, for the checks shown on your dashboard. ' +
-                    'Sign in to manage' +
-                    (selectedRole === 'landlord'
-                      ? ' your listings and viewing requests.'
-                      : ' saved homes, viewings and rental requests.')}
+                : isProvider
+                  ? 'Agent and Landlord accounts are reviewed before listing submissions open. Registering does not verify ' +
+                    'your identity, your licence or your authority to act for a landlord.'
+                  : 'We use your details to run your account. Sign in to manage saved homes, viewings and rental requests.'}
             </p>
           </div>
 
@@ -251,7 +230,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ initialMode = 'login', ini
                   {fieldErrors.name && <p className="text-[11px] font-semibold text-accent-text mt-1">{fieldErrors.name}</p>}
                 </div>
 
-                {selectedRole !== 'tenant' && (
+                {isProvider && (
                   <div>
                     <label className="block text-xs font-semibold text-ink/70 mb-1">
                       Official name on your Ghana Card{' '}
@@ -295,8 +274,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ initialMode = 'login', ini
 
                 <div>
                   <label className="block text-xs font-semibold text-ink/70 mb-1">
-                    {selectedRole === 'agent' ? 'Operating City / Base' : 'City / Town'}{' '}
-                    {selectedRole === 'agent' ? (
+                    {isProvider ? 'City / Base' : 'City / Town'}{' '}
+                    {isProvider ? (
                       <span className="text-ink/70 font-normal">(where you work)</span>
                     ) : (
                       <span className="text-ink/70 font-normal">(optional)</span>
@@ -306,7 +285,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ initialMode = 'login', ini
                     <MapPin className="w-4 h-4 absolute left-3 top-3 text-ink/70" />
                     <input
                       type="text"
-                      required={selectedRole === 'agent'}
+                      required={isProvider}
                       value={city}
                       onChange={(e) => setCity(e.target.value)}
                       placeholder="e.g. East Legon, Accra"
@@ -317,14 +296,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({ initialMode = 'login', ini
                     <p className="text-[11px] font-semibold text-accent-text mt-1">{fieldErrors.operatingCity}</p>
                   )}
                   {fieldErrors.city && <p className="text-[11px] font-semibold text-accent-text mt-1">{fieldErrors.city}</p>}
-                  {selectedRole === 'agent' && (
+                  {isProvider && (
                     <p className="text-[10px] text-ink/70 mt-1">
                       Your base, not your home address, and not a claim of coverage.
                     </p>
                   )}
                 </div>
 
-                {selectedRole === 'agent' && (
+                {isProvider && (
                   <div>
                     <label className="block text-xs font-semibold text-ink/70 mb-1">
                       Agency / Business Name <span className="text-ink/70 font-normal">(optional)</span>
