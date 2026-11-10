@@ -458,10 +458,16 @@ function admin_user_activity(string $userId, int $limit = 50): array
         }
     }
 
+    // Upgrade 2 (E2): staff actions *about* this account belong in its history
+    // too, not only the actions it performed. A correction of someone's
+    // classification is exactly the kind of decision a reviewer later needs to
+    // see next to the account it changed.
     foreach (db_all(
         'SELECT id, action, entity_type, entity_id, created_at FROM audit_logs
-          WHERE actor_id = :id ORDER BY created_at DESC' . db_limit_clause($limit, 0),
-        [':id' => $userId]
+          WHERE actor_id = :id
+             OR (entity_type = :user_entity AND entity_id = :id)
+          ORDER BY created_at DESC' . db_limit_clause($limit * 2, 0),
+        [':id' => $userId, ':user_entity' => 'user']
     ) as $row) {
         $entries[] = [
             'kind'   => 'action',
@@ -605,6 +611,7 @@ function activity_action_title(string $action, string $entityType): string
         'campaign.created'               => 'Bulk email drafted',
         'campaign.queued'                => 'Bulk email queued',
         'user.capabilities_changed'      => 'Staff capabilities changed',
+        'user.role_corrected'            => 'Account type corrected by staff',
     ];
 
     if (isset($labels[$action])) {

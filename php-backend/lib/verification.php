@@ -619,6 +619,71 @@ function notify_verification_subject(string $userId, string $scope, string $deci
         $message .= ' Open your verification page to upload what is needed.';
     }
     create_notification($userId, $title . ' (' . $word . ')', $message, $type);
+
+    // Upgrade 2 (C8): the decision is a real event and the account holder is
+    // told by email as well as in the app — with the reviewer's reason, because
+    // a rejection nobody can act on is worse than no email at all.
+    send_verification_decision_email($userId, $scope, $decision, $note);
+}
+
+/**
+ * Email the account holder about a verification decision (Upgrade 2, C8).
+ *
+ * Only the two decisions that ask something of the person are emailed —
+ * approval, and anything that needs their attention. Intermediate states
+ * ("started review") are in-app only: they are progress, not news.
+ *
+ * No document, file path, identity number or reviewer identity is included.
+ */
+function send_verification_decision_email(string $userId, string $scope, string $decision, string $note): void
+{
+    $attention = ['reject', 'request_resubmission', 'mark_expired'];
+    if ($decision !== 'approve' && !in_array($decision, $attention, true)) {
+        return;
+    }
+
+    $user = db_one('SELECT * FROM users WHERE id = :id LIMIT 1', [':id' => $userId]);
+    if (!$user) {
+        return;
+    }
+    $email = valid_email((string)($user['email'] ?? ''));
+    if ($email === null) {
+        return;
+    }
+
+    $what = $scope === 'identity' ? 'identity verification' : 'professional authorisation';
+    $approved = $decision === 'approve';
+    $type = $approved ? 'verification_approved' : 'verification_attention';
+    $heading = $approved ? 'Verification approved' : 'Verification needs your attention';
+
+    $line = $approved
+        ? 'Your ' . $what . ' has been approved.'
+        : 'Your ' . $what . ' was not approved as submitted'
+            . ($decision === 'request_resubmission' ? ' — more information is needed.' : '.');
+
+    $body = '<p style="color:#CBD5E1;font-size:14px;">Hello ' . e((string)($user['name'] ?: 'there')) . ',</p>'
+        . '<div style="background:#252A34;padding:16px;border-radius:8px;border-left:4px solid '
+        . ($approved ? '#08D9D6' : '#FF2E63') . ';margin:16px 0;">'
+        . '<strong style="color:#FFFFFF;font-size:16px;">' . e(ucfirst($what)) . '</strong><br>'
+        . '<span style="color:#94A3B8;font-size:13px;">' . e($line) . '</span>'
+        . '</div>'
+        . ($note !== ''
+            ? '<p style="color:#CBD5E1;font-size:14px;"><strong style="color:#FFFFFF;">Reason given by the reviewer:</strong><br>'
+                . e($note) . '</p>'
+            : '')
+        . ($approved
+            ? '<p style="color:#CBD5E1;font-size:14px;">Nothing further is needed. You can keep listing and responding to tenants as before.</p>'
+            : '<p style="color:#CBD5E1;font-size:14px;">Open your verification page to see what is needed and upload it. Your account is not suspended while you do this.</p>')
+        . '<p style="color:#94A3B8;font-size:12px;">Open your account: ' . e(SITE_URL . '/dashboard') . '</p>';
+
+    send_email(
+        $email,
+        (string)($user['name'] ?? ''),
+        $approved ? 'Your ' . $what . ' is approved' : 'Your ' . $what . ' needs attention',
+        email_html_template($heading, $body),
+        $type,
+        $line
+    );
 }
 
 function record_verification_decision(

@@ -210,8 +210,9 @@ test('the bottom bar tabs may shrink and truncate', () => {
 /* -------------------------------------------------------------------------- */
 
 test('image preview grids collapse to one or two columns on a small phone', () => {
-  const listProperty = byPath('src/components/ListPropertyView.tsx');
-  assert.match(listProperty, /grid grid-cols-1 min-\[380px\]:grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3/);
+  // Upgrade 2 (C3): the preview grid lives in the shared image picker.
+  const imagePicker = byPath('src/components/PropertyImagePicker.tsx');
+  assert.match(imagePicker, /grid grid-cols-1 min-\[380px\]:grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3/);
 
   const verificationPanel = byPath('src/components/VerificationPanel.tsx');
   assert.match(verificationPanel, /grid grid-cols-1 sm:grid-cols-2 gap-3/);

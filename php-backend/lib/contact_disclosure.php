@@ -43,7 +43,9 @@ function contact_disclosure_provider_id(array $viewing): string
     }
     $property = find_property($propertyId);
 
-    return $property ? (string)($property['landlord_id'] ?? '') : '';
+    // Upgrade 2 (C1): an independent agent listing has no landlord account, so
+    // the responsible provider is the agent who submitted it.
+    return $property ? property_provider_user_id($property) : '';
 }
 
 /** Stored row → shaped disclosure, with the effective state (expiry applied). */

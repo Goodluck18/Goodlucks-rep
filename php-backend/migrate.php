@@ -100,6 +100,17 @@ $requiredColumns = [
         // administrator-maintained area adjacency instead.
         'latitude'             => "DECIMAL(10,7) DEFAULT NULL",
         'longitude'            => "DECIMAL(10,7) DEFAULT NULL",
+        // Upgrade 2 Phase 6: structured specs, canonical amenities, an approved
+        // video and the provider's own commission expectation. All nullable, so
+        // every existing listing keeps rendering exactly as it did.
+        'toilets'              => "INT DEFAULT NULL",
+        'kitchens'             => "INT DEFAULT NULL",
+        'furnishing'           => "VARCHAR(40) DEFAULT NULL",
+        'amenities_note'       => "TEXT DEFAULT NULL",
+        'video_provider'       => "VARCHAR(20) DEFAULT NULL",
+        'video_url'            => "VARCHAR(600) DEFAULT NULL",
+        'provider_commission_percent' => "DECIMAL(5,2) DEFAULT NULL",
+        'provider_commission_note'    => "VARCHAR(500) DEFAULT NULL",
         'landlord_name'        => "VARCHAR(255) DEFAULT NULL AFTER `landlord_id`",
         'landlord_company'     => "VARCHAR(255) DEFAULT NULL AFTER `landlord_name`",
         // Increment C: who actually submitted the listing, and whether landlord

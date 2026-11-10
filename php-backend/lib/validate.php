@@ -10,7 +10,12 @@
 
 declare(strict_types=1);
 
-const PROPERTY_TYPES = ['Apartment', 'Luxury Villa', 'Townhouse', 'Studio', 'Duplex', 'Penthouse', 'Commercial'];
+const PROPERTY_TYPES = [
+    'Apartment', 'Luxury Villa', 'Townhouse', 'Studio', 'Duplex', 'Penthouse', 'Commercial',
+    // Upgrade 2 (C5): words people actually use, and the Ghanaian estate
+    // vocabulary. The original seven stay valid so no existing listing breaks.
+    'Flat', 'Detached', 'Semi-detached', 'Self-contained', 'House',
+];
 const PROPERTY_STATUSES = ['active', 'pending', 'rejected', 'rented', 'deactivated'];
 /**
  * The enquiry lifecycle (Upgrade 2, A10).

@@ -8,22 +8,47 @@ import {
   viewingTermsPayload,
   type ViewingTermsFormState,
 } from './ViewingTermsFields';
+import { PropertyImagePicker } from './PropertyImagePicker';
 
 /**
  * The agent-facing listing submission form (Increment F).
  *
  * The backend for this shipped in Increment C but had no honest interface: the
- * old screen said submission "is not open yet". It is open now, with two rules
- * stated plainly on the form:
+ * old screen said submission "is not open yet". It is open now.
  *
- *   1. The agent names the landlord they act for. That is a declaration, not
- *      proof, and the platform never presents it as ownership verification.
- *   2. The landlord reference is resolved by the server. The screen is told the
- *      same thing whether or not the landlord has an account — there is no
- *      landlord picker and no "account not found" message to probe with.
+ * Upgrade 2 (C1): agents are independent providers. There is no landlord
+ * reference to supply and no owner account to attach — the agent's own account
+ * is the provider for the listing, and the platform claims no ownership or
+ * legal authority on anyone's behalf. What the form therefore has to be honest
+ * about is that the viewing fee and terms are the agent's own, and that the
+ * listing stays in review until staff approve it.
  */
 
-const PROPERTY_TYPES = ['Apartment', 'House', 'Townhouse', 'Studio', 'Duplex', 'Self-contained'];
+const PROPERTY_TYPES = ['Apartment', 'House', 'Townhouse', 'Studio', 'Duplex', 'Self-contained', 'Flat', 'Detached', 'Semi-detached'];
+
+// The labels the server maps onto its canonical amenity keys (C5). Sending the
+// words keeps this list readable; the server is what decides the key.
+const AMENITY_CHOICES = [
+  'Air conditioning',
+  'Backup power',
+  'Balcony',
+  'Borehole water',
+  'CCTV',
+  'Elevator',
+  'Fenced compound',
+  'Fitted kitchen',
+  'Furnished',
+  'Gated community',
+  'Gym',
+  'Internet ready',
+  'Parking',
+  'Pet friendly',
+  'Swimming pool',
+  'Security guard',
+  'Solar power',
+  'Staff quarters',
+  'Water storage tank',
+];
 
 const emptyForm = {
   title: '',
@@ -34,15 +59,21 @@ const emptyForm = {
   bathrooms: '1',
   propertyType: 'Apartment',
   description: '',
-  images: '',
-  landlordName: '',
-  landlordEmail: '',
-  landlordPhone: '',
+  videoUrl: '',
+  toilets: '',
+  kitchens: '',
+  furnishing: '',
+  amenitiesNote: '',
+  commissionPercent: '',
+  commissionNote: '',
 };
 
 export const AgentListingForm: React.FC<{ canSubmit: boolean }> = ({ canSubmit }) => {
   const { refreshProperties, showSuccessToast, showErrorToast } = useApp();
   const [form, setForm] = useState(emptyForm);
+  const [images, setImages] = useState<string[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
+  const [amenities, setAmenities] = useState<string[]>([]);
   const [fields, setFields] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -57,11 +88,6 @@ export const AgentListingForm: React.FC<{ canSubmit: boolean }> = ({ canSubmit }
     event.preventDefault();
     setError(null);
     setFields({});
-
-    if (!form.landlordName.trim() || (!form.landlordEmail.trim() && !form.landlordPhone.trim())) {
-      setError('Name the landlord and give at least one way to reach them (email or phone).');
-      return;
-    }
 
     const fee = Number(viewingTerms.feeGhs);
     if (!viewingTerms.feeGhs.trim() || !Number.isFinite(fee) || fee <= 0) {
@@ -84,18 +110,23 @@ export const AgentListingForm: React.FC<{ canSubmit: boolean }> = ({ canSubmit }
         bathrooms: Number(form.bathrooms),
         propertyType: form.propertyType,
         description: form.description.trim(),
-        images: form.images
-          .split(/[\n,]/)
-          .map((value) => value.trim())
-          .filter(Boolean),
-        landlordName: form.landlordName.trim(),
-        landlordEmail: form.landlordEmail.trim() || undefined,
-        landlordPhone: form.landlordPhone.trim() || undefined,
+        images,
+        amenities,
+        toilets: form.toilets.trim() === '' ? null : Number(form.toilets),
+        kitchens: form.kitchens.trim() === '' ? null : Number(form.kitchens),
+        furnishing: form.furnishing || undefined,
+        videoUrl: form.videoUrl.trim() || undefined,
+        amenitiesNote: form.amenitiesNote.trim() || undefined,
+        providerCommissionPercent:
+          form.commissionPercent.trim() === '' ? null : Number(form.commissionPercent),
+        providerCommissionNote: form.commissionNote.trim() || undefined,
         viewingFeeGhs: fee,
         viewingTerms: viewingTermsPayload(viewingTerms),
       });
       setSubmittedTitle(property.property.title);
       setForm(emptyForm);
+      setImages([]);
+      setAmenities([]);
       setViewingTerms(emptyViewingTermsForm);
       showSuccessToast(
         'Listing submitted for review',
@@ -129,16 +160,16 @@ export const AgentListingForm: React.FC<{ canSubmit: boolean }> = ({ canSubmit }
     <div className="bg-surface border border-line rounded-2xl p-6 space-y-4">
       <div className="flex items-center justify-between gap-2">
         <h2 className="text-sm font-bold flex items-center gap-2">
-          <PlusCircle className="w-4 h-4 text-ink" /> Submit a listing for a landlord
+          <PlusCircle className="w-4 h-4 text-ink" /> List a property
         </h2>
       </div>
 
       <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-3 text-[11px] text-amber-800 flex items-start gap-2">
         <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
         <span>
-          You are declaring that this landlord has asked you to list the property. Goodlucks records that declaration
-          and does <strong>not</strong> verify ownership or legal authority on this screen. Your own account is never
-          recorded as the owner, and the listing stays in review until staff approve it.
+          You are listing this property as an independent Goodlucks agent. No landlord account is attached to the
+          listing and no ownership claim is made — you are the provider, so the viewing fee and terms you set here are
+          yours. The listing stays in review until staff approve it.
         </span>
       </div>
 
@@ -229,16 +260,138 @@ export const AgentListingForm: React.FC<{ canSubmit: boolean }> = ({ canSubmit }
             </select>
           </label>
 
+        </div>
+
+        <PropertyImagePicker
+          images={images}
+          onChange={setImages}
+          onBusyChange={setIsUploading}
+          disabled={saving}
+          idPrefix="agent-listing"
+        />
+
+        <div className="border-t border-line pt-3 space-y-3">
+          <p className="text-xs font-bold text-ink flex items-center gap-2">
+            <Info className="w-3.5 h-3.5 text-ink" /> Specs, amenities and video
+          </p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <label className="block text-[11px] font-semibold text-ink/70">
+              Toilets
+              <input
+                inputMode="numeric"
+                value={form.toilets}
+                onChange={(event) => set('toilets', event.target.value)}
+                className="mt-1 w-full bg-page border border-line rounded-xl px-3 py-2 text-xs text-ink"
+                placeholder="2"
+              />
+            </label>
+            <label className="block text-[11px] font-semibold text-ink/70">
+              Kitchens
+              <input
+                inputMode="numeric"
+                value={form.kitchens}
+                onChange={(event) => set('kitchens', event.target.value)}
+                className="mt-1 w-full bg-page border border-line rounded-xl px-3 py-2 text-xs text-ink"
+                placeholder="1"
+              />
+            </label>
+            <label className="col-span-2 block text-[11px] font-semibold text-ink/70">
+              Furnishing
+              <select
+                value={form.furnishing}
+                onChange={(event) => set('furnishing', event.target.value)}
+                className="mt-1 w-full bg-page border border-line rounded-xl px-3 py-2 text-xs text-ink"
+              >
+                <option value="">Not stated</option>
+                <option value="unfurnished">Unfurnished</option>
+                <option value="semi_furnished">Semi-furnished</option>
+                <option value="furnished">Furnished</option>
+              </select>
+            </label>
+          </div>
+
+          <fieldset>
+            <legend className="text-[11px] font-semibold text-ink/70">Amenities</legend>
+            <div className="mt-1 flex flex-wrap gap-1.5">
+              {AMENITY_CHOICES.map((amenity) => {
+                const selected = amenities.includes(amenity);
+                return (
+                  <button
+                    type="button"
+                    key={amenity}
+                    aria-pressed={selected}
+                    onClick={() =>
+                      setAmenities((prev) =>
+                        prev.includes(amenity) ? prev.filter((value) => value !== amenity) : [...prev, amenity]
+                      )
+                    }
+                    className={`px-2.5 py-1 rounded-full text-[10px] font-bold border ${
+                      selected ? 'bg-interactive/15 border-interactive/40 text-ink' : 'bg-page border-line text-ink/70'
+                    }`}
+                  >
+                    {amenity}
+                  </button>
+                );
+              })}
+            </div>
+          </fieldset>
+
           <label className="block text-[11px] font-semibold text-ink/70">
-            Image links (one per line)
+            Other amenities (free text)
             <input
-              value={form.images}
-              onChange={(event) => set('images', event.target.value)}
+              value={form.amenitiesNote}
+              onChange={(event) => set('amenitiesNote', event.target.value)}
               className="mt-1 w-full bg-page border border-line rounded-xl px-3 py-2 text-xs text-ink"
-              placeholder="https://…"
+              placeholder="Anything not listed above — it is kept word for word"
             />
-            {fields.images && <span className="text-[10px] text-ink">{fields.images}</span>}
           </label>
+
+          <label className="block text-[11px] font-semibold text-ink/70">
+            Video link (YouTube, TikTok or Facebook)
+            <input
+              type="url"
+              value={form.videoUrl}
+              onChange={(event) => set('videoUrl', event.target.value)}
+              className="mt-1 w-full bg-page border border-line rounded-xl px-3 py-2 text-xs text-ink"
+              placeholder="https://www.youtube.com/watch?v=…"
+            />
+            {fields.videoUrl && <span className="text-[10px] text-accent">{fields.videoUrl}</span>}
+            <span className="mt-1 block text-[10px] text-ink/60">
+              Only YouTube, TikTok and Facebook are accepted. Short links (vm.tiktok.com, fb.watch) are refused
+              because they cannot be verified without opening them.
+            </span>
+          </label>
+        </div>
+
+        <div className="border-t border-line pt-3 space-y-2">
+          <p className="text-xs font-bold text-ink flex items-center gap-2">
+            <Info className="w-3.5 h-3.5 text-ink" /> Your commission expectation (optional)
+          </p>
+          <p className="text-[10px] text-ink/70">
+            What you expect from the property owner. This is <strong>your expectation</strong> — it is not a Goodlucks
+            fee, it is not charged by Goodlucks, and nothing on the platform is calculated from it.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <label className="block text-[11px] font-semibold text-ink/70">
+              Percent
+              <input
+                inputMode="decimal"
+                value={form.commissionPercent}
+                onChange={(event) => set('commissionPercent', event.target.value)}
+                className="mt-1 w-full bg-page border border-line rounded-xl px-3 py-2 text-xs text-ink"
+                placeholder="10"
+              />
+            </label>
+            <label className="col-span-2 block text-[11px] font-semibold text-ink/70">
+              Note
+              <input
+                value={form.commissionNote}
+                onChange={(event) => set('commissionNote', event.target.value)}
+                className="mt-1 w-full bg-page border border-line rounded-xl px-3 py-2 text-xs text-ink"
+                placeholder="e.g. one month's rent, agreed with the owner"
+              />
+            </label>
+          </div>
         </div>
 
         <label className="block text-[11px] font-semibold text-ink/70">
@@ -261,57 +414,16 @@ export const AgentListingForm: React.FC<{ canSubmit: boolean }> = ({ canSubmit }
           <ViewingTermsFields form={viewingTerms} onChange={setViewingTerms} errors={fields} idPrefix="listing" />
         </div>
 
-        <div className="border-t border-line pt-3 space-y-3">
+        <div className="border-t border-line pt-3 space-y-2">
           <p className="text-xs font-bold text-ink flex items-center gap-2">
-            <Info className="w-3.5 h-3.5 text-ink" /> The landlord you are acting for
+            <Info className="w-3.5 h-3.5 text-ink" /> You are listing this property yourself
           </p>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <label className="block text-[11px] font-semibold text-ink/70">
-              Landlord name
-              <input
-                required
-                value={form.landlordName}
-                onChange={(event) => set('landlordName', event.target.value)}
-                className="mt-1 w-full bg-page border border-line rounded-xl px-3 py-2 text-xs text-ink"
-              />
-            </label>
-            <label className="block text-[11px] font-semibold text-ink/70">
-              Landlord email
-              <input
-                type="email"
-                value={form.landlordEmail}
-                onChange={(event) => set('landlordEmail', event.target.value)}
-                className="mt-1 w-full bg-page border border-line rounded-xl px-3 py-2 text-xs text-ink"
-              />
-            </label>
-            <label className="block text-[11px] font-semibold text-ink/70">
-              Landlord phone
-              <input
-                value={form.landlordPhone}
-                onChange={(event) => set('landlordPhone', event.target.value)}
-                className="mt-1 w-full bg-page border border-line rounded-xl px-3 py-2 text-xs text-ink"
-              />
-            </label>
-          </div>
-          {fields.landlordId && <p className="text-[10px] text-ink">{fields.landlordId}</p>}
           <p className="text-[10px] text-ink/70">
-            Give us the landlord&apos;s own contact details. Staff will use them to confirm the relationship; the form
-            will not tell you whether the landlord already has a Goodlucks account.
+            Goodlucks agents list independently — there is no landlord reference to give and no owner account
+            attached to this listing. You are the provider responsible for it: the viewing fee and terms above are
+            yours, and tenants reach you through Goodlucks.
           </p>
         </div>
-
-        {error && (
-          <div role="alert" className="p-3 rounded-xl bg-accent/15 border border-accent/30 text-ink text-[11px] flex items-start gap-2">
-            <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-            <span>{error}</span>
-          </div>
-        )}
-
-        {submittedTitle && (
-          <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-[11px] text-emerald-800">
-            “{submittedTitle}” was submitted for review. It is not live yet.
-          </div>
-        )}
 
         <button
           type="submit"

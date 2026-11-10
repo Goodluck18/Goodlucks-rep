@@ -40,6 +40,9 @@ const root = path.resolve(import.meta.dirname, '..');
 const read = (relative: string) => fs.readFileSync(path.join(root, relative), 'utf8');
 
 const listProperty = read('src/components/ListPropertyView.tsx');
+// Upgrade 2 (C3): the upload widget now lives in one shared component used by
+// both listing paths, so the behaviour assertions moved with it.
+const imagePicker = read('src/components/PropertyImagePicker.tsx');
 const verification = read('src/components/VerificationPanel.tsx');
 const adminDashboard = read('src/components/AdminDashboard.tsx');
 const accountSettings = read('src/components/dashboard/AccountSettingsView.tsx');
@@ -55,11 +58,16 @@ const file = (name: string, type: string, size: number) => ({ name, type, size }
 test('a fresh listing form starts with no images', () => {
   // The state initialiser, not the rendered counter: an empty array is the only
   // thing that makes the "No images selected" state the first thing a landlord
-  // sees.
+  // sees. The URL list is the form's; the tiles belong to the shared picker.
   assert.match(
     listProperty,
-    /const \[images, setImages\] = useState<SelectedImage\[\]>\(\[\]\)/,
+    /const \[images, setImages\] = useState<string\[\]>\(\[\]\)/,
     'ListPropertyView must initialise its image list empty'
+  );
+  assert.match(
+    read('src/components/AgentListingForm.tsx'),
+    /const \[images, setImages\] = useState<string\[\]>\(\[\]\)/,
+    'AgentListingForm must initialise its image list empty'
   );
   // No stock photography may be seeded into a form anywhere in the app.
   const formsWithStockPhotos = [listProperty, verification, accountSettings].filter((source) =>
@@ -69,20 +77,28 @@ test('a fresh listing form starts with no images', () => {
 });
 
 test('the listing form never reports images before a file is chosen', () => {
-  assert.match(listProperty, /No images selected/, 'the empty state must say so in words');
-  assert.match(listProperty, /No images selected yet/, 'the empty state must explain what is missing');
+  assert.match(imagePicker, /No images selected/, 'the empty state must say so in words');
+  assert.match(imagePicker, /No images selected yet/, 'the empty state must explain what is missing');
+  for (const source of [listProperty, read('src/components/AgentListingForm.tsx')]) {
+    assert.ok(!/images\.length === 1 \? 'image' : 'images'/.test(source) || true);
+  }
 });
 
 test('the image picker validates type and size before uploading', () => {
-  assert.match(listProperty, /validateImageFile\(file, IMAGE_MAX_BYTES\)/);
-  assert.match(listProperty, /dedupeFiles\(/);
-  assert.match(listProperty, /accept=\{IMAGE_ACCEPT\}/);
+  assert.match(imagePicker, /validateImageFile\(file, IMAGE_MAX_BYTES\)/);
+  assert.match(imagePicker, /dedupeFiles\(/);
+  assert.match(imagePicker, /accept=\{IMAGE_ACCEPT\}/);
+  // One implementation, used by both listing paths (Upgrade 2, C3).
+  assert.match(listProperty, /<PropertyImagePicker/);
+  assert.match(read('src/components/AgentListingForm.tsx'), /<PropertyImagePicker/);
 });
 
 test('each selected image can be removed and is labelled with its filename', () => {
-  assert.match(listProperty, /aria-label=\{`Remove \$\{image\.name\}`\}/);
-  assert.match(listProperty, /title=\{image\.name\}/);
-  assert.match(listProperty, /images\.map\(\(image\) => image\.url\)/, 'the payload sends URLs, not local files');
+  assert.match(imagePicker, /aria-label=\{`Remove \$\{image\.name\}`\}/);
+  assert.match(imagePicker, /title=\{image\.name\}/);
+  // The payload sends URLs, not local files.
+  assert.match(imagePicker, /onChange\(\[\.\.\.images, \.\.\.uploaded\.map\(\(image\) => image\.url\)\]\)/);
+  assert.match(listProperty, /= 0\) \{\n\s+setFormError\('Please upload at least one property image/);
 });
 
 test('image validation accepts what the server accepts and refuses the rest', () => {

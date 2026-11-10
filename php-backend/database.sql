@@ -135,6 +135,17 @@ CREATE TABLE IF NOT EXISTS `properties` (
   -- a real distance replace that later without a schema change.
   `latitude` DECIMAL(10,7) DEFAULT NULL,
   `longitude` DECIMAL(10,7) DEFAULT NULL,
+  -- Upgrade 2 (C5): structured specs and canonical amenities (free text kept in amenities_note).
+  `toilets` INT DEFAULT NULL,
+  `kitchens` INT DEFAULT NULL,
+  `furnishing` VARCHAR(40) DEFAULT NULL,
+  `amenities_note` TEXT,
+  -- Upgrade 2 (C4): a YouTube/TikTok/Facebook video, stored canonically.
+  `video_provider` VARCHAR(20) DEFAULT NULL,
+  `video_url` VARCHAR(600) DEFAULT NULL,
+  -- Upgrade 2 (C6): the provider's expectation — never a platform fee.
+  `provider_commission_percent` DECIMAL(5,2) DEFAULT NULL,
+  `provider_commission_note` VARCHAR(500) DEFAULT NULL,
   `views_count` INT NOT NULL DEFAULT 0,
   `enquiries_count` INT NOT NULL DEFAULT 0,
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,

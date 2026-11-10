@@ -12,12 +12,70 @@ declare(strict_types=1);
 // Shaping: database rows -> JSON shapes consumed by the React client
 // ---------------------------------------------------------------------------
 
+/**
+ * The account responsible for a listing: the landlord who owns it, or — for an
+ * independent agent listing (Upgrade 2, C1) — the agent who submitted it.
+ *
+ * Notification and contact-disclosure paths use this instead of reaching for
+ * `landlord_id`, which is now empty on agent listings.
+ */
+function property_provider_user_id(array $row): string
+{
+    $landlordId = trim((string)($row['landlord_id'] ?? ''));
+    if ($landlordId !== '') {
+        return $landlordId;
+    }
+
+    return trim((string)($row['submitted_by_user_id'] ?? ''));
+}
+
 function shape_property(array $row): array
 {
-    $landlordName = trim((string)($row['landlord_name'] ?? ''));
-    if ($landlordName === '') {
-        // Task 05: never show a made-up owner name — say the name is missing.
-        $landlordName = 'Landlord (name not recorded)';
+    // Upgrade 2 (C2): who submitted a listing, and who owns it, are account
+    // facts — not catalogue copy. They used to be returned to everyone, which
+    // made the public catalogue a way to profile providers. They are now
+    // returned only to staff, the owning landlord, and the account that
+    // submitted the listing; everybody else gets empty values.
+    $providerViewer = auth_user();
+    $providerViewerId = (string)($providerViewer['id'] ?? '');
+    $providerViewerRole = (string)($providerViewer['role'] ?? '');
+    $submittedById = (string)($row['submitted_by_user_id'] ?? '');
+    $rowLandlordId = (string)($row['landlord_id'] ?? '');
+    $exposeProviderDetail = $providerViewerRole === 'admin'
+        || ($providerViewerId !== '' && ($providerViewerId === $rowLandlordId || $providerViewerId === $submittedById));
+
+    // Upgrade 2 (C5): map whatever is stored — including the free text written
+    // before this phase — onto the canonical keys, and keep the unmapped words.
+    $storedAmenityValues = json_column($row['amenities'] ?? null);
+    $amenities = normalise_amenities($storedAmenityValues);
+    $amenitiesNote = trim((string)($row['amenities_note'] ?? ''));
+    if ($amenities['unknown'] !== []) {
+        $amenitiesNote = trim(implode(', ', array_unique(array_merge($amenities['unknown'], [$amenitiesNote]))), ', ');
+    }
+
+    // Upgrade 2 (C4): the stored pair, and only when we recognise the provider.
+    $video = null;
+    $videoProvider = (string)($row['video_provider'] ?? '');
+    $videoUrl = (string)($row['video_url'] ?? '');
+    if ($videoUrl !== '' && in_array($videoProvider, PROPERTY_VIDEO_PROVIDERS, true)) {
+        $parsed = parse_property_video($videoUrl);
+        if ($parsed['embedUrl'] !== null && $parsed['provider'] === $videoProvider) {
+            $video = [
+                'provider' => $parsed['provider'],
+                'url'      => $parsed['url'],
+                'embedUrl' => $parsed['embedUrl'],
+            ];
+        }
+    }
+
+    $landlordName = '';
+    $submittedByRole = (string)($row['submitted_by_role'] ?? '');
+    if ($exposeProviderDetail) {
+        $landlordName = trim((string)($row['landlord_name'] ?? ''));
+        if ($landlordName === '' && $submittedByRole !== 'agent') {
+            // Task 05: never show a made-up owner name — say the name is missing.
+            $landlordName = 'Landlord (name not recorded)';
+        }
     }
 
     // Increment F: a landlord account id is private account information. It is
@@ -25,10 +83,10 @@ function shape_property(array $row): array
     // submitted the listing (who supplied the reference). Public listings, and
     // therefore tenants, get an empty string — the catalogue never becomes a
     // way to enumerate landlord accounts.
-    $landlordId = (string)($row['landlord_id'] ?? '');
-    $viewer = auth_user();
-    $viewerId = (string)($viewer['id'] ?? '');
-    $viewerRole = (string)($viewer['role'] ?? '');
+    $landlordId = $rowLandlordId;
+    $viewer = $providerViewer;
+    $viewerId = $providerViewerId;
+    $viewerRole = $providerViewerRole;
     // Agents do NOT see it either: an agent who submits a listing must not be
     // able to learn from the response whether the landlord reference they gave
     // matched an account. The claim and its resolution are staff-visible only.
@@ -56,11 +114,13 @@ function shape_property(array $row): array
         // Who actually submitted the listing, and whether landlord authority has
         // been established. 'declared_by_agent' means an agent told us they act
         // for the owner; nothing has been verified (Increment D).
-        'submittedByUserId'       => (string)($row['submitted_by_user_id'] ?? ''),
-        'submittedByRole'         => (string)($row['submitted_by_role'] ?? ''),
-        'landlordAuthorityState'  => (string)($row['landlord_authority_state'] ?? 'not_applicable'),
+        'submittedByUserId'       => $exposeProviderDetail ? $submittedById : '',
+        'submittedByRole'         => $exposeProviderDetail ? $submittedByRole : '',
+        'landlordAuthorityState'  => $exposeProviderDetail
+            ? (string)($row['landlord_authority_state'] ?? 'not_applicable')
+            : 'not_applicable',
         'landlordName'            => $landlordName,
-        'landlordCompany'         => (string)($row['landlord_company'] ?? ''),
+        'landlordCompany'         => $exposeProviderDetail ? (string)($row['landlord_company'] ?? '') : '',
         'title'                   => (string)$row['title'],
         'location'                => (string)$row['location'],
         'city'                    => (string)($row['city'] ?? 'Accra'),
@@ -71,7 +131,31 @@ function shape_property(array $row): array
         'status'                  => (string)$row['status'],
         'images'                  => json_column($row['images'] ?? null),
         'description'             => (string)($row['description'] ?? ''),
-        'amenities'               => json_column($row['amenities'] ?? null),
+        'amenities'               => $amenities['keys'],
+        // The words a listing actually used, kept so nothing is silently
+        // rewritten and a legacy listing still reads as it was written.
+        'amenityLabels'           => amenity_labels($amenities['keys']),
+        'amenitiesNote'           => $amenitiesNote,
+        'toilets'                 => isset($row['toilets']) && $row['toilets'] !== null ? (int)$row['toilets'] : null,
+        'kitchens'                => isset($row['kitchens']) && $row['kitchens'] !== null ? (int)$row['kitchens'] : null,
+        'furnishing'              => (string)($row['furnishing'] ?? ''),
+        'furnishingLabel'         => (string)(FURNISHING_STATES[(string)($row['furnishing'] ?? '')] ?? ''),
+        'video'                   => $video,
+        'videoProvider'           => (string)($row['video_provider'] ?? ''),
+        'videoUrl'                => (string)($row['video_url'] ?? ''),
+        // Upgrade 2 (C6): the provider's own expectation. Never a platform fee,
+        // never used in a calculation — the client must label it as such. It is
+        // business between the provider and the owner, so only the provider and
+        // staff see the figure; a tenant gets the shape with nothing in it.
+        'providerCommission'      => [
+            'percent' => $exposeProviderDetail
+                && isset($row['provider_commission_percent'])
+                && $row['provider_commission_percent'] !== null
+                ? (float)$row['provider_commission_percent']
+                : null,
+            'note'    => $exposeProviderDetail ? (string)($row['provider_commission_note'] ?? '') : '',
+            'isPlatformFee' => false,
+        ],
         'nearbyPlaces'            => json_column($row['nearby_places'] ?? null),
         'availability'            => (string)($row['availability'] ?? 'Available Now'),
         'featured'                => (bool)($row['featured'] ?? false),
@@ -529,6 +613,25 @@ function update_user(string $id, array $fields): void
     db_exec('UPDATE users SET ' . implode(', ', $set) . ' WHERE id = :id', $params);
 }
 
+/**
+ * Set an account's provider classification (Upgrade 2, E2).
+ *
+ * Separate from `update_user()` on purpose: that function's column whitelist is
+ * what stops a profile edit from ever touching a role, and it stays that way. The
+ * only caller here is the audited staff correction endpoint, and the role is
+ * re-validated at this layer so no future caller can store `admin` by accident.
+ */
+function set_user_role(string $id, string $role): void
+{
+    if (!in_array($role, ['tenant', 'landlord', 'agent'], true)) {
+        throw new InvalidArgumentException('Only tenant, landlord or agent can be assigned here.');
+    }
+    db_exec(
+        'UPDATE users SET role = :role, updated_at = :updated WHERE id = :id',
+        [':role' => $role, ':updated' => db_now(), ':id' => $id]
+    );
+}
+
 // ---------------------------------------------------------------------------
 // Properties
 // ---------------------------------------------------------------------------
@@ -950,7 +1053,10 @@ function create_property(array $data): string
                                  landlord_contact_claimed,
                                  is_landlord_verified,
                                  title, location, city, rent_ghs, bedrooms, bathrooms, property_type,
-                                 status, images, description, amenities, nearby_places, availability,
+                                 status, images, description, amenities, amenities_note, nearby_places, availability,
+                                 toilets, kitchens, furnishing,
+                                 video_provider, video_url,
+                                 provider_commission_percent, provider_commission_note,
                                  featured, views_count, enquiries_count,
                                  viewing_fee_ghs, viewing_terms_json, viewing_terms_state,
                                  viewing_terms_updated_at, viewing_terms_approved_by,
@@ -960,7 +1066,10 @@ function create_property(array $data): string
                  :landlord_contact_claimed,
                  :verified,
                  :title, :location, :city, :rent_ghs, :bedrooms, :bathrooms, :property_type,
-                 :status, :images, :description, :amenities, :nearby_places, :availability,
+                 :status, :images, :description, :amenities, :amenities_note, :nearby_places, :availability,
+                 :toilets, :kitchens, :furnishing,
+                 :video_provider, :video_url,
+                 :provider_commission_percent, :provider_commission_note,
                  :featured, 0, 0,
                  :viewing_fee, :viewing_terms, :viewing_state,
                  :viewing_updated, :viewing_by,
@@ -986,6 +1095,14 @@ function create_property(array $data): string
             ':images'           => json_encode($data['images'] ?? []),
             ':description'      => $data['description'] ?? '',
             ':amenities'        => json_encode($data['amenities'] ?? []),
+            ':amenities_note'   => $data['amenities_note'] ?? null,
+            ':toilets'          => $data['toilets'] ?? null,
+            ':kitchens'         => $data['kitchens'] ?? null,
+            ':furnishing'       => $data['furnishing'] ?? null,
+            ':video_provider'   => $data['video_provider'] ?? null,
+            ':video_url'        => $data['video_url'] ?? null,
+            ':provider_commission_percent' => $data['provider_commission_percent'] ?? null,
+            ':provider_commission_note'    => $data['provider_commission_note'] ?? null,
             ':nearby_places'    => json_encode($data['nearby_places'] ?? []),
             ':availability'     => $data['availability'] ?? 'Available Now',
             ':featured'         => !empty($data['featured']) ? 1 : 0,
@@ -1012,7 +1129,10 @@ function update_property(string $id, array $data): void
 {
     $columns = [
         'title', 'location', 'city', 'rent_ghs', 'bedrooms', 'bathrooms', 'property_type',
-        'status', 'images', 'description', 'amenities', 'nearby_places', 'availability',
+        'status', 'images', 'description', 'amenities', 'amenities_note', 'nearby_places', 'availability',
+        'toilets', 'kitchens', 'furnishing',
+        'video_provider', 'video_url',
+        'provider_commission_percent', 'provider_commission_note',
         'featured', 'landlord_name', 'landlord_company', 'is_landlord_verified',
         // Task 03: per-property viewing fee / terms. Written only by the
         // viewing-terms helpers or by staff approval, never blindly by an edit.

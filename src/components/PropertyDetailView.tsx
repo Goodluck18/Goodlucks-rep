@@ -17,6 +17,7 @@ import { SharePropertyModal } from './SharePropertyModal';
 import { 
   Bed, 
   Bath, 
+  Home,
   MapPin, 
   Calendar, 
   CheckCircle2, 
@@ -181,7 +182,9 @@ export const PropertyDetailView: React.FC = () => {
         "addressRegion": property.city || "Greater Accra",
         "addressCountry": "GH"
       },
-      "amenityFeature": (property.amenities || []).map(amenity => ({
+      "amenityFeature": (property.amenityLabels && property.amenityLabels.length > 0
+        ? property.amenityLabels
+        : property.amenities || []).map(amenity => ({
         "@type": "LocationFeatureSpecification",
         "name": amenity,
         "value": true
@@ -381,6 +384,42 @@ export const PropertyDetailView: React.FC = () => {
                   <div className="text-sm font-bold text-emerald-700">{property.availability}</div>
                 </div>
               </div>
+
+              {property.toilets !== null && property.toilets !== undefined && (
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-interactive/10 text-ink flex items-center justify-center">
+                    <Bath className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="text-xs text-ink/70 font-medium">Toilets</div>
+                    <div className="text-base font-bold text-ink">{property.toilets}</div>
+                  </div>
+                </div>
+              )}
+
+              {property.kitchens !== null && property.kitchens !== undefined && (
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-interactive/10 text-ink flex items-center justify-center">
+                    <Home className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="text-xs text-ink/70 font-medium">Kitchens</div>
+                    <div className="text-base font-bold text-ink">{property.kitchens}</div>
+                  </div>
+                </div>
+              )}
+
+              {property.furnishingLabel && (
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-interactive/10 text-ink flex items-center justify-center">
+                    <Home className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="text-xs text-ink/70 font-medium">Furnishing</div>
+                    <div className="text-base font-bold text-ink">{property.furnishingLabel}</div>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Description */}
@@ -395,14 +434,66 @@ export const PropertyDetailView: React.FC = () => {
             <div className="space-y-4 bg-surface/40 p-6 rounded-2xl border border-line">
               <h2 className="text-xl font-bold text-ink">Luxury Amenities & Features</h2>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                {property.amenities.map((amenity, i) => (
+                {(property.amenityLabels && property.amenityLabels.length > 0
+                  ? property.amenityLabels
+                  : property.amenities
+                ).map((amenity, i) => (
                   <div key={i} className="flex items-center gap-2 text-sm text-ink">
                     <CheckCircle2 className="w-4 h-4 text-ink shrink-0" />
                     <span>{amenity}</span>
                   </div>
                 ))}
               </div>
+              {property.amenitiesNote && (
+                <p className="text-xs text-ink/70 leading-relaxed">{property.amenitiesNote}</p>
+              )}
             </div>
+
+            {/* Video (Upgrade 2, C4): only a provider we recognise, rendered
+                from the embed URL the server built itself. */}
+            {property.video && property.video.embedUrl && (
+              <div className="space-y-3 bg-surface/40 p-6 rounded-2xl border border-line">
+                <h2 className="text-xl font-bold text-ink">Video walkthrough</h2>
+                <div className="relative w-full overflow-hidden rounded-xl border border-line bg-page">
+                  <div className="relative w-full pt-[56.25%]">
+                    <iframe
+                      src={property.video.embedUrl}
+                      title={`Walkthrough video for ${property.title}`}
+                      loading="lazy"
+                      referrerPolicy="strict-origin-when-cross-origin"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
+                      allowFullScreen
+                      className="absolute inset-0 w-full h-full"
+                    />
+                  </div>
+                </div>
+                <p className="text-[11px] text-ink/60">
+                  Hosted on {property.video.provider === 'youtube' ? 'YouTube' : property.video.provider === 'tiktok' ? 'TikTok' : 'Facebook'}.
+                  Goodlucks does not host or endorse the video.
+                </p>
+              </div>
+            )}
+
+            {/* Provider expectation (Upgrade 2, C6). Staff and the provider are
+                the only accounts the API gives this to, so this block is never
+                shown to a tenant. */}
+            {property.providerCommission &&
+              (property.providerCommission.percent !== null ||
+                property.providerCommission.note !== '') && (
+                <div className="space-y-2 bg-page p-4 rounded-2xl border border-line">
+                  <h2 className="text-sm font-bold text-ink">Provider's commission expectation</h2>
+                  <p className="text-xs text-ink/70 leading-relaxed">
+                    {property.providerCommission.percent !== null
+                      ? `${property.providerCommission.percent}% `
+                      : ''}
+                    {property.providerCommission.note}
+                  </p>
+                  <p className="text-[11px] text-ink/60">
+                    This is the provider's expectation from the property owner. It is not a Goodlucks fee and
+                    nothing is calculated from it on this platform.
+                  </p>
+                </div>
+              )}
 
             {/* Nearby Places */}
             {property.nearbyPlaces && property.nearbyPlaces.length > 0 && (

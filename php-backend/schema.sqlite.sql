@@ -96,6 +96,21 @@ CREATE TABLE IF NOT EXISTS properties (
   -- Upgrade 2 (B2): optional coordinates; proximity is scored from area_adjacency.
   latitude REAL,
   longitude REAL,
+  -- Upgrade 2 (C5): structured specs and canonical amenities. The original free
+  -- text is kept in amenities_note so an old listing still reads as it was
+  -- written; `amenities` becomes a JSON array of canonical keys.
+  toilets INTEGER,
+  kitchens INTEGER,
+  furnishing TEXT,
+  amenities_note TEXT,
+  -- Upgrade 2 (C4): a YouTube/TikTok/Facebook video, stored as the provider we
+  -- recognised plus the canonical URL. Nothing is ever rendered from raw input.
+  video_provider TEXT,
+  video_url TEXT,
+  -- Upgrade 2 (C6): the provider's own expectation, never a platform fee and
+  -- never used in a calculation.
+  provider_commission_percent REAL,
+  provider_commission_note TEXT,
   views_count INTEGER NOT NULL DEFAULT 0,
   enquiries_count INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,

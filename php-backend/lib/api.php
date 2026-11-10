@@ -132,6 +132,8 @@ function resolve_route(string $method, string $path): ?array
         ['GET',  '#^/admin/users$#', 'handle_admin_users'],
         ['GET',  '#^/admin/users/([A-Za-z0-9\-_]+)$#', 'handle_admin_user_profile'],
         ['GET',  '#^/admin/users/([A-Za-z0-9\-_]+)/activity$#', 'handle_admin_user_activity'],
+        // Upgrade 2 (E2): the only way a provider classification changes.
+        ['POST', '#^/admin/users/([A-Za-z0-9\-_]+)/role$#', 'handle_admin_correct_user_role'],
         ['GET',  '#^/admin/activity$#', 'handle_admin_activity'],
 
         // --- Bulk email campaigns (Upgrade 2, A12) -----------------------
@@ -1607,8 +1609,69 @@ function property_payload(array $input, bool $isUpdate = false): array
             $validator->add('images', 'Add at least one property image.');
         }
     }
+    // Upgrade 2 (C5): amenities are canonical keys. Anything we cannot map is
+    // kept verbatim in `amenities_note` so a listing never loses what its owner
+    // actually wrote, and an old listing keeps rendering unchanged.
     if (array_key_exists('amenities', $input)) {
-        $data['amenities'] = clean_string_list($input['amenities'], 30, 80);
+        $normalisedAmenities = normalise_amenities($input['amenities']);
+        $data['amenities'] = $normalisedAmenities['keys'];
+        $extraNote = clean_text($input['amenitiesNote'] ?? '', 1000);
+        $unmapped = array_values(array_unique(array_filter(
+            array_merge($normalisedAmenities['unknown'], $extraNote !== '' ? [$extraNote] : []),
+            static fn(string $value): bool => trim($value) !== ''
+        )));
+        $data['amenities_note'] = $unmapped === [] ? null : implode(', ', $unmapped);
+    }
+    if (array_key_exists('toilets', $input)) {
+        $toilets = valid_int($input['toilets'], 0, 50);
+        if ($toilets === null && $input['toilets'] !== null && $input['toilets'] !== '') {
+            $validator->add('toilets', 'Enter a valid number of toilets.');
+        } else {
+            $data['toilets'] = $toilets;
+        }
+    }
+    if (array_key_exists('kitchens', $input)) {
+        $kitchens = valid_int($input['kitchens'], 0, 50);
+        if ($kitchens === null && $input['kitchens'] !== null && $input['kitchens'] !== '') {
+            $validator->add('kitchens', 'Enter a valid number of kitchens.');
+        } else {
+            $data['kitchens'] = $kitchens;
+        }
+    }
+    if (array_key_exists('furnishing', $input)) {
+        $furnishing = strtolower(clean_string($input['furnishing'] ?? '', 40));
+        if ($furnishing !== '' && !isset(FURNISHING_STATES[$furnishing])) {
+            $validator->add('furnishing', 'Choose unfurnished, semi-furnished or furnished.');
+        } else {
+            $data['furnishing'] = $furnishing === '' ? null : $furnishing;
+        }
+    }
+    // Upgrade 2 (C4): only YouTube, TikTok and Facebook, stored as a canonical
+    // URL. The raw link is never rendered.
+    if (array_key_exists('videoUrl', $input)) {
+        $video = parse_property_video($input['videoUrl'] === null ? null : (string)$input['videoUrl']);
+        if ($video['error'] !== null) {
+            $validator->add('videoUrl', (string)$video['error']);
+        } else {
+            $data['video_provider'] = $video['provider'];
+            $data['video_url'] = $video['url'];
+        }
+    }
+    // Upgrade 2 (C6): the provider's own expectation. It is stored for display
+    // beside the platform fee and is never read by any calculation.
+    if (array_key_exists('providerCommissionPercent', $input) || array_key_exists('providerCommissionNote', $input)) {
+        $rawPercent = $input['providerCommissionPercent'] ?? null;
+        $note = clean_text($input['providerCommissionNote'] ?? '', 500);
+        $percent = null;
+        if ($rawPercent !== null && $rawPercent !== '') {
+            $percent = is_numeric($rawPercent) ? round((float)$rawPercent, 2) : null;
+            if ($percent === null || $percent < 0 || $percent > 100) {
+                $validator->add('providerCommissionPercent', 'Enter a percentage between 0 and 100, or leave it blank.');
+                $percent = null;
+            }
+        }
+        $data['provider_commission_percent'] = $percent;
+        $data['provider_commission_note'] = $note !== '' ? $note : null;
     }
     if (array_key_exists('nearbyPlaces', $input)) {
         $data['nearby_places'] = clean_nearby_places($input['nearbyPlaces']);
@@ -1632,7 +1695,6 @@ function handle_create_property(): void
     // same moderation queue, but they are stored differently.
     $isAgentSubmission = ($user['role'] ?? '') === 'agent';
     $agentProfile = null;
-    $landlordAccount = null;
     if ($isAgentSubmission) {
         $agentProfile = find_agent_profile_by_user((string)$user['id']);
         if (!agent_can_submit_listings($agentProfile)) {
@@ -1643,50 +1705,17 @@ function handle_create_property(): void
             );
         }
 
-        // An agent must always say who the landlord is. Refusing to fall back to
-        // "the creating user" is the whole point: the agent's own account must
-        // never become the property's owner by accident.
+        // Upgrade 2 (C1): an agent is an independent provider. No landlord
+        // reference is required, accepted or stored. The agent's own account is
+        // the listing's provider, and nothing claims ownership or legal
+        // authority on anyone else's behalf. Anything an old client still sends
+        // (landlordName/landlordEmail/landlordPhone/landlordId) is ignored
+        // rather than trusted, so the endpoint cannot be used to probe for
+        // landlord accounts.
         //
-        // Increment F: the reference is resolved server-side and the response is
-        // IDENTICAL whether or not an account matched. The old behaviour ("that
-        // landlord account could not be found") turned this endpoint into an
-        // account-existence oracle for any agent; it also let an agent attach a
-        // listing to an arbitrary landlord id. Now an unmatched claim is simply
-        // recorded for staff to review, and no tenant ever sees it.
-        $landlordId = clean_string($input['landlordId'] ?? '', 64);
-        $landlordEmail = strtolower(clean_string($input['landlordEmail'] ?? '', 200));
-        $landlordPhone = clean_string($input['landlordPhone'] ?? '', 40);
-        $landlordName = clean_string($input['landlordName'] ?? '', 120);
-
-        if ($landlordId === '' && $landlordEmail === '' && $landlordPhone === '') {
-            error_response(
-                'Provide the landlord this listing is for.',
-                422,
-                ['landlordId' => 'Give the landlord\'s name plus their email or phone number.']
-            );
-        }
-
-        $landlordAccount = null;
-        if ($landlordId !== '') {
-            $candidate = find_user_by_id($landlordId);
-            if ($candidate && (string)($candidate['role'] ?? '') === 'landlord') {
-                $landlordAccount = $candidate;
-            }
-        }
-        if ($landlordAccount === null && $landlordEmail !== '') {
-            $candidate = find_user_by_email($landlordEmail);
-            if ($candidate && (string)($candidate['role'] ?? '') === 'landlord') {
-                $landlordAccount = $candidate;
-            }
-        }
-        if ($landlordAccount === null && $landlordPhone !== '') {
-            $candidate = find_user_by_phone($landlordPhone);
-            if ($candidate && (string)($candidate['role'] ?? '') === 'landlord') {
-                $landlordAccount = $candidate;
-            }
-        }
+        // Listings created before this change keep the landlord information they
+        // were created with; nothing here rewrites or deletes it.
     }
-
     [$data, $validator] = property_payload($input, false);
 
     // Task 03: an AGENT listing carries its own viewing fee and viewing terms,
@@ -1732,32 +1761,16 @@ function handle_create_property(): void
         : 'pending';
 
     if ($isAgentSubmission) {
-        // The agent is recorded separately, and never as the owner. When the
-        // reference matched a landlord account, that account is linked; when it
-        // did not, the listing is stored with NO landlord account and the claim
-        // kept for staff review. The response says the same thing either way.
-        if ($landlordAccount !== null) {
-            $data['landlord_id'] = (string)$landlordAccount['id'];
-            $data['landlord_name'] = (string)$landlordAccount['name'];
-            $data['landlord_company'] = (string)($landlordAccount['company'] ?? '');
-            $data['landlord_contact_claimed'] = null;
-        } else {
-            // No account matched. The listing is stored without a landlord
-            // account, and the claim is kept for staff review. The authority
-            // state is the SAME word either way: the response must not answer
-            // "does this landlord exist on Goodlucks?".
-            $data['landlord_id'] = null;
-            $data['landlord_name'] = $landlordName !== '' ? $landlordName : 'Landlord named by the agent';
-            $data['landlord_company'] = '';
-            // Keep whatever the agent gave us, so staff can follow it up.
-            $claimed = array_values(array_filter([$landlordEmail, $landlordPhone, $landlordId], static fn($v) => $v !== ''));
-            $data['landlord_contact_claimed'] = implode(' / ', $claimed);
-        }
-        $data['landlord_authority_state'] = 'claimed_by_agent';
+        // Upgrade 2 (C1): the agent is the provider. There is no landlord
+        // account to attach, no landlord name to invent and no authority state
+        // to claim; the listing belongs to the agent who submitted it.
+        $data['landlord_id'] = null;
+        $data['landlord_name'] = '';
+        $data['landlord_company'] = '';
+        $data['landlord_contact_claimed'] = null;
+        $data['landlord_authority_state'] = 'not_applicable';
         $data['submitted_by_user_id'] = (string)$user['id'];
         $data['submitted_by_role'] = 'agent';
-        // A declaration, not proof: the agent says they act for this landlord.
-        // Nothing here verifies ownership or authority.
     } else {
         $data['landlord_id'] = $user['role'] === 'admin' && !empty($input['landlordId'])
             ? clean_string($input['landlordId'], 64)
@@ -1982,7 +1995,11 @@ function handle_update_property(array $params): void
         $newRent = (float)($updated['rent_ghs'] ?? 0);
         if ($newRent > 0 && $newRent < $oldRent) {
             try {
-                dispatch_price_drop_alerts($updated, $oldRent, $newRent);
+                $watchers = dispatch_price_drop_alerts($updated, $oldRent, $newRent);
+                // Upgrade 2 (C7): tell the provider how many watchers were told.
+                if ($watchers > 0) {
+                    notify_provider_property_interest($updated, 'price_drop', ['watchers' => $watchers]);
+                }
             } catch (Throwable $e) {
                 gl_log('error', 'Price drop dispatch failed: ' . $e->getMessage(), ['property' => $id]);
             }
@@ -2648,6 +2665,105 @@ function handle_admin_user_profile(array $params): void
         'user'         => $summary,
         'activity'     => $activity,
         'canViewActivity' => can_view_user_activity($admin),
+        // Upgrade 2 (E2): the profile screen only offers the classification
+        // control to an administrator who may actually use it.
+        'canCorrectClassification' => can_manage_users($admin) && (string)($summary['role'] ?? '') !== 'admin',
+    ]);
+}
+
+/**
+ * Correct an account's provider classification (Upgrade 2, E2).
+ *
+ * A provider's type — tenant, landlord or agent — is chosen at registration and
+ * is final once the account has been verified. This endpoint exists for the one
+ * case that justifies changing it: the person picked the wrong one, or staff
+ * recorded the wrong one, and the account is now telling tenants something
+ * untrue.
+ *
+ * What it refuses, deliberately:
+ *   * an administrator account as the target — no path from here to privilege;
+ *   * `admin` as the new role — this is a provider correction, not a promotion;
+ *   * the account's existing role (a no-op is not a correction);
+ *   * a correction without a written reason.
+ *
+ * Every change is audited with the previous value, the new value, the reason and
+ * the administrator who made it, and the account holder is told in the app.
+ */
+function handle_admin_correct_user_role(array $params): void
+{
+    $admin = require_admin();
+    if (!can_manage_users($admin)) {
+        error_response('Your account cannot change account classifications.', 403);
+    }
+
+    $userId = (string)($params[0] ?? '');
+    $input = request_json();
+    $reason = clean_text($input['reason'] ?? '', 500);
+    $role = strtolower(clean_string($input['role'] ?? '', 20));
+
+    if (!in_array($role, ['tenant', 'landlord', 'agent'], true)) {
+        error_response('Choose tenant, landlord or agent.', 422, ['role' => 'Choose tenant, landlord or agent.']);
+    }
+    if (mb_strlen($reason) < 10) {
+        error_response(
+            'Write why this correction is needed — it is kept with the record.',
+            422,
+            ['reason' => 'At least 10 characters describing the mistake.']
+        );
+    }
+
+    $target = find_user_by_id($userId);
+    if ($target === null) {
+        error_response('That account does not exist.', 404);
+    }
+    if ((string)$target['role'] === 'admin') {
+        // Staff accounts are never reachable from a provider-classification tool.
+        error_response('Administrator accounts cannot be reclassified here.', 403);
+    }
+    if ((string)$target['role'] === $role) {
+        error_response('That account already holds this classification.', 422, ['role' => 'No change to make.']);
+    }
+    if ((string)$target['id'] === (string)$admin['id']) {
+        error_response('You cannot reclassify your own account.', 403);
+    }
+
+    $from = (string)$target['role'];
+    set_user_role((string)$target['id'], $role);
+
+    // Becoming an agent needs an agent profile to review: create it in the
+    // normal pending state so staff approve it through the Agent Accounts
+    // screen, exactly as they would for a new sign-up. A correction must not
+    // hand out listing permission.
+    if ($role === 'agent' && find_agent_profile_by_user((string)$target['id']) === null) {
+        create_agent_profile((string)$target['id'], [
+            'agency_name'    => (string)($target['company'] ?? ''),
+            'operating_city' => (string)($target['address'] ?? ''),
+        ]);
+    }
+
+    audit_log('user.role_corrected', 'user', (string)$target['id'], [
+        'from'   => $from,
+        'to'     => $role,
+        'reason' => $reason,
+    ]);
+
+    try {
+        create_notification(
+            (string)$target['id'],
+            'Account type corrected',
+            'Goodlucks staff corrected your account type from ' . $from . ' to ' . $role . '. Reason: ' . $reason,
+            'info'
+        );
+    } catch (Throwable $e) {
+        gl_log('error', 'Could not notify corrected account: ' . $e->getMessage());
+    }
+
+    $summary = admin_user_summary((string)$target['id']);
+
+    json_response([
+        'success' => true,
+        'user'    => $summary,
+        'corrected' => ['from' => $from, 'to' => $role],
     ]);
 }
 
@@ -4226,6 +4342,19 @@ function handle_save_property(): void
         error_response('Property not found.', 404);
     }
     save_property_for_user((string)$user['id'], $propertyId);
+
+    // Upgrade 2 (C7): the provider learns their listing drew interest. Only the
+    // fact and a count — the saver's identity never leaves this handler.
+    try {
+        $savedRow = find_property($propertyId);
+        $providerId = $savedRow ? property_provider_user_id($savedRow) : '';
+        if ($savedRow && $providerId !== '' && $providerId !== (string)$user['id']) {
+            notify_provider_property_interest($savedRow, 'saved');
+        }
+    } catch (Throwable $e) {
+        gl_log('error', 'Provider interest notification failed: ' . $e->getMessage(), ['property' => $propertyId]);
+    }
+
     json_response(['success' => true, 'propertyIds' => list_saved_property_ids((string)$user['id'])]);
 }
 

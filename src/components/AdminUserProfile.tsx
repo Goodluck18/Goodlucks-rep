@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { ArrowLeft, Building2, FileText, Heart, Loader2, MapPin } from 'lucide-react';
+import { ArrowLeft, Building2, FileText, Heart, Loader2, MapPin, ShieldAlert } from 'lucide-react';
 import { api, messageForError } from '../services/apiService';
 import { AdminUserActivityEntry, AdminUserRecord } from '../types';
 
@@ -48,6 +48,13 @@ export const AdminUserProfile: React.FC<Props> = ({ userId, onBack }) => {
   const [user, setUser] = useState<AdminUserRecord | null>(null);
   const [activity, setActivity] = useState<AdminUserActivityEntry[]>([]);
   const [canViewActivity, setCanViewActivity] = useState(false);
+  // E2: classification correction, available only when the server says so.
+  const [canCorrect, setCanCorrect] = useState(false);
+  const [newRole, setNewRole] = useState<'tenant' | 'landlord' | 'agent'>('tenant');
+  const [reason, setReason] = useState('');
+  const [correcting, setCorrecting] = useState(false);
+  const [correctError, setCorrectError] = useState<string | null>(null);
+  const [corrected, setCorrected] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -59,6 +66,7 @@ export const AdminUserProfile: React.FC<Props> = ({ userId, onBack }) => {
       setUser(result.user);
       setActivity(result.activity ?? []);
       setCanViewActivity(Boolean(result.canViewActivity));
+      setCanCorrect(Boolean(result.canCorrectClassification));
     } catch (err) {
       setError(messageForError(err));
     } finally {
@@ -170,6 +178,70 @@ export const AdminUserProfile: React.FC<Props> = ({ userId, onBack }) => {
           </div>
         </div>
       </div>
+
+      {canCorrect && (
+        <div className="gl-card p-5 space-y-3">
+          <div className="flex items-center gap-2">
+            <ShieldAlert className="w-4 h-4 text-ink" />
+            <h3 className="text-sm font-bold text-ink">Correct the account type</h3>
+          </div>
+          <p className="text-xs text-ink-muted">
+            An account type is chosen at registration and is final once verified. Use this only to
+            fix a genuine mistake — the change is recorded with your name and the reason you give,
+            and the account holder is told.
+          </p>
+          <div className="grid sm:grid-cols-3 gap-2">
+            <label className="text-[11px] font-semibold text-ink-muted">
+              Correct type to
+              <select
+                value={newRole}
+                onChange={(event) => setNewRole(event.target.value as 'tenant' | 'landlord' | 'agent')}
+                className="mt-1 w-full bg-page border border-line rounded-xl px-3 py-2 text-xs text-ink"
+              >
+                <option value="tenant">Tenant</option>
+                <option value="landlord">Landlord</option>
+                <option value="agent">Agent</option>
+              </select>
+            </label>
+            <label className="sm:col-span-2 text-[11px] font-semibold text-ink-muted">
+              Why is this correction needed?
+              <input
+                value={reason}
+                onChange={(event) => setReason(event.target.value)}
+                placeholder="e.g. registered as a landlord but is the letting agent for these flats"
+                className="mt-1 w-full bg-page border border-line rounded-xl px-3 py-2 text-xs text-ink"
+              />
+            </label>
+          </div>
+          {correctError && <p role="alert" className="text-xs text-accent">{correctError}</p>}
+          {corrected && <p role="status" className="text-xs text-ink">{corrected}</p>}
+          <button
+            type="button"
+            disabled={correcting || reason.trim().length < 10 || newRole === user.role}
+            onClick={async () => {
+              setCorrecting(true);
+              setCorrectError(null);
+              setCorrected(null);
+              try {
+                const result = await api.correctUserRole(userId, newRole, reason.trim());
+                setUser(result.user);
+                setReason('');
+                setCorrected(
+                  `Classification corrected from ${result.corrected.from} to ${result.corrected.to}. Recorded in the audit trail.`
+                );
+              } catch (err) {
+                setCorrectError(messageForError(err));
+              } finally {
+                setCorrecting(false);
+              }
+            }}
+            className="gl-button-secondary text-xs inline-flex items-center gap-2 disabled:opacity-50"
+          >
+            {correcting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ShieldAlert className="w-3.5 h-3.5" />}
+            Record correction
+          </button>
+        </div>
+      )}
 
       <div className="gl-card p-5 space-y-3">
         <div className="flex items-center justify-between gap-3">

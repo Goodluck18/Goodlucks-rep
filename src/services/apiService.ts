@@ -209,14 +209,23 @@ export interface PropertyInput {
   description: string;
   availability?: string;
   images: string[];
+  /** Canonical amenity keys (C5); unknown words are kept by the server. */
   amenities?: string[];
+  amenitiesNote?: string;
+  toilets?: number | null;
+  kitchens?: number | null;
+  furnishing?: string;
+  /** C4: YouTube, TikTok or Facebook video link, validated server-side. */
+  videoUrl?: string;
+  /** C6: the provider's expectation. Never a platform fee. */
+  providerCommissionPercent?: number | null;
+  providerCommissionNote?: string;
   nearbyPlaces?: { name: string; type: string; distance: string }[];
   featured?: boolean;
   status?: PropertyStatus;
   /**
-   * Agent submissions only (Increment F): who the agent says the landlord is.
-   * The server resolves the reference without telling the caller whether an
-   * account matched, and the agent never becomes the owner.
+   * Upgrade 2 (C1): these are accepted by the server only so an old client does
+   * not break — they are ignored. An agent listing has no landlord reference.
    */
   landlordName?: string;
   landlordEmail?: string;
@@ -646,7 +655,22 @@ export const api = {
       user: AdminUserRecord;
       activity: AdminUserActivityEntry[];
       canViewActivity: boolean;
+      /** Upgrade 2 (E2): whether this administrator may correct the classification. */
+      canCorrectClassification?: boolean;
     }>(`/admin/users/${encodeURIComponent(id)}`),
+
+  /**
+   * Upgrade 2 (E2). Correct a provider's account type, with the reason that
+   * justifies it. Staff-only, audited, and never available for an administrator.
+   */
+  correctUserRole: (id: string, role: 'tenant' | 'landlord' | 'agent', reason: string) =>
+    request<{
+      user: AdminUserRecord;
+      corrected: { from: string; to: string };
+    }>(`/admin/users/${encodeURIComponent(id)}/role`, {
+      method: 'POST',
+      body: JSON.stringify({ role, reason }),
+    }),
 
   /** A13. The history on its own, for a page refresh. */
   getAdminUserActivity: (id: string, limit = 50) =>

@@ -16,30 +16,11 @@ import {
   Bath,
   ArrowRight,
   Lock,
-  AlertCircle
+  AlertCircle,
+  Home
 } from 'lucide-react';
 import { api, messageForError } from '../services/apiService';
-import {
-  IMAGE_ACCEPT,
-  IMAGE_MAX_BYTES,
-  dedupeFiles,
-  formatBytes,
-  validateImageFile,
-} from '../lib/uploads';
-
-/**
- * One image the landlord has chosen for this listing.
- *
- * `name` is kept alongside the URL so the preview can say which photograph it
- * is ("living-room.jpg") instead of showing an anonymous thumbnail — the server
- * only returns a URL. Nothing here is a default: a brand-new form starts with an
- * empty list, and an image only exists in it because the member picked it.
- */
-interface SelectedImage {
-  url: string;
-  name: string;
-  bytes: number;
-}
+import { PropertyImagePicker } from './PropertyImagePicker';
 
 interface ListPropertyViewProps {
   onOpenAuth?: (mode?: 'login' | 'register', role?: 'tenant' | 'landlord') => void;
@@ -57,12 +38,9 @@ export const ListPropertyView: React.FC<ListPropertyViewProps> = ({ onOpenAuth }
   const [propertyType, setPropertyType] = useState<'Apartment' | 'Luxury Villa' | 'Townhouse' | 'Studio' | 'Duplex' | 'Penthouse' | 'Commercial'>('Apartment');
   const [description, setDescription] = useState('');
   const [availability, setAvailability] = useState('Available Now');
-  // A fresh listing starts with NO images. Previously this was seeded with two
-  // Unsplash photographs, so the form claimed "2 images selected" before the
-  // landlord had chosen anything — and those stock photos could be submitted as
-  // the listing's own pictures.
-  const [images, setImages] = useState<SelectedImage[]>([]);
-  const [imageNotice, setImageNotice] = useState<string | null>(null);
+  // A fresh listing starts with NO images. The picker owns the tiles; this is
+  // only the list of URLs that will be submitted.
+  const [images, setImages] = useState<string[]>([]);
   const [selectedAmenities, setSelectedAmenities] = useState<string[]>([
     '24/7 Standby Generator',
     'Fitted Kitchen',
@@ -70,6 +48,15 @@ export const ListPropertyView: React.FC<ListPropertyViewProps> = ({ onOpenAuth }
     'Gated Security',
     'Water Tank Storage'
   ]);
+  // C4-C6: the extra facts a tenant needs before travelling to a viewing, and
+  // the provider's own commission expectation (never a Goodlucks fee).
+  const [toilets, setToilets] = useState('');
+  const [kitchens, setKitchens] = useState('');
+  const [furnishing, setFurnishing] = useState('');
+  const [amenitiesNote, setAmenitiesNote] = useState('');
+  const [videoUrl, setVideoUrl] = useState('');
+  const [commissionPercent, setCommissionPercent] = useState('');
+  const [commissionNote, setCommissionNote] = useState('');
   const [generatingAi, setGeneratingAi] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -82,65 +69,6 @@ export const ListPropertyView: React.FC<ListPropertyViewProps> = ({ onOpenAuth }
     'Gym & Spa', 'Underground Parking', 'Water Tank Storage',
     'Smart Home Controls', 'Staff Quarters', 'Electric Fence & CCTV'
   ];
-
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const fileList = e.target.files;
-    if (!fileList || fileList.length === 0) return;
-
-    setFormError(null);
-    setImageNotice(null);
-
-    const candidates: File[] = Array.from(fileList as unknown as ArrayLike<File>);
-    const { accepted: unique, skipped } = dedupeFiles(
-      candidates,
-      images.map((image) => ({ name: image.name, type: 'image/*', size: image.bytes }))
-    );
-
-    const accepted: File[] = [];
-    const problems: string[] = [];
-    for (const file of unique) {
-      const problem = validateImageFile(file, IMAGE_MAX_BYTES);
-      if (problem) {
-        problems.push(problem);
-        continue;
-      }
-      accepted.push(file);
-    }
-
-    if (problems.length > 0) setFormError(problems[0]);
-    if (skipped.length > 0) {
-      setImageNotice(`${skipped.join(', ')} ${skipped.length === 1 ? 'was' : 'were'} already selected.`);
-    }
-
-    if (accepted.length === 0) {
-      e.target.value = '';
-      return;
-    }
-
-    setIsUploading(true);
-    try {
-      // Images are uploaded and stored on the server immediately; only the
-      // returned URLs are kept (never base64 blobs in browser storage). The
-      // member's filename is kept beside the URL purely to label the preview.
-      const result = await api.uploadImages(accepted);
-      const uploaded: SelectedImage[] = result.urls.map((url, index) => ({
-        url,
-        name: accepted[index]?.name ?? `Image ${images.length + index + 1}`,
-        bytes: accepted[index]?.size ?? 0,
-      }));
-      setImages((prev) => [...prev, ...uploaded]);
-      if (result.warnings && result.warnings.length > 0) setImageNotice(result.warnings[0]);
-    } catch (err) {
-      setFormError(messageForError(err));
-    } finally {
-      setIsUploading(false);
-      e.target.value = '';
-    }
-  };
-
-  const removeImage = (index: number) => {
-    setImages(prev => prev.filter((_, i) => i !== index));
-  };
 
   const toggleAmenity = (amenity: string) => {
     if (selectedAmenities.includes(amenity)) {
@@ -203,9 +131,16 @@ export const ListPropertyView: React.FC<ListPropertyViewProps> = ({ onOpenAuth }
         bedrooms,
         bathrooms,
         propertyType,
-        images: images.map((image) => image.url),
+        images,
         description: description.trim() || `Modern ${propertyType} in ${location}. Listed through Goodlucks Homes.`,
         amenities: selectedAmenities,
+        amenitiesNote: amenitiesNote.trim() || undefined,
+        toilets: toilets.trim() === '' ? null : Number(toilets),
+        kitchens: kitchens.trim() === '' ? null : Number(kitchens),
+        furnishing: furnishing || undefined,
+        videoUrl: videoUrl.trim() || undefined,
+        providerCommissionPercent: commissionPercent.trim() === '' ? null : Number(commissionPercent),
+        providerCommissionNote: commissionNote.trim() || undefined,
         nearbyPlaces: [
           { name: 'City Center', type: 'Commercial Hub', distance: '5 mins' }
         ],
@@ -351,114 +286,111 @@ export const ListPropertyView: React.FC<ListPropertyViewProps> = ({ onOpenAuth }
         {!submitted ? (
           <form onSubmit={handleSubmit} className="bg-surface border border-line rounded-2xl p-6 sm:p-8 shadow-lg space-y-8">
             
-            {/* Image Upload Section */}
+            <PropertyImagePicker
+              images={images}
+              onChange={setImages}
+              onBusyChange={setIsUploading}
+              disabled={isSubmitting}
+              idPrefix="listing"
+            />
+
+            {/* Upgrade 2 (C4/C5): specs, video and the provider's expectation. */}
             <div className="space-y-4 pb-6 border-b border-line">
-              <div className="flex flex-wrap items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <h2 className="text-lg font-bold text-ink flex items-center gap-2">
-                    <ImageIcon className="w-5 h-5 shrink-0" />
-                    Property images
-                  </h2>
-                  <p className="text-xs text-ink/70">Choose real photographs of the property you are listing.</p>
-                </div>
-                <span
-                  className={`text-xs font-semibold shrink-0 rounded-full px-2.5 py-1 border ${
-                    images.length === 0
-                      ? 'text-ink/70 bg-page border-line'
-                      : 'text-ink bg-interactive/10 border-interactive/30'
-                  }`}
-                >
-                  {isUploading
-                    ? 'Uploading…'
-                    : images.length === 0
-                      ? 'No images selected'
-                      : `${images.length} ${images.length === 1 ? 'image' : 'images'} selected`}
-                </span>
+              <h2 className="text-lg font-bold text-ink flex items-center gap-2">
+                <Home className="w-5 h-5 shrink-0" /> Specs, amenities and video
+              </h2>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <label className="block text-[11px] font-semibold text-ink/70">
+                  Toilets
+                  <input
+                    inputMode="numeric"
+                    value={toilets}
+                    onChange={(event) => setToilets(event.target.value)}
+                    className="mt-1 w-full bg-page border border-line rounded-xl px-3 py-2 text-xs text-ink"
+                    placeholder="2"
+                  />
+                </label>
+                <label className="block text-[11px] font-semibold text-ink/70">
+                  Kitchens
+                  <input
+                    inputMode="numeric"
+                    value={kitchens}
+                    onChange={(event) => setKitchens(event.target.value)}
+                    className="mt-1 w-full bg-page border border-line rounded-xl px-3 py-2 text-xs text-ink"
+                    placeholder="1"
+                  />
+                </label>
+                <label className="col-span-2 block text-[11px] font-semibold text-ink/70">
+                  Furnishing
+                  <select
+                    value={furnishing}
+                    onChange={(event) => setFurnishing(event.target.value)}
+                    className="mt-1 w-full bg-page border border-line rounded-xl px-3 py-2 text-xs text-ink"
+                  >
+                    <option value="">Not stated</option>
+                    <option value="unfurnished">Unfurnished</option>
+                    <option value="semi_furnished">Semi-furnished</option>
+                    <option value="furnished">Furnished</option>
+                  </select>
+                </label>
               </div>
 
-              {/* Upload Dropzone. The file input covers the whole box so a tap
-                  anywhere opens the picker, and it is disabled while a previous
-                  batch is still uploading — that is what stopped a second tap
-                  from queueing a duplicate upload. */}
-              <div
-                className={`relative border-2 border-dashed rounded-2xl p-5 sm:p-6 text-center bg-surface transition-colors ${
-                  isUploading ? 'border-interactive/40 opacity-70' : 'border-line hover:border-interactive'
-                }`}
-              >
+              <label className="block text-[11px] font-semibold text-ink/70">
+                Anything else about the amenities
                 <input
-                  type="file"
-                  multiple
-                  accept={IMAGE_ACCEPT}
-                  onChange={handleFileUpload}
-                  disabled={isUploading}
-                  aria-label="Choose property images"
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10 disabled:cursor-not-allowed"
+                  value={amenitiesNote}
+                  onChange={(event) => setAmenitiesNote(event.target.value)}
+                  className="mt-1 w-full bg-page border border-line rounded-xl px-3 py-2 text-xs text-ink"
+                  placeholder="e.g. generator runs on the compound's shared fuel account"
                 />
-                <div className="flex flex-col items-center gap-2">
-                  <div className="w-12 h-12 rounded-full bg-interactive/10 text-ink flex items-center justify-center">
-                    {isUploading ? (
-                      <span className="w-5 h-5 border-2 border-interactive/30 border-t-interactive rounded-full animate-spin" />
-                    ) : (
-                      <Upload className="w-6 h-6" />
-                    )}
-                  </div>
-                  <div className="text-sm font-semibold text-ink">
-                    {isUploading ? 'Uploading your images…' : 'Click to upload or drag images here'}
-                  </div>
-                  <div className="text-xs text-ink/70">
-                    JPG, PNG, WEBP or GIF · up to {formatBytes(IMAGE_MAX_BYTES)} each
-                  </div>
+                <span className="mt-1 block text-[10px] text-ink/60">
+                  Kept word for word. Amenities chosen above are matched to the platform's standard list.
+                </span>
+              </label>
+
+              <label className="block text-[11px] font-semibold text-ink/70">
+                Video link (YouTube, TikTok or Facebook)
+                <input
+                  type="url"
+                  value={videoUrl}
+                  onChange={(event) => setVideoUrl(event.target.value)}
+                  className="mt-1 w-full bg-page border border-line rounded-xl px-3 py-2 text-xs text-ink"
+                  placeholder="https://www.youtube.com/watch?v=…"
+                />
+                <span className="mt-1 block text-[10px] text-ink/60">
+                  Only YouTube, TikTok and Facebook are accepted. Short links (vm.tiktok.com, fb.watch) are refused
+                  because they cannot be verified without opening them.
+                </span>
+              </label>
+
+              <div className="rounded-xl border border-line bg-page p-3 space-y-2">
+                <p className="text-xs font-bold text-ink">Your commission expectation (optional)</p>
+                <p className="text-[10px] text-ink/70">
+                  What you expect from the property owner. This is <strong>your expectation</strong> — it is not a
+                  Goodlucks fee, is not charged by Goodlucks, and nothing on the platform is calculated from it.
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <label className="block text-[11px] font-semibold text-ink/70">
+                    Percent
+                    <input
+                      inputMode="decimal"
+                      value={commissionPercent}
+                      onChange={(event) => setCommissionPercent(event.target.value)}
+                      className="mt-1 w-full bg-surface border border-line rounded-xl px-3 py-2 text-xs text-ink"
+                      placeholder="10"
+                    />
+                  </label>
+                  <label className="col-span-2 block text-[11px] font-semibold text-ink/70">
+                    Note
+                    <input
+                      value={commissionNote}
+                      onChange={(event) => setCommissionNote(event.target.value)}
+                      className="mt-1 w-full bg-surface border border-line rounded-xl px-3 py-2 text-xs text-ink"
+                      placeholder="e.g. one month's rent, agreed with the owner"
+                    />
+                  </label>
                 </div>
               </div>
-
-              {imageNotice && (
-                <p role="status" className="text-[11px] text-ink/70 flex items-start gap-1.5">
-                  <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-                  <span className="min-w-0 break-words">{imageNotice}</span>
-                </p>
-              )}
-
-              {/* Selected images. Every tile is one the member chose in this
-                  session; there are no sample or placeholder photographs. */}
-              {images.length > 0 ? (
-                <ul className="grid grid-cols-1 min-[380px]:grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 pt-1">
-                  {images.map((image, idx) => (
-                    <li key={`${image.url}-${idx}`} className="relative rounded-xl border border-line overflow-hidden bg-page">
-                      <div className="relative aspect-[4/3]">
-                        <img
-                          src={image.url}
-                          alt={`Selected image ${idx + 1}: ${image.name}`}
-                          loading="lazy"
-                          decoding="async"
-                          className="w-full h-full object-cover"
-                        />
-                        <span className="absolute top-1.5 left-1.5 text-[9px] font-black uppercase tracking-wide px-1.5 py-0.5 rounded bg-surface/95 text-ink border border-line">
-                          New
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => removeImage(idx)}
-                          aria-label={`Remove ${image.name}`}
-                          title="Remove this image"
-                          className="absolute top-1.5 right-1.5 p-1.5 rounded-full bg-surface/95 text-ink shadow-sm hover:bg-accent hover:text-white transition-colors min-h-[28px] min-w-[28px] flex items-center justify-center"
-                        >
-                          <X className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                      <div className="px-2 py-1.5 min-w-0">
-                        <p className="text-[10px] font-semibold text-ink truncate" title={image.name}>
-                          {image.name}
-                        </p>
-                        {image.bytes > 0 && <p className="text-[9px] text-ink/70">{formatBytes(image.bytes)}</p>}
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="text-[11px] text-ink/70">
-                  No images selected yet. A listing needs at least one photograph before it can be submitted for review.
-                </p>
-              )}
             </div>
 
             {/* Basic Property Specs */}

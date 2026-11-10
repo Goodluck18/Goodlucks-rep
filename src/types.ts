@@ -349,7 +349,27 @@ export interface Property {
   status: PropertyStatus;
   images: string[];
   description: string;
+  /**
+   * Upgrade 2 (C5): canonical amenity keys, plus the human labels and whatever
+   * free text could not be mapped (kept so nothing a listing said is lost).
+   */
   amenities: string[];
+  amenityLabels?: string[];
+  amenitiesNote?: string;
+  /** Upgrade 2 (C5): structured specs. Null means the listing did not say. */
+  toilets?: number | null;
+  kitchens?: number | null;
+  furnishing?: string;
+  furnishingLabel?: string;
+  /** Upgrade 2 (C4): an approved YouTube/TikTok/Facebook video, or null. */
+  video?: { provider: string; url: string; embedUrl: string } | null;
+  videoProvider?: string;
+  videoUrl?: string;
+  /**
+   * Upgrade 2 (C6): the provider's own expectation. This is NOT a platform fee:
+   * `isPlatformFee` is always false and nothing is calculated from it.
+   */
+  providerCommission?: { percent: number | null; note: string; isPlatformFee: boolean };
   nearbyPlaces: NearbyPlace[];
   availability: string;
   featured?: boolean;

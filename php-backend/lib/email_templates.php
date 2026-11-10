@@ -54,6 +54,11 @@ function email_template_targets(): array
         'property_approval'    => 'Property approved',
         'property_rejection'   => 'Property needs attention',
         'registration'         => 'Welcome / registration',
+        // Upgrade 2 (C8): the two verification decisions that ask something of
+        // the account holder, and the provider-interest notice (C7).
+        'verification_approved'  => 'Verification approved',
+        'verification_attention' => 'Verification needs attention',
+        'provider_interest'      => 'Interest in your listing (provider)',
     ];
 }
 
