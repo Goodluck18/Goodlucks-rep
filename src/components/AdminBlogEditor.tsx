@@ -6,6 +6,7 @@ import {
 } from '../services/apiService';
 import type { BlogCategory, BlogPost, BlogPropertyCard, BlogPostStatus } from '../types';
 import { BlogArticleBody } from './BlogArticleBody';
+import { appendBlock, embedCounts, hasVideo, stripShowcase, SHOWCASE_CLASS } from '../lib/blogHtml';
 import {
   AlertCircle,
   ArrowDown,
@@ -83,6 +84,12 @@ export const AdminBlogEditor: React.FC<Props> = ({ postId, categories, onSaved, 
 
   const editorRef = useRef<HTMLDivElement | null>(null);
   const showPlaceholder = '<div class="gl-showcase"></div>';
+  /**
+   * How many embed blocks the article holds (Upgrade 2, A2). Shown next to the
+   * editor so an administrator can see that a video AND the property showcase
+   * are both present — the two used to displace each other silently.
+   */
+  const embeds = embedCounts(content);
   const placeholder = post?.showcasePlaceholder || showPlaceholder;
 
   const applyPost = useCallback((loaded: BlogPost) => {
@@ -145,6 +152,26 @@ export const AdminBlogEditor: React.FC<Props> = ({ postId, categories, onSaved, 
     setContent(editorRef.current?.innerHTML ?? '');
   };
 
+  /**
+   * Replace the whole article body (Upgrade 2, A2).
+   *
+   * The video and showcase blocks are appended here rather than inserted at the
+   * caret. Inserting at the caret let a video land INSIDE the showcase div (or
+   * the showcase inside the video figure); the marker then stopped matching and
+   * one of the two silently disappeared from the published article. Writing the
+   * full body keeps both blocks, in a known order, every time.
+   *
+   * The caret is not preserved because the DOM is replaced; ordinary text
+   * editing (typing, bold, lists, links) still uses `execCommand` and does keep
+   * it.
+   */
+  const writeContent = (next: string) => {
+    setContent(next);
+    if (editorRef.current && editorRef.current.innerHTML !== next) {
+      editorRef.current.innerHTML = next;
+    }
+  };
+
   const insertLink = () => {
     const href = window.prompt('Link address (start with / for a page on this site, or https://…)');
     if (!href) return;
@@ -181,8 +208,22 @@ export const AdminBlogEditor: React.FC<Props> = ({ postId, categories, onSaved, 
     if (!url) return;
     // The server re-validates this and rewrites it to a canonical, cookie-free
     // embed; anything that is not a real YouTube video is dropped on save.
-    insertHtml(`<iframe src="${url.replace(/"/g, '&quot;')}"></iframe>`);
-    notify('info', 'Video added', 'Save the article to validate the link.');
+    const block = `<iframe src="${url.replace(/"/g, '&quot;')}"></iframe>`;
+
+    // An article holds one video. Adding a second replaces the first instead of
+    // nesting two players inside each other.
+    const existing = editorRef.current?.innerHTML ?? content;
+    let next = existing;
+    if (hasVideo(existing)) {
+      next = existing.replace(/<iframe\b[^>]*>[\s\S]*?<\/iframe\s*>/gi, '').replace(/<iframe\b[^>]*\/?>/gi, '');
+    }
+    writeContent(appendBlock(next, block));
+
+    notify(
+      'info',
+      hasVideo(existing) ? 'Video replaced' : 'Video added',
+      'It is placed at the end of the article. Save to validate the link.'
+    );
   };
 
   const insertCallout = () => {
@@ -191,12 +232,22 @@ export const AdminBlogEditor: React.FC<Props> = ({ postId, categories, onSaved, 
     insertHtml(`<aside class="gl-callout">${text.replace(/</g, '&lt;')}</aside>`);
   };
 
+  /**
+   * Place the property showcase at the end of the article body.
+   *
+   * It no longer depends on where the caret happens to be, and it is never
+   * nested inside the video embed. If the body already has a showcase block it
+   * is removed first, so an article can never end up with two.
+   */
   const insertShowcase = () => {
-    if (content.includes('gl-showcase')) {
-      notify('info', 'Already in the article', 'Remove the existing showcase block first.');
-      return;
-    }
-    insertHtml(showPlaceholder);
+    const existing = editorRef.current?.innerHTML ?? content;
+    const next = appendBlock(stripShowcase(existing), showPlaceholder);
+    writeContent(next);
+    notify(
+      'info',
+      existing.includes(SHOWCASE_CLASS) ? 'Showcase moved' : 'Showcase added',
+      'The property cards are placed at the end of the article. Save to keep it.'
+    );
   };
 
   const uploadFeaturedImage = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -508,7 +559,7 @@ export const AdminBlogEditor: React.FC<Props> = ({ postId, categories, onSaved, 
               <button type="button" className={toolButton} title="Image" onClick={insertImage} disabled={uploading}>
                 <ImageIcon className="w-4 h-4" />
               </button>
-              <button type="button" className={toolButton} title="YouTube video" onClick={insertYoutube}>
+              <button type="button" className={toolButton} title="Add a YouTube video to the end of the article" onClick={insertYoutube}>
                 <Video className="w-4 h-4" />
               </button>
               <button type="button" className={toolButton} title="Highlighted callout" onClick={insertCallout}>
@@ -517,7 +568,7 @@ export const AdminBlogEditor: React.FC<Props> = ({ postId, categories, onSaved, 
               <button
                 type="button"
                 className={`${toolButton} text-[11px] font-bold px-2.5`}
-                title="Insert the property showcase here"
+                title="Add the property showcase to the end of the article"
                 onClick={insertShowcase}
               >
                 Property cards
@@ -535,6 +586,24 @@ export const AdminBlogEditor: React.FC<Props> = ({ postId, categories, onSaved, 
               onBlur={() => setContent(editorRef.current?.innerHTML ?? '')}
               className="gl-article min-h-[320px] bg-surface border border-line rounded-xl p-4 outline-none focus:border-interactive"
             />
+            <div className="flex flex-wrap items-center gap-2 text-[10px] text-ink/70">
+              <span className="font-bold uppercase tracking-wider">In this article</span>
+              <span
+                className={`px-2 py-0.5 rounded-lg border ${
+                  embeds.video > 0 ? 'border-interactive/40 bg-interactive/10 text-ink' : 'border-line'
+                }`}
+              >
+                Video: {embeds.video}
+              </span>
+              <span
+                className={`px-2 py-0.5 rounded-lg border ${
+                  embeds.showcase > 0 ? 'border-interactive/40 bg-interactive/10 text-ink' : 'border-line'
+                }`}
+              >
+                Showcase: {embeds.showcase}
+              </span>
+              {embeds.video > 0 && embeds.showcase > 0 ? <span>Both embeds are present.</span> : null}
+            </div>
             <p className="text-[10px] text-ink/70 leading-snug">
               Saved content is cleaned automatically: scripts, unsafe links and any embed that is not a YouTube video are
               removed. Images upload through the same uploader the listings use.

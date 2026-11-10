@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { AlertCircle, CheckCircle2, Clock3, RefreshCw, ShieldAlert, ShieldCheck, XCircle } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { AlertCircle, CheckCircle2, Clock3, RefreshCw, Search, ShieldAlert, ShieldCheck, XCircle } from 'lucide-react';
 import { api, messageForError } from '../services/apiService';
 import { AdminAgentAccount } from '../types';
 import { useApp } from '../context/AppContext';
@@ -22,21 +22,44 @@ export const AdminAgentAccounts: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
 
+  /**
+   * Search and filters (Upgrade 2, A8).
+   *
+   * `stage` is the LISTING authorisation decision — pending, approved for
+   * listings, suspended. `verification` is the separate identity decision, and
+   * the two are never folded into one label: an agent whose identity is verified
+   * has not thereby been allowed to publish, and the copy on each row says which
+   * decision produced which badge.
+   */
+  const [query, setQuery] = useState('');
+  const [stage, setStage] = useState<'' | 'pending' | 'approved_for_listing' | 'suspended'>('');
+  const [verification, setVerification] = useState<'' | 'verified' | 'unverified'>('');
+  const [stageCounts, setStageCounts] = useState<Record<string, number>>({});
+
   const load = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     try {
-      const result = await api.listAgents();
+      const result = await api.listAgents({
+        q: query.trim(),
+        stage,
+        verification,
+      });
       setAgents(result.agents);
+      setStageCounts(result.stageCounts ?? {});
     } catch (err) {
       setError(messageForError(err));
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [query, stage, verification]);
 
+  // One request per pause in typing, not one per keystroke.
   useEffect(() => {
-    void load();
+    const timer = setTimeout(() => {
+      void load();
+    }, 250);
+    return () => clearTimeout(timer);
   }, [load]);
 
   const applyStatus = async (
@@ -97,7 +120,11 @@ export const AdminAgentAccounts: React.FC = () => {
           <div>
             <h2 className="text-sm font-bold text-ink">Agent accounts</h2>
             <p className="text-[11px] text-ink/70 mt-1">
-              {agents.length} agent {agents.length === 1 ? 'account' : 'accounts'} · {pendingCount} pending review
+              {agents.length} {stage || verification || query ? 'matching' : 'agent'}{' '}
+              {agents.length === 1 ? 'account' : 'accounts'}
+              {Object.keys(stageCounts).length > 0
+                ? ` · ${stageCounts.pending ?? 0} pending · ${stageCounts.approved_for_listing ?? 0} approved for listings · ${stageCounts.suspended ?? 0} suspended`
+                : ` · ${pendingCount} pending review`}
             </p>
           </div>
           <button
@@ -114,6 +141,59 @@ export const AdminAgentAccounts: React.FC = () => {
           Approving an account only opens listing submissions. No identity document, licence or
           landlord authority has been checked, and nothing here marks an agent or landlord as verified.
         </p>
+
+        <div className="space-y-2 pt-1">
+          <div className="relative">
+            <Search className="w-4 h-4 absolute left-3 top-2.5 text-ink/60" />
+            <input
+              type="search"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search name, email, agency, operating city or contact address…"
+              aria-label="Search agent accounts"
+              className="w-full bg-page border border-line rounded-xl pl-9 pr-3 py-2 text-xs text-ink"
+            />
+          </div>
+
+          <div className="flex flex-wrap gap-1.5">
+            {([
+              { value: '', label: 'All accounts' },
+              { value: 'pending', label: `Pending (${stageCounts.pending ?? 0})` },
+              { value: 'approved_for_listing', label: `Approved for listings (${stageCounts.approved_for_listing ?? 0})` },
+              { value: 'suspended', label: `Suspended (${stageCounts.suspended ?? 0})` },
+            ] as const).map((option) => (
+              <button
+                key={option.value || 'all'}
+                type="button"
+                onClick={() => setStage(option.value)}
+                aria-pressed={stage === option.value}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border ${
+                  stage === option.value
+                    ? 'bg-interactive text-ink border-interactive'
+                    : 'bg-page text-ink border-line'
+                }`}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+
+          <label className="flex items-center gap-2 text-[11px] text-ink/70">
+            <span className="uppercase tracking-wider text-[10px]">Identity verification</span>
+            <select
+              value={verification}
+              onChange={(event) => setVerification(event.target.value as '' | 'verified' | 'unverified')}
+              className="bg-page border border-line rounded-lg px-2 py-1 text-[11px] text-ink"
+            >
+              <option value="">Any</option>
+              <option value="verified">Verified</option>
+              <option value="unverified">Not verified</option>
+            </select>
+            <span className="text-[10px] text-ink/60">
+              Listing authorisation and identity verification are separate decisions.
+            </span>
+          </label>
+        </div>
       </div>
 
       {error && (
@@ -127,7 +207,11 @@ export const AdminAgentAccounts: React.FC = () => {
         <p className="text-xs text-ink/70">Loading agent accounts…</p>
       ) : agents.length === 0 ? (
         <div className="bg-surface border border-line rounded-2xl p-5">
-          <p className="text-xs text-ink/70">No agent accounts have been registered yet.</p>
+          <p className="text-xs text-ink/70">
+            {query || stage || verification
+              ? 'No agent account matches this search and filter.'
+              : 'No agent accounts have been registered yet.'}
+          </p>
         </div>
       ) : (
         <ul className="space-y-3">

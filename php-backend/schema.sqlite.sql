@@ -36,6 +36,14 @@ CREATE TABLE IF NOT EXISTS users (
   -- Increment G: reading financial records and moving money are separate powers.
   can_view_finance INTEGER NOT NULL DEFAULT 0,
   can_confirm_remittances INTEGER NOT NULL DEFAULT 0,
+  -- Upgrade 2: the primary platform administrator. Assigned only from the
+  -- server console (php-backend/assign_primary_admin.php); never by HTTP.
+  is_primary_admin INTEGER NOT NULL DEFAULT 0,
+  -- Upgrade 2 Phase 3: the user directory and bulk email are their own powers,
+  -- granted from the server console like the other capabilities. Default deny.
+  can_manage_users INTEGER NOT NULL DEFAULT 0,
+  can_view_user_activity INTEGER NOT NULL DEFAULT 0,
+  can_send_bulk_email INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT
 );
@@ -85,6 +93,24 @@ CREATE TABLE IF NOT EXISTS properties (
   viewing_terms_state TEXT NOT NULL DEFAULT 'not_set',
   viewing_terms_updated_at TEXT,
   viewing_terms_approved_by TEXT,
+  -- Upgrade 2 (B2): optional coordinates; proximity is scored from area_adjacency.
+  latitude REAL,
+  longitude REAL,
+  -- Upgrade 2 (C5): structured specs and canonical amenities. The original free
+  -- text is kept in amenities_note so an old listing still reads as it was
+  -- written; `amenities` becomes a JSON array of canonical keys.
+  toilets INTEGER,
+  kitchens INTEGER,
+  furnishing TEXT,
+  amenities_note TEXT,
+  -- Upgrade 2 (C4): a YouTube/TikTok/Facebook video, stored as the provider we
+  -- recognised plus the canonical URL. Nothing is ever rendered from raw input.
+  video_provider TEXT,
+  video_url TEXT,
+  -- Upgrade 2 (C6): the provider's own expectation, never a platform fee and
+  -- never used in a calculation.
+  provider_commission_percent REAL,
+  provider_commission_note TEXT,
   views_count INTEGER NOT NULL DEFAULT 0,
   enquiries_count INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -450,6 +476,48 @@ CREATE INDEX IF NOT EXISTS idx_audit_action ON audit_logs (action);
 -- Increment B: viewing-fee ledger (see database.sql for the authoritative
 -- definitions and the accounting rules).
 
+-- Upgrade 2 (B2): administrator-maintained proximity between areas. One row per
+-- undirected pair, so A->B and B->A can never disagree.
+-- Upgrade 2 Phase 5 (B6): approved tenant-contact disclosure, one row per
+-- (viewing, provider). Contact is serialised only while approved and unexpired.
+CREATE TABLE IF NOT EXISTS contact_disclosures (
+  id TEXT PRIMARY KEY,
+  viewing_id TEXT NOT NULL,
+  property_id TEXT,
+  property_title TEXT NOT NULL DEFAULT '',
+  provider_user_id TEXT NOT NULL,
+  provider_name TEXT NOT NULL DEFAULT '',
+  tenant_user_id TEXT,
+  tenant_name TEXT NOT NULL DEFAULT '',
+  requested_by TEXT,
+  reason TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'pending',
+  decided_by TEXT,
+  decided_at TEXT,
+  decision_note TEXT,
+  expires_at TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_cd_viewing_provider ON contact_disclosures (viewing_id, provider_user_id);
+CREATE INDEX IF NOT EXISTS idx_cd_status ON contact_disclosures (status, created_at);
+CREATE INDEX IF NOT EXISTS idx_cd_tenant ON contact_disclosures (tenant_user_id);
+
+CREATE TABLE IF NOT EXISTS area_adjacency (
+  id TEXT PRIMARY KEY,
+  area_a TEXT NOT NULL,
+  area_b TEXT NOT NULL,
+  band INTEGER NOT NULL DEFAULT 2,
+  note TEXT,
+  created_by TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_area_pair ON area_adjacency (area_a, area_b);
+CREATE INDEX IF NOT EXISTS idx_area_second ON area_adjacency (area_b);
+
 CREATE TABLE IF NOT EXISTS fee_policies (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL DEFAULT '',
@@ -472,6 +540,9 @@ CREATE TABLE IF NOT EXISTS fee_policies (
   submitted_at TEXT,
   approved_by TEXT,
   approved_at TEXT,
+  -- Upgrade 2: 1 only when the primary administrator approved its own policy.
+  self_approved INTEGER NOT NULL DEFAULT 0,
+  self_approved_at TEXT,
   rejected_by TEXT,
   rejected_at TEXT,
   rejection_reason TEXT,
@@ -690,6 +761,9 @@ CREATE TABLE IF NOT EXISTS fee_policy_events (
   from_status TEXT NOT NULL DEFAULT '',
   to_status TEXT NOT NULL DEFAULT '',
   note TEXT,
+  -- Upgrade 2 Phase 4: the values that changed, so the trail shows old -> new
+  -- rather than only the fact that something was edited.
+  changes_json TEXT,
   actor_id TEXT,
   actor_name TEXT,
   created_at TEXT NOT NULL
@@ -933,3 +1007,59 @@ CREATE TABLE IF NOT EXISTS email_templates (
 
 CREATE INDEX IF NOT EXISTS idx_email_template_type ON email_templates (target_type, status);
 CREATE INDEX IF NOT EXISTS idx_email_template_status ON email_templates (status);
+
+-- ===========================================================================
+-- Upgrade 2 Phase 3: bulk email campaigns and email preferences
+--
+-- One message per recipient: `email_campaign_recipients` points at the row in
+-- `email_outbox` that carries that one address. There is no recipient list in
+-- any single message, so no recipient can see another's address.
+-- ===========================================================================
+CREATE TABLE IF NOT EXISTS email_preferences (
+  email TEXT PRIMARY KEY,
+  user_id TEXT,
+  -- Marketing is opt-in: 0 until the address holder says otherwise.
+  marketing_opt_in INTEGER NOT NULL DEFAULT 0,
+  unsubscribe_token TEXT NOT NULL UNIQUE,
+  opted_in_at TEXT,
+  unsubscribed_at TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS email_campaigns (
+  id TEXT PRIMARY KEY,
+  subject TEXT NOT NULL,
+  body_html TEXT NOT NULL,
+  -- all | tenants | landlords | agents | admins | providers
+  audience TEXT NOT NULL DEFAULT 'all',
+  -- marketing (opt-in only) | service (non-optional account notices)
+  kind TEXT NOT NULL DEFAULT 'marketing',
+  -- draft | queued | sent | partly_failed
+  status TEXT NOT NULL DEFAULT 'draft',
+  created_by TEXT,
+  recipient_total INTEGER NOT NULL DEFAULT 0,
+  skipped_unsubscribed INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL,
+  updated_at TEXT,
+  queued_at TEXT,
+  completed_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_campaign_status ON email_campaigns (status, created_at);
+
+CREATE TABLE IF NOT EXISTS email_campaign_recipients (
+  id TEXT PRIMARY KEY,
+  campaign_id TEXT NOT NULL,
+  email TEXT NOT NULL,
+  name TEXT NOT NULL DEFAULT '',
+  -- queued | sent | failed. The outbox row remains the truth for delivery.
+  status TEXT NOT NULL DEFAULT 'queued',
+  outbox_id TEXT,
+  error TEXT,
+  created_at TEXT NOT NULL,
+  sent_at TEXT
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uniq_campaign_recipient ON email_campaign_recipients (campaign_id, email);
+CREATE INDEX IF NOT EXISTS idx_campaign_recipient_status ON email_campaign_recipients (campaign_id, status);

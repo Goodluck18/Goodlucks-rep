@@ -217,7 +217,6 @@ define('VIEWING_ACTION_RATE_LIMIT_PER_HOUR', (int)cfg('VIEWING_ACTION_RATE_LIMIT
  * that a tenant actually paid to the landlord, so no new receipt may be issued.
  * Reading and printing existing records stays enabled.
  */
-define('RECEIPT_ISSUING_ENABLED', filter_var(cfg('RECEIPT_ISSUING_ENABLED', false), FILTER_VALIDATE_BOOLEAN));
 
 /**
  * Viewing-fee sharing policy — PROVISIONAL, NOT APPROVED, NEVER APPLIED.
@@ -273,6 +272,10 @@ require_once GL_ROOT . '/lib/private_storage.php';
 require_once GL_ROOT . '/lib/verification.php';
 require_once GL_ROOT . '/lib/fee_policies.php';
 require_once GL_ROOT . '/lib/viewings.php';
+require_once GL_ROOT . '/lib/property_media.php';
+require_once GL_ROOT . '/lib/provider_alerts.php';
+require_once GL_ROOT . '/lib/matching.php';
+require_once GL_ROOT . '/lib/contact_disclosure.php';
 require_once GL_ROOT . '/lib/finance.php';
 require_once GL_ROOT . '/lib/finance_api.php';
 require_once GL_ROOT . '/lib/alerts.php';
@@ -281,5 +284,8 @@ require_once GL_ROOT . '/lib/alerts.php';
 require_once GL_ROOT . '/lib/blog_content.php';
 require_once GL_ROOT . '/lib/blog.php';
 require_once GL_ROOT . '/lib/email_templates.php';
+// Upgrade 2 Phase 3: the user directory, profiles/activity and bulk email.
+require_once GL_ROOT . '/lib/users_admin.php';
+require_once GL_ROOT . '/lib/campaigns.php';
 require_once GL_ROOT . '/lib/blog_api.php';
 require_once GL_ROOT . '/lib/api.php';

@@ -536,6 +536,35 @@ describe('Image uploads', () => {
     assert.equal(bytes[0], 0x89);
   });
 
+  // Upgrade 2, A1: on the deployed host `api/uploads` is a real directory, so a
+  // POST to the un-slashed path could be answered by Apache's mod_dir with a 301
+  // that the browser re-sent as a GET ("Endpoint not found"). Both spellings must
+  // reach the upload handler, and a rejected file must come back as a field error.
+  test('the upload endpoint answers on both spellings of its path', async () => {
+    const slashed = new FormData();
+    slashed.append('file', new Blob([createPng(80, 60)], { type: 'image/png' }), 'slashed.png');
+    const okSlashed = await landlord.request('POST', '/api/uploads/', { body: slashed });
+    assert.equal(okSlashed.status, 201);
+    assert.match(okSlashed.body.urls[0], /^\/api\/uploads\/gl-\d{8}-[a-f0-9]+\.png$/);
+
+    // The stored file is served from the same path the client was given.
+    const served = await guest.get(okSlashed.body.urls[0], { raw: true });
+    assert.equal(served.status, 200);
+
+    const bare = new FormData();
+    bare.append('file', new Blob([createPng(80, 60)], { type: 'image/png' }), 'bare.png');
+    const okBare = await landlord.request('POST', '/api/uploads', { body: bare });
+    assert.equal(okBare.status, 201);
+  });
+
+  test('a refused upload on the slashed path reports the field', async () => {
+    const form = new FormData();
+    form.append('file', new Blob([Buffer.from('not an image')], { type: 'text/plain' }), 'notes.txt');
+    const res = await landlord.request('POST', '/api/uploads/', { body: form });
+    assert.equal(res.status, 422);
+    assert.ok(res.body.fields && res.body.fields.file, 'the refusal names the file field');
+  });
+
   test('non-image uploads are rejected', async () => {
     const form = new FormData();
     form.append('file', new Blob([Buffer.from('<?php echo "hacked"; ?>')], { type: 'application/x-php' }), 'shell.php');
@@ -869,194 +898,98 @@ describe('Tenancy agreements retired & receipt issuance disabled', () => {
     assert.equal(single.status, 404);
   });
 
-  test('receipt issuing is disabled and limited to staff', async () => {
-    const payload = {
-      propertyTitle: 'The Pearl Executive 3-Bedroom Apartment',
-      propertyAddress: 'Cantonments, Accra',
-      tenantName: 'Test Tenant',
-      tenantPhone: '+233 24 123 4567',
-      landlordName: 'Abena Osei',
-      amountGhs: 6500,
-      paymentPurpose: 'Monthly rent',
-      paymentMethod: 'MTN MoMo',
-    };
+  test('the rent-receipt endpoints have been removed (Upgrade 2, E1)', async () => {
+    // Not disabled, not restricted: gone. Every role gets the router's 404, so
+    // there is no read path and no probe path left.
+    const payload = { propertyTitle: 'Removed Receipt', amountGhs: 100 };
 
-    const anonymous = await guest.post('/api/receipts', payload);
-    assert.equal(anonymous.status, 401);
-
-    // Tenants and landlords can no longer create Goodlucks-branded records.
-    const asTenant = await tenant.post('/api/receipts', payload);
-    assert.equal(asTenant.status, 403);
-
-    const asLandlord = await landlord.post('/api/receipts', payload);
-    assert.equal(asLandlord.status, 403);
-
-    // Staff are recognised, but issuing is switched off until Increment B.
-    const asAdmin = await admin.post('/api/receipts', payload);
-    assert.equal(asAdmin.status, 503);
-    assert.match(asAdmin.body.error, /disabled/i);
-
-    const list = await admin.get('/api/receipts');
-    assert.equal(list.status, 200);
-    assert.equal(list.body.issuingEnabled, false);
-    assert.ok(Array.isArray(list.body.receipts));
+    for (const [label, client] of [
+      ['guest', guest],
+      ['tenant', tenant],
+      ['landlord', landlord],
+      ['admin', admin],
+    ]) {
+      assert.equal((await client.get('/api/receipts')).status, 404, `${label} cannot list receipts`);
+      assert.equal((await client.post('/api/receipts', payload)).status, 404, `${label} cannot create one`);
+      assert.equal(
+        (await client.get('/api/receipts/rec-does-not-matter')).status,
+        404,
+        `${label} cannot fetch one`
+      );
+    }
   });
 });
 
 // ---------------------------------------------------------------------------
-describe('Receipt access control', () => {
+describe('Rent receipts removed, records preserved (Upgrade 2, E1)', () => {
   const access = {};
-  const clients = {};
 
-  const createParty = async (key, { name, phone, role }) => {
-    const email = uniqueEmail(key);
-    const script = runPhpScript(
-      'tests/create-user.php',
-      [
-        `--email=${email}`,
-        '--password=Access-Control-Pass-123',
-        `--name=${name}`,
-        `--role=${role}`,
-        `--phone=${phone}`,
-      ],
-      state.testEnv
-    );
-    assert.equal(script.status, 0, `${key} creation failed: ${script.stdout} ${script.stderr}`);
-
-    const client = new ApiClient(baseUrl);
-    const login = await client.post('/api/auth/login', { email, password: 'Access-Control-Pass-123' });
-    assert.equal(login.status, 200, `${key} login failed: ${JSON.stringify(login.body)}`);
-    clients[key] = client;
-    return login.body.user;
-  };
-
-  before(async () => {
-    access.admin = admin;
-
-    access.landlordA = await createParty('access-landlord-a', {
-      name: 'Access Landlord A',
-      phone: '+233 20 900 0001',
-      role: 'landlord',
-    });
-    access.tenantA = await createParty('access-tenant-a', {
-      name: 'Access Tenant A',
-      phone: '+233 24 900 0002',
-      role: 'tenant',
-    });
-    access.landlordB = await createParty('access-landlord-b', {
-      name: 'Access Landlord B',
-      phone: '+233 20 900 0003',
-      role: 'landlord',
-    });
-    access.tenantB = await createParty('access-tenant-b', {
-      name: 'Access Tenant B',
-      phone: '+233 24 900 0004',
-      role: 'tenant',
-    });
-
-    // Issuing is disabled over HTTP, so the record is planted directly and then
-    // read back through the real endpoints.
-    const created = runPhpScript(
+  test('a receipt row planted in the database stays there', async () => {
+    // The feature is gone; the history is not. A row written straight into the
+    // table by the same helper that used to seed the access tests must survive
+    // untouched — nothing in this phase deletes or rewrites `rent_receipts`.
+    const planted = runPhpScript(
       'tests/create-receipt.php',
       [
-        `--tenant-user=${access.tenantA.id}`,
-        `--landlord-user=${access.landlordA.id}`,
+        // --legacy: no user links are needed, we are checking the stored row.
+        '--legacy',
+        '--tenant-name=E1 Preserved Tenant',
+        '--landlord-name=E1 Preserved Landlord',
+        '--tenant-phone=+233 24 900 0770',
         '--amount=4200',
-        '--tenant-name=Access Tenant A',
-        '--landlord-name=Access Landlord A',
-        '--tenant-phone=+233 24 900 0002',
       ],
       state.testEnv
     );
-    assert.equal(created.status, 0, `receipt creation failed: ${created.stdout} ${created.stderr}`);
-    access.receiptId = JSON.parse(created.stdout.trim()).id;
-    assert.ok(access.receiptId, 'helper must return the receipt id');
+    assert.equal(planted.status, 0, planted.stdout + planted.stderr);
+    access.receiptId = JSON.parse(planted.stdout.trim()).id;
+
+    const inspected = runPhpScript(
+      'tests/sqlite-tool.php',
+      [
+        `--path=${dbPath}`,
+        '--mode=query',
+        `--sql=SELECT id, amount_ghs, tenant_name FROM rent_receipts WHERE id = '${access.receiptId}'`,
+      ],
+      state.testEnv
+    );
+    assert.equal(inspected.status, 0, inspected.stdout + inspected.stderr);
+    const rows = JSON.parse(inspected.stdout.trim()).rows;
+    assert.equal(rows.length, 1, 'the row is still stored');
+    assert.equal(Number(rows[0].amount_ghs), 4200);
+    assert.equal(rows[0].tenant_name, 'E1 Preserved Tenant');
   });
 
-  test('receipt lists are scoped to the people concerned', async () => {
-    const tenantSees = await clients['access-tenant-a'].get('/api/receipts');
-    assert.equal(tenantSees.status, 200);
-    assert.ok(tenantSees.body.receipts.some((r) => r.id === access.receiptId));
-
-    const strangerTenant = await clients['access-tenant-b'].get('/api/receipts');
-    assert.equal(strangerTenant.status, 200);
-    assert.ok(!strangerTenant.body.receipts.some((r) => r.id === access.receiptId));
-
-    const landlordSees = await clients['access-landlord-a'].get('/api/receipts');
-    assert.ok(landlordSees.body.receipts.some((r) => r.id === access.receiptId));
-
-    const strangerLandlord = await clients['access-landlord-b'].get('/api/receipts');
-    assert.ok(!strangerLandlord.body.receipts.some((r) => r.id === access.receiptId));
-
-    const staff = await access.admin.get('/api/receipts');
-    assert.ok(staff.body.receipts.some((r) => r.id === access.receiptId));
+  test('the table itself is still part of the schema', async () => {
+    const tables = runPhpScript(
+      'tests/sqlite-tool.php',
+      [`--path=${dbPath}`, '--mode=tables'],
+      state.testEnv
+    );
+    assert.equal(tables.status, 0, tables.stdout + tables.stderr);
+    const names = JSON.parse(tables.stdout.trim()).tables;
+    assert.ok(names.includes('rent_receipts'), 'rent_receipts is never dropped');
+    assert.ok(names.includes('fee_remittances'), 'the fee ledger is intact');
+    assert.ok(names.includes('fee_policies'), 'the fee policies are intact');
   });
 
-  test('a single receipt is only readable by its parties and staff', async () => {
-    const party = await clients['access-tenant-a'].get(`/api/receipts/${access.receiptId}`);
-    assert.equal(party.status, 200);
-    assert.equal(party.body.receipt.id, access.receiptId);
-
-    const landlordParty = await clients['access-landlord-a'].get(`/api/receipts/${access.receiptId}`);
-    assert.equal(landlordParty.status, 200);
-
-    // Strangers get 404, not 403, so ids cannot be probed for existence.
-    const strangerTenant = await clients['access-tenant-b'].get(`/api/receipts/${access.receiptId}`);
-    assert.equal(strangerTenant.status, 404);
-
-    const strangerLandlord = await clients['access-landlord-b'].get(`/api/receipts/${access.receiptId}`);
-    assert.equal(strangerLandlord.status, 404);
-
-    const anonymous = await guest.get(`/api/receipts/${access.receiptId}`);
-    assert.equal(anonymous.status, 401);
-
-    const missing = await access.admin.get('/api/receipts/does-not-exist');
-    assert.equal(missing.status, 404);
-
-    const staff = await access.admin.get(`/api/receipts/${access.receiptId}`);
-    assert.equal(staff.status, 200);
-  });
-
-  test('the audit trail is admin-only and carries no identity numbers', async () => {
-    const res = await access.admin.get('/api/admin/audit-logs?limit=200');
-    assert.equal(res.status, 200);
-    assert.ok(Array.isArray(res.body.logs));
-    assert.ok(res.body.logs.length > 0, 'earlier suites must have recorded sensitive actions');
-    for (const log of res.body.logs) {
-      assert.equal(typeof log.action, 'string');
-      assert.equal(typeof log.entityType, 'string');
-      assert.ok(log.createdAt);
-    }
-
-    const serialised = JSON.stringify(res.body.logs);
-    assert.ok(!/landlordGhanaCard|tenantGhanaCard/i.test(serialised));
-
-    const staffOnly = await clients['access-landlord-a'].get('/api/admin/audit-logs');
-    assert.equal(staffOnly.status, 403);
-
-    const anonymous = await guest.get('/api/admin/audit-logs');
-    assert.equal(anonymous.status, 401);
-  });
-
-  test('private documents are not reachable through the public uploads route', async () => {
-    fs.mkdirSync(privateDir, { recursive: true });
-    const name = `private-proof-${Date.now()}.png`;
-    const filePath = path.join(privateDir, name);
-    fs.writeFileSync(filePath, createPng(60, 60));
-
-    try {
-      const leaked = await guest.get(`/api/uploads/${name}`);
-      assert.equal(leaked.status, 404);
-
-      const traversal = await guest.get('/api/uploads/..%2Fconfig.php');
-      assert.equal(traversal.status, 404);
-    } finally {
-      fs.rmSync(filePath, { force: true });
-    }
+  test('the fee ledger, its reversals and the fee policies still work', async () => {
+    // E1 must not damage the *other* kind of receipt: money Goodlucks received.
+    assert.equal((await admin.get('/api/admin/finance/remittances')).status, 200);
+    const fees = await admin.get('/api/admin/viewing-fees');
+    assert.equal(fees.status, 200, JSON.stringify(fees.body));
+    // The reversal route is part of the fee ledger and stays reachable; an
+    // unknown id is refused by the handler, not by a missing route.
+    const reverse = await admin.post('/api/admin/finance/receipts/does-not-exist/reverse', {
+      amountGhs: 10,
+      reason: 'Checking that the reversal route still exists.',
+    });
+    // An unknown record is refused by the handler; the router must not be what
+    // answers, which is how a removed route would respond.
+    assert.doesNotMatch(String(reverse.body.error), /endpoint not found/i);
+    assert.match(String(reverse.body.error), /does not exist|not found/i, JSON.stringify(reverse.body));
   });
 });
 
-// ---------------------------------------------------------------------------
 describe('Registration: role handling, city and verification status', () => {
   // Registration signs the caller in, so these tests use throwaway clients: the
   // shared `guest` client must stay anonymous for every other suite.
@@ -1365,7 +1298,7 @@ describe('Agent accounts (Increment C)', () => {
     assert.ok(mine.body.properties.some((p) => p.id === created.body.property.id));
   });
 
-  test('agent submission is recorded separately from ownership and verification', async () => {
+  test('an agent lists independently: no landlord account is attached or claimed', async () => {
     const landlord = await createLandlord('submission');
 
     // Staff approve the agent's account for listings only.
@@ -1389,11 +1322,15 @@ describe('Agent accounts (Increment C)', () => {
       bedrooms: 3,
       bathrooms: 2,
       propertyType: 'Townhouse',
-      description: 'Submitted by an agent on behalf of a landlord, with authority unverified.',
+      description: 'Listed independently by an agent, with no landlord account involved.',
       images: ['https://images.unsplash.com/photo-1502672260266-1c1ef2d93688'],
       viewingFeeGhs: 150,
       viewingTerms: AGENT_VIEWING_TERMS,
+      // Upgrade 2 (C1): an old client may still send these. They are ignored,
+      // never resolved into an account and never trusted as a claim.
       landlordId: landlord.id,
+      landlordName: landlord.name,
+      landlordEmail: landlord.email,
       // Attempts to talk the server into stronger claims.
       isLandlordVerified: true,
       landlordAuthorityState: 'verified',
@@ -1404,21 +1341,24 @@ describe('Agent accounts (Increment C)', () => {
     const property = created.body.property;
     agent.propertyId = property.id;
 
-    // Increment F: the response to an agent never carries a landlord account id,
-    // so the endpoint cannot be used to test whether an account exists. Staff
-    // see the resolved owner; the agent sees the declaration it just made.
-    assert.equal(property.landlordId, '', 'an agent is never shown the landlord account id');
+    // Upgrade 2 (C1): the agent is the provider. No landlord account, name or
+    // company is attached, and no authority is claimed on anyone's behalf.
+    assert.equal(property.landlordId, '', 'no landlord account is attached to an agent listing');
+    assert.equal(property.landlordName, '', 'an independent agent listing names no landlord');
+    assert.equal(property.landlordCompany, '');
+    assert.equal(property.landlordAuthorityState, 'not_applicable');
+    assert.equal(property.submittedByUserId, agent.users.primary.id, 'the agent is the provider');
+    assert.equal(property.submittedByRole, 'agent');
+
+    // Staff see the same record: nothing was invented behind the agent's back.
     const asAdmin = await admin.get(`/api/properties/${property.id}`);
     assert.equal(asAdmin.status, 200, JSON.stringify(asAdmin.body));
-    assert.equal(asAdmin.body.property.landlordId, landlord.id, 'the agent must never become the owner');
-    assert.equal(asAdmin.body.property.landlordName, landlord.name);
-    assert.equal(property.submittedByUserId, agent.users.primary.id);
-    assert.equal(property.submittedByRole, 'agent');
-    assert.equal(property.landlordAuthorityState, 'claimed_by_agent');
+    assert.equal(asAdmin.body.property.landlordId, '', 'the landlord the agent named is not silently attached');
+    assert.equal(asAdmin.body.property.landlordName, '');
+    assert.notEqual(asAdmin.body.property.landlordId, agent.users.primary.id, 'and the agent is never the owner');
 
     // Nothing is verified and nothing goes live.
-    assert.equal(property.isLandlordVerified, false, 'an agent submission must not verify the landlord');
-    assert.equal(property.status, 'pending');
+    assert.equal(property.isLandlordVerified, false, 'an agent submission must not verify anyone');
 
     // The agent cannot approve its own submission.
     const selfApprove = await agent.clients.primary.post(`/api/properties/${property.id}/status`, {
@@ -1431,7 +1371,8 @@ describe('Agent accounts (Increment C)', () => {
     });
     assert.equal(selfVerify.status, 403);
 
-    // Both parties see the listing in their own workspace, for different reasons.
+    // The agent sees its own listing; the landlord it named sees nothing,
+    // because the listing is not theirs.
     const agentMine = await agent.clients.primary.get('/api/properties?mine=1');
     assert.equal(agentMine.status, 200);
     assert.ok(agentMine.body.properties.some((p) => p.id === property.id));
@@ -1439,8 +1380,8 @@ describe('Agent accounts (Increment C)', () => {
     const landlordMine = await landlord.client.get('/api/properties?mine=1');
     assert.equal(landlordMine.status, 200);
     assert.ok(
-      landlordMine.body.properties.some((p) => p.id === property.id),
-      'the landlord owns the listing the agent submitted for them'
+      !landlordMine.body.properties.some((p) => p.id === property.id),
+      'an agent listing does not appear in a landlord workspace'
     );
 
     // A second agent sees someone else's submission in neither list...
@@ -1456,40 +1397,61 @@ describe('Agent accounts (Increment C)', () => {
     assert.equal((await agent.clients.secondary.delete(`/api/properties/${property.id}`)).status, 403);
   });
 
-  test('an agent submission requires a real landlord and cannot skip it', async () => {
-    const missing = await agent.clients.primary.post('/api/properties', {
-      title: 'Agent listing with no landlord',
+  test('an agent listing needs no landlord reference, and one is never stored', async () => {
+    const withoutReference = await agent.clients.primary.post('/api/properties', {
+      title: 'Independent agent listing',
       location: 'Accra',
+      city: 'Accra',
       rentGhs: 2000,
-      description: 'This submission names no landlord and must be refused.',
+      bedrooms: 2,
+      bathrooms: 1,
+      propertyType: 'Apartment',
+      description: 'This submission names no landlord at all, and that is a complete submission.',
       images: ['https://example.com/no-landlord.jpg'],
+      viewingFeeGhs: 120,
+      viewingTerms: AGENT_VIEWING_TERMS,
     });
-    assert.equal(missing.status, 422);
-    assert.ok(missing.body.fields.landlordId);
+    assert.equal(withoutReference.status, 201, JSON.stringify(withoutReference.body));
+    const independent = withoutReference.body.property;
+    assert.equal(independent.landlordId, '', 'no landlord account is invented');
+    assert.equal(independent.landlordName, '');
+    assert.equal(independent.submittedByUserId, agent.users.primary.id);
 
-    // Increment F: naming an account that is not a landlord must NOT produce a
-    // different answer from naming one that is — otherwise the endpoint becomes
-    // an account-existence oracle. The claim is accepted and queued for staff.
-    const unknown = await agent.clients.primary.post('/api/properties', {
-      title: 'Agent listing for a non-landlord',
+    // An old client that still sends a reference gets the same record as one
+    // that does not: the fields are ignored, so the endpoint cannot be used to
+    // probe for landlord accounts.
+    const withReference = await agent.clients.primary.post('/api/properties', {
+      title: 'Agent listing carrying a stale reference',
       location: 'Accra',
-      rentGhs: 2000,
-      description: 'A tenant id is not a landlord. The submission is recorded as a claim and queued.',
-      images: ['https://example.com/bad-landlord.jpg'],
+      city: 'Accra',
+      rentGhs: 2100,
+      bedrooms: 2,
+      bathrooms: 1,
+      propertyType: 'Apartment',
+      description: 'A stale client still sends landlord fields. They are ignored, not resolved.',
+      images: ['https://example.com/stale-reference.jpg'],
       viewingFeeGhs: 120,
       viewingTerms: AGENT_VIEWING_TERMS,
       landlordId: agent.users.secondary.id,
+      landlordName: 'Someone',
+      landlordEmail: uniqueEmail('stale-reference'),
+      landlordPhone: '+233 20 900 1234',
     });
-    assert.equal(unknown.status, 201, JSON.stringify(unknown.body));
-    assert.equal(unknown.body.property.landlordId, '');
-    assert.equal(unknown.body.property.landlordAuthorityState, 'claimed_by_agent');
-    assert.equal(unknown.body.property.isLandlordVerified, false);
+    assert.equal(withReference.status, 201, JSON.stringify(withReference.body));
+    assert.equal(withReference.body.message, withoutReference.body.message);
+    assert.deepEqual(
+      Object.keys(withReference.body.property).sort(),
+      Object.keys(withoutReference.body.property).sort(),
+      'a stale reference must not change the response shape'
+    );
+    assert.equal(withReference.body.property.landlordId, '');
+    assert.equal(withReference.body.property.landlordAuthorityState, 'not_applicable');
 
-    // Staff can see that no account was matched, and what the agent claimed.
-    const reviewable = await admin.get(`/api/properties/${unknown.body.property.id}`);
+    const reviewable = await admin.get(`/api/properties/${withReference.body.property.id}`);
     assert.equal(reviewable.status, 200, JSON.stringify(reviewable.body));
     assert.equal(reviewable.body.property.landlordId, '', 'no landlord account is attached by guesswork');
-    assert.equal(reviewable.body.property.landlordContactClaimed, agent.users.secondary.id);
+    assert.equal(reviewable.body.property.landlordName, '');
+    assert.equal(reviewable.body.property.landlordContactClaimed, '', 'nothing is kept for follow-up either');
   });
 
   test('suspending an agent closes listing submission again', async () => {
@@ -1541,7 +1503,7 @@ describe('Agent accounts (Increment C)', () => {
     // Agents are not staff.
     assert.equal((await agent.clients.secondary.get('/api/admin/stats')).status, 403);
     assert.equal((await agent.clients.secondary.get('/api/admin/audit-logs')).status, 403);
-    assert.equal((await agent.clients.secondary.get('/api/receipts')).status, 403);
+    assert.equal((await agent.clients.secondary.get('/api/receipts')).status, 404);
     assert.equal((await agent.clients.secondary.get('/api/admin/viewing-fees')).status, 403);
 
     // Anonymous callers still see no user.
@@ -2277,9 +2239,9 @@ describe('Identity verification & professional authorisation (Increment D)', () 
   });
 
   test('Increments A, B and C still behave', async () => {
-    // A: tenancy agreements retired, receipts not issuable.
+    // A: tenancy agreements retired; Upgrade 2 (E1) then removed rent receipts.
     assert.equal((await admin.get('/api/agreements')).status, 404);
-    assert.equal((await admin.post('/api/receipts', {})).status, 503);
+    assert.equal((await admin.post('/api/receipts', {})).status, 404);
 
     // B: the viewing-fee ledger still refuses to apply a percentage.
     const policy = await admin.get('/api/admin/viewing-fees/policy');
@@ -2573,127 +2535,6 @@ describe('Viewing-fee ledger (Increment B)', () => {
 
     const remittanceLog = res.body.logs.find((log) => log.action === 'viewing_fee.remittance_recorded');
     assert.equal(remittanceLog.context.receivedBy, 'goodlucks');
-  });
-});
-
-// ---------------------------------------------------------------------------
-describe('Receipt labelling and legacy attribution', () => {
-  const receipts = {};
-
-  test('a stored rent record is labelled reported, never verified', async () => {
-    const list = await admin.get('/api/receipts');
-    assert.equal(list.status, 200);
-    assert.ok(list.body.receipts.length > 0, 'earlier suites plant at least one record');
-    for (const receipt of list.body.receipts) {
-      assert.equal(receipt.recordState, 'reported');
-      assert.equal(receipt.recordStateLabel, 'Reported record — not verified');
-      assert.equal(receipt.goodlucksIsRecipient, false);
-      assert.equal(receipt.recipient.type, 'landlord');
-      assert.equal(typeof receipt.recipient.verified, 'boolean');
-      assert.equal(receipt.recipient.verified, false);
-      assert.ok(!/verified/i.test(receipt.verificationCode), 'new references must not claim verification');
-    }
-  });
-
-  test('references issued from now on do not claim verification', async () => {
-    const created = runPhpScript(
-      'tests/create-receipt.php',
-      ['--legacy', '--tenant-name=Reference Tester', '--tenant-phone=+233 24 999 0001'],
-      state.testEnv
-    );
-    assert.equal(created.status, 0, created.stdout + created.stderr);
-    const id = JSON.parse(created.stdout.trim()).id;
-
-    const fetched = await admin.get(`/api/receipts/${id}`);
-    assert.equal(fetched.status, 200);
-    assert.match(fetched.body.receipt.verificationCode, /^REF-REC-/);
-    assert.equal(fetched.body.receipt.legacyReference, false);
-  });
-
-  test('a legacy VERIFIED-REC reference is flagged instead of trusted', async () => {
-    const created = runPhpScript(
-      'tests/create-receipt.php',
-      [
-        '--legacy',
-        '--legacy-reference',
-        '--tenant-name=Legacy Reference Tester',
-        '--tenant-phone=+233 24 999 0002',
-      ],
-      state.testEnv
-    );
-    assert.equal(created.status, 0, created.stdout + created.stderr);
-    const id = JSON.parse(created.stdout.trim()).id;
-
-    const fetched = await admin.get(`/api/receipts/${id}`);
-    assert.equal(fetched.status, 200);
-    assert.match(fetched.body.receipt.verificationCode, /^VERIFIED-REC-/);
-    assert.equal(fetched.body.receipt.legacyReference, true, 'the UI must be able to annotate it');
-    assert.equal(fetched.body.receipt.recordState, 'reported');
-  });
-
-  test('a legacy record is never attributed to a shared phone number', async () => {
-    const phone = '+233 24 999 0003';
-    const emailA = uniqueEmail('shared-a');
-    const emailB = uniqueEmail('shared-b');
-    const password = 'Shared-Phone-Pass-1';
-
-    const first = runPhpScript(
-      'tests/create-user.php',
-      [`--email=${emailA}`, `--password=${password}`, '--name=Shared Phone A', '--role=tenant', `--phone=${phone}`],
-      state.testEnv
-    );
-    assert.equal(first.status, 0, first.stdout + first.stderr);
-    const second = runPhpScript(
-      'tests/create-user.php',
-      [`--email=${emailB}`, `--password=${password}`, '--name=Shared Phone B', '--role=tenant', `--phone=${phone}`],
-      state.testEnv
-    );
-    assert.equal(second.status, 0, second.stdout + second.stderr);
-
-    const planted = runPhpScript(
-      'tests/create-receipt.php',
-      ['--legacy', '--tenant-name=Shared Phone Tenant', `--tenant-phone=${phone}`],
-      state.testEnv
-    );
-    assert.equal(planted.status, 0, planted.stdout + planted.stderr);
-    const receiptId = JSON.parse(planted.stdout.trim()).id;
-
-    const clientA = new ApiClient(baseUrl);
-    const clientB = new ApiClient(baseUrl);
-
-    const loginA = await clientA.post('/api/auth/login', { email: emailA, password });
-    assert.equal(loginA.status, 200, JSON.stringify(loginA.body));
-    const loginB = await clientB.post('/api/auth/login', { email: emailB, password });
-    assert.equal(loginB.status, 200, JSON.stringify(loginB.body));
-
-    // Ambiguous number: neither account may see or open the record.
-    for (const client of [clientA, clientB]) {
-      const list = await client.get('/api/receipts');
-      assert.equal(list.status, 200);
-      assert.ok(!list.body.receipts.some((receipt) => receipt.id === receiptId));
-      assert.equal((await client.get(`/api/receipts/${receiptId}`)).status, 404);
-    }
-
-    // Staff still see it — the record is not lost, only unattributable.
-    assert.equal((await admin.get(`/api/receipts/${receiptId}`)).status, 200);
-  });
-
-  test('a legacy record is never attributed to a landlord by name', async () => {
-    const planted = runPhpScript(
-      'tests/create-receipt.php',
-      ['--legacy', '--tenant-name=Name Match Tenant', '--tenant-phone=+233 24 999 0004', '--landlord-name=Access Landlord A'],
-      state.testEnv
-    );
-    assert.equal(planted.status, 0, planted.stdout + planted.stderr);
-    const receiptId = JSON.parse(planted.stdout.trim()).id;
-
-    const list = await landlord.get('/api/receipts');
-    assert.equal(list.status, 200);
-    assert.ok(
-      !list.body.receipts.some((receipt) => receipt.id === receiptId),
-      'a matching landlord name must not grant access'
-    );
-    assert.equal((await landlord.get(`/api/receipts/${receiptId}`)).status, 404);
   });
 });
 
@@ -3353,9 +3194,17 @@ describe('Match scoring, notifications & SEO', () => {
     const best = inBudget.body.matches.find((m) => !m.curated);
     assert.ok(best);
 
+    // A complete request that fits on every axis: Upgrade 2 scores six factors,
+    // so omitting one (bathrooms) now honestly costs its ten points.
     const comparison = await guest.post('/api/ai/match', {
-      tenantRequest: { budgetMin: 2000, budgetMax: 8000, bedrooms: 2, preferredLocations: ['East Legon'] },
-      property: { rentGhs: 7400, bedrooms: 2, location: 'East Legon, Accra', propertyType: 'Apartment' },
+      tenantRequest: {
+        budgetMin: 2000,
+        budgetMax: 8000,
+        bedrooms: 2,
+        bathrooms: 2,
+        preferredLocations: ['East Legon'],
+      },
+      property: { rentGhs: 7400, bedrooms: 2, bathrooms: 2, location: 'East Legon, Accra', propertyType: 'Apartment' },
     });
     assert.equal(comparison.status, 200);
     assert.ok(comparison.body.matchScore >= 90, 'a listing inside budget must score at least 90');
@@ -3855,6 +3704,14 @@ describe('Fee policies & agent tiers (Increment E)', () => {
         financeConfirm: false,
         // Increment F: viewing corrections are default-deny too.
         viewingCorrections: false,
+        // Upgrade 2: approving your OWN policy is denied for every administrator
+        // except the primary platform administrator (who is not this account).
+        feePolicySelfApprove: false,
+        // Upgrade 2 Phase 3: the user directory, the activity history and bulk
+        // email are separate powers, all default-deny for a new administrator.
+        manageUsers: false,
+        viewUserActivity: false,
+        sendBulkEmail: false,
       },
       'capabilities are default-deny for a new administrator'
     );
@@ -4411,9 +4268,9 @@ describe('Fee policies & agent tiers (Increment E)', () => {
   });
 
   test('Increments A, B, C and D still behave', async () => {
-    // Agreements stay retired, receipt issuing stays disabled.
+    // Agreements stay retired, and rent receipts were removed in Phase 7 (E1).
     assert.equal((await admin.get('/api/agreements')).status, 404);
-    assert.equal((await admin.post('/api/receipts', {})).status, 503);
+    assert.equal((await admin.post('/api/receipts', {})).status, 404);
 
     // Increment D surfaces still work for the agent created here.
     const verification = await e.agents.standard.client.get('/api/verification');
@@ -4568,6 +4425,27 @@ describe('Agent-led viewing lifecycle (Increment F)', () => {
     assert.equal(approved.status, 200, JSON.stringify(approved.body));
 
     f.properties[label] = { id: propertyId };
+    return { id: propertyId };
+  };
+
+  // Upgrade 2 (C1): an agent listing has no landlord party, so a landlord's own
+  // rights have to be asserted on a listing they actually own.
+  const makeLandlordProperty = async (label) => {
+    const created = await f.landlords.primary.client.post('/api/properties', {
+      title: `F landlord-owned property ${label}`,
+      location: 'Osu, Accra',
+      city: 'Accra',
+      rentGhs: 4300,
+      bedrooms: 2,
+      bathrooms: 2,
+      propertyType: 'Apartment',
+      description: `A landlord-owned listing used by the Increment F viewing tests (${label}).`,
+      images: ['https://images.unsplash.com/photo-1502672260266-1c1ef2d93688'],
+    });
+    assert.equal(created.status, 201, JSON.stringify(created.body));
+    const propertyId = created.body.property.id;
+    const approved = await admin.post(`/api/properties/${propertyId}/status`, { status: 'active' });
+    assert.equal(approved.status, 200, JSON.stringify(approved.body));
     return { id: propertyId };
   };
 
@@ -4747,10 +4625,19 @@ describe('Agent-led viewing lifecycle (Increment F)', () => {
     const previousDate = previous.viewing.date;
     const previousTime = previous.viewing.time;
 
-    const rescheduled = await action(f.agents.primary.client, f.viewings.primary, 'reschedule', {
+    // Upgrade 2 (B5): the provider asks to move it; the tenant accepts.
+    const requested = await action(f.agents.primary.client, f.viewings.primary, 'reschedule', {
       date: daysFromNow(5),
       time: '04:00 PM',
       reason: 'The landlord has a conflict.',
+    });
+    assert.equal(requested.status, 200, JSON.stringify(requested.body));
+    assert.equal(requested.body.viewing.status, 'reschedule_requested');
+    assert.equal(requested.body.viewing.date, previousDate, 'the agreed slot does not move by itself');
+    assert.equal(requested.body.viewing.preferredDate, daysFromNow(5));
+
+    const rescheduled = await action(f.tenants.primary.client, f.viewings.primary, 'accept-reschedule', {
+      note: 'The new time suits me.',
     });
     assert.equal(rescheduled.status, 200, JSON.stringify(rescheduled.body));
     assert.equal(rescheduled.body.viewing.status, 'rescheduled');
@@ -4763,13 +4650,26 @@ describe('Agent-led viewing lifecycle (Increment F)', () => {
     assert.equal(move.previousDate, previousDate);
     assert.equal(move.previousTime, previousTime);
     assert.equal(move.newDate, daysFromNow(5));
-    assert.equal(move.actorId, f.agents.primary.id);
+    // Upgrade 2 (B5): the appointment moved because the tenant accepted, so the
+    // tenant is the actor on the move and the agent is the actor on the request.
+    assert.equal(move.actorId, f.tenants.primary.id);
+    const ask = after.history.filter((event) => event.action === 'viewing.reschedule_requested').pop();
+    assert.ok(ask, 'the request itself is on the record');
+    assert.equal(ask.actorId, f.agents.primary.id);
   });
 
   test('the tenant can ask for a different time without moving the appointment', async () => {
+    const withoutReason = await action(f.tenants.primary.client, f.viewings.primary, 'request-reschedule', {
+      date: daysFromNow(6),
+      time: '11:00 AM',
+    });
+    assert.equal(withoutReason.status, 422, JSON.stringify(withoutReason.body));
+    assert.ok(withoutReason.body.fields.reason);
+
     const requested = await action(f.tenants.primary.client, f.viewings.primary, 'request-reschedule', {
       date: daysFromNow(6),
       time: '11:00 AM',
+      reason: 'Something came up at work.',
       note: 'Something came up at work.',
     });
     assert.equal(requested.status, 200, JSON.stringify(requested.body));
@@ -5065,7 +4965,9 @@ describe('Agent-led viewing lifecycle (Increment F)', () => {
   });
 
   test('the legacy viewing endpoint still works and is audited as a correction', async () => {
-    const res = await requestViewing(f.tenants.primary, f.properties.primary.id);
+    // A landlord-owned listing: an agent listing has no landlord party (C1).
+    const landlordProperty = await makeLandlordProperty('legacy-cancel');
+    const res = await requestViewing(f.tenants.primary, landlordProperty.id);
     const id = res.body.viewing.id;
 
     // A landlord may only cancel, and only their own property's viewing.
@@ -5087,104 +4989,80 @@ describe('Agent-led viewing lifecycle (Increment F)', () => {
     assert.equal(tenantAttempt.status, 409, 'a closed viewing needs an administrator');
   });
 
-  test('an agent landlord reference is resolved without disclosing whether the account exists', async () => {
-    // A landlord who really has an account, with a phone number on file.
-    const landlordEmail = uniqueEmail('f-reference-landlord');
-    const landlordPhone = '+233 20 900 7788';
-    const registered = await guest.post('/api/auth/register', {
-      name: 'F Reference Landlord',
-      email: landlordEmail,
-      phone: landlordPhone,
-      password: 'Viewing-Landlord-Pass-1',
-      role: 'landlord',
-    });
-    assert.equal(registered.status, 201, JSON.stringify(registered.body));
-    const existingLandlordId = registered.body.user.id;
-
-    const submit = (title, extra) => f.agents.primary.client.post('/api/properties', {
-      title,
+  test('provider details stay out of the public catalogue (C2)', async () => {
+    // An agent listing and a landlord listing, both live.
+    const agentListing = await f.agents.primary.client.post('/api/properties', {
+      title: 'F provider privacy agent listing',
       location: 'Labone, Accra',
       city: 'Accra',
       rentGhs: 3800,
       bedrooms: 1,
       bathrooms: 1,
       propertyType: 'Apartment',
-      description: `Landlord-reference test listing: ${title}.`,
-      images: ['https://example.com/landlord-reference.jpg'],
+      description: 'A live agent listing used to prove no provider account data leaks publicly.',
+      images: ['https://example.com/provider-privacy.jpg'],
       viewingFeeGhs: 130,
       viewingTerms: AGENT_VIEWING_TERMS,
-      landlordName: 'F Reference Landlord',
-      ...extra,
     });
+    assert.equal(agentListing.status, 201, JSON.stringify(agentListing.body));
+    const agentPropertyId = agentListing.body.property.id;
+    assert.equal((await admin.post(`/api/properties/${agentPropertyId}/status`, { status: 'active' })).status, 200);
 
-    // (a) the landlord's real email  (b) an email nobody owns
-    const byMatchedEmail = await submit('Reference by known email', { landlordEmail });
-    const unknownEmail = uniqueEmail('f-reference-absent');
-    const byUnknownEmail = await submit('Reference by unknown email', { landlordEmail: unknownEmail });
-    assert.equal(byMatchedEmail.status, 201, JSON.stringify(byMatchedEmail.body));
-    assert.equal(byUnknownEmail.status, 201, JSON.stringify(byUnknownEmail.body));
+    const landlordListing = await f.landlords.primary.client.post('/api/properties', {
+      title: 'F provider privacy landlord listing',
+      location: 'Labone, Accra',
+      city: 'Accra',
+      rentGhs: 4100,
+      bedrooms: 1,
+      bathrooms: 1,
+      propertyType: 'Apartment',
+      description: 'A live landlord listing used to prove no provider account data leaks publicly.',
+      images: ['https://example.com/provider-privacy-2.jpg'],
+    });
+    assert.equal(landlordListing.status, 201, JSON.stringify(landlordListing.body));
+    const landlordPropertyId = landlordListing.body.property.id;
+    assert.equal((await admin.post(`/api/properties/${landlordPropertyId}/status`, { status: 'active' })).status, 200);
 
-    // The agent's view is identical whether or not the landlord exists: same
-    // status code, same message, same keys, same values for everything that
-    // could answer "does this address belong to a Goodlucks landlord?".
-    assert.equal(byMatchedEmail.body.message, byUnknownEmail.body.message);
-    assert.deepEqual(
-      Object.keys(byMatchedEmail.body.property).sort(),
-      Object.keys(byUnknownEmail.body.property).sort(),
-      'the response shape must not differ'
-    );
-    for (const res of [byMatchedEmail, byUnknownEmail]) {
-      assert.equal(res.body.property.landlordId, '');
-      assert.equal(res.body.property.landlordAuthorityState, 'claimed_by_agent');
-      assert.equal(res.body.property.isLandlordVerified, false);
-      assert.equal(res.body.property.status, 'pending');
-    }
-    assert.equal(
-      JSON.stringify(byMatchedEmail.body.property).includes(landlordEmail),
-      false,
-      'the agent response must not echo the landlord account back'
-    );
+    const sensitive = ['landlordId', 'landlordName', 'landlordCompany', 'submittedByUserId', 'submittedByRole'];
 
-    // (c) the landlord's real phone  (d) an unknown phone
-    const byMatchedPhone = await submit('Reference by known phone', { landlordPhone });
-    const byUnknownPhone = await submit('Reference by unknown phone', { landlordPhone: '+233 20 900 0001' });
-    assert.equal(byMatchedPhone.status, 201, JSON.stringify(byMatchedPhone.body));
-    assert.equal(byUnknownPhone.status, 201, JSON.stringify(byUnknownPhone.body));
-    assert.equal(byMatchedPhone.body.message, byUnknownPhone.body.message);
-    assert.deepEqual(
-      Object.keys(byMatchedPhone.body.property).sort(),
-      Object.keys(byUnknownPhone.body.property).sort()
-    );
-    for (const res of [byMatchedPhone, byUnknownPhone]) {
-      assert.equal(res.body.property.landlordId, '');
-      assert.equal(res.body.property.landlordAuthorityState, 'claimed_by_agent');
+    // A visitor sees none of it, on the catalogue or on the listing itself.
+    for (const path of [`/api/properties`, `/api/properties/${agentPropertyId}`, `/api/properties/${landlordPropertyId}`]) {
+      const res = await guest.get(path);
+      assert.equal(res.status, 200, JSON.stringify(res.body));
+      const rows = res.body.properties ?? [res.body.property];
+      for (const row of rows) {
+        for (const key of sensitive) {
+          assert.equal(row[key], '', `${key} must be empty for a visitor (${path})`);
+        }
+        assert.equal(row.landlordAuthorityState, 'not_applicable');
+      }
     }
 
-    // A tenant account is not a landlord account: naming one resolves to nothing
-    // and still looks exactly like a landlord that does not exist.
-    const byTenantEmail = await submit('Reference by a tenant email', { landlordEmail: f.tenants.primary.email });
-    assert.equal(byTenantEmail.status, 201, JSON.stringify(byTenantEmail.body));
-    assert.equal(byTenantEmail.body.property.landlordId, '');
-    assert.equal(byTenantEmail.body.message, byUnknownEmail.body.message);
+    // The tenant who is browsing sees the same empty values.
+    const asTenant = await f.tenants.primary.client.get(`/api/properties/${agentPropertyId}`);
+    assert.equal(asTenant.status, 200);
+    for (const key of sensitive) {
+      assert.equal(asTenant.body.property[key], '');
+    }
 
-    // Staff can see what actually happened — that is where the difference lives.
-    const matchedView = await admin.get(`/api/properties/${byMatchedEmail.body.property.id}`);
-    assert.equal(matchedView.status, 200, JSON.stringify(matchedView.body));
-    assert.equal(matchedView.body.property.landlordId, existingLandlordId, 'a matched email links the landlord account');
-    assert.equal(matchedView.body.property.landlordContactClaimed, '');
+    // The provider themselves still sees their own listing's detail...
+    const asAgent = await f.agents.primary.client.get(`/api/properties/${agentPropertyId}`);
+    assert.equal(asAgent.status, 200);
+    assert.equal(asAgent.body.property.submittedByUserId, f.agents.primary.id);
+    assert.equal(asAgent.body.property.submittedByRole, 'agent');
 
-    const matchedPhoneView = await admin.get(`/api/properties/${byMatchedPhone.body.property.id}`);
-    assert.equal(matchedPhoneView.body.property.landlordId, existingLandlordId, 'a matched phone links the landlord account');
+    // ...and staff see everything.
+    const asAdmin = await admin.get(`/api/properties/${landlordPropertyId}`);
+    assert.equal(asAdmin.status, 200);
+    assert.equal(asAdmin.body.property.landlordId, f.landlords.primary.id);
+    assert.equal(asAdmin.body.property.submittedByRole, 'landlord');
 
-    const unknownView = await admin.get(`/api/properties/${byUnknownEmail.body.property.id}`);
-    assert.equal(unknownView.body.property.landlordId, '');
-    assert.ok(
-      String(unknownView.body.property.landlordContactClaimed).includes(unknownEmail),
-      'the unmatched claim is kept for staff follow-up'
-    );
-
-    const tenantClaimView = await admin.get(`/api/properties/${byTenantEmail.body.property.id}`);
-    assert.equal(tenantClaimView.body.property.landlordId, '', 'a tenant id/email never becomes a landlord link');
+    // No public payload carries a provider contact detail either.
+    const catalogue = await guest.get('/api/properties?limit=50');
+    const blob = JSON.stringify(catalogue.body);
+    for (const value of [f.agents.primary.email, f.landlords.primary.email]) {
+      assert.equal(blob.includes(value), false, 'the catalogue never carries a provider email address');
+    }
   });
 
   test('lifecycle events notify the right people, and refused actions notify nobody', async () => {
@@ -5247,8 +5125,16 @@ describe('Agent-led viewing lifecycle (Increment F)', () => {
     assert.equal(moved.status, 200, JSON.stringify(moved.body));
     const rescheduleNotes = fresh(tenantBeforeReschedule, await notificationsFor(tenantClient));
     assert.equal(rescheduleNotes.length, 1);
-    assert.match(rescheduleNotes[0].title, /Appointment rescheduled/i);
-    assert.match(rescheduleNotes[0].message, /Appointment: /);
+    assert.match(rescheduleNotes[0].title, /Reschedule requested/i);
+    assert.match(rescheduleNotes[0].message, /Note: Landlord asked to move it/);
+
+    // --- 5b. the tenant accepts, and the agent is told ---------------------
+    const agentBeforeAccept = await notificationsFor(agent);
+    const accepted = await action(tenantClient, id, 'accept-reschedule', {});
+    assert.equal(accepted.status, 200, JSON.stringify(accepted.body));
+    const acceptNotes = fresh(agentBeforeAccept, await notificationsFor(agent));
+    assert.equal(acceptNotes.length, 1);
+    assert.match(acceptNotes[0].title, /Appointment rescheduled/i);
 
     // --- 6. completing too early notifies nobody ---------------------------
     const agentBeforeEarly = await notificationsFor(agent);
@@ -6324,3 +6210,4 @@ describe('Receipt-specific reversals and concurrency (audit R3/R4)', () => {
     assert.equal(after.remittances.length, 0, 'no receipt was written');
   });
 });
+// ---------------------------------------------------------------------------

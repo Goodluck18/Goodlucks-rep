@@ -1072,6 +1072,7 @@ describe('Ownership attribution is preserved', () => {
     await activateAgent(admin, agent);
     const created = await agent.client.post('/api/properties', newListing({
       title: 'Ownership attribution listing',
+      // Upgrade 2 (C1): stale landlord fields are ignored rather than trusted.
       landlordEmail: landlord.email,
       landlordName: 'Named Landlord',
       viewingFeeGhs: 120,
@@ -1081,7 +1082,8 @@ describe('Ownership attribution is preserved', () => {
 
     assert.equal(property.submittedByUserId, agent.id);
     assert.equal(property.submittedByRole, 'agent');
-    assert.equal(property.landlordAuthorityState, 'claimed_by_agent');
+    assert.equal(property.landlordAuthorityState, 'not_applicable');
+    assert.equal(property.landlordId, '', 'an independent agent listing attaches no landlord account');
     assert.notEqual(property.landlordId, agent.id, 'the agent is never the owner');
 
     // The declaration is not proof: the listing is unverified until staff check it.

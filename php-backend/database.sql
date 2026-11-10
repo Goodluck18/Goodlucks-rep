@@ -54,6 +54,18 @@ CREATE TABLE IF NOT EXISTS `users` (
   `can_correct_viewings` TINYINT(1) NOT NULL DEFAULT 0,
   `can_view_finance` TINYINT(1) NOT NULL DEFAULT 0,
   `can_confirm_remittances` TINYINT(1) NOT NULL DEFAULT 0,
+  -- Upgrade 2: the PRIMARY platform administrator. Exactly one account holds
+  -- this (assigned only from the server console by
+  -- php-backend/assign_primary_admin.php). It is the union of every staff
+  -- capability, and it is the only account allowed to approve a fee policy it
+  -- created itself. It is NOT implied by `role = 'admin'`, and no HTTP route can
+  -- set it.
+  `is_primary_admin` TINYINT(1) NOT NULL DEFAULT 0,
+  -- Upgrade 2 Phase 3: the user directory and bulk email are their own powers,
+  -- granted from the server console like the other capabilities. Default deny.
+  `can_manage_users` TINYINT(1) NOT NULL DEFAULT 0,
+  `can_view_user_activity` TINYINT(1) NOT NULL DEFAULT 0,
+  `can_send_bulk_email` TINYINT(1) NOT NULL DEFAULT 0,
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` DATETIME DEFAULT NULL,
   PRIMARY KEY (`id`),
@@ -118,6 +130,22 @@ CREATE TABLE IF NOT EXISTS `properties` (
   `viewing_terms_state` VARCHAR(24) NOT NULL DEFAULT 'not_set',
   `viewing_terms_updated_at` DATETIME DEFAULT NULL,
   `viewing_terms_approved_by` VARCHAR(64) DEFAULT NULL,
+  -- Upgrade 2 (B2): coordinates are optional and never guessed. Proximity is
+  -- scored from administrator-maintained area adjacency today; these columns let
+  -- a real distance replace that later without a schema change.
+  `latitude` DECIMAL(10,7) DEFAULT NULL,
+  `longitude` DECIMAL(10,7) DEFAULT NULL,
+  -- Upgrade 2 (C5): structured specs and canonical amenities (free text kept in amenities_note).
+  `toilets` INT DEFAULT NULL,
+  `kitchens` INT DEFAULT NULL,
+  `furnishing` VARCHAR(40) DEFAULT NULL,
+  `amenities_note` TEXT,
+  -- Upgrade 2 (C4): a YouTube/TikTok/Facebook video, stored canonically.
+  `video_provider` VARCHAR(20) DEFAULT NULL,
+  `video_url` VARCHAR(600) DEFAULT NULL,
+  -- Upgrade 2 (C6): the provider's expectation — never a platform fee.
+  `provider_commission_percent` DECIMAL(5,2) DEFAULT NULL,
+  `provider_commission_note` VARCHAR(500) DEFAULT NULL,
   `views_count` INT NOT NULL DEFAULT 0,
   `enquiries_count` INT NOT NULL DEFAULT 0,
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -591,6 +619,53 @@ CREATE TABLE IF NOT EXISTS `audit_logs` (
 -- Money never moves because of this table. Applying a policy writes an
 -- immutable snapshot (table 29); revenue is recognised only from a remittance.
 -- ------------------------------------------------------------
+-- Upgrade 2 (B2): how close two neighbourhoods are, as decided by staff.
+-- One row per undirected pair (area_a < area_b, both lower-case), so A→B and
+-- B→A can never disagree. Nothing here invents a distance: it records a
+-- judgement the platform can defend, and listings without a recorded
+-- relationship simply earn no proximity points.
+-- Upgrade 2 Phase 5 (B6): the approved contact-disclosure chain. One row per
+-- (viewing, provider). A tenant's phone number and email address are released
+-- only while `status = 'approved'` and `expires_at` has not passed; every
+-- decision is also written to audit_logs.
+CREATE TABLE IF NOT EXISTS `contact_disclosures` (
+  `id` VARCHAR(64) NOT NULL,
+  `viewing_id` VARCHAR(64) NOT NULL,
+  `property_id` VARCHAR(64) DEFAULT NULL,
+  `property_title` VARCHAR(255) NOT NULL DEFAULT '',
+  `provider_user_id` VARCHAR(64) NOT NULL,
+  `provider_name` VARCHAR(200) NOT NULL DEFAULT '',
+  `tenant_user_id` VARCHAR(64) DEFAULT NULL,
+  `tenant_name` VARCHAR(200) NOT NULL DEFAULT '',
+  `requested_by` VARCHAR(64) DEFAULT NULL,
+  `reason` VARCHAR(500) NOT NULL DEFAULT '',
+  `status` VARCHAR(24) NOT NULL DEFAULT 'pending',
+  `decided_by` VARCHAR(64) DEFAULT NULL,
+  `decided_at` DATETIME DEFAULT NULL,
+  `decision_note` VARCHAR(500) DEFAULT NULL,
+  `expires_at` DATETIME DEFAULT NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` DATETIME DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `idx_cd_viewing_provider` (`viewing_id`, `provider_user_id`),
+  KEY `idx_cd_status` (`status`, `created_at`),
+  KEY `idx_cd_tenant` (`tenant_user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `area_adjacency` (
+  `id` VARCHAR(64) NOT NULL,
+  `area_a` VARCHAR(120) NOT NULL,
+  `area_b` VARCHAR(120) NOT NULL,
+  `band` TINYINT NOT NULL DEFAULT 2,
+  `note` VARCHAR(300) DEFAULT NULL,
+  `created_by` VARCHAR(64) DEFAULT NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` DATETIME DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `idx_area_pair` (`area_a`, `area_b`),
+  KEY `idx_area_second` (`area_b`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS `fee_policies` (
   `id` VARCHAR(64) NOT NULL,
   `name` VARCHAR(160) NOT NULL DEFAULT '',
@@ -617,6 +692,12 @@ CREATE TABLE IF NOT EXISTS `fee_policies` (
   `submitted_at` DATETIME DEFAULT NULL,
   `approved_by` VARCHAR(64) DEFAULT NULL,
   `approved_at` DATETIME DEFAULT NULL,
+  -- Upgrade 2: set only when the PRIMARY administrator approved a policy they
+  -- created themselves. Every other administrator still needs a second person.
+  -- The exception is recorded, not hidden, so the trail shows who approved what
+  -- and why the separation-of-duties rule did not apply.
+  `self_approved` TINYINT(1) NOT NULL DEFAULT 0,
+  `self_approved_at` DATETIME DEFAULT NULL,
   `rejected_by` VARCHAR(64) DEFAULT NULL,
   `rejected_at` DATETIME DEFAULT NULL,
   `rejection_reason` TEXT DEFAULT NULL,
@@ -919,6 +1000,9 @@ CREATE TABLE IF NOT EXISTS `fee_policy_events` (
   `from_status` VARCHAR(24) NOT NULL DEFAULT '',
   `to_status` VARCHAR(24) NOT NULL DEFAULT '',
   `note` TEXT DEFAULT NULL,
+  -- Upgrade 2 Phase 4: the values that changed, so the trail shows old → new
+  -- rather than only the fact that something was edited.
+  `changes_json` LONGTEXT DEFAULT NULL,
   `actor_id` VARCHAR(64) DEFAULT NULL,
   `actor_name` VARCHAR(200) DEFAULT NULL,
   `created_at` DATETIME(6) NOT NULL,
@@ -1184,4 +1268,62 @@ CREATE TABLE IF NOT EXISTS `email_templates` (
   PRIMARY KEY (`id`),
   KEY `idx_email_template_type` (`target_type`, `status`),
   KEY `idx_email_template_status` (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ===========================================================================
+-- Upgrade 2 Phase 3: bulk email campaigns and email preferences
+--
+-- One message per recipient: `email_campaign_recipients` points at the row in
+-- `email_outbox` that carries that one address. There is no recipient list in
+-- any single message, so no recipient can see another's address.
+-- ===========================================================================
+CREATE TABLE IF NOT EXISTS `email_preferences` (
+  `email` VARCHAR(255) NOT NULL,
+  `user_id` VARCHAR(64) DEFAULT NULL,
+  -- Marketing is opt-in: 0 until the address holder says otherwise.
+  `marketing_opt_in` TINYINT(1) NOT NULL DEFAULT 0,
+  `unsubscribe_token` VARCHAR(64) NOT NULL,
+  `opted_in_at` DATETIME DEFAULT NULL,
+  `unsubscribed_at` DATETIME DEFAULT NULL,
+  `created_at` DATETIME NOT NULL,
+  `updated_at` DATETIME DEFAULT NULL,
+  PRIMARY KEY (`email`),
+  UNIQUE KEY `uniq_email_preference_token` (`unsubscribe_token`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `email_campaigns` (
+  `id` VARCHAR(64) NOT NULL,
+  `subject` VARCHAR(200) NOT NULL,
+  `body_html` LONGTEXT NOT NULL,
+  -- all | tenants | landlords | agents | admins | providers
+  `audience` VARCHAR(32) NOT NULL DEFAULT 'all',
+  -- marketing (opt-in only) | service (non-optional account notices)
+  `kind` VARCHAR(16) NOT NULL DEFAULT 'marketing',
+  -- draft | queued | sent | partly_failed
+  `status` VARCHAR(16) NOT NULL DEFAULT 'draft',
+  `created_by` VARCHAR(64) DEFAULT NULL,
+  `recipient_total` INT NOT NULL DEFAULT 0,
+  `skipped_unsubscribed` INT NOT NULL DEFAULT 0,
+  `created_at` DATETIME NOT NULL,
+  `updated_at` DATETIME DEFAULT NULL,
+  `queued_at` DATETIME DEFAULT NULL,
+  `completed_at` DATETIME DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_campaign_status` (`status`, `created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `email_campaign_recipients` (
+  `id` VARCHAR(64) NOT NULL,
+  `campaign_id` VARCHAR(64) NOT NULL,
+  `email` VARCHAR(255) NOT NULL,
+  `name` VARCHAR(255) NOT NULL DEFAULT '',
+  -- queued | sent | failed. The outbox row remains the truth for delivery.
+  `status` VARCHAR(16) NOT NULL DEFAULT 'queued',
+  `outbox_id` VARCHAR(64) DEFAULT NULL,
+  `error` VARCHAR(500) DEFAULT NULL,
+  `created_at` DATETIME NOT NULL,
+  `sent_at` DATETIME DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uniq_campaign_recipient` (`campaign_id`, `email`),
+  KEY `idx_campaign_recipient_status` (`campaign_id`, `status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

@@ -83,9 +83,34 @@ $requiredColumns = [
         // Increment G: reading money records and moving money are separate powers.
         'can_view_finance'             => "TINYINT(1) NOT NULL DEFAULT 0 AFTER `can_correct_viewings`",
         'can_confirm_remittances'      => "TINYINT(1) NOT NULL DEFAULT 0 AFTER `can_view_finance`",
+        // Upgrade 2: the primary platform administrator. Assigned only from the
+        // server console (assign_primary_admin.php); no HTTP route sets it, and
+        // `role = 'admin'` does not imply it. Existing accounts stay 0.
+        'is_primary_admin'             => "TINYINT(1) NOT NULL DEFAULT 0 AFTER `can_confirm_remittances`",
+        // Upgrade 2 Phase 3: the user directory and bulk email are separate
+        // capabilities, granted from the server console. Default deny.
+        'can_manage_users'             => "TINYINT(1) NOT NULL DEFAULT 0 AFTER `is_primary_admin`",
+        'can_view_user_activity'       => "TINYINT(1) NOT NULL DEFAULT 0 AFTER `can_manage_users`",
+        'can_send_bulk_email'          => "TINYINT(1) NOT NULL DEFAULT 0 AFTER `can_view_user_activity`",
         'updated_at'          => "DATETIME DEFAULT NULL",
     ],
     'properties' => [
+        // Upgrade 2 (B2): optional coordinates. Existing listings keep NULL and
+        // are never geocoded behind anyone's back; proximity is scored from the
+        // administrator-maintained area adjacency instead.
+        'latitude'             => "DECIMAL(10,7) DEFAULT NULL",
+        'longitude'            => "DECIMAL(10,7) DEFAULT NULL",
+        // Upgrade 2 Phase 6: structured specs, canonical amenities, an approved
+        // video and the provider's own commission expectation. All nullable, so
+        // every existing listing keeps rendering exactly as it did.
+        'toilets'              => "INT DEFAULT NULL",
+        'kitchens'             => "INT DEFAULT NULL",
+        'furnishing'           => "VARCHAR(40) DEFAULT NULL",
+        'amenities_note'       => "TEXT DEFAULT NULL",
+        'video_provider'       => "VARCHAR(20) DEFAULT NULL",
+        'video_url'            => "VARCHAR(600) DEFAULT NULL",
+        'provider_commission_percent' => "DECIMAL(5,2) DEFAULT NULL",
+        'provider_commission_note'    => "VARCHAR(500) DEFAULT NULL",
         'landlord_name'        => "VARCHAR(255) DEFAULT NULL AFTER `landlord_id`",
         'landlord_company'     => "VARCHAR(255) DEFAULT NULL AFTER `landlord_name`",
         // Increment C: who actually submitted the listing, and whether landlord
@@ -109,6 +134,11 @@ $requiredColumns = [
         'viewing_terms_updated_at' => "DATETIME DEFAULT NULL AFTER `viewing_terms_state`",
         'viewing_terms_approved_by' => "VARCHAR(64) DEFAULT NULL AFTER `viewing_terms_updated_at`",
         'updated_at'           => "DATETIME DEFAULT NULL",
+    ],
+    'fee_policy_events' => [
+        // Upgrade 2 Phase 4: old -> new values on every event. Existing events
+        // keep NULL, which the console reads as "no field changes recorded".
+        'changes_json' => "LONGTEXT DEFAULT NULL AFTER `note`",
     ],
     'verification_documents' => [
         // Task 03: per-document reviewer outcome. Existing documents keep
@@ -224,6 +254,10 @@ $requiredColumns = [
         'rejected_at'          => "DATETIME DEFAULT NULL AFTER `rejected_by`",
         'rejection_reason'     => "TEXT DEFAULT NULL AFTER `rejected_at`",
         'activated_by'         => "VARCHAR(64) DEFAULT NULL AFTER `rejection_reason`",
+        // Upgrade 2: records that the primary administrator approved a policy it
+        // created itself. Existing rows stay 0.
+        'self_approved'        => "TINYINT(1) NOT NULL DEFAULT 0 AFTER `approved_at`",
+        'self_approved_at'     => "DATETIME DEFAULT NULL AFTER `self_approved`",
         'activated_at'         => "DATETIME DEFAULT NULL AFTER `activated_by`",
         'deactivated_by'       => "VARCHAR(64) DEFAULT NULL AFTER `activated_at`",
         'deactivated_at'       => "DATETIME DEFAULT NULL AFTER `deactivated_by`",
@@ -255,7 +289,10 @@ $requiredTables = ['auth_sessions', 'enquiries', 'search_alerts', 'saved_propert
     // Task 03 update: administrator-controlled settings (landlord viewing fee).
     'platform_settings',
     // Task 07: Blog & Learning Centre, plus the extended email templates.
-    'blog_categories', 'blog_posts', 'blog_post_properties', 'email_templates'];
+    'blog_categories', 'blog_posts', 'blog_post_properties', 'email_templates',
+    // Upgrade 2 Phase 5: administrator-maintained area proximity, and the
+    // approved tenant-contact disclosure chain.
+    'area_adjacency', 'contact_disclosures'];
 
 function existing_tables(PDO $pdo): array
 {

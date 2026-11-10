@@ -7,7 +7,6 @@ import {
   NotificationItem,
   Property,
   PropertyStatus,
-  RentReceipt,
   SearchAlertSubscription,
   TenantRequest,
   ToastNotification,
@@ -97,9 +96,6 @@ interface AppContextType {
   viewingSchedules: ViewingSchedule[];
   emailLogs: EmailLog[];
   emailOutbox: EmailOutboxSummary;
-  receipts: RentReceipt[];
-  /** False while receipt issuing is disabled server-side (Increment B pending). */
-  receiptIssuingEnabled: boolean;
   notifications: NotificationItem[];
   enquiries: Enquiry[];
   analytics: AdminStats;
@@ -190,13 +186,12 @@ interface AppContextType {
   /** Run a lifecycle action (propose, confirm, reschedule, cancel, complete…) and refresh. */
   runViewingAction: (
     id: string,
-    action: 'propose' | 'confirm' | 'reschedule' | 'request-reschedule' | 'cancel' | 'complete' | 'no-show' | 'could-not-proceed',
+    action: 'propose' | 'confirm' | 'reschedule' | 'request-reschedule' | 'accept-reschedule' | 'decline-reschedule' | 'cancel' | 'complete' | 'no-show' | 'could-not-proceed',
     body?: { date?: string; time?: string; note?: string; reason?: string; who?: 'tenant' | 'agent' }
   ) => Promise<{ ok: boolean; error?: string; fields?: Record<string, string> }>;
   refreshViewings: () => Promise<void>;
 
   // Rent payment records
-  createReceipt: (data: Record<string, unknown>) => Promise<RentReceipt>;
 
   // Alerts & enquiries
   subscribeToSearchAlerts: (data: SearchAlertInput) => Promise<SearchAlertSubscription>;
@@ -292,8 +287,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     sentToday: 0,
     oldestPendingAt: null,
   });
-  const [receipts, setReceipts] = useState<RentReceipt[]>([]);
-  const [receiptIssuingEnabled, setReceiptIssuingEnabled] = useState(false);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [enquiries, setEnquiries] = useState<Enquiry[]>([]);
   const [analytics, setAnalytics] = useState<AdminStats>(EMPTY_STATS);
@@ -377,8 +370,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setViewingSchedules([]);
       setNotifications([]);
       setSearchAlerts([]);
-      setReceipts([]);
-      setReceiptIssuingEnabled(false);
       setEmailLogs([]);
       setEmailOutbox({ pending: 0, failed: 0, sentToday: 0, oldestPendingAt: null });
       setEnquiries([]);
@@ -402,9 +393,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setEmailOutbox(logs.outbox);
       setEnquiries(enquiryResult.enquiries);
       setSearchAlerts(alerts.alerts);
-      const receiptResult = await api.listReceipts().catch(() => ({ receipts: [], issuingEnabled: false }));
-      setReceipts(receiptResult.receipts);
-      setReceiptIssuingEnabled(Boolean(receiptResult.issuingEnabled));
       return;
     }
 
@@ -422,42 +410,36 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setViewingSchedules(viewings.viewings);
       setTenantRequests([]);
       setSearchAlerts([]);
-      setReceipts([]);
-      setReceiptIssuingEnabled(false);
       return;
     }
 
     if (user.role === 'landlord') {
-      const [viewings, notificationsResult, savedResult, receiptResult] = await Promise.all([
+      const [viewings, notificationsResult, savedResult] = await Promise.all([
         api.listViewings().catch(() => ({ viewings: [] })),
         api.listNotifications().catch(() => ({ notifications: [] })),
         api.listSaved().catch(() => ({ propertyIds: [] })),
-        api.listReceipts().catch(() => ({ receipts: [], issuingEnabled: false })),
       ]);
       setViewingSchedules(viewings.viewings);
       setNotifications(notificationsResult.notifications);
       setSavedPropertyIds(savedResult.propertyIds);
-      setReceipts(receiptResult.receipts);
-      setReceiptIssuingEnabled(Boolean(receiptResult.issuingEnabled));
       setTenantRequests([]);
       return;
     }
 
-    const [requests, viewings, notificationsResult, alerts, savedResult, receiptResult] = await Promise.all([
+    // Upgrade 2 (E1): rent receipts were removed from the product, so no branch
+    // here asks for them any more. The stored history is untouched.
+    const [requests, viewings, notificationsResult, alerts, savedResult] = await Promise.all([
       api.listTenantRequests().catch(() => ({ requests: [] })),
       api.listViewings().catch(() => ({ viewings: [] })),
       api.listNotifications().catch(() => ({ notifications: [] })),
       api.listSearchAlerts().catch(() => ({ alerts: [] })),
       api.listSaved().catch(() => ({ propertyIds: [] })),
-      api.listReceipts().catch(() => ({ receipts: [], issuingEnabled: false })),
     ]);
     setTenantRequests(requests.requests);
     setViewingSchedules(viewings.viewings);
     setNotifications(notificationsResult.notifications);
     setSearchAlerts(alerts.alerts);
     setSavedPropertyIds(savedResult.propertyIds);
-    setReceipts(receiptResult.receipts);
-    setReceiptIssuingEnabled(Boolean(receiptResult.issuingEnabled));
   }, []);
 
   const refreshAll = useCallback(
@@ -1020,7 +1002,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const runViewingAction = useCallback(
     async (
       id: string,
-      action: 'propose' | 'confirm' | 'reschedule' | 'request-reschedule' | 'cancel' | 'complete' | 'no-show' | 'could-not-proceed',
+      action: 'propose' | 'confirm' | 'reschedule' | 'request-reschedule' | 'accept-reschedule' | 'decline-reschedule' | 'cancel' | 'complete' | 'no-show' | 'could-not-proceed',
       body: { date?: string; time?: string; note?: string; reason?: string; who?: 'tenant' | 'agent' } = {}
     ) => {
       try {
@@ -1060,19 +1042,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       showSuccessToast('Viewing Status Updated', `Viewing status set to ${status.toUpperCase()}.`);
     },
     [currentUser, showSuccessToast]
-  );
-
-  // -------------------------------------------------------------------------
-  // Rent payment records
-  // -------------------------------------------------------------------------
-  const createReceipt = useCallback(
-    async (data: Record<string, unknown>) => {
-      const result = await api.createReceipt(data);
-      setReceipts((prev) => [result.receipt, ...prev]);
-      showSuccessToast('Payment record saved', `Record ${result.receipt.receiptNo} saved.`);
-      return result.receipt;
-    },
-    [showSuccessToast]
   );
 
   // -------------------------------------------------------------------------
@@ -1181,8 +1150,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       tenantRequests,
       viewingSchedules,
       emailLogs,
-      receipts,
-      receiptIssuingEnabled,
       notifications,
       enquiries,
       analytics,
@@ -1227,7 +1194,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       runViewingAction,
       refreshViewings,
       updateViewingStatus,
-      createReceipt,
       subscribeToSearchAlerts,
       unsubscribeFromSearchAlerts,
       sendEnquiry,
@@ -1249,8 +1215,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       tenantRequests,
       viewingSchedules,
       emailLogs,
-      receipts,
-      receiptIssuingEnabled,
       notifications,
       enquiries,
       analytics,
@@ -1295,7 +1259,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       runViewingAction,
       refreshViewings,
       updateViewingStatus,
-      createReceipt,
       subscribeToSearchAlerts,
       unsubscribeFromSearchAlerts,
       sendEnquiry,

@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { api, messageForError, PropertyMatch } from '../services/apiService';
-import type { ViewingSchedule } from '../types';
+import type { ViewingSchedule, ContactDisclosure } from '../types';
 import { PropertyCard } from './PropertyCard';
+import { PropertyCardGrid } from './PropertyCardGrid';
 import {
   User,
   Clock,
@@ -21,7 +22,7 @@ import {
   Plus,
   Search,
   Check,
-  FileCheck,
+  CalendarCheck,
   ArrowRight,
 } from 'lucide-react';
 import {
@@ -68,7 +69,13 @@ const TenantViewingCard: React.FC<{ viewing: ViewingSchedule; onOpenProperty: (i
   const [time, setTime] = useState(viewing.preferredTime || viewing.time);
   const [busy, setBusy] = useState<string | null>(null);
 
-  const run = async (action: 'cancel' | 'request-reschedule' | 'confirm' | 'no-show') => {
+  const run = async (
+    action: 'cancel' | 'request-reschedule' | 'confirm' | 'no-show' | 'accept-reschedule' | 'decline-reschedule'
+  ) => {
+    if (action === 'request-reschedule' && note.trim() === '') {
+      showErrorToast('Say why', 'Give the provider a reason the time no longer works.');
+      return;
+    }
     setBusy(action);
     const result = await runViewingAction(
       viewing.id,
@@ -76,7 +83,7 @@ const TenantViewingCard: React.FC<{ viewing: ViewingSchedule; onOpenProperty: (i
       action === 'cancel'
         ? { reason: note || 'Cancelled by the tenant', note: note || undefined }
         : action === 'request-reschedule'
-          ? { date, time, note: note || undefined }
+          ? { date, time, note: note || undefined, reason: note }
           : action === 'no-show'
             ? { who: 'agent', note: note || undefined }
             : { note: note || undefined }
@@ -125,6 +132,15 @@ const TenantViewingCard: React.FC<{ viewing: ViewingSchedule; onOpenProperty: (i
         <p className="text-[11px] text-amber-700/90">
           Not confirmed yet. The agent will contact you to agree a time; until then nothing is booked.
         </p>
+      )}
+      {viewing.status === 'reschedule_requested' && (
+        <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3 space-y-1">
+          <p className="text-[11px] font-bold text-amber-800">A new time has been proposed</p>
+          <p className="text-[11px] text-ink/70">
+            {viewing.preferredDate || '—'} {viewing.preferredTime ? `at ${viewing.preferredTime}` : ''}. The
+            appointment has not moved: accept the new time, or keep the one you already agreed.
+          </p>
+        </div>
       )}
       {viewing.cancelReason && (
         <p className="text-[11px] text-ink">Cancellation reason: {viewing.cancelReason}</p>
@@ -195,6 +211,24 @@ const TenantViewingCard: React.FC<{ viewing: ViewingSchedule; onOpenProperty: (i
               >
                 Accept this time
               </button>
+            )}
+            {viewing.status === 'reschedule_requested' && (
+              <>
+                <button
+                  disabled={busy !== null}
+                  onClick={() => void run('accept-reschedule')}
+                  className="px-3 py-1.5 rounded-lg bg-emerald-500/15 text-emerald-700 text-[11px] font-bold disabled:opacity-50"
+                >
+                  {busy === 'accept-reschedule' ? 'Accepting…' : 'Accept the new time'}
+                </button>
+                <button
+                  disabled={busy !== null}
+                  onClick={() => void run('decline-reschedule')}
+                  className="px-3 py-1.5 rounded-lg bg-page text-ink text-[11px] font-bold disabled:opacity-50"
+                >
+                  Keep the agreed time
+                </button>
+              </>
             )}
             {viewing.isConfirmed && (
               <button
@@ -282,6 +316,13 @@ export const TenantDashboard: React.FC = () => {
   // so this dashboard never invents a percentage. Staff-curated matches come
   // back first, then the best-scoring live listings.
   const [matches, setMatches] = useState<PropertyMatch[]>([]);
+  // Upgrade 2 (B3): the staff shortlist and the scored longlist are two
+  // different promises, so they are kept apart and labelled.
+  const [curatedForYou, setCuratedForYou] = useState<PropertyMatch[]>([]);
+  const [similarMatches, setSimilarMatches] = useState<PropertyMatch[]>([]);
+  const [curationWarning, setCurationWarning] = useState<string | null>(null);
+  // Upgrade 2 (B6): what Goodlucks has shared about this tenant, with whom.
+  const [sharedContacts, setSharedContacts] = useState<ContactDisclosure[]>([]);
   const [matchesLoading, setMatchesLoading] = useState(true);
 
   useEffect(() => {
@@ -296,10 +337,21 @@ export const TenantDashboard: React.FC = () => {
     api
       .matches()
       .then((result) => {
-        if (!cancelled) setMatches(result.matches ?? []);
+        if (cancelled) return;
+        const all = result.matches ?? [];
+        const chosen = result.curatedForYou ?? all.filter((entry) => entry.curated);
+        const similar = result.similarMatches ?? all.filter((entry) => !entry.curated);
+        setMatches(all);
+        setCuratedForYou(chosen);
+        setSimilarMatches(similar);
+        setCurationWarning(result.curationWarning ?? null);
       })
       .catch(() => {
-        if (!cancelled) setMatches([]);
+        if (cancelled) return;
+        setMatches([]);
+        setCuratedForYou([]);
+        setSimilarMatches([]);
+        setCurationWarning(null);
       })
       .finally(() => {
         if (!cancelled) setMatchesLoading(false);
@@ -309,6 +361,22 @@ export const TenantDashboard: React.FC = () => {
       cancelled = true;
     };
   }, [currentUser, activeRequest?.id]);
+
+  useEffect(() => {
+    if (!currentUser) return;
+    let cancelled = false;
+    api
+      .myContactDisclosures()
+      .then((result) => {
+        if (!cancelled) setSharedContacts(result.disclosures ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setSharedContacts([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUser]);
 
   const matchedProps = matches.map((match) => match.property);
   const topMatchScore = matches[0]?.score ?? 0;
@@ -540,10 +608,10 @@ export const TenantDashboard: React.FC = () => {
               </button>
               <button
                 type="button"
-                onClick={() => setCurrentView('receipts')}
+                onClick={() => navigate('/tenant/viewings')}
                 className="px-3 py-2.5 rounded-xl bg-surface border border-line text-xs font-bold text-ink hover:border-interactive/40 transition-colors flex items-center gap-1.5"
               >
-                <FileCheck className="w-3.5 h-3.5 text-ink" /> My payment records
+                <CalendarCheck className="w-3.5 h-3.5 text-ink" /> My viewings
               </button>
             </div>
           </section>
@@ -649,24 +717,88 @@ export const TenantDashboard: React.FC = () => {
             }
           />
 
-          {matches.length > 0 ? (
-            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6">
-              {matches.map(({ property, score, reason, curated }) => (
-                <div key={property.id} className="relative">
-                  <div
-                    title={reason}
-                    className={`absolute top-3 left-3 z-20 font-black text-[10px] px-2 py-0.5 rounded-md shadow-md flex items-center gap-1 ${
-                      curated ? 'bg-interactive text-ink' : 'bg-emerald-500 text-ink'
-                    }`}
-                  >
-                    <Sparkles className="w-3 h-3" />
-                    {curated ? 'Chosen for you' : `${score}% match`}
+          {/* Upgrade 2 (B3): two sections, in the order the promise matters.
+              "Chosen for you" is a staff recommendation and comes first; the
+              scored longlist is labelled as the machine's opinion, with the
+              reasons behind every number. */}
+          {curatedForYou.length > 0 && (
+            <div className="space-y-3 rounded-2xl border border-interactive/40 bg-interactive/5 p-3">
+              <div>
+                <h3 className="text-sm font-bold text-ink flex items-center gap-1.5">
+                  <Sparkles className="w-4 h-4" /> Chosen for you
+                </h3>
+                <p className="text-[11px] text-ink/70">
+                  Selected by the Goodlucks team for your request — {curatedForYou.length}{' '}
+                  {curatedForYou.length === 1 ? 'property' : 'properties'}. These come first before any automated score.
+                </p>
+                {curationWarning && <p className="text-[10px] text-amber-700 mt-1">{curationWarning}</p>}
+              </div>
+              <PropertyCardGrid
+                properties={curatedForYou.map((entry) => entry.property)}
+                label="Chosen for you"
+                renderCard={(property, layout) => (
+                  <div key={property.id} className="relative">
+                    <div className="absolute top-3 left-3 z-20 bg-interactive text-ink font-black text-[10px] px-2 py-0.5 rounded-md shadow-md flex items-center gap-1">
+                      <Sparkles className="w-3 h-3" /> Chosen for you
+                    </div>
+                    <PropertyCard property={property} layout={layout} />
                   </div>
-                  <PropertyCard property={property} />
-                </div>
-              ))}
+                )}
+              />
             </div>
-          ) : (
+          )}
+
+          {similarMatches.length > 0 && (
+            <div className="space-y-3">
+              <div>
+                <h3 className="text-sm font-bold text-ink">See similar matches</h3>
+                <p className="text-[11px] text-ink/70">
+                  Scored against your budget, preferred areas, proximity, property type, bedrooms and bathrooms. These
+                  are suggestions, not a staff shortlist.
+                </p>
+              </div>
+              <PropertyCardGrid
+                properties={similarMatches.map((entry) => entry.property)}
+                label="Similar matches"
+                renderCard={(property, layout) => {
+                  const entry = similarMatches.find((candidate) => candidate.property.id === property.id);
+                  if (!entry) return null;
+                  return (
+                    <div key={property.id} className="relative">
+                      <div
+                        title={entry.reason}
+                        className="absolute top-3 left-3 z-20 bg-emerald-500 text-ink font-black text-[10px] px-2 py-0.5 rounded-md shadow-md flex items-center gap-1"
+                      >
+                        {entry.band?.label ?? 'Match'} · {entry.score}%
+                      </div>
+                      <PropertyCard property={property} layout={layout} />
+                    </div>
+                  );
+                }}
+              />
+              <details className="bg-surface border border-line rounded-2xl p-3">
+                <summary className="text-[11px] font-bold text-ink cursor-pointer">Why these scores?</summary>
+                <ul className="mt-2 space-y-2">
+                  {similarMatches.slice(0, 6).map((entry) => (
+                    <li key={`why-${entry.property.id}`} className="text-[10px] text-ink/70">
+                      <span className="font-bold text-ink">{entry.property.title}</span> — {entry.reason}
+                      {entry.breakdown && (
+                        <ul className="mt-1 grid grid-cols-2 sm:grid-cols-3 gap-x-3">
+                          {entry.breakdown.map((factor) => (
+                            <li key={`${entry.property.id}-${factor.factor}`}>
+                              {factor.label}: {factor.points}/{factor.max}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            </div>
+          )}
+
+          {matches.length === 0 ? (
             <EmptyState
               icon={Sparkles}
               title={matchesLoading ? 'Scoring listings…' : 'No matches to show yet'}
@@ -687,7 +819,7 @@ export const TenantDashboard: React.FC = () => {
                 ) : undefined
               }
             />
-          )}
+          ) : null}
         </div>
       )}
 
@@ -698,6 +830,30 @@ export const TenantDashboard: React.FC = () => {
             title="Viewings"
             description="A request is not a booking. It becomes a confirmed appointment when you and the agent agree a time."
           />
+
+          {sharedContacts.length > 0 && (
+            <div className="bg-surface border border-line rounded-2xl p-4 space-y-2">
+              <h3 className="text-xs font-bold text-ink flex items-center gap-1.5">
+                <Lock className="w-3.5 h-3.5" /> Who has your contact details
+              </h3>
+              <p className="text-[10px] text-ink/70">
+                Your phone number and email address are private. This is the record of what Goodlucks has shared, and
+                with whom.
+              </p>
+              <ul className="space-y-1">
+                {sharedContacts.map((row) => (
+                  <li key={row.id} className="text-[11px] text-ink/70">
+                    <span className="font-bold text-ink">{row.propertyTitle || 'A viewing'}</span> ·{' '}
+                    {row.providerName || 'Provider'} · {row.statusLabel}
+                    {row.status === 'approved' && row.expiresAt
+                      ? ` until ${new Date(row.expiresAt).toLocaleDateString()}`
+                      : ''}
+                    {row.decisionNote ? ` · ${row.decisionNote}` : ''}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           {myViewings.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -728,12 +884,9 @@ export const TenantDashboard: React.FC = () => {
       {activeSection === 'saved' && (
         <div className="space-y-4 animate-fadeIn">
           <SectionHeader title="Saved properties" description="Homes you kept for later." />
+          {/* Saved listings (Upgrade 2, A4): same pattern as the matches above. */}
           {savedProps.length > 0 ? (
-            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6">
-              {savedProps.map((property) => (
-                <PropertyCard key={property.id} property={property} />
-              ))}
-            </div>
+            <PropertyCardGrid properties={savedProps} label="Saved properties" />
           ) : (
             <EmptyState
               icon={Heart}

@@ -145,6 +145,23 @@
     box-shadow: var(--shadow-raised);
   }
 
+  /* ---- Mobile listing strip (Upgrade 2, A4) ------------------------------ */
+  /* One horizontal row of compact property cards on a phone. The reader swipes
+     the row leftwards (right → left) to reach the next listing; each card snaps
+     to the left edge so a card is never left half-cut. The scrollbar is hidden
+     because the strip is a gesture surface, not a document — the same cards are
+     in the grid from `sm` upwards, so nothing is only reachable by swiping. */
+  .gl-property-strip {
+    scroll-snap-type: x mandatory;
+    scroll-behavior: smooth;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .gl-property-strip::-webkit-scrollbar {
+    display: none;
+  }
+
   .gl-panel {
     background-color: var(--color-surface);
     border: 1px solid var(--color-line);

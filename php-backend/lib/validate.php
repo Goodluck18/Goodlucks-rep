@@ -10,10 +10,40 @@
 
 declare(strict_types=1);
 
-const PROPERTY_TYPES = ['Apartment', 'Luxury Villa', 'Townhouse', 'Studio', 'Duplex', 'Penthouse', 'Commercial'];
+const PROPERTY_TYPES = [
+    'Apartment', 'Luxury Villa', 'Townhouse', 'Studio', 'Duplex', 'Penthouse', 'Commercial',
+    // Upgrade 2 (C5): words people actually use, and the Ghanaian estate
+    // vocabulary. The original seven stay valid so no existing listing breaks.
+    'Flat', 'Detached', 'Semi-detached', 'Self-contained', 'House',
+];
 const PROPERTY_STATUSES = ['active', 'pending', 'rejected', 'rented', 'deactivated'];
-const ENQUIRY_STATUSES = ['new', 'contacted', 'closed'];
+/**
+ * The enquiry lifecycle (Upgrade 2, A10).
+ *
+ * `new`      — just arrived from a form
+ * `received` — an administrator has taken it on (acknowledged, not yet answered)
+ * `contacted`— the visitor has been contacted
+ * `replied`  — an answer was sent
+ * `closed`   — no further action
+ *
+ * Adding the two middle states is additive: an existing row keeps whatever
+ * status it already has, and every new value is validated on write.
+ */
+const ENQUIRY_STATUSES = ['new', 'received', 'contacted', 'replied', 'closed'];
 const REQUEST_STATUSES = ['submitted', 'searching', 'matched', 'viewing_scheduled', 'completed', 'cancelled'];
+
+/**
+ * Upgrade 2 (D1): how many rental requests a tenant may have *in progress*.
+ *
+ * The cap is about open requests, not history: once a request is matched,
+ * scheduled, completed or cancelled it no longer counts, so a tenant can always
+ * come back. A rental request is not a viewing request and the two budgets are
+ * counted separately.
+ */
+const TENANT_REQUEST_PENDING_LIMIT = 3;
+
+/** The statuses that count against TENANT_REQUEST_PENDING_LIMIT. */
+const TENANT_REQUEST_PENDING_STATUSES = ['submitted', 'searching'];
 const VIEWING_STATUSES = ['scheduled', 'completed', 'cancelled'];
 const USER_ROLES = ['tenant', 'landlord', 'agent', 'admin'];
 

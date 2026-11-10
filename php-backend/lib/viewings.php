@@ -114,25 +114,37 @@ function viewing_appointment_is_confirmed(array $viewing): bool
 function viewing_transition_matrix(): array
 {
     $requestish = [
-        'proposed'           => ['agent', 'admin'],
+        // Upgrade 2 (B5): a landlord may propose a time for their own listing,
+        // exactly like the agent responsible for it.
+        'proposed'           => ['agent', 'landlord', 'admin'],
         'cancelled'          => ['tenant', 'agent', 'landlord', 'admin'],
-        'could_not_proceed'  => ['agent', 'admin'],
+        'could_not_proceed'  => ['agent', 'landlord', 'admin'],
     ];
     $proposed = [
-        'confirmed'          => ['tenant', 'agent', 'admin'],
-        'proposed'           => ['agent', 'admin'],
-        'reschedule_requested' => ['tenant', 'agent', 'admin'],
+        'confirmed'          => ['tenant', 'agent', 'landlord', 'admin'],
+        'proposed'           => ['agent', 'landlord', 'admin'],
+        'reschedule_requested' => ['tenant', 'agent', 'landlord', 'admin'],
         'cancelled'          => ['tenant', 'agent', 'landlord', 'admin'],
-        'could_not_proceed'  => ['agent', 'admin'],
+        'could_not_proceed'  => ['agent', 'landlord', 'admin'],
     ];
     $confirmed = [
-        'reschedule_requested' => ['tenant', 'agent', 'admin'],
-        'rescheduled'        => ['agent', 'admin'],
+        'reschedule_requested' => ['tenant', 'agent', 'landlord', 'admin'],
+        // 'rescheduled' is deliberately absent. Upgrade 2 (B5): an agent or
+        // landlord can no longer move an agreed appointment on their own; they
+        // ask for a new time, and only the tenant accepts it.
         'cancelled'          => ['tenant', 'agent', 'landlord', 'admin'],
-        'completed'          => ['agent', 'admin'],
-        'tenant_no_show'     => ['agent', 'admin'],
+        'completed'          => ['agent', 'landlord', 'admin'],
+        'tenant_no_show'     => ['agent', 'landlord', 'admin'],
         'agent_no_show'      => ['tenant', 'admin'],
-        'could_not_proceed'  => ['agent', 'admin'],
+        'could_not_proceed'  => ['agent', 'landlord', 'admin'],
+    ];
+    // Upgrade 2 (B5): a pending reschedule is closed by the tenant — accepting
+    // the new slot moves the appointment, declining keeps the agreed one.
+    $rescheduleRequested = [
+        'rescheduled'        => ['tenant', 'admin'],
+        'confirmed'          => ['tenant', 'admin'],
+        'reschedule_requested' => ['tenant', 'agent', 'landlord', 'admin'],
+        'cancelled'          => ['tenant', 'agent', 'landlord', 'admin'],
     ];
 
     return [
@@ -141,7 +153,7 @@ function viewing_transition_matrix(): array
         'awaiting_agent'      => $requestish,
         'proposed'            => $proposed,
         'confirmed'           => $confirmed,
-        'reschedule_requested' => $proposed,
+        'reschedule_requested' => $rescheduleRequested,
         'rescheduled'         => $confirmed,
         // Terminal statuses: no normal exits at all.
         'cancelled'           => [],
@@ -272,6 +284,118 @@ function require_viewing_view(array $viewing, ?array $user): array
     }
 
     return ['role' => $access['role']];
+}
+
+// ---------------------------------------------------------------------------
+// Tenant contact disclosure (Upgrade 2, step 1)
+//
+// A tenant's phone number and email address are private. Goodlucks staff see
+// them (they arrange viewings), and the tenant always sees their own record.
+// An AGENT or LANDLORD does not: until an administrator explicitly approves
+// sharing, the API returns those two fields empty and says why, so the console
+// can show an honest state instead of a blank row.
+//
+// This is deliberately a seam at the serialisation boundary — `shape_viewing()`
+// stays the trusted internal record so the code that emails the tenant still has
+// the real address. The full request → review → approve → revoke workflow ships
+// in Phase 5; until then every non-staff viewer is withheld, with no exceptions.
+// ---------------------------------------------------------------------------
+
+/**
+ * Is this viewer allowed to see the tenant's phone number and email address?
+ *
+ * @return array{visible:bool, state:string, reason:string}
+ */
+function viewing_tenant_contact_state(array $viewing, ?array $viewer): array
+{
+    if ($viewer === null) {
+        return [
+            'visible' => false,
+            'state'   => 'withheld',
+            'reason'  => 'Sign in to see this request.',
+        ];
+    }
+
+    if (is_admin($viewer)) {
+        return ['visible' => true, 'state' => 'staff', 'reason' => ''];
+    }
+
+    $userId = (string)($viewer['id'] ?? '');
+    $role = (string)($viewer['role'] ?? '');
+
+    // The tenant's own record: always theirs.
+    if ($role === 'tenant') {
+        $ownerId = (string)($viewing['tenantUserId'] ?? '');
+        if ($ownerId !== '' && $ownerId === $userId) {
+            return ['visible' => true, 'state' => 'own_record', 'reason' => ''];
+        }
+        $ownerEmail = strtolower(trim((string)($viewing['tenantEmail'] ?? '')));
+        $viewerEmail = strtolower(trim((string)($viewer['email'] ?? '')));
+        if ($ownerEmail !== '' && $ownerEmail === $viewerEmail) {
+            return ['visible' => true, 'state' => 'own_record', 'reason' => ''];
+        }
+    }
+
+    if ($role === 'agent' || $role === 'landlord') {
+        // Upgrade 2 Phase 5 (B6): one provider, one viewing, staff-approved and
+        // time-limited. Nothing else opens this door.
+        $viewingId = (string)($viewing['id'] ?? '');
+        if ($viewingId !== '' && contact_disclosure_active_for($viewingId, $userId)) {
+            return [
+                'visible' => true,
+                'state'   => 'approved_disclosure',
+                'reason'  => '',
+            ];
+        }
+
+        $disclosure = $viewingId !== '' ? find_contact_disclosure_for($viewingId, $userId) : null;
+        $states = [
+            'pending'  => 'Your request for the tenant\'s contact details is with Goodlucks staff.',
+            'rejected' => 'Goodlucks refused the request for the tenant\'s contact details: ' . ($disclosure['decisionNote'] ?? ''),
+            'revoked'  => 'Goodlucks withdrew the tenant\'s contact details for this viewing: ' . ($disclosure['decisionNote'] ?? ''),
+            'expired'  => 'The approved contact details for this viewing have expired. Ask again if you still need them.',
+        ];
+
+        return [
+            'visible' => false,
+            'state'   => $disclosure !== null ? 'withheld_' . $disclosure['status'] : 'withheld_pending_approval',
+            'reason'  => $disclosure !== null
+                ? ($states[$disclosure['status']] ?? 'Goodlucks withholds the tenant\'s contact details until staff approve sharing them.')
+                : 'Goodlucks shares a tenant\'s phone number and email address only after an administrator approves it. Ask for contact from this viewing.',
+            'disclosure' => $disclosure,
+        ];
+    }
+
+    return [
+        'visible' => false,
+        'state'   => 'withheld',
+        'reason'  => 'You do not have access to this contact detail.',
+    ];
+}
+
+/**
+ * Shape a viewing for one viewer, withholding the tenant's contact details when
+ * that viewer is not entitled to them. Every API response that returns a viewing
+ * to a non-staff caller goes through this function.
+ */
+function viewing_for_viewer(array $viewing, ?array $viewer): array
+{
+    $state = viewing_tenant_contact_state($viewing, $viewer);
+
+    $viewing['tenantContactVisible'] = $state['visible'];
+    $viewing['tenantContactState'] = $state['state'];
+    $viewing['tenantContactReason'] = $state['reason'];
+    // Upgrade 2 (B6): the provider sees the state of their own request, including
+    // why it was refused or when it expires. No contact details are included
+    // unless `visible` is true.
+    $viewing['contactDisclosure'] = $state['disclosure'] ?? null;
+
+    if (!$state['visible']) {
+        $viewing['tenantPhone'] = '';
+        $viewing['tenantEmail'] = '';
+    }
+
+    return $viewing;
 }
 
 // ---------------------------------------------------------------------------
@@ -519,12 +643,16 @@ function viewing_allowed_actions(array $viewing, string $role): array
     $actions = [];
     $matrix = viewing_transition_matrix();
 
-    if ($role === 'agent' || $role === 'admin') {
+    if ($role === 'agent' || $role === 'landlord' || $role === 'admin') {
         if (isset($matrix[$status]['proposed'])) {
             $actions[] = 'propose';
         }
-        if (isset($matrix[$status]['rescheduled'])) {
+        // Upgrade 2 (B5): a provider asks for a new time; it no longer moves the
+        // appointment outright (only an administrator may).
+        if (isset($matrix[$status]['reschedule_requested'])) {
             $actions[] = 'reschedule';
+        }
+        if (isset($matrix[$status]['rescheduled']) || isset($matrix[$status]['confirmed'])) {
             $actions[] = 'confirm';
         }
         if (isset($matrix[$status]['completed'])) {
@@ -543,6 +671,11 @@ function viewing_allowed_actions(array $viewing, string $role): array
         }
         if (isset($matrix[$status]['reschedule_requested'])) {
             $actions[] = 'request_reschedule';
+        }
+        // Upgrade 2 (B5): only the tenant accepts or declines a new time.
+        if ($status === 'reschedule_requested') {
+            $actions[] = 'accept_reschedule';
+            $actions[] = 'decline_reschedule';
         }
         if (isset($matrix[$status]['agent_no_show'])) {
             $actions[] = 'agent_no_show';
@@ -597,7 +730,7 @@ function viewing_apply_transition(array $viewing, array $actor, string $role, ar
     $newTime = isset($change['time']) && $change['time'] !== null ? clean_string((string)$change['time'], 32) : null;
 
     // Slot rules.
-    if (in_array($toStatus, ['proposed', 'rescheduled'], true)) {
+    if (in_array($toStatus, ['proposed', 'rescheduled', 'reschedule_requested'], true)) {
         if ($newDate === null || $newDate === '') {
             error_response('Choose the date you are proposing.', 422, ['date' => 'A proposed appointment needs a date.']);
         }
@@ -606,6 +739,18 @@ function viewing_apply_transition(array $viewing, array $actor, string $role, ar
         }
         if ($newDate < gmdate('Y-m-d')) {
             error_response('A proposed date cannot be in the past.', 422, ['date' => 'Choose today or a later date.']);
+        }
+    }
+
+    // Upgrade 2 (B5): asking to move an agreed appointment needs a written
+    // reason. A bare "new time?" gives the tenant nothing to judge.
+    if ($toStatus === 'reschedule_requested' && $fromStatus !== 'proposed') {
+        if ($reason === null || trim($reason) === '') {
+            error_response(
+                'Say why the appointment needs to move.',
+                422,
+                ['reason' => 'A reschedule request needs a reason.']
+            );
         }
     }
 
@@ -894,7 +1039,13 @@ function viewing_assign_agent(array $viewing, ?string $agentUserId, array $admin
 
 function is_viewing_corrector(array $user): bool
 {
-    return (string)($user['role'] ?? '') === 'admin' && !empty($user['can_correct_viewings']);
+    if ((string)($user['role'] ?? '') !== 'admin') {
+        return false;
+    }
+    // Upgrade 2: the primary platform administrator may correct a viewing
+    // record without a separate grant; every other administrator still needs
+    // `can_correct_viewings`, and the correction is audited either way.
+    return is_primary_admin($user) || !empty($user['can_correct_viewings']);
 }
 
 function require_viewing_corrector(): array

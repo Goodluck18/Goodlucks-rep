@@ -147,7 +147,10 @@ export const FindAHomeView: React.FC<FindAHomeViewProps> = ({ onOpenAuth }) => {
   const [bedrooms, setBedrooms] = useState(2);
   const [bathrooms, setBathrooms] = useState(2);
   const [propertyType, setPropertyType] = useState('Apartment');
-  const [moveInDate, setMoveInDate] = useState('2026-09-01');
+  // Upgrade 2 (B1): there is no default move-in date. The September date that
+  // used to sit here was a placeholder that silently answered a question the
+  // tenant never answered, and it was submitted as if they had.
+  const [moveInDate, setMoveInDate] = useState('');
   const [selectedLocations, setSelectedLocations] = useState<string[]>(['Cantonments', 'East Legon']);
   const [notes, setNotes] = useState('');
   const [submitted, setSubmitted] = useState(false);
@@ -184,6 +187,13 @@ export const FindAHomeView: React.FC<FindAHomeViewProps> = ({ onOpenAuth }) => {
 
     if (!tenantName || !tenantPhone || selectedLocations.length === 0) {
       setFormError('Please add your name, phone number and at least one preferred location.');
+      return;
+    }
+
+    // A matching request without a move-in date cannot be matched honestly, so
+    // nothing is sent until the tenant chooses one.
+    if (!moveInDate) {
+      setFormError('Choose your expected move-in date — we cannot match a request without it.');
       return;
     }
 
@@ -401,10 +411,18 @@ export const FindAHomeView: React.FC<FindAHomeViewProps> = ({ onOpenAuth }) => {
                   </label>
                   <input
                     type="date"
+                    required
                     value={moveInDate}
                     onChange={(e) => setMoveInDate(e.target.value)}
+                    aria-required="true"
+                    aria-describedby="move-in-date-hint"
                     className="w-full bg-page border border-line rounded-xl p-3 text-sm text-ink focus:outline-none focus:border-interactive"
                   />
+                  <p id="move-in-date-hint" className="mt-1 text-[10px] text-ink/70">
+                    {moveInDate
+                      ? 'We match listings against this date.'
+                      : 'Required — choose the month you can move in.'}
+                  </p>
                 </div>
               </div>
 
@@ -424,7 +442,7 @@ export const FindAHomeView: React.FC<FindAHomeViewProps> = ({ onOpenAuth }) => {
 
             <button
               type="submit"
-              disabled={isSubmitting}
+              disabled={isSubmitting || !moveInDate}
               className="gl-btn gl-btn-primary w-full"
             >
               {isSubmitting ? (

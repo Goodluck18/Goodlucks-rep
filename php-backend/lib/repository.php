@@ -12,12 +12,70 @@ declare(strict_types=1);
 // Shaping: database rows -> JSON shapes consumed by the React client
 // ---------------------------------------------------------------------------
 
+/**
+ * The account responsible for a listing: the landlord who owns it, or — for an
+ * independent agent listing (Upgrade 2, C1) — the agent who submitted it.
+ *
+ * Notification and contact-disclosure paths use this instead of reaching for
+ * `landlord_id`, which is now empty on agent listings.
+ */
+function property_provider_user_id(array $row): string
+{
+    $landlordId = trim((string)($row['landlord_id'] ?? ''));
+    if ($landlordId !== '') {
+        return $landlordId;
+    }
+
+    return trim((string)($row['submitted_by_user_id'] ?? ''));
+}
+
 function shape_property(array $row): array
 {
-    $landlordName = trim((string)($row['landlord_name'] ?? ''));
-    if ($landlordName === '') {
-        // Task 05: never show a made-up owner name — say the name is missing.
-        $landlordName = 'Landlord (name not recorded)';
+    // Upgrade 2 (C2): who submitted a listing, and who owns it, are account
+    // facts — not catalogue copy. They used to be returned to everyone, which
+    // made the public catalogue a way to profile providers. They are now
+    // returned only to staff, the owning landlord, and the account that
+    // submitted the listing; everybody else gets empty values.
+    $providerViewer = auth_user();
+    $providerViewerId = (string)($providerViewer['id'] ?? '');
+    $providerViewerRole = (string)($providerViewer['role'] ?? '');
+    $submittedById = (string)($row['submitted_by_user_id'] ?? '');
+    $rowLandlordId = (string)($row['landlord_id'] ?? '');
+    $exposeProviderDetail = $providerViewerRole === 'admin'
+        || ($providerViewerId !== '' && ($providerViewerId === $rowLandlordId || $providerViewerId === $submittedById));
+
+    // Upgrade 2 (C5): map whatever is stored — including the free text written
+    // before this phase — onto the canonical keys, and keep the unmapped words.
+    $storedAmenityValues = json_column($row['amenities'] ?? null);
+    $amenities = normalise_amenities($storedAmenityValues);
+    $amenitiesNote = trim((string)($row['amenities_note'] ?? ''));
+    if ($amenities['unknown'] !== []) {
+        $amenitiesNote = trim(implode(', ', array_unique(array_merge($amenities['unknown'], [$amenitiesNote]))), ', ');
+    }
+
+    // Upgrade 2 (C4): the stored pair, and only when we recognise the provider.
+    $video = null;
+    $videoProvider = (string)($row['video_provider'] ?? '');
+    $videoUrl = (string)($row['video_url'] ?? '');
+    if ($videoUrl !== '' && in_array($videoProvider, PROPERTY_VIDEO_PROVIDERS, true)) {
+        $parsed = parse_property_video($videoUrl);
+        if ($parsed['embedUrl'] !== null && $parsed['provider'] === $videoProvider) {
+            $video = [
+                'provider' => $parsed['provider'],
+                'url'      => $parsed['url'],
+                'embedUrl' => $parsed['embedUrl'],
+            ];
+        }
+    }
+
+    $landlordName = '';
+    $submittedByRole = (string)($row['submitted_by_role'] ?? '');
+    if ($exposeProviderDetail) {
+        $landlordName = trim((string)($row['landlord_name'] ?? ''));
+        if ($landlordName === '' && $submittedByRole !== 'agent') {
+            // Task 05: never show a made-up owner name — say the name is missing.
+            $landlordName = 'Landlord (name not recorded)';
+        }
     }
 
     // Increment F: a landlord account id is private account information. It is
@@ -25,10 +83,10 @@ function shape_property(array $row): array
     // submitted the listing (who supplied the reference). Public listings, and
     // therefore tenants, get an empty string — the catalogue never becomes a
     // way to enumerate landlord accounts.
-    $landlordId = (string)($row['landlord_id'] ?? '');
-    $viewer = auth_user();
-    $viewerId = (string)($viewer['id'] ?? '');
-    $viewerRole = (string)($viewer['role'] ?? '');
+    $landlordId = $rowLandlordId;
+    $viewer = $providerViewer;
+    $viewerId = $providerViewerId;
+    $viewerRole = $providerViewerRole;
     // Agents do NOT see it either: an agent who submits a listing must not be
     // able to learn from the response whether the landlord reference they gave
     // matched an account. The claim and its resolution are staff-visible only.
@@ -56,11 +114,13 @@ function shape_property(array $row): array
         // Who actually submitted the listing, and whether landlord authority has
         // been established. 'declared_by_agent' means an agent told us they act
         // for the owner; nothing has been verified (Increment D).
-        'submittedByUserId'       => (string)($row['submitted_by_user_id'] ?? ''),
-        'submittedByRole'         => (string)($row['submitted_by_role'] ?? ''),
-        'landlordAuthorityState'  => (string)($row['landlord_authority_state'] ?? 'not_applicable'),
+        'submittedByUserId'       => $exposeProviderDetail ? $submittedById : '',
+        'submittedByRole'         => $exposeProviderDetail ? $submittedByRole : '',
+        'landlordAuthorityState'  => $exposeProviderDetail
+            ? (string)($row['landlord_authority_state'] ?? 'not_applicable')
+            : 'not_applicable',
         'landlordName'            => $landlordName,
-        'landlordCompany'         => (string)($row['landlord_company'] ?? ''),
+        'landlordCompany'         => $exposeProviderDetail ? (string)($row['landlord_company'] ?? '') : '',
         'title'                   => (string)$row['title'],
         'location'                => (string)$row['location'],
         'city'                    => (string)($row['city'] ?? 'Accra'),
@@ -71,7 +131,31 @@ function shape_property(array $row): array
         'status'                  => (string)$row['status'],
         'images'                  => json_column($row['images'] ?? null),
         'description'             => (string)($row['description'] ?? ''),
-        'amenities'               => json_column($row['amenities'] ?? null),
+        'amenities'               => $amenities['keys'],
+        // The words a listing actually used, kept so nothing is silently
+        // rewritten and a legacy listing still reads as it was written.
+        'amenityLabels'           => amenity_labels($amenities['keys']),
+        'amenitiesNote'           => $amenitiesNote,
+        'toilets'                 => isset($row['toilets']) && $row['toilets'] !== null ? (int)$row['toilets'] : null,
+        'kitchens'                => isset($row['kitchens']) && $row['kitchens'] !== null ? (int)$row['kitchens'] : null,
+        'furnishing'              => (string)($row['furnishing'] ?? ''),
+        'furnishingLabel'         => (string)(FURNISHING_STATES[(string)($row['furnishing'] ?? '')] ?? ''),
+        'video'                   => $video,
+        'videoProvider'           => (string)($row['video_provider'] ?? ''),
+        'videoUrl'                => (string)($row['video_url'] ?? ''),
+        // Upgrade 2 (C6): the provider's own expectation. Never a platform fee,
+        // never used in a calculation — the client must label it as such. It is
+        // business between the provider and the owner, so only the provider and
+        // staff see the figure; a tenant gets the shape with nothing in it.
+        'providerCommission'      => [
+            'percent' => $exposeProviderDetail
+                && isset($row['provider_commission_percent'])
+                && $row['provider_commission_percent'] !== null
+                ? (float)$row['provider_commission_percent']
+                : null,
+            'note'    => $exposeProviderDetail ? (string)($row['provider_commission_note'] ?? '') : '',
+            'isPlatformFee' => false,
+        ],
         'nearbyPlaces'            => json_column($row['nearby_places'] ?? null),
         'availability'            => (string)($row['availability'] ?? 'Available Now'),
         'featured'                => (bool)($row['featured'] ?? false),
@@ -113,6 +197,8 @@ function shape_tenant_request(array $row): array
         'propertyType'         => (string)$row['property_type'],
         'moveInDate'           => (string)($row['move_in_date'] ?? ''),
         'status'               => (string)$row['status'],
+        // The console's own vocabulary for the same lifecycle (Upgrade 2, A7).
+        'stage'                => tenant_request_stage((string)$row['status']),
         'matchedPropertyIds'   => json_column($row['matched_property_ids'] ?? null),
         'assignedAgent'        => (string)($row['assigned_agent'] ?? ''),
         'notes'                => (string)($row['notes'] ?? ''),
@@ -256,116 +342,13 @@ function find_user_by_phone(?string $phone): ?array
     return null;
 }
 
-/** May this user read the receipt? */
-/**
- * True when two or more accounts share the same phone number key.
- *
- * Legacy receipts (no linked user ids) can only be attributed by phone number,
- * and `users.phone` has no uniqueness constraint. When a number is shared, the
- * safe answer is "not attributable": the record stays staff-only rather than
- * being shown to the wrong account.
- */
-function phone_shared_by_multiple_accounts(string $phoneKey): bool
-{
-    static $cache = [];
-    if ($phoneKey === '') {
-        return false;
-    }
-    if (array_key_exists($phoneKey, $cache)) {
-        return $cache[$phoneKey];
-    }
-
-    $rows = db_all("SELECT phone FROM users WHERE phone IS NOT NULL AND phone <> ''");
-    $matches = 0;
-    foreach ($rows as $row) {
-        if (phone_key((string)$row['phone']) === $phoneKey) {
-            $matches++;
-            if ($matches > 1) {
-                break;
-            }
-        }
-    }
-
-    return $cache[$phoneKey] = $matches > 1;
-}
-
-function user_can_read_receipt(array $user, array $row): bool
-{
-    if (($user['role'] ?? '') === 'admin') {
-        return true;
-    }
-
-    $userId = (string)($user['id'] ?? '');
-
-    // Either party named on the record may read it.
-    foreach (['tenant_user_id', 'landlord_user_id'] as $column) {
-        $linkedId = (string)($row[$column] ?? '');
-        if ($linkedId !== '' && $linkedId === $userId) {
-            return true;
-        }
-    }
-
-    // A linked record never falls back to weaker matching.
-    if (trim((string)($row['tenant_user_id'] ?? '')) !== ''
-        || trim((string)($row['landlord_user_id'] ?? '')) !== ''
-    ) {
-        return false;
-    }
-
-    // Legacy records only carry the tenant's name and phone. Landlords are not
-    // matched by name here (anyone can register under any name), so a legacy
-    // record without a linked landlord stays visible to staff only.
-    if ((string)($user['role'] ?? '') === 'landlord') {
-        return false;
-    }
-
-    $receiptPhone = phone_key((string)($row['tenant_phone'] ?? ''));
-    $userPhone = phone_key((string)($user['phone'] ?? ''));
-
-    if ($receiptPhone === '' || $receiptPhone !== $userPhone) {
-        return false;
-    }
-
-    // Refuse to attribute a legacy record to a number shared by several
-    // accounts (see phone_shared_by_multiple_accounts()).
-    return !phone_shared_by_multiple_accounts($receiptPhone);
-}
-
-function shape_receipt(array $row): array
-{
-    return [
-        'id'               => (string)$row['id'],
-        'receiptNo'        => (string)$row['receipt_no'],
-        'propertyTitle'    => (string)$row['property_title'],
-        'propertyAddress'  => (string)$row['property_address'],
-        'tenantName'       => (string)$row['tenant_name'],
-        'tenantPhone'      => (string)($row['tenant_phone'] ?? ''),
-        'landlordName'     => (string)$row['landlord_name'],
-        'amountGhs'        => (float)$row['amount_ghs'],
-        'amountInWords'    => (string)($row['amount_in_words'] ?? ''),
-        'paymentPurpose'   => (string)($row['payment_purpose'] ?? ''),
-        'paymentMethod'    => (string)($row['payment_method'] ?? 'Cash'),
-        'transactionRef'   => (string)($row['transaction_ref'] ?? ''),
-        'paymentDate'      => (string)$row['payment_date'],
-        'issuedBy'         => (string)($row['issued_by'] ?? ''),
-        'verificationCode' => (string)$row['verification_code'],
-        // Increment B: every stored rent record is a claim typed in by staff.
-        // Nothing in the model verifies that money changed hands, so the API
-        // labels it instead of letting a template imply otherwise.
-        'recordState'      => 'reported',
-        'recordStateLabel' => 'Reported record — not verified',
-        'recipient'        => [
-            'type'     => 'landlord',
-            'name'     => (string)$row['landlord_name'],
-            'verified' => false,
-        ],
-        'goodlucksIsRecipient' => false,
-        // References issued before Increment B carry a "VERIFIED-REC-" prefix
-        // that never meant anything; the UI flags them as legacy.
-        'legacyReference'  => str_starts_with((string)$row['verification_code'], 'VERIFIED-'),
-        'createdAt'        => to_iso($row['created_at'] ?? null),
-    ];
-}
+// ---------------------------------------------------------------------------
+// Rent payment records — read path removed (Upgrade 2, E1)
+//
+// `user_can_read_receipt()`, `shape_receipt()` and the phone-sharing rule that
+// existed only to attribute a legacy record to a tenant were deleted with the
+// feature. The `rent_receipts` table and every row in it remain.
+// ---------------------------------------------------------------------------
 
 function shape_search_alert(array $row): array
 {
@@ -527,6 +510,25 @@ function update_user(string $id, array $fields): void
     db_exec('UPDATE users SET ' . implode(', ', $set) . ' WHERE id = :id', $params);
 }
 
+/**
+ * Set an account's provider classification (Upgrade 2, E2).
+ *
+ * Separate from `update_user()` on purpose: that function's column whitelist is
+ * what stops a profile edit from ever touching a role, and it stays that way. The
+ * only caller here is the audited staff correction endpoint, and the role is
+ * re-validated at this layer so no future caller can store `admin` by accident.
+ */
+function set_user_role(string $id, string $role): void
+{
+    if (!in_array($role, ['tenant', 'landlord', 'agent'], true)) {
+        throw new InvalidArgumentException('Only tenant, landlord or agent can be assigned here.');
+    }
+    db_exec(
+        'UPDATE users SET role = :role, updated_at = :updated WHERE id = :id',
+        [':role' => $role, ':updated' => db_now(), ':id' => $id]
+    );
+}
+
 // ---------------------------------------------------------------------------
 // Properties
 // ---------------------------------------------------------------------------
@@ -610,6 +612,18 @@ function query_properties(array $filters): array
 
     if (!empty($filters['featured'])) {
         $where[] = 'featured = 1';
+    }
+
+    // Listing date range (Upgrade 2, A6). `createdTo` is inclusive of the whole
+    // day it names, so "1–7 November" includes listings created on the 7th.
+    if (!empty($filters['createdFrom'])) {
+        $where[] = 'created_at >= :created_from';
+        $params[':created_from'] = (string)$filters['createdFrom'] . ' 00:00:00';
+    }
+    if (!empty($filters['createdTo'])) {
+        $nextDay = date('Y-m-d', strtotime((string)$filters['createdTo'] . ' +1 day'));
+        $where[] = 'created_at < :created_to';
+        $params[':created_to'] = $nextDay . ' 00:00:00';
     }
 
     $whereSql = $where ? ' WHERE ' . implode(' AND ', $where) : '';
@@ -809,16 +823,48 @@ function agent_can_submit_listings(?array $profile): bool
 }
 
 /** Admin listing: agent account + the public user fields staff need. */
-function list_agent_profiles(int $limit = 200): array
+/**
+ * Agent accounts with the console's search and filters (Upgrade 2, A8).
+ *
+ * Identity verification and listing authorisation are DIFFERENT decisions and
+ * stay separate here: `verification` filters on the verification record, while
+ * `listing` and `stage` filter on the listing-authorisation decision. An agent
+ * whose identity is verified has not therefore been allowed to publish.
+ *
+ *   'q'            — name, email address, contact address, agency or operating city
+ *   'stage'        — pending | approved_for_listing | suspended
+ *   'verification' — verified | unverified
+ *   'listing'      — allowed | blocked
+ *   'accountStatus'— pending_review | active | suspended
+ */
+function list_agent_profiles(int $limit = 200, array $filters = []): array
 {
+    $where = [];
+    $params = [];
+
+    $query = trim((string)($filters['q'] ?? ''));
+    if ($query !== '') {
+        $needle = '%' . mb_strtolower($query) . '%';
+        $where[] = '(LOWER(u.name) LIKE :q OR LOWER(u.email) LIKE :q OR LOWER(u.address) LIKE :q'
+            . ' OR LOWER(COALESCE(ap.agency_name, \'\')) LIKE :q OR LOWER(COALESCE(ap.operating_city, \'\')) LIKE :q)';
+        $params[':q'] = $needle;
+    }
+
+    if (!empty($filters['accountStatus'])) {
+        $where[] = 'ap.account_status = :account_status';
+        $params[':account_status'] = (string)$filters['accountStatus'];
+    }
+
     $rows = db_all(
         "SELECT ap.*, u.name, u.email, u.phone, u.address, u.created_at AS user_created_at
            FROM agent_profiles ap
-           JOIN users u ON u.id = ap.user_id
-          ORDER BY ap.created_at DESC" . db_limit_clause($limit, 0)
+           JOIN users u ON u.id = ap.user_id"
+        . ($where ? ' WHERE ' . implode(' AND ', $where) : '')
+        . ' ORDER BY ap.created_at DESC' . db_limit_clause($limit, 0),
+        $params
     );
 
-    return array_map(static function (array $row): array {
+    $profiles = array_map(static function (array $row): array {
         $profile = shape_agent_profile($row);
         $profile['name'] = (string)($row['name'] ?? '');
         $profile['email'] = (string)($row['email'] ?? '');
@@ -829,6 +875,70 @@ function list_agent_profiles(int $limit = 200): array
         $profile['registeredAt'] = to_iso($row['user_created_at'] ?? null);
         return $profile;
     }, $rows);
+
+    return agent_profiles_matching($profiles, $filters);
+}
+
+/** The stage an administrator sees for one agent account (Upgrade 2, A8). */
+function agent_account_stage(array $profile): string
+{
+    if ((string)($profile['accountStatus'] ?? '') === 'suspended') {
+        return 'suspended';
+    }
+    if (!empty($profile['canSubmitListings'])) {
+        return 'approved_for_listing';
+    }
+
+    return 'pending';
+}
+
+/**
+ * Apply the verification / listing / stage filters to already-shaped profiles.
+ *
+ * These live in PHP rather than SQL because verification is derived from the
+ * verification records (see `agent_tier_state()`); putting it in the query would
+ * mean a second, divergent definition of what "verified" means.
+ */
+function agent_profiles_matching(array $profiles, array $filters): array
+{
+    $stage = (string)($filters['stage'] ?? '');
+    $verification = (string)($filters['verification'] ?? '');
+    $listing = (string)($filters['listing'] ?? '');
+
+    return array_values(array_filter($profiles, static function (array $profile) use ($stage, $verification, $listing): bool {
+        if ($stage !== '' && agent_account_stage($profile) !== $stage) {
+            return false;
+        }
+        if ($verification === 'verified' && empty($profile['identityVerified'])) {
+            return false;
+        }
+        if ($verification === 'unverified' && !empty($profile['identityVerified'])) {
+            return false;
+        }
+        if ($listing === 'allowed' && empty($profile['canSubmitListings'])) {
+            return false;
+        }
+        if ($listing === 'blocked' && !empty($profile['canSubmitListings'])) {
+            return false;
+        }
+
+        return true;
+    }));
+}
+
+/**
+ * How many agent accounts are in each console stage, over every account.
+ *
+ * @return array<string, int>
+ */
+function count_agents_by_stage(): array
+{
+    $counts = ['pending' => 0, 'approved_for_listing' => 0, 'suspended' => 0];
+    foreach (list_agent_profiles(1000) as $profile) {
+        $counts[agent_account_stage($profile)] = ($counts[agent_account_stage($profile)] ?? 0) + 1;
+    }
+
+    return $counts;
 }
 
 function create_property(array $data): string
@@ -840,7 +950,10 @@ function create_property(array $data): string
                                  landlord_contact_claimed,
                                  is_landlord_verified,
                                  title, location, city, rent_ghs, bedrooms, bathrooms, property_type,
-                                 status, images, description, amenities, nearby_places, availability,
+                                 status, images, description, amenities, amenities_note, nearby_places, availability,
+                                 toilets, kitchens, furnishing,
+                                 video_provider, video_url,
+                                 provider_commission_percent, provider_commission_note,
                                  featured, views_count, enquiries_count,
                                  viewing_fee_ghs, viewing_terms_json, viewing_terms_state,
                                  viewing_terms_updated_at, viewing_terms_approved_by,
@@ -850,7 +963,10 @@ function create_property(array $data): string
                  :landlord_contact_claimed,
                  :verified,
                  :title, :location, :city, :rent_ghs, :bedrooms, :bathrooms, :property_type,
-                 :status, :images, :description, :amenities, :nearby_places, :availability,
+                 :status, :images, :description, :amenities, :amenities_note, :nearby_places, :availability,
+                 :toilets, :kitchens, :furnishing,
+                 :video_provider, :video_url,
+                 :provider_commission_percent, :provider_commission_note,
                  :featured, 0, 0,
                  :viewing_fee, :viewing_terms, :viewing_state,
                  :viewing_updated, :viewing_by,
@@ -876,6 +992,14 @@ function create_property(array $data): string
             ':images'           => json_encode($data['images'] ?? []),
             ':description'      => $data['description'] ?? '',
             ':amenities'        => json_encode($data['amenities'] ?? []),
+            ':amenities_note'   => $data['amenities_note'] ?? null,
+            ':toilets'          => $data['toilets'] ?? null,
+            ':kitchens'         => $data['kitchens'] ?? null,
+            ':furnishing'       => $data['furnishing'] ?? null,
+            ':video_provider'   => $data['video_provider'] ?? null,
+            ':video_url'        => $data['video_url'] ?? null,
+            ':provider_commission_percent' => $data['provider_commission_percent'] ?? null,
+            ':provider_commission_note'    => $data['provider_commission_note'] ?? null,
             ':nearby_places'    => json_encode($data['nearby_places'] ?? []),
             ':availability'     => $data['availability'] ?? 'Available Now',
             ':featured'         => !empty($data['featured']) ? 1 : 0,
@@ -902,7 +1026,10 @@ function update_property(string $id, array $data): void
 {
     $columns = [
         'title', 'location', 'city', 'rent_ghs', 'bedrooms', 'bathrooms', 'property_type',
-        'status', 'images', 'description', 'amenities', 'nearby_places', 'availability',
+        'status', 'images', 'description', 'amenities', 'amenities_note', 'nearby_places', 'availability',
+        'toilets', 'kitchens', 'furnishing',
+        'video_provider', 'video_url',
+        'provider_commission_percent', 'provider_commission_note',
         'featured', 'landlord_name', 'landlord_company', 'is_landlord_verified',
         // Task 03: per-property viewing fee / terms. Written only by the
         // viewing-terms helpers or by staff approval, never blindly by an edit.
@@ -994,10 +1121,84 @@ function create_enquiry(array $data): string
     return $id;
 }
 
-function list_enquiries(int $limit = 200): array
+/**
+ * Enquiries, newest first (Upgrade 2, A10).
+ *
+ * The console used to fetch every enquiry and filter it in the browser, which
+ * silently hid anything past the limit and could not be searched at all. The
+ * filters run in SQL over the real rows:
+ *
+ *   'q'      — name, email address or phone number (a phone search also matches
+ *              the same subscriber written with spaces, +233 or a local 0 prefix
+ *              because the digits are compared, not the punctuation);
+ *   'status' — one of ENQUIRY_STATUSES, or an array of them.
+ *
+ * `count_enquiries_by_status()` is separate on purpose: the console's status
+ * chips show how many enquiries exist in each state across ALL records, not how
+ * many survived the current search.
+ */
+function list_enquiries(int $limit = 200, array $filters = []): array
 {
-    $rows = db_all('SELECT * FROM enquiries ORDER BY created_at DESC' . db_limit_clause($limit, 0));
-    return array_map('shape_enquiry', $rows);
+    $where = [];
+    $params = [];
+
+    $statuses = $filters['status'] ?? null;
+    if ($statuses !== null && $statuses !== '' && $statuses !== []) {
+        $statuses = is_array($statuses) ? $statuses : [$statuses];
+        $statuses = array_values(array_intersect($statuses, ENQUIRY_STATUSES));
+        if ($statuses) {
+            $placeholders = [];
+            foreach ($statuses as $index => $status) {
+                $placeholders[] = ':status' . $index;
+                $params[':status' . $index] = $status;
+            }
+            $where[] = 'status IN (' . implode(', ', $placeholders) . ')';
+        } else {
+            // An unknown status can never match a record; be explicit rather
+            // than silently returning everything.
+            return [];
+        }
+    }
+
+    $query = trim((string)($filters['q'] ?? ''));
+    if ($query !== '') {
+        $needle = '%' . mb_strtolower($query) . '%';
+        $conditions = ['LOWER(name) LIKE :q', 'LOWER(email) LIKE :q'];
+        $params[':q'] = $needle;
+
+        // A phone number is matched on its digits so "+233 24 123 4567" and
+        // "0241234567" find the same enquiry.
+        $digits = preg_replace('/\D+/', '', $query) ?? '';
+        if (strlen($digits) >= 3) {
+            $conditions[] = "REPLACE(REPLACE(REPLACE(REPLACE(phone, ' ', ''), '-', ''), '+', ''), '(', '') LIKE :phone_q";
+            $params[':phone_q'] = '%' . $digits . '%';
+        }
+        $where[] = '(' . implode(' OR ', $conditions) . ')';
+    }
+
+    $sql = 'SELECT * FROM enquiries'
+        . ($where ? ' WHERE ' . implode(' AND ', $where) : '')
+        . ' ORDER BY created_at DESC' . db_limit_clause($limit, 0);
+
+    return array_map('shape_enquiry', db_all($sql, $params));
+}
+
+/**
+ * How many enquiries exist in each status, over every record.
+ *
+ * @return array<string, int> keyed by status, every known status present (0 when empty)
+ */
+function count_enquiries_by_status(): array
+{
+    $counts = array_fill_keys(ENQUIRY_STATUSES, 0);
+    foreach (db_all('SELECT status, COUNT(*) AS total FROM enquiries GROUP BY status', []) as $row) {
+        $status = (string)($row['status'] ?? '');
+        if (array_key_exists($status, $counts)) {
+            $counts[$status] = (int)$row['total'];
+        }
+    }
+
+    return $counts;
 }
 
 // ---------------------------------------------------------------------------
@@ -1039,6 +1240,56 @@ function create_tenant_request(array $data): string
 /**
  * @param array $scope ['tenantId' => ..., 'email' => ...] or empty for all
  */
+/**
+ * The console's three-way view of a rental request (Upgrade 2, A7).
+ *
+ * The stored lifecycle (`submitted … cancelled`, REQUEST_STATUSES) is unchanged
+ * and is still what the pipeline acts on. The console groups it into the
+ * vocabulary an administrator uses:
+ *
+ *   pending           — submitted or searching: nobody has approved matches yet
+ *   approved          — matched: staff approved the matches for the tenant
+ *   viewing_scheduled — a viewing appointment exists for the request
+ *   completed         — the request finished
+ *   cancelled         — the tenant or staff cancelled it
+ */
+function tenant_request_stage(string $status): string
+{
+    return match ($status) {
+        'submitted', 'searching' => 'pending',
+        'matched'                => 'approved',
+        'viewing_scheduled'      => 'viewing_scheduled',
+        'completed'              => 'completed',
+        'cancelled'              => 'cancelled',
+        default                  => 'pending',
+    };
+}
+
+/** The stored statuses that make up a console stage. @return string[] */
+function tenant_request_stage_statuses(string $stage): array
+{
+    return match ($stage) {
+        'pending'           => ['submitted', 'searching'],
+        'approved'          => ['matched'],
+        'viewing_scheduled' => ['viewing_scheduled'],
+        'completed'         => ['completed'],
+        'cancelled'         => ['cancelled'],
+        default             => [],
+    };
+}
+
+/**
+ * Rental requests (Upgrade 2, A7).
+ *
+ * `$scope` may carry the owner restriction (`tenantId` / `email`) used by the
+ * tenant's own view, and the console filters:
+ *
+ *   'q'      — the tenant's name, phone number or email address;
+ *   'stage'  — pending | approved | viewing_scheduled | completed | cancelled;
+ *   'status' — the exact stored status (or a list of them).
+ *
+ * Real records only: nothing is invented for a request that has no match yet.
+ */
 function list_tenant_requests(array $scope = [], int $limit = 200): array
 {
     $where = [];
@@ -1050,9 +1301,59 @@ function list_tenant_requests(array $scope = [], int $limit = 200): array
         $where[] = 'LOWER(tenant_email) = LOWER(:email)';
         $params[':email'] = $scope['email'];
     }
+
+    $stageStatuses = [];
+    if (!empty($scope['stage'])) {
+        $stageStatuses = tenant_request_stage_statuses((string)$scope['stage']);
+        if ($stageStatuses === []) {
+            return [];
+        }
+    }
+
+    if (!empty($scope['status'])) {
+        $statuses = is_array($scope['status']) ? $scope['status'] : [$scope['status']];
+        $statuses = array_values(array_intersect($statuses, REQUEST_STATUSES));
+        if ($stageStatuses !== []) {
+            $statuses = array_values(array_intersect($statuses, $stageStatuses));
+        }
+        if ($statuses === []) {
+            return [];
+        }
+        $placeholders = [];
+        foreach ($statuses as $index => $status) {
+            $placeholders[] = ':status' . $index;
+            $params[':status' . $index] = $status;
+        }
+        $where[] = 'status IN (' . implode(', ', $placeholders) . ')';
+    } elseif ($stageStatuses !== []) {
+        $placeholders = [];
+        foreach ($stageStatuses as $index => $status) {
+            $placeholders[] = ':stage' . $index;
+            $params[':stage' . $index] = $status;
+        }
+        $where[] = 'status IN (' . implode(', ', $placeholders) . ')';
+    }
+
+    $query = trim((string)($scope['q'] ?? ''));
+    if ($query !== '') {
+        $needle = '%' . mb_strtolower($query) . '%';
+        $conditions = [
+            'LOWER(tenant_name) LIKE :q',
+            'LOWER(tenant_email) LIKE :q',
+        ];
+        $params[':q'] = $needle;
+        $digits = preg_replace('/\D+/', '', $query) ?? '';
+        if (strlen($digits) >= 3) {
+            $conditions[] = "REPLACE(REPLACE(REPLACE(REPLACE(tenant_phone, ' ', ''), '-', ''), '+', ''), '(', '') LIKE :phone_q";
+            $params[':phone_q'] = '%' . $digits . '%';
+        }
+        $where[] = '(' . implode(' OR ', $conditions) . ')';
+    }
+
     $sql = 'SELECT * FROM tenant_requests'
         . ($where ? ' WHERE ' . implode(' AND ', $where) : '')
         . ' ORDER BY created_at DESC' . db_limit_clause($limit, 0);
+
     return array_map('shape_tenant_request', db_all($sql, $params));
 }
 
@@ -1823,104 +2124,14 @@ function delete_search_alert(string $id, array $user): bool
     return true;
 }
 
-function create_receipt(array $data): array
-{
-    $id = new_id('rec');
-    $receiptNo = 'GHL-REC-' . gmdate('Y') . '-' . strtoupper(bin2hex(random_bytes(3)));
-    // Increment B: the stored reference no longer claims verification. Nothing
-    // is verified when a staff member types a payment into the system, so a new
-    // reference reads REF-REC-... Historical rows keep their original value and
-    // are annotated as legacy references on render (see shape_receipt()).
-    $verification = 'REF-REC-' . strtoupper(bin2hex(random_bytes(3)));
-    db_exec(
-        'INSERT INTO rent_receipts (id, receipt_no, property_title, property_address, tenant_name, tenant_phone,
-                                    landlord_name, amount_ghs, amount_in_words, payment_purpose, payment_method,
-                                    transaction_ref, payment_date, issued_by, verification_code, created_at,
-                                    landlord_user_id, tenant_user_id)
-         VALUES (:id, :receipt_no, :title, :address, :tenant_name, :tenant_phone,
-                 :landlord_name, :amount, :words, :purpose, :method,
-                 :ref, :payment_date, :issued_by, :verification, :created,
-                 :landlord_user_id, :tenant_user_id)',
-        [
-            ':id'           => $id,
-            ':receipt_no'   => $receiptNo,
-            ':title'        => $data['property_title'],
-            ':address'      => $data['property_address'],
-            ':tenant_name'  => $data['tenant_name'],
-            ':tenant_phone' => $data['tenant_phone'] ?? '',
-            ':landlord_name'=> $data['landlord_name'],
-            ':amount'       => $data['amount_ghs'],
-            ':words'        => clean_string($data['amount_in_words'] ?? '', 300),
-            ':purpose'      => clean_string($data['payment_purpose'] ?? '', 200),
-            ':method'       => clean_string($data['payment_method'] ?? 'Cash', 60),
-            ':ref'          => clean_string($data['transaction_ref'] ?? '', 128),
-            ':payment_date' => $data['payment_date'],
-            ':issued_by'    => clean_string($data['issued_by'] ?? 'Goodlucks Homes Intermediary Desk', 200),
-            ':verification' => $verification,
-            ':created'      => db_now(),
-            ':landlord_user_id' => $data['landlord_user_id'] ?? null,
-            ':tenant_user_id'   => $data['tenant_user_id'] ?? null,
-        ]
-    );
-    $row = db_one('SELECT * FROM rent_receipts WHERE id = :id', [':id' => $id]);
-    return $row ? shape_receipt($row) : [];
-}
-
-/**
- * Receipts the viewer may read.
- *
- * Administrators see every receipt; landlords and tenants see the records they
- * are linked to by user id. Legacy rows (no links) are attributed to a tenant by
- * phone number only when that number belongs to exactly one account; they are
- * never attributed by name, and never to a landlord, because anyone can register
- * under any name or phone.
- */
-function list_receipts(?array $user = null, int $limit = 200): array
-{
-    $user = $user ?? auth_user();
-    if (!$user) {
-        return [];
-    }
-
-    if (($user['role'] ?? '') === 'admin') {
-        $rows = db_all('SELECT * FROM rent_receipts ORDER BY created_at DESC' . db_limit_clause($limit, 0));
-        return array_map('shape_receipt', $rows);
-    }
-
-    $userId = (string)$user['id'];
-    $linked = db_all(
-        'SELECT * FROM rent_receipts
-         WHERE tenant_user_id = :uid OR landlord_user_id = :uid
-         ORDER BY created_at DESC' . db_limit_clause($limit, 0),
-        [':uid' => $userId]
-    );
-
-    $legacy = db_all(
-        "SELECT * FROM rent_receipts
-         WHERE (tenant_user_id IS NULL OR tenant_user_id = '')
-           AND (landlord_user_id IS NULL OR landlord_user_id = '')
-         ORDER BY created_at DESC" . db_limit_clause(500, 0)
-    );
-
-    $rows = $linked;
-    foreach ($legacy as $row) {
-        if (user_can_read_receipt($user, $row)) {
-            $rows[] = $row;
-        }
-    }
-
-    usort($rows, static fn($a, $b) => strcmp((string)$b['created_at'], (string)$a['created_at']));
-
-    return array_map('shape_receipt', array_slice($rows, 0, $limit));
-}
-
-/** Fetch one receipt row for authorisation checks. */
-function find_receipt(string $id): ?array
-{
-    $row = db_one('SELECT * FROM rent_receipts WHERE id = :id LIMIT 1', [':id' => $id]);
-
-    return $row ?: null;
-}
+// ---------------------------------------------------------------------------
+// Rent payment records — write/read helpers removed (Upgrade 2, E1)
+//
+// Nothing in the platform issues, lists or fetches a rent receipt any more. The
+// data stays: `rent_receipts` is untouched by this removal, and the fee ledger
+// (`fee_remittances`, its reversals and the fee policies) never used these
+// helpers.
+// ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
 // Notifications listing, email logs

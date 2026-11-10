@@ -43,7 +43,6 @@ test('public pages parse to their routes', () => {
     ['/find-a-home', 'find-home'],
     ['/about', 'about'],
     ['/contact', 'contact'],
-    ['/receipts', 'receipts'],
     ['/list-property', 'list-property'],
     ['/login', 'login'],
     ['/register', 'register'],
@@ -250,7 +249,6 @@ test('each dashboard section has its own URL, and the overview is not a tab list
     ['landlord', 'overview', '/landlord/dashboard'],
     ['landlord', 'my-properties', '/landlord/properties'],
     ['landlord', 'viewings', '/landlord/viewings'],
-    ['landlord', 'receipts', '/landlord/receipts'],
     ['landlord', 'identity', '/landlord/verification'],
     ['landlord', 'notifications', '/landlord/notifications'],
     ['landlord', 'profile', '/landlord/profile'],
@@ -288,8 +286,6 @@ test('a section URL is refused to the wrong role even when it exists for another
   assert.equal(accessDecision(tenantSettings, 'landlord', tenantSettings.path).action, 'forbidden');
   assert.equal(accessDecision(tenantSettings, 'admin', tenantSettings.path).action, 'forbidden');
 
-  const landlordReceipts = parseLocation('/landlord/receipts');
-  assert.equal(accessDecision(landlordReceipts, 'tenant', landlordReceipts.path).action, 'forbidden');
 
   const agentStatus = parseLocation('/agent/status');
   assert.equal(accessDecision(agentStatus, 'landlord', agentStatus.path).action, 'forbidden');
@@ -356,8 +352,8 @@ test('guests are sent to the login page with the intended destination', () => {
 });
 
 test('public pages stay public for every role', () => {
-  // Correction 2 removed /receipts from this list: payment records are private
-  // account business now, so a guest is sent to sign in instead (tested below).
+  // Correction 2 took /receipts out of this list, and Upgrade 2 (E1) removed the
+  // feature outright, so the path is not a route at all any more (tested below).
   for (const path of ['/', '/properties', '/find-a-home', '/about', '/contact', '/list-property']) {
     const route = parseLocation(path);
     for (const role of ROLES) {
@@ -366,18 +362,20 @@ test('public pages stay public for every role', () => {
   }
 });
 
-test('receipts are account business: a guest is sent to sign in, members are allowed', () => {
-  const route = parseLocation('/receipts');
-  assert.equal(route.name, 'receipts');
-
-  const guest = accessDecision(route, 'guest', route.path);
-  assert.equal(guest.action, 'login');
-  assert.equal((guest as { next: string }).next, '/receipts');
-  assert.equal((guest as { to: string }).to, '/login?next=%2Freceipts');
-
-  for (const role of ['tenant', 'landlord', 'agent', 'admin'] as UserRole[]) {
-    assert.equal(accessDecision(route, role, route.path).action, 'allow', `${role} keeps access`);
+test('the rent-receipt screens are gone, for every role (Upgrade 2, E1)', () => {
+  // The feature was not restricted, it was removed: the view name no longer
+  // exists, the paths are unknown, and no role reaches a receipt screen.
+  for (const path of ['/receipts', '/landlord/receipts']) {
+    const route = parseLocation(path);
+    assert.notEqual(route.name, 'receipts', `${path} is no longer a receipt route`);
+    assert.equal(route.isKnown, false, `${path} is not a known route any more`);
+    // An unknown URL behaves like any other unknown URL: the not-found screen,
+    // never a receipt view that a role could reach.
+    assert.equal(route.name, 'not-found', `${path} falls through to not-found`);
   }
+
+  // The fee ledger's own reversal route is a different system and stays.
+  assert.ok(!PUBLIC_ROUTES.includes('/receipts'), 'no public receipt path');
 });
 
 test('a signed-in member never sees the sign-in screens again', () => {

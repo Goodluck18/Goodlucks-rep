@@ -228,6 +228,27 @@ function is_admin(?array $user = null): bool
     return $user !== null && ($user['role'] ?? '') === 'admin';
 }
 
+/**
+ * True when this is the PRIMARY platform administrator (Upgrade 2).
+ *
+ * Exactly one account holds the flag. It is the union of every staff
+ * capability — fee policies, agent tiers, verification and identity documents,
+ * viewing corrections, finance, contact-disclosure approvals — and it is the
+ * only account allowed to approve a fee policy it created itself.
+ *
+ * The flag is stored on `users.is_primary_admin`, is assigned only from the
+ * server console (`php-backend/assign_primary_admin.php`), is never implied by
+ * `role = 'admin'`, and there is deliberately no HTTP route that sets it. An
+ * ordinary administrator is unaffected by every branch that reads this.
+ */
+function is_primary_admin(?array $user = null): bool
+{
+    $user = $user ?? auth_user();
+    return $user !== null
+        && (string)($user['role'] ?? '') === 'admin'
+        && (int)($user['is_primary_admin'] ?? 0) === 1;
+}
+
 /** Ownership check used for landlord property access. */
 function can_manage_property(array $user, array $property): bool
 {
@@ -292,9 +313,19 @@ function public_user(array $row): array
         // Increment F adds the viewing-correction capability: correcting a
         // viewing is exceptional and audited, so it is not part of the default
         // administrator role either.
+        // Upgrade 2 — the primary administrator's override: every capability
+        // below already resolves to true for that one account, and
+        // `feePolicySelfApprove` is true only for it. The flag itself is
+        // exposed so the console can name the account honestly.
+        $user['isPrimaryAdmin'] = is_primary_admin($row);
+        // Upgrade 2 Phase 3 adds the directory, activity and bulk-email
+        // capabilities. Like the others they default to false, are granted only
+        // from the server console, and every endpoint re-checks them.
         $user['capabilities'] = verification_capabilities($row)
             + finance_capabilities($row)
-            + viewing_capabilities($row);
+            + viewing_capabilities($row)
+            + directory_capabilities($row)
+            + ['sendBulkEmail' => can_send_bulk_email($row)];
     }
 
     return $user;

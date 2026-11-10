@@ -41,6 +41,15 @@ export interface AgentProfile {
  * review queue needs to the agent's own profile shape. `contactAddress` is the
  * agent's own address and is deliberately separate from `operatingCity`.
  */
+/**
+ * The console's view of an agent account (Upgrade 2, A8).
+ *
+ * `pending` / `approved_for_listing` / `suspended` describe the LISTING
+ * authorisation decision. Identity verification (`identityVerified`) is a
+ * different decision and is never implied by this one.
+ */
+export type AgentAccountStage = 'pending' | 'approved_for_listing' | 'suspended';
+
 export interface AdminAgentAccount extends AgentProfile {
   name: string;
   email: string;
@@ -214,6 +223,12 @@ export interface StaffCapabilities {
   feePolicyManage?: boolean;
   /** Approve/reject/activate/deactivate fee policies (Increment E). */
   feePolicyApprove?: boolean;
+  /**
+   * Approve a fee policy this same account created. True for the primary
+   * platform administrator only; every other administrator needs a second
+   * administrator, and the server enforces it.
+   */
+  feePolicySelfApprove?: boolean;
   /** Correct a closed viewing record with an audited reason (Increment F). */
   viewingCorrections?: boolean;
   /** Read the money ledger, remittances and commissions (Increment G). */
@@ -248,6 +263,11 @@ export interface User {
   agentProfile?: AgentProfile | null;
   /** Present only on administrator accounts (Increment D). */
   capabilities?: StaffCapabilities;
+  /**
+   * True for the primary platform administrator account only. It is assigned
+   * from the server console, never by the application.
+   */
+  isPrimaryAdmin?: boolean;
 }
 
 export type PropertyStatus = 'active' | 'pending' | 'rejected' | 'rented' | 'deactivated';
@@ -329,7 +349,27 @@ export interface Property {
   status: PropertyStatus;
   images: string[];
   description: string;
+  /**
+   * Upgrade 2 (C5): canonical amenity keys, plus the human labels and whatever
+   * free text could not be mapped (kept so nothing a listing said is lost).
+   */
   amenities: string[];
+  amenityLabels?: string[];
+  amenitiesNote?: string;
+  /** Upgrade 2 (C5): structured specs. Null means the listing did not say. */
+  toilets?: number | null;
+  kitchens?: number | null;
+  furnishing?: string;
+  furnishingLabel?: string;
+  /** Upgrade 2 (C4): an approved YouTube/TikTok/Facebook video, or null. */
+  video?: { provider: string; url: string; embedUrl: string } | null;
+  videoProvider?: string;
+  videoUrl?: string;
+  /**
+   * Upgrade 2 (C6): the provider's own expectation. This is NOT a platform fee:
+   * `isPlatformFee` is always false and nothing is calculated from it.
+   */
+  providerCommission?: { percent: number | null; note: string; isPlatformFee: boolean };
   nearbyPlaces: NearbyPlace[];
   availability: string;
   featured?: boolean;
@@ -424,6 +464,12 @@ export interface TenantRequest {
   propertyType: string;
   moveInDate: string;
   status: RequestProgressStatus;
+  /**
+   * The administrator's view of the same lifecycle (Upgrade 2, A7):
+   * pending (submitted/searching) · approved (matched) · viewing_scheduled ·
+   * completed · cancelled. Derived on the server; it never overrides `status`.
+   */
+  stage?: 'pending' | 'approved' | 'viewing_scheduled' | 'completed' | 'cancelled';
   matchedPropertyIds?: string[];
   assignedAgent?: string;
   notes?: string;
@@ -463,6 +509,8 @@ export type ViewingAction =
   | 'confirm'
   | 'reschedule'
   | 'request_reschedule'
+  | 'accept_reschedule'
+  | 'decline_reschedule'
   | 'cancel'
   | 'complete'
   | 'tenant_no_show'
@@ -473,8 +521,24 @@ export interface ViewingSchedule {
   id: string;
   tenantRequestId: string;
   tenantName: string;
+  /**
+   * Empty when the viewer is not entitled to it. An agent or landlord sees a
+   * tenant's phone number and email address only after an administrator approves
+   * sharing (`tenantContactVisible`); staff and the tenant always see them.
+   */
   tenantPhone: string;
   tenantEmail?: string;
+  /** True when this viewer may see the tenant's contact details. */
+  tenantContactVisible?: boolean;
+  /**
+   * `staff` | `own_record` (visible) · `withheld_pending_approval` | `withheld`
+   * (not visible). The full approval workflow arrives with the disclosure queue.
+   */
+  tenantContactState?: string;
+  /** The provider's own request: pending/approved/rejected/revoked/expired. */
+  contactDisclosure?: ContactDisclosure | null;
+  /** Plain-language explanation shown in place of the withheld details. */
+  tenantContactReason?: string;
   /** The tenant account, when the request came from a signed-in tenant. */
   tenantUserId: string;
   /** The agent responsible. Set from the listing's submitter, or by staff. */
@@ -660,32 +724,6 @@ export interface AnalyticsStats {
   viewingFeeDisputedRecords: number;
   dailyTraffic: TrafficDataPoint[];
   monthlyTraffic: TrafficDataPoint[];
-}
-
-export interface RentReceipt {
-  id: string;
-  receiptNo: string;
-  propertyTitle: string;
-  propertyAddress: string;
-  tenantName: string;
-  tenantPhone: string;
-  landlordName: string;
-  amountGhs: number;
-  amountInWords: string;
-  paymentPurpose: string;
-  paymentMethod: 'MTN MoMo' | 'Telecel Cash' | 'Bank Transfer' | 'Card' | 'Cash';
-  transactionRef: string;
-  paymentDate: string;
-  issuedBy: string;
-  verificationCode: string;
-  /** Every stored rent record is a staff-entered claim, not a verified payment. */
-  recordState?: 'reported';
-  recordStateLabel?: string;
-  recipient?: { type: 'landlord'; name: string; verified: boolean };
-  goodlucksIsRecipient?: boolean;
-  /** True for references issued before Increment B ("VERIFIED-REC-..." prefix). */
-  legacyReference?: boolean;
-  createdAt: string;
 }
 
 /** One viewing fee in the Increment B ledger. */
@@ -1111,6 +1149,12 @@ export interface FeePolicy {
   submittedAt: string;
   approvedBy: string;
   approvedAt: string;
+  /**
+   * True only when the primary administrator approved a policy it created
+   * itself. Shown as a fact in the console so the exception is visible.
+   */
+  selfApproved?: boolean;
+  selfApprovedAt?: string;
   rejectedBy: string;
   rejectedAt: string;
   rejectionReason: string;
@@ -1125,15 +1169,107 @@ export interface FeePolicy {
   applicable: boolean;
 }
 
+/** One line of the documented match score (Upgrade 2, B2). */
+export interface MatchFactor {
+  factor: string;
+  label: string;
+  points: number;
+  max: number;
+  detail: string;
+}
+
+export interface MatchBand {
+  label: string;
+  band: 'strong' | 'good' | 'possible' | 'weak' | string;
+}
+
+/** A tenant's contact details, and who may see them (Upgrade 2, B6). */
+export interface ContactDisclosure {
+  id: string;
+  viewingId: string;
+  propertyId: string;
+  propertyTitle: string;
+  providerUserId: string;
+  providerName: string;
+  tenantUserId: string;
+  tenantName: string;
+  requestedBy: string;
+  reason: string;
+  status: 'pending' | 'approved' | 'rejected' | 'revoked' | 'expired';
+  storedStatus: string;
+  statusLabel: string;
+  active: boolean;
+  decidedBy: string;
+  decidedAt: string;
+  decisionNote: string;
+  expiresAt: string;
+  requestedAt: string;
+  updatedAt: string;
+}
+
+/** Administrator-maintained proximity between two areas (Upgrade 2, B2). */
+export interface AreaAdjacency {
+  id: string;
+  areaA: string;
+  areaB: string;
+  band: number;
+  bandLabel: string;
+  note: string;
+  createdBy: string;
+  createdAt: string;
+}
+
+export interface FeePolicyEventChange {
+  field: string;
+  label: string;
+  from: string | number | boolean | null;
+  to: string | number | boolean | null;
+}
+
 export interface FeePolicyEvent {
   id: string;
   action: string;
   fromStatus: FeePolicyStatusKind;
   toStatus: FeePolicyStatusKind;
   note: string;
+  /** Phase 4: what changed, field by field. Empty for events written earlier. */
+  changes: FeePolicyEventChange[];
   actorId: string;
   actorName: string;
   at: string;
+}
+
+/**
+ * Every agent with the commission tier their verification currently earns.
+ * There is no endpoint that sets a tier by hand.
+ */
+export interface AdminAgentTierRow {
+  userId: string;
+  name: string;
+  email: string;
+  agencyName: string;
+  accountStatus: string;
+  canSubmitListings: boolean;
+  tier: AgentTier;
+  tierLabel: string;
+  commissionTier: string;
+  commissionTierLabel: string;
+  commissionPercent: number;
+  goodlucksPercent: number;
+  commissionEligible: boolean;
+  identityStatus: string;
+  professionalStatus: string;
+  createdAt: string;
+}
+
+export interface AdminAgentTiers {
+  success: boolean;
+  agents: AdminAgentTierRow[];
+  counts: { standard: number; professional: number; no_commission_tier: number; total: number };
+  rules: Record<string, { label: string; percent: number; requires: string } | number>;
+  derived: boolean;
+  note: string;
+  capabilities?: StaffCapabilities;
 }
 
 export interface FeePolicyOverview {
@@ -1226,7 +1362,12 @@ export interface Enquiry {
   phone: string;
   message: string;
   source: 'contact_form' | 'property_page' | string;
-  status: 'new' | 'contacted' | 'closed';
+  /**
+   * The enquiry lifecycle (Upgrade 2, A10): new → received → contacted →
+   * replied → closed. `received` means an administrator took it on;
+   * `replied` means an answer was sent. Both are real stored values.
+   */
+  status: 'new' | 'received' | 'contacted' | 'replied' | 'closed';
   createdAt: string;
 }
 
@@ -1379,4 +1520,94 @@ export interface EmailTemplate {
 export interface EmailTemplateTarget {
   type: string;
   label: string;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Administrator: user directory, activity and bulk email (Upgrade 2, Phase 3) */
+/* -------------------------------------------------------------------------- */
+
+/** One account in the administrator directory (A11). Never a password hash. */
+export interface AdminUserRecord {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  role: 'tenant' | 'landlord' | 'agent' | 'admin';
+  isVerified: boolean;
+  createdAt: string;
+  counts: {
+    properties: number;
+    saved: number;
+    requests: number;
+    viewings: number;
+    enquiries: number;
+  };
+  /** Documents are a count only: this screen never receives a file reference. */
+  verification: {
+    identityStatus: string | null;
+    documentsOnFile: number;
+  };
+  agentProfile: { accountStatus: string; canSubmitListings: boolean } | null;
+  company?: string;
+  address?: string;
+  lastActiveAt?: string | null;
+  landlordState?: {
+    listings: number;
+    activeListings: number;
+    pendingListings: number;
+  };
+}
+
+/** One stored event in a person's history (A13). */
+export interface AdminUserActivityEntry {
+  kind: 'property' | 'saved' | 'request' | 'viewing' | 'enquiry' | 'action';
+  id: string;
+  title: string;
+  status: string;
+  at: string;
+}
+
+/** One entry in the platform activity feed (A14). */
+export interface AdminActivityEntry {
+  kind: string;
+  id: string;
+  title: string;
+  detail: string;
+  actor: string;
+  /** Console tab that owns the record, so the feed can open it. */
+  tab: string;
+  at: string;
+}
+
+/** A bulk email campaign (A12). */
+export interface AdminCampaign {
+  id: string;
+  subject: string;
+  bodyHtml: string;
+  audience: string;
+  audienceLabel: string;
+  kind: 'marketing' | 'service';
+  status: 'draft' | 'queued' | 'sent' | 'partly_failed';
+  createdBy: string;
+  createdAt: string;
+  queuedAt: string | null;
+  completedAt: string | null;
+  recipientTotal: number;
+  skippedUnsubscribed: number;
+}
+
+/** Delivery state, read back from the outbox rows. */
+export interface AdminCampaignSummary {
+  campaign: AdminCampaign;
+  counts: { total: number; queued: number; sent: number; failed: number; pending: number };
+  /** Computed from the outbox rows, so it cannot drift from reality. */
+  deliveryStatus: 'pending' | 'delivered' | 'partly_failed' | 'failed';
+  recipients: Array<{
+    email: string;
+    name: string;
+    status: 'sent' | 'failed' | 'pending';
+    attempts: number;
+    error: string;
+    sentAt: string | null;
+  }>;
 }

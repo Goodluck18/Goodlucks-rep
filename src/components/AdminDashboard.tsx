@@ -1,9 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { ApiError, PropertyMatch, api, messageForError } from '../services/apiService';
-import { Property } from '../types';
+import AdminAreaAdjacency from './AdminAreaAdjacency';
+import AdminContactDisclosures from './AdminContactDisclosures';
+import { AdminActivityEntry, Property, TenantRequest } from '../types';
 import { AdminFeeLedger } from './AdminFeeLedger';
 import { AdminAgentAccounts } from './AdminAgentAccounts';
+import { AdminManageListings } from './AdminManageListings';
+import { AdminEnquiries } from './AdminEnquiries';
+import { AdminUserManagement } from './AdminUserManagement';
+import { AdminBulkEmail } from './AdminBulkEmail';
+import { AdminActivityFeed } from './AdminActivityFeed';
 import { AdminFeePolicies } from './AdminFeePolicies';
 import { AdminFinancePanel } from './AdminFinancePanel';
 import { AdminViewingsPanel } from './AdminViewingsPanel';
@@ -40,7 +47,8 @@ import {
   Database,
   Download,
   ImagePlus,
-  Trash2
+  Trash2,
+  Send
 } from 'lucide-react';
 import { IMAGE_MAX_BYTES, formatBytes, validateImageFile } from '../lib/uploads';
 
@@ -116,7 +124,11 @@ export const AdminDashboard: React.FC = () => {
     // Task 07: Blog Management and the email-template editor live in the same
     // console, as two more sections of it.
     | 'blog'
-    | 'email-templates';
+    | 'email-templates'
+    // Upgrade 2 Phase 3: the user directory and bulk email are their own
+    // console sections, reachable at /admin/users and /admin/bulk-email.
+    | 'users'
+    | 'bulk-email';
   const setActiveAdminTab = setSectionTab;
 
   // Real data export: CSV of the listings currently loaded from the API.
@@ -161,6 +173,20 @@ export const AdminDashboard: React.FC = () => {
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [viewPropertyModal, setViewPropertyModal] = useState<Property | null>(null);
   const [activeModalImage, setActiveModalImage] = useState<number>(0);
+  /**
+   * Tenant matching search + stage filter (Upgrade 2, A7).
+   *
+   * `matchingRequests` is what the matching tab shows: the server's answer to
+   * the search and stage, not a client-side filter over a downloaded page. It
+   * starts as the session's own list so the tab is populated immediately, then
+   * follows the filters.
+   */
+  const [matchingQuery, setMatchingQuery] = useState('');
+  const [matchingStage, setMatchingStage] = useState<'' | 'pending' | 'approved' | 'viewing_scheduled'>('');
+  const [matchingRequests, setMatchingRequests] = useState<TenantRequest[]>(tenantRequests);
+  const [matchingCounts, setMatchingCounts] = useState<Record<string, number>>({});
+  const [matchingLoading, setMatchingLoading] = useState(false);
+
   const [selectedReqId, setSelectedReqId] = useState(tenantRequests[0]?.id || '');
   const [selectedPropId, setSelectedPropId] = useState(properties[0]?.id || '');
   const [viewDate, setViewDate] = useState(() => new Date(Date.now() + 2 * 86400_000).toISOString().slice(0, 10));
@@ -177,6 +203,9 @@ export const AdminDashboard: React.FC = () => {
   // Real match scores per tenant request, fetched from the backend so the
   // console shows the same numbers the tenant sees.
   const [requestMatches, setRequestMatches] = useState<Record<string, PropertyMatch[]>>({});
+  // Upgrade 2 (B3): the staff shortlist is built deliberately and saved in one
+  // go, because the server accepts 3–6 live listings and nothing else.
+  const [shortlists, setShortlists] = useState<Record<string, string[]>>({});
   const [matchesLoading, setMatchesLoading] = useState(false);
   const [editProperty, setEditProperty] = useState<Property | null>(null);
   const [editForm, setEditForm] = useState<Record<string, any>>({});
@@ -208,8 +237,38 @@ export const AdminDashboard: React.FC = () => {
     void runAction(() => updatePropertyStatus(id, 'rejected'), 'Could not reject the listing.');
   };
 
-  const handleConfirmMatch = (reqId: string, propId: string) => {
-    void runAction(() => updateTenantRequestStatus(reqId, 'matched', [propId]), 'Could not confirm the match.');
+  const toggleChosen = (reqId: string, propId: string) => {
+    setShortlists((prev) => {
+      const current = prev[reqId] ?? [];
+      return {
+        ...prev,
+        [reqId]: current.includes(propId) ? current.filter((id) => id !== propId) : [...current, propId],
+      };
+    });
+  };
+
+  const handleSaveShortlist = (reqId: string) => {
+    const chosen = shortlists[reqId] ?? [];
+    if (chosen.length === 0 || chosen.length > 6) {
+      showErrorToast(
+        'Choose up to 6 properties',
+        'A shortlist is a recommendation, not a search result: pick at most six live listings.'
+      );
+      return;
+    }
+    void runAction(
+      async () => {
+        await updateTenantRequestStatus(reqId, 'matched', chosen);
+        await Promise.all(
+          matchingRequests.map(async (req) => {
+            if (req.id !== reqId) return;
+            const result = await api.matches(req.id).catch(() => ({ matches: [] as PropertyMatch[] }));
+            setRequestMatches((prev) => ({ ...prev, [req.id]: result.matches }));
+          })
+        );
+      },
+      'Could not save the shortlist.'
+    );
   };
 
   const handleRunAlertDigest = async () => {
@@ -279,14 +338,42 @@ export const AdminDashboard: React.FC = () => {
     setEditSavedImages(property.images);
   };
 
+  // A7: the matching tab reads the server's filtered list.
   useEffect(() => {
-    if (activeAdminTab !== 'matching' || tenantRequests.length === 0) return;
+    if (activeAdminTab !== 'matching') return;
+
+    let cancelled = false;
+    setMatchingLoading(true);
+    api
+      .listAllTenantRequests({ q: matchingQuery.trim(), stage: matchingStage })
+      .then((result) => {
+        if (cancelled) return;
+        setMatchingRequests(result.requests ?? []);
+        setMatchingCounts(result.stageCounts ?? {});
+      })
+      .catch((error) => {
+        if (!cancelled) setActionError(messageForError(error));
+      })
+      .finally(() => {
+        if (!cancelled) setMatchingLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+    // `tenantRequests` is a dependency so approving a request (which updates the
+    // session's list) immediately re-reads the filtered list — an approved
+    // request therefore appears in the Approved stage without a manual refresh.
+  }, [activeAdminTab, matchingQuery, matchingStage, tenantRequests]);
+
+  useEffect(() => {
+    if (activeAdminTab !== 'matching' || matchingRequests.length === 0) return;
 
     let cancelled = false;
     setMatchesLoading(true);
 
     Promise.all(
-      tenantRequests.slice(0, 20).map(req =>
+      matchingRequests.slice(0, 20).map(req =>
         api.matches(req.id)
           .then(result => [req.id, result.matches] as const)
           .catch(() => [req.id, [] as PropertyMatch[]] as const)
@@ -302,7 +389,7 @@ export const AdminDashboard: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [activeAdminTab, tenantRequests]);
+  }, [activeAdminTab, matchingRequests]);
 
   const handleSavePropertyEdit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -474,6 +561,13 @@ export const AdminDashboard: React.FC = () => {
           </button>
 
           <button
+            onClick={() => setActiveAdminTab('users')}
+            className={`gl-tab ${activeAdminTab === 'users' ? 'gl-tab-active' : ''}`}
+          >
+            <Users className="w-4 h-4" /> User Management
+          </button>
+
+          <button
             onClick={() => setActiveAdminTab('fee-policies')}
             className={`gl-tab ${activeAdminTab === 'fee-policies' ? 'gl-tab-active' : ''}`}
           >
@@ -516,11 +610,12 @@ export const AdminDashboard: React.FC = () => {
           </button>
 
           <button
-            onClick={() => setCurrentView('receipts')}
-            className="px-4 py-2.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-2 bg-interactive/10 text-ink border border-interactive/30 hover:bg-interactive/20"
+            onClick={() => setActiveAdminTab('bulk-email')}
+            className={`gl-tab ${activeAdminTab === 'bulk-email' ? 'gl-tab-active' : ''}`}
           >
-            <FileText className="w-4 h-4 text-ink" /> Payment Records
+            <Send className="w-4 h-4" /> Bulk Email
           </button>
+
         </div>
 
         {actionError && (
@@ -536,7 +631,19 @@ export const AdminDashboard: React.FC = () => {
         {/* TAB 1: Advanced Analytics Dashboard */}
         {activeAdminTab === 'analytics' && (
           <div className="space-y-8">
-            
+
+            {/* Recent activity (Upgrade 2, A14): the newest real records. */}
+            <AdminActivityFeed
+              onOpen={(entry: AdminActivityEntry) => {
+                const property = properties.find((candidate) => candidate.id === entry.id);
+                if (entry.kind === 'property' && property) {
+                  setViewPropertyModal(property);
+                  return;
+                }
+                setActiveAdminTab(entry.tab as typeof activeAdminTab);
+              }}
+            />
+
             {/* Visitor Statistics Header Cards */}
             <div className="space-y-3">
               <h2 className="text-lg font-bold text-ink flex items-center gap-2">
@@ -751,141 +858,10 @@ export const AdminDashboard: React.FC = () => {
                 fee and terms submitted with it. */}
             <AdminViewingTermsQueue />
 
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-              <div>
-                <h2 className="text-xl font-bold text-ink">All Property Listings</h2>
-                <p className="text-xs text-ink/70">
-                  Edit details, publish or archive listings, and control what appears on the public website.
-                </p>
-              </div>
-              <span className="px-3 py-1 rounded-full bg-interactive/15 text-ink text-xs font-bold border border-interactive/30">
-                {properties.length} total records
-              </span>
-            </div>
-
-            <div className="bg-surface rounded-2xl border border-line divide-y divide-line">
-              {properties.length === 0 && (
-                <div className="p-8 text-center text-xs text-ink/70">No property records yet.</div>
-              )}
-              {properties.map((property) => (
-                <div key={property.id} className="p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <img
-                      src={property.images[0] || 'https://images.unsplash.com/photo-1560518883-ce09059eeffa?auto=format&fit=crop&w=200&q=60'}
-                      alt=""
-                      loading="lazy"
-                      decoding="async"
-                      className="w-14 h-14 rounded-xl object-cover border border-line shrink-0"
-                    />
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span
-                          className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                            property.status === 'active'
-                              ? 'bg-emerald-500/20 text-emerald-700'
-                              : property.status === 'pending'
-                                ? 'bg-amber-500/20 text-amber-700'
-                                : property.status === 'rejected'
-                                  ? 'bg-accent/20 text-accent'
-                                  : 'bg-line/40 text-ink/70'
-                          }`}
-                        >
-                          {property.status}
-                        </span>
-                        {property.featured && (
-                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-interactive/20 text-ink">
-                            FEATURED
-                          </span>
-                        )}
-                        <span
-                          className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                            property.isLandlordVerified
-                              ? 'bg-emerald-500/20 text-emerald-700'
-                              : 'bg-line/40 text-ink/70'
-                          }`}
-                        >
-                          {property.isLandlordVerified ? 'LANDLORD VERIFIED' : 'NOT VERIFIED'}
-                        </span>
-                        <span className="text-[10px] text-ink/70 font-mono">{property.id}</span>
-                      </div>
-                      <h3 className="font-bold text-sm text-ink truncate">{property.title}</h3>
-                      <p className="text-[11px] text-ink/70 truncate">
-                        {property.location} • GH₵ {property.rentGhs.toLocaleString()}/mo • {property.bedrooms} Bed /{' '}
-                        {property.bathrooms} Bath • {property.viewsCount} views
-                      </p>
-                      <p className="text-[11px] text-ink/70">
-                        Viewing fee:{' '}
-                        {property.viewingTerms?.isApproved && property.viewingTerms.feeGhs
-                          ? `GH₵ ${property.viewingTerms.feeGhs.toLocaleString()} (approved)`
-                          : property.viewingTerms?.pendingChange
-                            ? `GH₵ ${property.viewingTerms.pendingChange.proposedFeeGhs?.toLocaleString()} proposed — awaiting review`
-                            : 'none approved'}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-1.5 shrink-0">
-                    <button
-                      onClick={() => openEditProperty(property)}
-                      className="px-3 py-1.5 rounded-lg bg-page hover:bg-line text-ink font-bold text-[11px]"
-                    >
-                      Edit
-                    </button>
-
-                    {property.status !== 'active' ? (
-                      <button
-                        onClick={() => handleApproveProperty(property.id)}
-                        className="px-3 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-700 hover:bg-emerald-500/30 font-bold text-[11px]"
-                      >
-                        Publish
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() => void runAction(() => updatePropertyStatus(property.id, 'deactivated'), 'Could not archive the listing.')}
-                        className="px-3 py-1.5 rounded-lg bg-line/60 text-ink hover:bg-line font-bold text-[11px]"
-                      >
-                        Archive
-                      </button>
-                    )}
-
-                    <button
-                      onClick={() =>
-                        void runAction(
-                          () => verifyProperty(property.id, !property.isLandlordVerified),
-                          'Could not update the verification state.'
-                        )
-                      }
-                      className={`px-3 py-1.5 rounded-lg font-bold text-[11px] ${
-                        property.isLandlordVerified
-                          ? 'bg-emerald-500/20 text-emerald-700 hover:bg-emerald-500/30'
-                          : 'bg-page text-ink hover:bg-line'
-                      }`}
-                      title="Only mark this after Goodlucks staff have inspected the property"
-                    >
-                      {property.isLandlordVerified ? 'Unverify' : 'Verify'}
-                    </button>
-
-                    <button
-                      onClick={() => void runAction(() => toggleFeatured(property.id, !property.featured), 'Could not update the featured flag.')}
-                      className="px-3 py-1.5 rounded-lg bg-interactive/15 text-ink hover:bg-interactive/25 font-bold text-[11px]"
-                    >
-                      {property.featured ? 'Unfeature' : 'Feature'}
-                    </button>
-
-                    <button
-                      onClick={() => {
-                        if (window.confirm(`Remove "${property.title}" from the public website?`)) {
-                          void runAction(() => deleteProperty(property.id), 'Could not delete the listing.');
-                        }
-                      }}
-                      className="px-3 py-1.5 rounded-lg bg-accent/15 text-accent hover:bg-accent/25 font-bold text-[11px]"
-                    >
-                      Delete
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
+            {/* Manage Listings (Upgrade 2, A6): search, filters, sorting and
+                paging run against the real table on the server, so a search
+                covers every listing, not just the ones already downloaded. */}
+            <AdminManageListings onEdit={openEditProperty} />
           </div>
         )}
 
@@ -903,105 +879,67 @@ export const AdminDashboard: React.FC = () => {
         )}
         {activeAdminTab === 'finance' && <AdminFinancePanel />}
 
-        {activeAdminTab === 'enquiries' && (
-          <div className="space-y-4">
-            <div>
-              <h2 className="text-xl font-bold text-ink">Website Enquiries & Messages</h2>
-              <p className="text-xs text-ink/70">Contact form and property questions submitted through the website.</p>
-            </div>
-
-            {enquiries.length === 0 ? (
-              <div className="text-center py-12 bg-surface/40 rounded-2xl border border-line">
-                <Mail className="w-12 h-12 text-ink/70 mx-auto mb-3" />
-                <div className="text-base font-bold text-ink">No enquiries yet</div>
-                <p className="text-xs text-ink/70">Messages sent from the contact form will appear here.</p>
-              </div>
-            ) : (
-              <div className="bg-surface rounded-2xl border border-line divide-y divide-line">
-                {enquiries.map((enquiry) => (
-                  <div key={enquiry.id} className="p-4 space-y-1.5">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="px-2 py-0.5 rounded bg-interactive/20 text-ink font-bold text-[10px] uppercase">
-                        {enquiry.source === 'property_page' ? 'property enquiry' : 'contact form'}
-                      </span>
-                      <span className="font-bold text-ink text-sm">{enquiry.name}</span>
-                      <span className="text-[11px] text-ink/70">{enquiry.email}</span>
-                      {enquiry.phone && <span className="text-[11px] text-ink/70">• {enquiry.phone}</span>}
-                      <span
-                        className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                          enquiry.status === 'new'
-                            ? 'bg-amber-500/20 text-amber-700'
-                            : enquiry.status === 'contacted'
-                              ? 'bg-sky-500/20 text-sky-700'
-                              : 'bg-line/40 text-ink/70'
-                        }`}
-                      >
-                        {enquiry.status.replace('_', ' ')}
-                      </span>
-                      <span className="text-[10px] text-ink/70 ml-auto">
-                        {new Date(enquiry.createdAt).toLocaleString()}
-                      </span>
-                    </div>
-                    {enquiry.propertyTitle && (
-                      <div className="text-[11px] text-ink">Re: {enquiry.propertyTitle}</div>
-                    )}
-                    <p className="text-xs text-ink/70 whitespace-pre-line">{enquiry.message}</p>
-
-                    <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                      {enquiry.status !== 'contacted' && (
-                        <button
-                          onClick={() =>
-                            void runAction(() => setEnquiryStatus(enquiry.id, 'contacted'), 'Could not update the enquiry.')
-                          }
-                          className="px-3 py-1.5 rounded-lg bg-sky-500/20 text-sky-700 hover:bg-sky-500/30 font-bold text-[11px]"
-                        >
-                          Mark contacted
-                        </button>
-                      )}
-                      {enquiry.status !== 'closed' && (
-                        <button
-                          onClick={() =>
-                            void runAction(() => setEnquiryStatus(enquiry.id, 'closed'), 'Could not update the enquiry.')
-                          }
-                          className="px-3 py-1.5 rounded-lg bg-line/70 text-ink hover:bg-line font-bold text-[11px]"
-                        >
-                          Close
-                        </button>
-                      )}
-                      {enquiry.status !== 'new' && (
-                        <button
-                          onClick={() =>
-                            void runAction(() => setEnquiryStatus(enquiry.id, 'new'), 'Could not update the enquiry.')
-                          }
-                          className="px-3 py-1.5 rounded-lg bg-page text-ink hover:bg-line font-bold text-[11px]"
-                        >
-                          Reopen
-                        </button>
-                      )}
-                      <a
-                        href={`mailto:${enquiry.email}?subject=${encodeURIComponent('Re: your enquiry with Goodlucks Homes')}`}
-                        className="px-3 py-1.5 rounded-lg bg-interactive/15 text-ink hover:bg-interactive/25 font-bold text-[11px]"
-                      >
-                        Reply by email
-                      </a>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
+        {activeAdminTab === 'enquiries' && <AdminEnquiries />}
 
         {/* TAB 3: AI Tenant Matching System */}
         {activeAdminTab === 'matching' && (
           <div className="space-y-6">
             <div>
               <h2 className="text-xl font-bold text-ink">Tenant Request & AI Matching Matrix</h2>
-              <p className="text-xs text-ink/70">Match tenant requests with active properties and calculate Match Scores</p>
+              <p className="text-xs text-ink/70">
+                Match tenant requests with active properties and calculate Match Scores. Search by the tenant&rsquo;s name,
+                phone number or email address; the stages below are the request&rsquo;s real status.
+              </p>
+            </div>
+
+            {/* A7: search + stage filters, answered by the server. */}
+            <div className="bg-surface border border-line rounded-2xl p-3 space-y-2">
+              <div className="relative">
+                <Search className="w-4 h-4 absolute left-3 top-2.5 text-ink/60" />
+                <input
+                  type="search"
+                  value={matchingQuery}
+                  onChange={(event) => setMatchingQuery(event.target.value)}
+                  placeholder="Search tenant name, phone or email…"
+                  aria-label="Search tenant requests"
+                  className="w-full bg-page border border-line rounded-xl pl-9 pr-3 py-2 text-xs text-ink"
+                />
+              </div>
+
+              <div className="flex flex-wrap gap-1.5">
+                {([
+                  { value: '', label: 'All requests' },
+                  { value: 'pending', label: `Pending (${matchingCounts.pending ?? 0})` },
+                  { value: 'approved', label: `Approved (${matchingCounts.approved ?? 0})` },
+                  { value: 'viewing_scheduled', label: `Viewing scheduled (${matchingCounts.viewing_scheduled ?? 0})` },
+                ] as const).map((option) => (
+                  <button
+                    key={option.value || 'all'}
+                    type="button"
+                    onClick={() => setMatchingStage(option.value)}
+                    aria-pressed={matchingStage === option.value}
+                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border ${
+                      matchingStage === option.value
+                        ? 'bg-interactive text-ink border-interactive'
+                        : 'bg-page text-ink border-line'
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+
+              <p className="text-[10px] text-ink/70">
+                {matchingLoading
+                  ? 'Searching the requests…'
+                  : matchingRequests.length === 0
+                    ? 'No rental request matches this search and stage.'
+                    : `${matchingRequests.length} ${matchingRequests.length === 1 ? 'request' : 'requests'} shown. An approved request moves into the Approved stage as soon as staff approve its matches.`}
+              </p>
             </div>
 
             <div className="grid grid-cols-1 gap-6">
-              {tenantRequests.map(req => (
+              {matchingRequests.map(req => (
                 <div key={req.id} className="bg-surface p-6 rounded-2xl border border-line space-y-4">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-line pb-4">
                     <div>
@@ -1012,8 +950,11 @@ export const AdminDashboard: React.FC = () => {
                       </p>
                     </div>
 
-                    <span className="px-3 py-1 rounded-full text-xs font-bold uppercase bg-interactive/20 text-ink border border-interactive/30 shrink-0">
-                      Status: {req.status}
+                    <span
+                      className="px-3 py-1 rounded-full text-xs font-bold uppercase bg-interactive/20 text-ink border border-interactive/30 shrink-0"
+                      title={`Stored status: ${req.status}`}
+                    >
+                      {(req.stage ?? req.status).replace('_', ' ')}
                     </span>
                   </div>
 
@@ -1040,14 +981,20 @@ export const AdminDashboard: React.FC = () => {
                             </div>
                           </div>
 
-                          {!curated && (
-                            <button
-                              onClick={() => handleConfirmMatch(req.id, prop.id)}
-                              className="gl-btn gl-btn-primary px-3 py-1.5 text-xs shrink-0"
-                            >
-                              Confirm Match
-                            </button>
-                          )}
+                          <button
+                            onClick={() => toggleChosen(req.id, prop.id)}
+                            aria-pressed={(shortlists[req.id] ?? []).includes(prop.id)}
+                            disabled={curated}
+                            className={`px-3 py-1.5 text-xs shrink-0 rounded-lg border font-bold ${
+                              curated
+                                ? 'bg-interactive/20 text-ink border-interactive/40'
+                                : (shortlists[req.id] ?? []).includes(prop.id)
+                                  ? 'bg-interactive text-ink border-interactive'
+                                  : 'bg-page text-ink border-line'
+                            }`}
+                          >
+                            {curated ? 'In the shortlist' : (shortlists[req.id] ?? []).includes(prop.id) ? 'Chosen' : 'Choose'}
+                          </button>
                         </div>
                       ))}
                       {!matchesLoading && (requestMatches[req.id] ?? []).length === 0 && (
@@ -1063,15 +1010,37 @@ export const AdminDashboard: React.FC = () => {
                     </div>
                   </div>
 
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-t border-line pt-3">
+                    <p className="text-[11px] text-ink/70">
+                      Chosen for this tenant:{' '}
+                      <span className="font-bold text-ink">{(shortlists[req.id] ?? []).length}</span> of up to 6.
+                      {(shortlists[req.id] ?? []).length > 0 && (shortlists[req.id] ?? []).length < 3
+                        ? ' Choose at least three so the shortlist reads as a recommendation.'
+                        : ''}
+                    </p>
+                    <button
+                      onClick={() => handleSaveShortlist(req.id)}
+                      disabled={
+                        (shortlists[req.id] ?? []).length === 0 || (shortlists[req.id] ?? []).length > 6
+                      }
+                      className="gl-btn gl-btn-primary px-3 py-1.5 text-xs shrink-0 disabled:opacity-50"
+                    >
+                      Save shortlist for {req.tenantName}
+                    </button>
+                  </div>
+
                 </div>
               ))}
             </div>
+
+            <AdminAreaAdjacency />
           </div>
         )}
 
         {/* TAB 4: Viewing requests, appointments and history (Increment F) */}
         {activeAdminTab === 'viewings' && (
           <div className="space-y-4">
+            <AdminContactDisclosures />
             <AdminViewingsPanel />
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-surface border border-line rounded-2xl p-4">
               <p className="text-[11px] text-ink/70 max-w-xl">
@@ -1102,6 +1071,16 @@ export const AdminDashboard: React.FC = () => {
               else showInfoToast(title, message);
             }}
           />
+        )}
+
+        {/* TAB: User Management (Upgrade 2, A11 + A13) */}
+        {activeAdminTab === 'users' && (
+          <AdminUserManagement />
+        )}
+
+        {/* TAB: Bulk Email (Upgrade 2, A12) */}
+        {activeAdminTab === 'bulk-email' && (
+          <AdminBulkEmail />
         )}
 
         {/* TAB 5: Email Transactional Logs */}

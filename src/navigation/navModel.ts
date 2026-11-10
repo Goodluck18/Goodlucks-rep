@@ -62,7 +62,6 @@ const PUBLIC = {
   browse: '/properties',
   findHome: '/find-a-home',
   listProperty: '/list-property',
-  receipts: '/receipts',
   about: '/about',
   contact: '/contact',
   // Task 07: the Blog & Learning Centre is a public page, so it belongs in the
@@ -157,11 +156,10 @@ export function activeItemId<T extends { id: string; path: string; activeFor?: s
  * hamburger carries the pages *behind* those (list a property, about, contact)
  * so the two surfaces never repeat one another.
  *
- * Receipts are deliberately absent (Correction 2): payment records are private
- * account business, reachable only from a signed-in member's own dashboard. A
- * visitor cannot discover them here and cannot open `/receipts` either — the
- * route guard sends a guest to sign in, and `/api/receipts` answers 401.
- */
+ * Rent receipts are deliberately absent (Correction 2, completed by Upgrade 2
+ * E1): the feature was removed outright, so there is no destination, no route
+ * and no API for it. The stored history is untouched.
+*/
 const GUEST_NAV: RoleNav = {
   desktop: [
     { id: 'home', label: 'Home', path: PUBLIC.home, icon: Home },
@@ -241,7 +239,7 @@ function tenantNav(): RoleNav {
 
 /**
  * Landlord: the property portfolio, the submission action and the viewings that
- * need answering. Receipts, verification and settings are account business and
+ * need answering. Verification and settings are account business and
  * sit in the menu.
  */
 function landlordNav(): RoleNav {
@@ -256,7 +254,6 @@ function landlordNav(): RoleNav {
       { id: 'profile', label: 'Profile', path: account.profile, icon: UserRound },
     ],
     menu: [
-      { id: 'receipts', label: 'Receipts', path: tabPath('landlord', 'receipts'), icon: ReceiptText },
       { id: 'verification', label: 'Verification', path: tabPath('landlord', 'identity'), icon: ShieldCheck },
       { id: 'settings', label: 'Account settings', path: account.settings, icon: Settings },
     ],

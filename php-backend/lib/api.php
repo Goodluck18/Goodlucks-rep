@@ -128,6 +128,26 @@ function resolve_route(string $method, string $path): ?array
         ['GET',  '#^/admin/enquiries$#', 'handle_admin_enquiries'],
         ['PATCH', '#^/admin/enquiries/([A-Za-z0-9\-_]+)$#', 'handle_update_enquiry'],
 
+        // --- User directory, profiles and activity (Upgrade 2, A11/A13/A14) ---
+        ['GET',  '#^/admin/users$#', 'handle_admin_users'],
+        ['GET',  '#^/admin/users/([A-Za-z0-9\-_]+)$#', 'handle_admin_user_profile'],
+        ['GET',  '#^/admin/users/([A-Za-z0-9\-_]+)/activity$#', 'handle_admin_user_activity'],
+        // Upgrade 2 (E2): the only way a provider classification changes.
+        ['POST', '#^/admin/users/([A-Za-z0-9\-_]+)/role$#', 'handle_admin_correct_user_role'],
+        ['GET',  '#^/admin/activity$#', 'handle_admin_activity'],
+
+        // --- Bulk email campaigns (Upgrade 2, A12) -----------------------
+        ['GET',  '#^/admin/campaigns$#', 'handle_list_campaigns'],
+        ['GET',  '#^/admin/campaigns/preview$#', 'handle_campaign_preview'],
+        ['POST', '#^/admin/campaigns$#', 'handle_create_campaign'],
+        ['GET',  '#^/admin/campaigns/([A-Za-z0-9\-_]+)$#', 'handle_campaign_show'],
+        ['POST', '#^/admin/campaigns/([A-Za-z0-9\-_]+)/queue$#', 'handle_queue_campaign'],
+        ['POST', '#^/admin/campaigns/([A-Za-z0-9\-_]+)/retry$#', 'handle_retry_campaign'],
+
+        // --- Email preferences (public link from every campaign email) ----
+        ['GET',  '#^/email/preferences$#', 'handle_email_preferences_show'],
+        ['POST', '#^/email/preferences$#', 'handle_email_preferences_update'],
+
         // --- Tenant requests -------------------------------------------
         ['POST', '#^/tenant-requests$#', 'handle_create_tenant_request'],
         ['POST', '#^/tenant_requests$#', 'handle_create_tenant_request'],
@@ -145,7 +165,7 @@ function resolve_route(string $method, string $path): ?array
         ['GET',  '#^/admin/viewings/([A-Za-z0-9\-_]+)$#', 'handle_admin_viewing_detail'],
         ['POST', '#^/admin/viewings/([A-Za-z0-9\-_]+)/correction$#', 'handle_correct_viewing'],
         ['POST', '#^/admin/viewings/([A-Za-z0-9\-_]+)/assign-agent$#', 'handle_assign_viewing_agent'],
-        ['POST', '#^/viewings/([A-Za-z0-9\-_]+)/(propose|confirm|reschedule|request-reschedule|cancel|complete|no-show|could-not-proceed)$#', 'handle_viewing_action'],
+        ['POST', '#^/viewings/([A-Za-z0-9\-_]+)/(propose|confirm|reschedule|request-reschedule|accept-reschedule|decline-reschedule|cancel|complete|no-show|could-not-proceed)$#', 'handle_viewing_action'],
         ['GET',  '#^/viewings/([A-Za-z0-9\-_]+)$#', 'handle_get_viewing'],
         ['PATCH', '#^/viewings/([A-Za-z0-9\-_]+)$#', 'handle_update_viewing'],
 
@@ -165,9 +185,6 @@ function resolve_route(string $method, string $path): ?array
         // --- Rent payment records ---------------------------------------
         // Tenancy-agreement drafting, signing and emailing were retired: the
         // platform does not prepare or execute tenancy agreements (Increment A).
-        ['GET',  '#^/receipts$#', 'handle_list_receipts'],
-        ['POST', '#^/receipts$#', 'handle_create_receipt'],
-        ['GET',  '#^/receipts/([A-Za-z0-9\-_]+)$#', 'handle_get_receipt'],
 
         // --- Viewing-fee ledger (Increment B) ---------------------------
         // Admin-only. These endpoints record what agents collected, what is
@@ -197,6 +214,23 @@ function resolve_route(string $method, string $path): ?array
         ['POST', '#^/admin/fee-policies/([A-Za-z0-9\-_]+)/reject$#', 'handle_reject_fee_policy'],
         ['POST', '#^/admin/fee-policies/([A-Za-z0-9\-_]+)/activate$#', 'handle_activate_fee_policy'],
         ['POST', '#^/admin/fee-policies/([A-Za-z0-9\-_]+)/deactivate$#', 'handle_deactivate_fee_policy'],
+        // Deleting is allowed only for a policy that never priced anything and
+        // never went through approval; everything else is history.
+        ['DELETE', '#^/admin/fee-policies/([A-Za-z0-9\-_]+)$#', 'handle_delete_fee_policy'],
+        // Every agent's derived tier, read-only: a tier decides how a real
+        // commission is split, so it follows verification, never a dropdown.
+        ['GET',  '#^/admin/agent-tiers$#', 'handle_admin_agent_tier_overview'],
+
+        // --- Tenant contact disclosure (Upgrade 2, B6) -------------------
+        // A provider asks; staff decide; the tenant is told what was shared.
+        ['POST', '#^/viewings/([A-Za-z0-9\-_]+)/request-contact$#', 'handle_request_contact_disclosure'],
+        ['GET',  '#^/contact-disclosures$#', 'handle_my_contact_disclosures'],
+        ['GET',  '#^/admin/contact-disclosures$#', 'handle_list_contact_disclosures'],
+        // Area proximity: the administrator's judgement, used by the scorer.
+        ['GET',    '#^/admin/area-adjacency$#', 'handle_list_area_adjacency'],
+        ['POST',   '#^/admin/area-adjacency$#', 'handle_save_area_adjacency'],
+        ['DELETE', '#^/admin/area-adjacency/([A-Za-z0-9\-_]+)$#', 'handle_delete_area_adjacency'],
+        ['POST', '#^/admin/contact-disclosures/([A-Za-z0-9\-_]+)/decision$#', 'handle_decide_contact_disclosure'],
         ['GET',  '#^/admin/agents/([A-Za-z0-9\-_]+)/tier$#', 'handle_admin_agent_tier'],
 
         // --- Remittances, reconciliation & rental commissions (Increment G) ---
@@ -1002,22 +1036,55 @@ function handle_update_agent_profile(): void
     ]);
 }
 
+/**
+ * Agent accounts, with the console's search and filters (Upgrade 2, A8).
+ *
+ * Identity verification and listing authorisation are separate filters on
+ * purpose: `verification=verified` says nothing about `listing=allowed`, and the
+ * three status chips (pending / approved for listing / suspended) are derived
+ * from the account's own decision fields, never guessed.
+ */
 function handle_list_agents(): void
 {
     require_auth(['admin']);
-    $status = query_param('status');
-    $agents = list_agent_profiles(200);
-    if ($status) {
-        $agents = array_values(array_filter(
-            $agents,
-            static fn(array $a): bool => (string)$a['accountStatus'] === (string)$status
-        ));
+
+    $filters = [
+        'q'             => trim((string)query_param('q', '')),
+        'stage'         => strtolower(trim((string)query_param('stage', ''))),
+        'verification'  => strtolower(trim((string)query_param('verification', ''))),
+        'listing'       => strtolower(trim((string)query_param('listing', ''))),
+        'accountStatus' => strtolower(trim((string)query_param('accountStatus', ''))),
+    ];
+
+    if ($filters['stage'] !== '' && !in_array($filters['stage'], ['pending', 'approved_for_listing', 'suspended'], true)) {
+        error_response('Unknown agent filter.', 422, [
+            'stage' => 'Choose one of: pending, approved_for_listing, suspended.',
+        ]);
     }
+    if ($filters['verification'] !== '' && !in_array($filters['verification'], ['verified', 'unverified'], true)) {
+        error_response('Unknown verification filter.', 422, [
+            'verification' => 'Choose one of: verified, unverified.',
+        ]);
+    }
+    if ($filters['listing'] !== '' && !in_array($filters['listing'], ['allowed', 'blocked'], true)) {
+        error_response('Unknown listing filter.', 422, [
+            'listing' => 'Choose one of: allowed, blocked.',
+        ]);
+    }
+    if ($filters['accountStatus'] !== '' && !in_array($filters['accountStatus'], AGENT_ACCOUNT_STATUSES, true)) {
+        error_response('Unknown account status.', 422, [
+            'accountStatus' => 'Allowed values: ' . implode(', ', AGENT_ACCOUNT_STATUSES) . '.',
+        ]);
+    }
+    $filters = array_filter($filters, static fn($value): bool => $value !== '');
+
+    $agents = list_agent_profiles(500, $filters);
 
     json_response([
-        'success' => true,
-        'count'   => count($agents),
-        'agents'  => $agents,
+        'success'    => true,
+        'count'      => count($agents),
+        'agents'     => $agents,
+        'stageCounts' => count_agents_by_stage(),
     ]);
 }
 
@@ -1539,8 +1606,69 @@ function property_payload(array $input, bool $isUpdate = false): array
             $validator->add('images', 'Add at least one property image.');
         }
     }
+    // Upgrade 2 (C5): amenities are canonical keys. Anything we cannot map is
+    // kept verbatim in `amenities_note` so a listing never loses what its owner
+    // actually wrote, and an old listing keeps rendering unchanged.
     if (array_key_exists('amenities', $input)) {
-        $data['amenities'] = clean_string_list($input['amenities'], 30, 80);
+        $normalisedAmenities = normalise_amenities($input['amenities']);
+        $data['amenities'] = $normalisedAmenities['keys'];
+        $extraNote = clean_text($input['amenitiesNote'] ?? '', 1000);
+        $unmapped = array_values(array_unique(array_filter(
+            array_merge($normalisedAmenities['unknown'], $extraNote !== '' ? [$extraNote] : []),
+            static fn(string $value): bool => trim($value) !== ''
+        )));
+        $data['amenities_note'] = $unmapped === [] ? null : implode(', ', $unmapped);
+    }
+    if (array_key_exists('toilets', $input)) {
+        $toilets = valid_int($input['toilets'], 0, 50);
+        if ($toilets === null && $input['toilets'] !== null && $input['toilets'] !== '') {
+            $validator->add('toilets', 'Enter a valid number of toilets.');
+        } else {
+            $data['toilets'] = $toilets;
+        }
+    }
+    if (array_key_exists('kitchens', $input)) {
+        $kitchens = valid_int($input['kitchens'], 0, 50);
+        if ($kitchens === null && $input['kitchens'] !== null && $input['kitchens'] !== '') {
+            $validator->add('kitchens', 'Enter a valid number of kitchens.');
+        } else {
+            $data['kitchens'] = $kitchens;
+        }
+    }
+    if (array_key_exists('furnishing', $input)) {
+        $furnishing = strtolower(clean_string($input['furnishing'] ?? '', 40));
+        if ($furnishing !== '' && !isset(FURNISHING_STATES[$furnishing])) {
+            $validator->add('furnishing', 'Choose unfurnished, semi-furnished or furnished.');
+        } else {
+            $data['furnishing'] = $furnishing === '' ? null : $furnishing;
+        }
+    }
+    // Upgrade 2 (C4): only YouTube, TikTok and Facebook, stored as a canonical
+    // URL. The raw link is never rendered.
+    if (array_key_exists('videoUrl', $input)) {
+        $video = parse_property_video($input['videoUrl'] === null ? null : (string)$input['videoUrl']);
+        if ($video['error'] !== null) {
+            $validator->add('videoUrl', (string)$video['error']);
+        } else {
+            $data['video_provider'] = $video['provider'];
+            $data['video_url'] = $video['url'];
+        }
+    }
+    // Upgrade 2 (C6): the provider's own expectation. It is stored for display
+    // beside the platform fee and is never read by any calculation.
+    if (array_key_exists('providerCommissionPercent', $input) || array_key_exists('providerCommissionNote', $input)) {
+        $rawPercent = $input['providerCommissionPercent'] ?? null;
+        $note = clean_text($input['providerCommissionNote'] ?? '', 500);
+        $percent = null;
+        if ($rawPercent !== null && $rawPercent !== '') {
+            $percent = is_numeric($rawPercent) ? round((float)$rawPercent, 2) : null;
+            if ($percent === null || $percent < 0 || $percent > 100) {
+                $validator->add('providerCommissionPercent', 'Enter a percentage between 0 and 100, or leave it blank.');
+                $percent = null;
+            }
+        }
+        $data['provider_commission_percent'] = $percent;
+        $data['provider_commission_note'] = $note !== '' ? $note : null;
     }
     if (array_key_exists('nearbyPlaces', $input)) {
         $data['nearby_places'] = clean_nearby_places($input['nearbyPlaces']);
@@ -1564,7 +1692,6 @@ function handle_create_property(): void
     // same moderation queue, but they are stored differently.
     $isAgentSubmission = ($user['role'] ?? '') === 'agent';
     $agentProfile = null;
-    $landlordAccount = null;
     if ($isAgentSubmission) {
         $agentProfile = find_agent_profile_by_user((string)$user['id']);
         if (!agent_can_submit_listings($agentProfile)) {
@@ -1575,50 +1702,17 @@ function handle_create_property(): void
             );
         }
 
-        // An agent must always say who the landlord is. Refusing to fall back to
-        // "the creating user" is the whole point: the agent's own account must
-        // never become the property's owner by accident.
+        // Upgrade 2 (C1): an agent is an independent provider. No landlord
+        // reference is required, accepted or stored. The agent's own account is
+        // the listing's provider, and nothing claims ownership or legal
+        // authority on anyone else's behalf. Anything an old client still sends
+        // (landlordName/landlordEmail/landlordPhone/landlordId) is ignored
+        // rather than trusted, so the endpoint cannot be used to probe for
+        // landlord accounts.
         //
-        // Increment F: the reference is resolved server-side and the response is
-        // IDENTICAL whether or not an account matched. The old behaviour ("that
-        // landlord account could not be found") turned this endpoint into an
-        // account-existence oracle for any agent; it also let an agent attach a
-        // listing to an arbitrary landlord id. Now an unmatched claim is simply
-        // recorded for staff to review, and no tenant ever sees it.
-        $landlordId = clean_string($input['landlordId'] ?? '', 64);
-        $landlordEmail = strtolower(clean_string($input['landlordEmail'] ?? '', 200));
-        $landlordPhone = clean_string($input['landlordPhone'] ?? '', 40);
-        $landlordName = clean_string($input['landlordName'] ?? '', 120);
-
-        if ($landlordId === '' && $landlordEmail === '' && $landlordPhone === '') {
-            error_response(
-                'Provide the landlord this listing is for.',
-                422,
-                ['landlordId' => 'Give the landlord\'s name plus their email or phone number.']
-            );
-        }
-
-        $landlordAccount = null;
-        if ($landlordId !== '') {
-            $candidate = find_user_by_id($landlordId);
-            if ($candidate && (string)($candidate['role'] ?? '') === 'landlord') {
-                $landlordAccount = $candidate;
-            }
-        }
-        if ($landlordAccount === null && $landlordEmail !== '') {
-            $candidate = find_user_by_email($landlordEmail);
-            if ($candidate && (string)($candidate['role'] ?? '') === 'landlord') {
-                $landlordAccount = $candidate;
-            }
-        }
-        if ($landlordAccount === null && $landlordPhone !== '') {
-            $candidate = find_user_by_phone($landlordPhone);
-            if ($candidate && (string)($candidate['role'] ?? '') === 'landlord') {
-                $landlordAccount = $candidate;
-            }
-        }
+        // Listings created before this change keep the landlord information they
+        // were created with; nothing here rewrites or deletes it.
     }
-
     [$data, $validator] = property_payload($input, false);
 
     // Task 03: an AGENT listing carries its own viewing fee and viewing terms,
@@ -1664,32 +1758,16 @@ function handle_create_property(): void
         : 'pending';
 
     if ($isAgentSubmission) {
-        // The agent is recorded separately, and never as the owner. When the
-        // reference matched a landlord account, that account is linked; when it
-        // did not, the listing is stored with NO landlord account and the claim
-        // kept for staff review. The response says the same thing either way.
-        if ($landlordAccount !== null) {
-            $data['landlord_id'] = (string)$landlordAccount['id'];
-            $data['landlord_name'] = (string)$landlordAccount['name'];
-            $data['landlord_company'] = (string)($landlordAccount['company'] ?? '');
-            $data['landlord_contact_claimed'] = null;
-        } else {
-            // No account matched. The listing is stored without a landlord
-            // account, and the claim is kept for staff review. The authority
-            // state is the SAME word either way: the response must not answer
-            // "does this landlord exist on Goodlucks?".
-            $data['landlord_id'] = null;
-            $data['landlord_name'] = $landlordName !== '' ? $landlordName : 'Landlord named by the agent';
-            $data['landlord_company'] = '';
-            // Keep whatever the agent gave us, so staff can follow it up.
-            $claimed = array_values(array_filter([$landlordEmail, $landlordPhone, $landlordId], static fn($v) => $v !== ''));
-            $data['landlord_contact_claimed'] = implode(' / ', $claimed);
-        }
-        $data['landlord_authority_state'] = 'claimed_by_agent';
+        // Upgrade 2 (C1): the agent is the provider. There is no landlord
+        // account to attach, no landlord name to invent and no authority state
+        // to claim; the listing belongs to the agent who submitted it.
+        $data['landlord_id'] = null;
+        $data['landlord_name'] = '';
+        $data['landlord_company'] = '';
+        $data['landlord_contact_claimed'] = null;
+        $data['landlord_authority_state'] = 'not_applicable';
         $data['submitted_by_user_id'] = (string)$user['id'];
         $data['submitted_by_role'] = 'agent';
-        // A declaration, not proof: the agent says they act for this landlord.
-        // Nothing here verifies ownership or authority.
     } else {
         $data['landlord_id'] = $user['role'] === 'admin' && !empty($input['landlordId'])
             ? clean_string($input['landlordId'], 64)
@@ -1914,7 +1992,11 @@ function handle_update_property(array $params): void
         $newRent = (float)($updated['rent_ghs'] ?? 0);
         if ($newRent > 0 && $newRent < $oldRent) {
             try {
-                dispatch_price_drop_alerts($updated, $oldRent, $newRent);
+                $watchers = dispatch_price_drop_alerts($updated, $oldRent, $newRent);
+                // Upgrade 2 (C7): tell the provider how many watchers were told.
+                if ($watchers > 0) {
+                    notify_provider_property_interest($updated, 'price_drop', ['watchers' => $watchers]);
+                }
             } catch (Throwable $e) {
                 gl_log('error', 'Price drop dispatch failed: ' . $e->getMessage(), ['property' => $id]);
             }
@@ -2251,24 +2333,74 @@ function handle_property_feature(array $params): void
     json_response(['success' => true, 'property' => $updated ? shape_property($updated) : null]);
 }
 
+/**
+ * Every listing, for the administrator's Manage Listings screen (Upgrade 2, A6).
+ *
+ * The console used to fetch one page and filter it in the browser, so a search
+ * only ever covered the listings that happened to be in that page and anything
+ * past the 100-row cap was invisible. Every filter below runs in SQL over the
+ * real table, and the response carries the true total so the console can page
+ * through all of it:
+ *
+ *   q, status (comma-separated or repeated), location, city, type, bedrooms,
+ *   minRent, maxRent, createdFrom, createdTo, sort, page, perPage
+ */
 function handle_admin_properties(): void
 {
     require_admin();
-    $filters = [
-        'status'  => query_param('status') ? (string)query_param('status') : null,
-        'q'       => query_param('q'),
-        'sort'    => query_param('sort', 'newest'),
-        'page'    => query_param('page', 1),
-        'perPage' => query_param('perPage', 100),
-    ];
-    if ($filters['status'] === null) {
-        unset($filters['status']);
+
+    $statusParam = query_param('status');
+    $statuses = [];
+    if (is_string($statusParam) && trim($statusParam) !== '') {
+        foreach (explode(',', $statusParam) as $candidate) {
+            $candidate = strtolower(trim($candidate));
+            if (in_array($candidate, PROPERTY_STATUSES, true)) {
+                $statuses[] = $candidate;
+            }
+        }
     }
+
+    // A date the console sends must be a real YYYY-MM-DD date; anything else is
+    // ignored rather than silently matching everything.
+    $validDate = static function ($value): ?string {
+        if (!is_string($value) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) {
+            return null;
+        }
+        $parsed = date_create($value);
+        return $parsed !== false ? $parsed->format('Y-m-d') : null;
+    };
+
+    $filters = [
+        'q'           => trim((string)query_param('q', '')),
+        'sort'        => (string)query_param('sort', 'newest'),
+        'page'        => (int)query_param('page', 1),
+        'perPage'     => (int)query_param('perPage', 20),
+        'location'    => trim((string)query_param('location', '')),
+        'city'        => trim((string)query_param('city', '')),
+        'type'        => trim((string)query_param('type', '')),
+        'bedrooms'    => trim((string)query_param('bedrooms', '')),
+        'minRent'     => query_param('minRent'),
+        'maxRent'     => query_param('maxRent'),
+        'createdFrom' => $validDate(query_param('createdFrom')),
+        'createdTo'   => $validDate(query_param('createdTo')),
+    ];
+    if ($statuses !== []) {
+        $filters['status'] = $statuses;
+    }
+
+    // Drop the empty strings so `query_properties()` does not create an
+    // always-true LIKE on an empty needle.
+    $filters = array_filter($filters, static fn($value): bool => $value !== null && $value !== '');
+    // A page size outside the API's own range is clamped by query_properties();
+    // asking for everything is never allowed.
     $result = query_properties($filters);
+
     json_response([
         'success'    => true,
         'count'      => count($result['items']),
         'total'      => $result['total'],
+        'page'       => $result['page'],
+        'perPage'    => $result['perPage'],
         'properties' => $result['items'],
     ]);
 }
@@ -2451,6 +2583,416 @@ function handle_update_enquiry(array $params): void
     ]);
 }
 
+// ===========================================================================
+// User directory, profiles and activity (Upgrade 2 Phase 3: A11, A13, A14)
+//
+// Every endpoint here re-checks its capability server-side. The console hides a
+// screen it cannot use, but hiding is never the enforcement.
+// ===========================================================================
+function handle_admin_users(): void
+{
+    $admin = require_admin();
+    if (!can_manage_users($admin)) {
+        error_response('Your account cannot open the user directory.', 403);
+    }
+
+    $page = max(1, (int)query_param('page', 1));
+    $perPage = (int)query_param('perPage', 25);
+
+    $roles = [];
+    foreach (explode(',', (string)query_param('role', '')) as $candidate) {
+        $candidate = strtolower(trim($candidate));
+        if (in_array($candidate, USER_DIRECTORY_ROLES, true)) {
+            $roles[] = $candidate;
+        }
+    }
+
+    $status = strtolower(trim((string)query_param('status', '')));
+    if ($status !== '' && !in_array($status, USER_DIRECTORY_STATUSES, true)) {
+        error_response(
+            'Unknown verification filter.',
+            422,
+            ['status' => 'Choose one of: ' . implode(', ', USER_DIRECTORY_STATUSES)]
+        );
+    }
+
+    $result = list_admin_users(
+        [
+            'q'      => (string)query_param('q', ''),
+            'roles'  => $roles,
+            'status' => $status,
+        ],
+        $page,
+        $perPage
+    );
+
+    json_response([
+        'success'      => true,
+        'count'        => count($result['rows']),
+        'total'        => $result['total'],
+        'page'         => $result['page'],
+        'perPage'      => $result['perPage'],
+        'users'        => $result['rows'],
+        'roles'        => USER_DIRECTORY_ROLES,
+        'statuses'     => USER_DIRECTORY_STATUSES,
+        'capabilities' => directory_capabilities($admin),
+    ]);
+}
+
+function handle_admin_user_profile(array $params): void
+{
+    $admin = require_admin();
+    if (!can_manage_users($admin) && !can_view_user_activity($admin)) {
+        error_response('Your account cannot read user profiles.', 403);
+    }
+
+    $summary = admin_user_summary((string)($params[0] ?? ''));
+    if ($summary === null) {
+        error_response('That account does not exist.', 404);
+    }
+
+    // The summary never carries a document reference; when the viewer also holds
+    // the activity capability it carries the stored history as well.
+    $activity = can_view_user_activity($admin)
+        ? admin_user_activity((string)$summary['id'], 50)
+        : [];
+
+    json_response([
+        'success'      => true,
+        'user'         => $summary,
+        'activity'     => $activity,
+        'canViewActivity' => can_view_user_activity($admin),
+        // Upgrade 2 (E2): the profile screen only offers the classification
+        // control to an administrator who may actually use it.
+        'canCorrectClassification' => can_manage_users($admin) && (string)($summary['role'] ?? '') !== 'admin',
+    ]);
+}
+
+/**
+ * Correct an account's provider classification (Upgrade 2, E2).
+ *
+ * A provider's type — tenant, landlord or agent — is chosen at registration and
+ * is final once the account has been verified. This endpoint exists for the one
+ * case that justifies changing it: the person picked the wrong one, or staff
+ * recorded the wrong one, and the account is now telling tenants something
+ * untrue.
+ *
+ * What it refuses, deliberately:
+ *   * an administrator account as the target — no path from here to privilege;
+ *   * `admin` as the new role — this is a provider correction, not a promotion;
+ *   * the account's existing role (a no-op is not a correction);
+ *   * a correction without a written reason.
+ *
+ * Every change is audited with the previous value, the new value, the reason and
+ * the administrator who made it, and the account holder is told in the app.
+ */
+function handle_admin_correct_user_role(array $params): void
+{
+    $admin = require_admin();
+    if (!can_manage_users($admin)) {
+        error_response('Your account cannot change account classifications.', 403);
+    }
+
+    $userId = (string)($params[0] ?? '');
+    $input = request_json();
+    $reason = clean_text($input['reason'] ?? '', 500);
+    $role = strtolower(clean_string($input['role'] ?? '', 20));
+
+    if (!in_array($role, ['tenant', 'landlord', 'agent'], true)) {
+        error_response('Choose tenant, landlord or agent.', 422, ['role' => 'Choose tenant, landlord or agent.']);
+    }
+    if (mb_strlen($reason) < 10) {
+        error_response(
+            'Write why this correction is needed — it is kept with the record.',
+            422,
+            ['reason' => 'At least 10 characters describing the mistake.']
+        );
+    }
+
+    $target = find_user_by_id($userId);
+    if ($target === null) {
+        error_response('That account does not exist.', 404);
+    }
+    if ((string)$target['role'] === 'admin') {
+        // Staff accounts are never reachable from a provider-classification tool.
+        error_response('Administrator accounts cannot be reclassified here.', 403);
+    }
+    if ((string)$target['role'] === $role) {
+        error_response('That account already holds this classification.', 422, ['role' => 'No change to make.']);
+    }
+    if ((string)$target['id'] === (string)$admin['id']) {
+        error_response('You cannot reclassify your own account.', 403);
+    }
+
+    $from = (string)$target['role'];
+    set_user_role((string)$target['id'], $role);
+
+    // Becoming an agent needs an agent profile to review: create it in the
+    // normal pending state so staff approve it through the Agent Accounts
+    // screen, exactly as they would for a new sign-up. A correction must not
+    // hand out listing permission.
+    if ($role === 'agent' && find_agent_profile_by_user((string)$target['id']) === null) {
+        create_agent_profile((string)$target['id'], [
+            'agency_name'    => (string)($target['company'] ?? ''),
+            'operating_city' => (string)($target['address'] ?? ''),
+        ]);
+    }
+
+    audit_log('user.role_corrected', 'user', (string)$target['id'], [
+        'from'   => $from,
+        'to'     => $role,
+        'reason' => $reason,
+    ]);
+
+    try {
+        create_notification(
+            (string)$target['id'],
+            'Account type corrected',
+            'Goodlucks staff corrected your account type from ' . $from . ' to ' . $role . '. Reason: ' . $reason,
+            'info'
+        );
+    } catch (Throwable $e) {
+        gl_log('error', 'Could not notify corrected account: ' . $e->getMessage());
+    }
+
+    $summary = admin_user_summary((string)$target['id']);
+
+    json_response([
+        'success' => true,
+        'user'    => $summary,
+        'corrected' => ['from' => $from, 'to' => $role],
+    ]);
+}
+
+function handle_admin_user_activity(array $params): void
+{
+    $admin = require_admin();
+    if (!can_view_user_activity($admin)) {
+        error_response('Your account cannot read user activity.', 403);
+    }
+
+    $userId = (string)($params[0] ?? '');
+    $exists = db_one('SELECT id FROM users WHERE id = :id', [':id' => $userId]);
+    if ($exists === null) {
+        error_response('That account does not exist.', 404);
+    }
+
+    $limit = (int)query_param('limit', 50);
+
+    json_response([
+        'success'  => true,
+        'userId'   => $userId,
+        'activity' => admin_user_activity($userId, $limit),
+    ]);
+}
+
+function handle_admin_activity(): void
+{
+    $admin = require_admin();
+    // The feed is the same power as a person's history: reading who did what.
+    // Holding the directory capability does not carry it.
+    if (!can_view_user_activity($admin)) {
+        error_response('Your account cannot read the activity feed.', 403);
+    }
+
+    $limit = (int)query_param('limit', 20);
+    $entries = admin_activity_feed($limit);
+
+    json_response([
+        'success'  => true,
+        'count'    => count($entries),
+        'activity' => $entries,
+    ]);
+}
+
+// ===========================================================================
+// Bulk email campaigns (Upgrade 2 Phase 3: A12)
+// ===========================================================================
+function handle_list_campaigns(): void
+{
+    $admin = require_admin();
+    if (!can_send_bulk_email($admin)) {
+        error_response('Your account cannot send bulk email.', 403);
+    }
+
+    json_response([
+        'success'   => true,
+        'campaigns' => campaign_list((int)query_param('limit', 20)),
+        'audiences' => CAMPAIGN_AUDIENCES,
+        'kinds'     => CAMPAIGN_KINDS,
+    ]);
+}
+
+function handle_campaign_preview(): void
+{
+    $admin = require_admin();
+    if (!can_send_bulk_email($admin)) {
+        error_response('Your account cannot send bulk email.', 403);
+    }
+
+    $preview = campaign_preview(
+        (string)query_param('audience', 'all'),
+        (string)query_param('kind', 'marketing')
+    );
+
+    json_response(['success' => true] + $preview);
+}
+
+function handle_create_campaign(): void
+{
+    $admin = require_admin();
+    if (!can_send_bulk_email($admin)) {
+        error_response('Your account cannot send bulk email.', 403);
+    }
+
+    $input = request_json();
+
+    try {
+        $campaign = campaign_create($input, $admin);
+    } catch (CampaignValidationException $e) {
+        error_response($e->getMessage(), 422, $e->fields);
+    } catch (InvalidArgumentException $e) {
+        error_response($e->getMessage(), 422);
+    }
+
+    json_response(['success' => true, 'campaign' => $campaign], 201);
+}
+
+function handle_campaign_show(array $params): void
+{
+    $admin = require_admin();
+    if (!can_send_bulk_email($admin)) {
+        error_response('Your account cannot send bulk email.', 403);
+    }
+
+    $summary = campaign_summary((string)($params[0] ?? ''));
+    if ($summary === null) {
+        error_response('That campaign does not exist.', 404);
+    }
+
+    json_response(['success' => true] + $summary);
+}
+
+function handle_queue_campaign(array $params): void
+{
+    $admin = require_admin();
+    if (!can_send_bulk_email($admin)) {
+        error_response('Your account cannot send bulk email.', 403);
+    }
+
+    try {
+        $summary = campaign_queue((string)($params[0] ?? ''), $admin);
+    } catch (CampaignValidationException $e) {
+        error_response($e->getMessage(), 422, $e->fields);
+    } catch (CampaignConflictException $e) {
+        error_response($e->getMessage(), 409);
+    } catch (InvalidArgumentException $e) {
+        error_response($e->getMessage(), 422);
+    }
+
+    json_response([
+        'success' => true,
+        'message' => 'Queued ' . (int)($summary['counts']['total'] ?? 0) . ' messages. Delivery happens in the background.',
+    ] + $summary);
+}
+
+function handle_retry_campaign(array $params): void
+{
+    $admin = require_admin();
+    if (!can_send_bulk_email($admin)) {
+        error_response('Your account cannot send bulk email.', 403);
+    }
+
+    try {
+        $summary = campaign_retry_failed((string)($params[0] ?? ''), $admin);
+    } catch (InvalidArgumentException $e) {
+        error_response($e->getMessage(), 422);
+    }
+
+    json_response(['success' => true, 'message' => 'Failed messages are back in the queue.'] + $summary);
+}
+
+// ---------------------------------------------------------------------------
+// Email preferences (public: the link in every campaign email)
+// ---------------------------------------------------------------------------
+function handle_email_preferences_show(): void
+{
+    $token = trim((string)query_param('token', ''));
+    $preferences = $token === '' ? null : email_preferences_by_token($token);
+
+    if ($preferences === null) {
+        http_response_code(404);
+        header('Content-Type: text/html; charset=utf-8');
+        echo '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">'
+            . '<meta name="viewport" content="width=device-width,initial-scale=1"><title>Email preferences</title></head>'
+            . '<body style="font-family:Arial,Helvetica,sans-serif;background:#F7F7F7;color:#252A34;padding:40px 16px;">'
+            . '<div style="max-width:520px;margin:0 auto;background:#fff;border-radius:10px;padding:28px;">'
+            . '<h1 style="font-size:20px;margin:0 0 10px;">This link is not valid</h1>'
+            . '<p style="font-size:14px;line-height:1.5;color:#4B5563;margin:0;">The preferences link may have been '
+            . 'shortened or copied wrongly. Reply to any of our emails and we will update your preference for you.</p>'
+            . '</div></body></html>';
+        return;
+    }
+
+    $masked = mask_email_address($preferences['email']);
+    $state = $preferences['optIn'] ? 'You are receiving occasional updates.' : 'You are not receiving marketing email.';
+    $action = $preferences['optIn'] ? 'Stop marketing email' : 'Receive platform updates';
+    $next = $preferences['optIn'] ? 'false' : 'true';
+
+    header('Content-Type: text/html; charset=utf-8');
+    echo '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">'
+        . '<meta name="viewport" content="width=device-width,initial-scale=1"><title>Email preferences</title></head>'
+        . '<body style="font-family:Arial,Helvetica,sans-serif;background:#F7F7F7;color:#252A34;padding:40px 16px;">'
+        . '<div style="max-width:520px;margin:0 auto;background:#fff;border-radius:10px;padding:28px;">'
+        . '<p style="font-size:12px;letter-spacing:.5px;color:#FF2E63;font-weight:bold;margin:0 0 6px;">GOODLUCKS HOMES</p>'
+        . '<h1 style="font-size:20px;margin:0 0 10px;">Email preferences</h1>'
+        . '<p style="font-size:14px;line-height:1.5;color:#4B5563;margin:0 0 6px;">This page manages ' . e($masked) . '.</p>'
+        . '<p style="font-size:14px;line-height:1.5;color:#4B5563;margin:0 0 18px;">' . e($state) . '</p>'
+        . '<button type="button" data-next="' . e($next) . '" id="gl-pref-button" '
+        . 'style="background:#FF2E63;color:#fff;border:0;border-radius:8px;padding:12px 18px;font-size:14px;font-weight:bold;cursor:pointer;">'
+        . e($action) . '</button>'
+        . '<p id="gl-pref-result" style="font-size:13px;color:#4B5563;margin:14px 0 0;"></p>'
+        . '<p style="font-size:11px;color:#8A8A8A;margin:18px 0 0;">Account, security and payment messages are '
+        . 'not affected by this setting.</p>'
+        . '</div><script>'
+        . 'document.getElementById("gl-pref-button").addEventListener("click",function(){'
+        . 'var b=this;var out=document.getElementById("gl-pref-result");b.disabled=true;'
+        . 'fetch("/api/email/preferences",{method:"POST",headers:{"Content-Type":"application/json"},'
+        . 'body:JSON.stringify({token:' . json_encode($token) . ',optIn:' . ($preferences['optIn'] ? 'false' : 'true') . '})})'
+        . '.then(function(r){return r.json();}).then(function(d){if(d&&d.success){out.textContent=d.message||"Saved.";}'
+        . 'else{out.textContent=(d&&d.message)||"Could not save that.";b.disabled=false;}})'
+        . '.catch(function(){out.textContent="Could not reach the server. Please try again.";b.disabled=false;});'
+        . '});</script></body></html>';
+}
+
+function handle_email_preferences_update(): void
+{
+    enforce_rate_limit('email-preferences', 60, 3600);
+    $input = request_json();
+    $token = trim((string)($input['token'] ?? ''));
+    $optIn = filter_var($input['optIn'] ?? false, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+
+    if ($token === '' || $optIn === null) {
+        error_response('That preferences link is not valid.', 422);
+    }
+
+    $preferences = email_preferences_update($token, (bool)$optIn);
+    if ($preferences === null) {
+        error_response('That preferences link is not valid.', 404);
+    }
+
+    json_response([
+        'success' => true,
+        'message' => $optIn
+            ? 'You will receive occasional platform updates. You can change this at any time.'
+            : 'You have been removed from marketing email. Account and security messages still reach you.',
+        'preferences' => [
+            'optIn' => $preferences['optIn'],
+            'email' => mask_email_address($preferences['email']),
+        ],
+    ]);
+}
+
 function handle_create_enquiry(): void
 {
     enforce_rate_limit('enquiry', 15, 3600);
@@ -2537,10 +3079,43 @@ function handle_create_enquiry(): void
     ], 201);
 }
 
+/**
+ * Web enquiries, with search and status filters (Upgrade 2, A10).
+ *
+ * `statusCounts` counts EVERY enquiry, so the console's status chips stay
+ * truthful while a search narrows the list below them.
+ */
 function handle_admin_enquiries(): void
 {
     require_admin();
-    json_response(['success' => true, 'enquiries' => list_enquiries(300)]);
+
+    $statusParam = query_param('status');
+    $statuses = [];
+    if (is_string($statusParam) && trim($statusParam) !== '') {
+        foreach (explode(',', $statusParam) as $candidate) {
+            $candidate = strtolower(trim($candidate));
+            if (in_array($candidate, ENQUIRY_STATUSES, true)) {
+                $statuses[] = $candidate;
+            }
+        }
+    }
+
+    $filters = ['q' => trim((string)query_param('q', ''))];
+    if ($statuses !== []) {
+        $filters['status'] = $statuses;
+    }
+    if ($filters['q'] === '') {
+        unset($filters['q']);
+    }
+
+    $enquiries = list_enquiries(500, $filters);
+
+    json_response([
+        'success'      => true,
+        'count'        => count($enquiries),
+        'enquiries'    => $enquiries,
+        'statusCounts' => count_enquiries_by_status(),
+    ]);
 }
 
 // ===========================================================================
@@ -2599,7 +3174,7 @@ function handle_create_tenant_request(): void
         error_response('Please correct the highlighted fields.', 422, $validator->errors());
     }
 
-    $requestId = create_tenant_request([
+    $payload = [
         // The account that submitted it, taken from the session (Correction 1).
         'tenant_id'         => (string)$user['id'],
         'tenant_name'       => clean_string($input['tenantName'], 120),
@@ -2613,7 +3188,39 @@ function handle_create_tenant_request(): void
         'property_type'     => one_of($input['propertyType'] ?? 'Apartment', array_merge(PROPERTY_TYPES, ['All']), 'Apartment'),
         'move_in_date'      => $moveInDate,
         'notes'             => clean_text($input['notes'] ?? '', 2000),
-    ]);
+    ];
+
+    // Upgrade 2 (D1): at most three requests may be open at once. The check and
+    // the insert share one immediate transaction, so two submissions racing each
+    // other cannot both squeeze past a count of two.
+    $pendingStatuses = TENANT_REQUEST_PENDING_STATUSES;
+    $placeholders = implode(', ', array_map(static fn($s) => "'" . $s . "'", $pendingStatuses));
+    $outcome = db_transaction_immediate(static function () use ($user, $payload, $placeholders): array {
+        $pending = (int)db_value(
+            'SELECT COUNT(*) FROM tenant_requests WHERE tenant_id = :tid AND status IN (' . $placeholders . ')',
+            [':tid' => (string)$user['id']]
+        );
+        if ($pending >= TENANT_REQUEST_PENDING_LIMIT) {
+            return ['blocked' => true, 'pending' => $pending, 'requestId' => null];
+        }
+
+        return ['blocked' => false, 'pending' => $pending, 'requestId' => create_tenant_request($payload)];
+    });
+
+    if ($outcome['blocked']) {
+        audit_log('tenant_request.limit_reached', 'tenant_request', (string)$user['id'], [
+            'pending' => $outcome['pending'],
+            'limit'   => TENANT_REQUEST_PENDING_LIMIT,
+        ], $user);
+        error_response(
+            'You already have ' . TENANT_REQUEST_PENDING_LIMIT . ' rental requests in progress. '
+            . 'Once one is matched, scheduled or closed you can submit another.',
+            409,
+            ['pending' => 'Close or complete one of your open rental requests first.']
+        );
+    }
+
+    $requestId = (string)$outcome['requestId'];
 
     send_email(
         (string)valid_email($input['tenantEmail']),
@@ -2654,7 +3261,42 @@ function handle_list_tenant_requests(): void
         if (!is_admin($user)) {
             error_response('You do not have permission to view all requests.', 403);
         }
-        json_response(['success' => true, 'requests' => list_tenant_requests([], 300)]);
+
+        // Console filters (Upgrade 2, A7): a name/phone/email search and the
+        // pending / approved / viewing-scheduled stages. `stageCounts` counts
+        // every request so the chips stay truthful while a search narrows the
+        // list below them.
+        $scope = [];
+        $query = trim((string)query_param('q', ''));
+        if ($query !== '') {
+            $scope['q'] = $query;
+        }
+        $stage = strtolower(trim((string)query_param('stage', '')));
+        if ($stage !== '') {
+            if (tenant_request_stage_statuses($stage) === []) {
+                error_response('Unknown request stage.', 422, [
+                    'stage' => 'Choose one of: pending, approved, viewing_scheduled, completed, cancelled.',
+                ]);
+            }
+            $scope['stage'] = $stage;
+        }
+        $status = trim((string)query_param('status', ''));
+        if ($status !== '') {
+            $scope['status'] = $status;
+        }
+
+        $requests = list_tenant_requests($scope, 500);
+        $stageCounts = ['pending' => 0, 'approved' => 0, 'viewing_scheduled' => 0, 'completed' => 0, 'cancelled' => 0];
+        foreach (list_tenant_requests([], 2000) as $row) {
+            $key = (string)($row['stage'] ?? 'pending');
+            $stageCounts[$key] = ($stageCounts[$key] ?? 0) + 1;
+        }
+
+        json_response([
+            'success'     => true,
+            'requests'    => $requests,
+            'stageCounts' => $stageCounts,
+        ]);
     }
 
     json_response(['success' => true, 'requests' => list_tenant_requests([
@@ -2684,7 +3326,35 @@ function handle_update_tenant_request(array $params): void
             $fields['status'] = $status;
         }
         if (isset($input['matchedPropertyIds'])) {
-            $fields['matched_property_ids'] = clean_string_list($input['matchedPropertyIds'], 20, 64);
+            // Upgrade 2 (B3): the administrator's "chosen for you" set is a real
+            // recommendation, so it is validated rather than stored blindly: only
+            // live listings, no duplicates, and never more than six.
+            //
+            // Three is the point at which a shortlist reads as a recommendation,
+            // but it is not a hard floor: a genuine single-property match has
+            // always been allowed and existing records still say so. A shorter
+            // set is therefore accepted and *labelled* — `curationWarning` in
+            // /api/matches tells the tenant (and the console) that the list is
+            // thin rather than pretending it is a considered shortlist.
+            $chosen = array_values(array_unique(clean_string_list($input['matchedPropertyIds'], 20, 64)));
+            if (count($chosen) > 6) {
+                error_response(
+                    'Choose at most 6 properties for the tenant. More than six is a search result, not a recommendation.',
+                    422,
+                    ['matchedPropertyIds' => 'Select up to 6 live listings.']
+                );
+            }
+            foreach ($chosen as $propertyId) {
+                $property = find_property($propertyId);
+                if (!$property || (string)($property['status'] ?? '') !== 'active') {
+                    error_response(
+                        'One of the chosen properties is not a live listing any more. Refresh and choose again.',
+                        422,
+                        ['matchedPropertyIds' => 'Every chosen property must be an active listing.']
+                    );
+                }
+            }
+            $fields['matched_property_ids'] = $chosen;
         }
         if (!$fields) {
             error_response('No valid changes were provided.', 400);
@@ -2936,8 +3606,31 @@ function handle_create_viewing(): void
         // on the request.
         'viewingTerms' => $approvedTerms,
         'awaitingAgent'=> true,
+        // The person who just submitted this request typed these details in this
+        // same call, so echoing them back reveals nothing they do not already
+        // know. Every READ of a viewing goes through `viewing_payload()`.
         'viewing'      => $viewing,
     ], 201);
+}
+
+/**
+ * Shape a viewing for the person making THIS request.
+ *
+ * The tenant's phone number and email address are withheld from agents and
+ * landlords until an administrator approves sharing (Upgrade 2 security fix;
+ * the full approval workflow lands in Phase 5). Staff and the tenant themselves
+ * are unaffected. Every viewing payload in this file passes through here, so a
+ * new endpoint cannot forget the rule.
+ */
+function viewing_payload(array $viewing): array
+{
+    return viewing_for_viewer($viewing, auth_user());
+}
+
+/** @param array<int,array> $viewings */
+function viewing_payload_list(array $viewings): array
+{
+    return array_map('viewing_payload', $viewings);
 }
 
 /**
@@ -2971,7 +3664,7 @@ function handle_list_viewings(): void
 
         json_response([
             'success'  => true,
-            'viewings' => $viewings,
+            'viewings' => viewing_payload_list($viewings),
             'counts'   => [
                 'total'      => count($viewings),
                 'overdue'    => count($overdue),
@@ -2993,21 +3686,27 @@ function handle_list_viewings(): void
                 403
             );
         }
-        json_response(['success' => true, 'viewings' => list_viewings_filtered(['agentUserId' => (string)$user['id']], 200)]);
+        json_response([
+            'success'  => true,
+            'viewings' => viewing_payload_list(list_viewings_filtered(['agentUserId' => (string)$user['id']], 200)),
+        ]);
         return;
     }
 
     if ($role === 'landlord') {
-        json_response(['success' => true, 'viewings' => list_viewings_filtered(['landlordId' => (string)$user['id']], 200)]);
+        json_response([
+            'success'  => true,
+            'viewings' => viewing_payload_list(list_viewings_filtered(['landlordId' => (string)$user['id']], 200)),
+        ]);
         return;
     }
 
     json_response([
         'success'  => true,
-        'viewings' => list_viewings_filtered([
+        'viewings' => viewing_payload_list(list_viewings_filtered([
             'tenantUserId' => (string)$user['id'],
             'tenantEmail'  => (string)($user['email'] ?? ''),
-        ], 100),
+        ], 100)),
     ]);
 }
 
@@ -3028,7 +3727,7 @@ function handle_get_viewing(array $params): void
 
     $detail = [
         'success'        => true,
-        'viewing'        => $viewing,
+        'viewing'        => viewing_payload($viewing),
         'history'        => list_viewing_events($id),
         'access'         => ['role' => $access['role'], 'canAct' => $access['canAct']],
         'allowedActions' => $access['canAct'] ? viewing_allowed_actions($viewing, $access['role']) : [],
@@ -3075,15 +3774,19 @@ function handle_viewing_action(array $params): void
     $date = isset($input['date']) ? clean_string((string)$input['date'], 32) : null;
     $time = isset($input['time']) ? clean_string((string)$input['time'], 32) : null;
 
-    $agentOnly = static function (string $role): void {
-        if (!in_array($role, ['agent', 'admin'], true)) {
-            error_response('Only the agent responsible for this viewing can do that.', 403);
+    // Upgrade 2 (B5): the provider responsible for the viewing acts on it —
+    // an agent, or the landlord who listed the property. Administrators keep
+    // their override. `viewing_access()` has already established which of those
+    // the caller is, so this only has to reject a tenant.
+    $providerOnly = static function (string $role): void {
+        if (!in_array($role, ['agent', 'landlord', 'admin'], true)) {
+            error_response('Only the provider responsible for this viewing can do that.', 403);
         }
     };
 
     switch ($action) {
         case 'propose':
-            $agentOnly($role);
+            $providerOnly($role);
             if ($date === null || $time === null || $time === '') {
                 error_response('Choose the date and time you are proposing.', 422, [
                     'date' => 'A proposed appointment needs a date.',
@@ -3096,13 +3799,13 @@ function handle_viewing_action(array $params): void
             json_response([
                 'success' => true,
                 'message' => 'Proposed ' . $updated['date'] . ' at ' . $updated['time'] . '. The tenant still has to agree.',
-                'viewing' => $updated,
+                'viewing' => viewing_payload($updated),
             ]);
             return;
 
         case 'confirm':
-            if (!in_array($role, ['tenant', 'agent', 'admin'], true)) {
-                error_response('Only the tenant or the responsible agent can confirm this appointment.', 403);
+            if (!in_array($role, ['tenant', 'agent', 'landlord', 'admin'], true)) {
+                error_response('Only the tenant or the responsible provider can confirm this appointment.', 403);
             }
             if (viewing_normalise_status($viewing['status']) === 'confirmed') {
                 error_response('This appointment is already confirmed.', 409);
@@ -3111,39 +3814,105 @@ function handle_viewing_action(array $params): void
             json_response([
                 'success' => true,
                 'message' => 'Appointment confirmed for ' . $updated['date'] . ' at ' . $updated['time'] . '.',
-                'viewing' => $updated,
+                'viewing' => viewing_payload($updated),
             ]);
             return;
 
         case 'reschedule':
-            $agentOnly($role);
+            if (!in_array($role, ['agent', 'landlord', 'admin'], true)) {
+                error_response('Only the provider responsible for this viewing can move it.', 403);
+            }
             if ($date === null || $time === null || $time === '') {
                 error_response('Choose the new date and time.', 422, [
                     'date' => 'A rescheduled appointment needs a date.',
                     'time' => 'A rescheduled appointment needs a time.',
                 ]);
             }
+            if ($reason === '') {
+                error_response('Say why the appointment needs to move.', 422, [
+                    'reason' => 'A reschedule needs a reason the tenant can read.',
+                ]);
+            }
+            // Upgrade 2 (B5): the provider proposes; the tenant accepts. Only an
+            // administrator may move an agreed appointment outright.
+            $rescheduleTarget = $role === 'admin' ? 'rescheduled' : 'reschedule_requested';
             $updated = viewing_apply_transition($viewing, $user, $role, [
-                'status' => 'rescheduled', 'date' => $date, 'time' => $time, 'note' => $note !== '' ? $note : $reason,
+                'status' => $rescheduleTarget,
+                'date'   => $date,
+                'time'   => $time,
+                'note'   => $note,
+                'reason' => $reason,
             ]);
             json_response([
                 'success' => true,
-                'message' => 'Rescheduled to ' . $updated['date'] . ' at ' . $updated['time'] . '. The previous slot is kept in the history.',
-                'viewing' => $updated,
+                'message' => $rescheduleTarget === 'rescheduled'
+                    ? 'Rescheduled to ' . $updated['date'] . ' at ' . $updated['time'] . '. The previous slot is kept in the history.'
+                    : 'New time proposed (' . $updated['date'] . ' at ' . $updated['time'] . '). The tenant must accept it before the appointment moves.',
+                'viewing' => viewing_payload($updated),
+            ]);
+            return;
+
+        case 'accept-reschedule':
+            // Upgrade 2 (B5): the tenant accepts the time the provider proposed.
+            // The slot comes from the stored request, not from the client.
+            if (!in_array($role, ['tenant', 'admin'], true)) {
+                error_response('Only the tenant can accept a new time.', 403);
+            }
+            if (viewing_normalise_status($viewing['status']) !== 'reschedule_requested') {
+                error_response('There is no requested new time to accept.', 409);
+            }
+            $requestedDate = (string)($viewing['preferredDate'] ?? '');
+            if ($requestedDate === '') {
+                error_response('The requested time is missing its date. Ask the provider to propose it again.', 422);
+            }
+            $updated = viewing_apply_transition($viewing, $user, $role, [
+                'status' => 'rescheduled',
+                'date'   => $requestedDate,
+                'time'   => (string)($viewing['preferredTime'] ?? ''),
+                'note'   => $note,
+            ]);
+            json_response([
+                'success' => true,
+                'message' => 'New time accepted: ' . $updated['date'] . ' at ' . $updated['time'] . '.',
+                'viewing' => viewing_payload($updated),
+            ]);
+            return;
+
+        case 'decline-reschedule':
+            if (!in_array($role, ['tenant', 'admin'], true)) {
+                error_response('Only the tenant can decline a new time.', 403);
+            }
+            if (viewing_normalise_status($viewing['status']) !== 'reschedule_requested') {
+                error_response('There is no requested new time to decline.', 409);
+            }
+            $updated = viewing_apply_transition($viewing, $user, $role, [
+                'status' => 'confirmed',
+                'note'   => $note !== '' ? $note : 'The agreed time stands.',
+            ]);
+            json_response([
+                'success' => true,
+                'message' => 'New time declined. The agreed appointment stands: ' . $updated['date'] . ' at ' . $updated['time'] . '.',
+                'viewing' => viewing_payload($updated),
             ]);
             return;
 
         case 'request-reschedule':
-            if (!in_array($role, ['tenant', 'agent', 'admin'], true)) {
-                error_response('Only the tenant or the agent can ask for a new time.', 403);
+            if (!in_array($role, ['tenant', 'agent', 'landlord', 'admin'], true)) {
+                error_response('Only the tenant or the provider can ask for a new time.', 403);
+            }
+            if ($reason === '') {
+                error_response('Say why the appointment needs to move.', 422, [
+                    'reason' => 'A reschedule request needs a reason.',
+                ]);
             }
             $updated = viewing_apply_transition($viewing, $user, $role, [
-                'status' => 'reschedule_requested', 'date' => $date, 'time' => $time, 'note' => $note,
+                'status' => 'reschedule_requested', 'date' => $date, 'time' => $time,
+                'note' => $note, 'reason' => $reason,
             ]);
             json_response([
                 'success' => true,
                 'message' => 'Reschedule request recorded. The appointment is not moved until a new time is agreed.',
-                'viewing' => $updated,
+                'viewing' => viewing_payload($updated),
             ]);
             return;
 
@@ -3156,12 +3925,12 @@ function handle_viewing_action(array $params): void
             json_response([
                 'success' => true,
                 'message' => 'Viewing cancelled. The reason is recorded in the history.',
-                'viewing' => $updated,
+                'viewing' => viewing_payload($updated),
             ]);
             return;
 
         case 'complete':
-            $agentOnly($role);
+            $providerOnly($role);
             if ($role === 'admin' && $note === '') {
                 error_response('Add a note when an administrator records a completion.', 422, [
                     'note' => 'The audit trail needs to say what was verified.',
@@ -3173,7 +3942,7 @@ function handle_viewing_action(array $params): void
             json_response([
                 'success' => true,
                 'message' => 'Viewing marked complete. No payment has been recorded by this action.',
-                'viewing' => $updated,
+                'viewing' => viewing_payload($updated),
             ]);
             return;
 
@@ -3196,19 +3965,19 @@ function handle_viewing_action(array $params): void
             json_response([
                 'success' => true,
                 'message' => 'Recorded: ' . ($who === 'tenant' ? 'the tenant did not attend' : 'the agent did not attend') . '.',
-                'viewing' => $updated,
+                'viewing' => viewing_payload($updated),
             ]);
             return;
 
         case 'could-not-proceed':
-            $agentOnly($role);
+            $providerOnly($role);
             $updated = viewing_apply_transition($viewing, $user, $role, [
                 'status' => 'could_not_proceed', 'reason' => $reason, 'note' => $note,
             ]);
             json_response([
                 'success' => true,
                 'message' => 'Recorded that the viewing could not proceed.',
-                'viewing' => $updated,
+                'viewing' => viewing_payload($updated),
             ]);
             return;
     }
@@ -3228,7 +3997,7 @@ function handle_admin_viewing_detail(array $params): void
 
     json_response([
         'success'        => true,
-        'viewing'        => $viewing,
+        'viewing'        => viewing_payload($viewing),
         'history'        => list_viewing_events($id),
         'financial'      => viewing_financial_state($viewing),
         'landlordUserId' => (string)($viewing['landlordUserId'] ?? ''),
@@ -3256,7 +4025,7 @@ function handle_correct_viewing(array $params): void
     json_response([
         'success' => true,
         'message' => 'Correction recorded. The previous status is kept in the audit trail.',
-        'viewing' => $updated,
+        'viewing' => viewing_payload($updated),
     ]);
 }
 
@@ -3276,7 +4045,7 @@ function handle_assign_viewing_agent(array $params): void
     json_response([
         'success' => true,
         'message' => 'Viewing assigned to the agent.',
-        'viewing' => $updated,
+        'viewing' => viewing_payload($updated),
     ]);
 }
 
@@ -3412,7 +4181,8 @@ function handle_update_viewing(array $params): void
         }
     }
 
-    json_response(['success' => true, 'viewing' => find_viewing($id)]);
+    $finalViewing = find_viewing($id);
+    json_response(['success' => true, 'viewing' => $finalViewing ? viewing_payload($finalViewing) : null]);
 }
 
 // ===========================================================================
@@ -3569,6 +4339,19 @@ function handle_save_property(): void
         error_response('Property not found.', 404);
     }
     save_property_for_user((string)$user['id'], $propertyId);
+
+    // Upgrade 2 (C7): the provider learns their listing drew interest. Only the
+    // fact and a count — the saver's identity never leaves this handler.
+    try {
+        $savedRow = find_property($propertyId);
+        $providerId = $savedRow ? property_provider_user_id($savedRow) : '';
+        if ($savedRow && $providerId !== '' && $providerId !== (string)$user['id']) {
+            notify_provider_property_interest($savedRow, 'saved');
+        }
+    } catch (Throwable $e) {
+        gl_log('error', 'Provider interest notification failed: ' . $e->getMessage(), ['property' => $propertyId]);
+    }
+
     json_response(['success' => true, 'propertyIds' => list_saved_property_ids((string)$user['id'])]);
 }
 
@@ -3580,111 +4363,18 @@ function handle_unsave_property(array $params): void
 }
 
 // ===========================================================================
-// Rent payment records
+// Rent payment records — removed (Upgrade 2, E1)
 //
-// Goodlucks no longer drafts, signs, emails or stores tenancy agreements. The
-// agreement handlers and routes were removed in Increment A; the
-// `tenancy_agreements` table is left untouched in the schema.
+// The tenant rent-receipt feature is gone: its routes and handlers were deleted
+// in Phase 7, and the client no longer has a screen, a menu entry or a type for
+// it. What remains in the database is the history itself — `rent_receipts` is
+// never dropped and its rows are never deleted. Rent is paid between a tenant
+// and a landlord; Goodlucks does not receive it, so it does not issue receipts
+// for it.
+//
+// The *fee* ledger below is a different system and is untouched: money Goodlucks
+// did receive (viewing fees, commissions), with its reversals.
 // ===========================================================================
-function handle_list_receipts(): void
-{
-    $user = require_auth(['admin', 'landlord', 'tenant']);
-    json_response([
-        'success'        => true,
-        'receipts'       => list_receipts($user, 200),
-        'issuingEnabled' => RECEIPT_ISSUING_ENABLED,
-    ]);
-}
-
-/**
- * One receipt, scoped to the people it concerns.
- *
- * Unauthorised callers get 404 rather than 403 so receipt ids cannot be probed
- * for existence.
- */
-function handle_get_receipt(array $params): void
-{
-    $user = require_auth(['admin', 'landlord', 'tenant']);
-    $row = find_receipt((string)($params[0] ?? ''));
-    if (!$row || !user_can_read_receipt($user, $row)) {
-        error_response('Receipt not found.', 404);
-    }
-
-    json_response(['success' => true, 'receipt' => shape_receipt($row)]);
-}
-
-function handle_create_receipt(): void
-{
-    // Landlords may no longer issue Goodlucks-branded receipts: the money in a
-    // rent payment goes to the landlord, not to Goodlucks.
-    $user = require_auth(['admin']);
-
-    // Issuing is disabled until the truthful transaction-record model ships
-    // (Increment B). Reads and printing of existing records stay available.
-    if (!RECEIPT_ISSUING_ENABLED) {
-        error_response(
-            'Receipt issuing is disabled while the payment-record model is corrected. '
-            . 'Existing records can still be viewed.',
-            503
-        );
-    }
-
-    $input = request_json();
-
-    $validator = new Validator();
-    foreach ([
-        'propertyTitle' => 'Property title',
-        'propertyAddress' => 'Property address',
-        'tenantName' => 'Tenant name',
-        'landlordName' => 'Landlord name',
-    ] as $field => $label) {
-        $validator->required($field, $input[$field] ?? '', $label, 2);
-    }
-    $amount = valid_money($input['amountGhs'] ?? null, 1);
-    if ($amount === null) {
-        $validator->add('amountGhs', 'Enter a valid amount.');
-    }
-    if ($validator->fails()) {
-        error_response('Please correct the highlighted fields.', 422, $validator->errors());
-    }
-
-    $tenantPhone = clean_string($input['tenantPhone'] ?? '', 40);
-
-    // Only staff can reach this handler. The landlord link stays NULL until the
-    // transaction-record model records the real recipient (Increment B); the
-    // tenant is linked by phone so receipts stay scoped to the people concerned.
-    $landlordUserId = null;
-    $tenantUserId = null;
-    $tenantMatch = find_user_by_phone($tenantPhone);
-    if ($tenantMatch && ($tenantMatch['role'] ?? '') === 'tenant') {
-        $tenantUserId = (string)$tenantMatch['id'];
-    }
-
-    $receipt = create_receipt([
-        'property_title'   => clean_string($input['propertyTitle'], 200),
-        'property_address' => clean_string($input['propertyAddress'], 255),
-        'tenant_name'      => clean_string($input['tenantName'], 120),
-        'tenant_phone'     => $tenantPhone,
-        'landlord_name'    => clean_string($input['landlordName'], 120),
-        'amount_ghs'       => $amount,
-        'amount_in_words'  => $input['amountInWords'] ?? '',
-        'payment_purpose'  => $input['paymentPurpose'] ?? 'Rent payment',
-        'payment_method'   => $input['paymentMethod'] ?? 'Cash',
-        'transaction_ref'  => $input['transactionRef'] ?? '',
-        'payment_date'     => valid_date_iso($input['paymentDate'] ?? null) ?? gmdate('Y-m-d'),
-        'issued_by'        => $input['issuedBy'] ?? (string)$user['name'],
-        'landlord_user_id' => $landlordUserId,
-        'tenant_user_id'   => $tenantUserId,
-    ]);
-
-    audit_log('receipt.issued', 'receipt', (string)($receipt['id'] ?? ''), [
-        'receiptNo' => $receipt['receiptNo'] ?? '',
-        'amountGhs' => $receipt['amountGhs'] ?? null,
-        'issuedBy'  => $receipt['issuedBy'] ?? '',
-    ]);
-
-    json_response(['success' => true, 'receipt' => $receipt], 201);
-}
 
 // ===========================================================================
 // Viewing-fee ledger (Increment B)
@@ -4096,6 +4786,44 @@ function handle_deactivate_fee_policy(array $params): void
     json_response(['success' => true, 'policy' => shape_fee_policy($policy)]);
 }
 
+function handle_delete_fee_policy(array $params): void
+{
+    $user = require_fee_policy_manager();
+    enforce_rate_limit('fee-policy-write', 60, 3600);
+    $id = (string)($params[0] ?? '');
+    if (!find_fee_policy($id)) {
+        error_response('Fee policy not found.', 404);
+    }
+
+    $input = request_json();
+    try {
+        $result = delete_fee_policy($id, $user, (string)($input['reason'] ?? ''));
+    } catch (FeePolicyConflictException $e) {
+        // 409: the request is understood but the record is history.
+        json_response([
+            'success'  => false,
+            'error'    => $e->getMessage(),
+            'code'     => 'policy_is_history',
+            'policyId' => $id,
+        ], 409);
+    } catch (InvalidArgumentException $e) {
+        error_response($e->getMessage(), 422);
+    }
+
+    json_response(['success' => true] + $result);
+}
+
+/** Every agent's derived tier. Read-only: there is no endpoint that sets a tier. */
+function handle_admin_agent_tier_overview(): void
+{
+    $staff = require_fee_policy_staff();
+
+    json_response(admin_agent_tier_overview() + [
+        'success'      => true,
+        'capabilities' => finance_capabilities($staff),
+    ]);
+}
+
 /** Eligibility for one agent. Read-only: there is no endpoint that sets a tier. */
 function handle_admin_agent_tier(array $params): void
 {
@@ -4114,6 +4842,152 @@ function handle_admin_agent_tier(array $params): void
         ],
         'tier' => agent_tier_state((string)$user['id']),
     ]);
+}
+
+// ===========================================================================
+// Area proximity (Upgrade 2, Phase 5: B2)
+// ===========================================================================
+function handle_list_area_adjacency(): void
+{
+    require_auth(['admin']);
+
+    json_response([
+        'success'     => true,
+        'adjacencies' => list_area_adjacency(),
+        'areas'       => match_known_areas(),
+        'bands'       => AREA_ADJACENCY_BANDS,
+        'weights'     => MATCH_WEIGHTS,
+        'note'        => 'Proximity is the administrator\'s judgement, not a guessed distance. '
+            . 'A listing in an area with no recorded relationship earns no proximity points, and the '
+            . 'tenant sees that in the score breakdown.',
+    ]);
+}
+
+function handle_save_area_adjacency(): void
+{
+    $admin = require_auth(['admin']);
+    enforce_rate_limit('area-adjacency', 120, 3600);
+    $input = request_json();
+
+    try {
+        $adjacency = save_area_adjacency($input, $admin);
+    } catch (InvalidArgumentException $e) {
+        error_response($e->getMessage(), 422);
+    }
+
+    json_response(['success' => true, 'adjacency' => $adjacency], 201);
+}
+
+function handle_delete_area_adjacency(array $params): void
+{
+    $admin = require_auth(['admin']);
+    $id = (string)($params[0] ?? '');
+
+    try {
+        delete_area_adjacency($id, $admin);
+    } catch (InvalidArgumentException $e) {
+        error_response($e->getMessage(), 404);
+    }
+
+    json_response(['success' => true]);
+}
+
+// ===========================================================================
+// Tenant contact disclosure (Upgrade 2, Phase 5: B6)
+// ===========================================================================
+function handle_request_contact_disclosure(array $params): void
+{
+    $user = require_auth(['agent', 'landlord']);
+    enforce_rate_limit('contact-disclosure-request', 30, 3600);
+
+    $id = (string)($params[0] ?? '');
+    $viewing = find_viewing($id);
+    if (!$viewing) {
+        error_response('Viewing not found.', 404);
+    }
+
+    // The provider must be responsible for this viewing; the relationship is
+    // resolved on the server, never taken from the request body.
+    $access = viewing_access($viewing, $user);
+    if (!$access['canView'] || !in_array($access['role'], ['agent', 'landlord'], true)) {
+        error_response('You do not have access to this viewing.', 403);
+    }
+
+    $input = request_json();
+    try {
+        $disclosure = request_contact_disclosure($viewing, $user, (string)($input['reason'] ?? ''));
+    } catch (RuntimeException $e) {
+        error_response($e->getMessage(), 409);
+    } catch (InvalidArgumentException $e) {
+        error_response($e->getMessage(), 422);
+    }
+
+    json_response([
+        'success'    => true,
+        'message'    => 'Request sent to Goodlucks staff. The tenant\'s details stay hidden until it is approved.',
+        'disclosure' => $disclosure,
+        'viewing'    => viewing_for_viewer($viewing, $user),
+    ], 201);
+}
+
+/** A provider's own requests, and the record a tenant is entitled to see. */
+function handle_my_contact_disclosures(): void
+{
+    $user = require_auth();
+    $role = (string)($user['role'] ?? '');
+    $id = (string)$user['id'];
+
+    if ($role === 'tenant') {
+        json_response(['success' => true, 'disclosures' => list_contact_disclosures_for_tenant($id)]);
+    }
+    if ($role === 'agent' || $role === 'landlord') {
+        json_response([
+            'success'     => true,
+            'disclosures' => list_contact_disclosures_for_provider($id, clean_string(query_param('viewingId', ''), 64)),
+        ]);
+    }
+
+    json_response(['success' => true, 'disclosures' => []]);
+}
+
+function handle_list_contact_disclosures(): void
+{
+    require_auth(['admin']);
+    $status = clean_string(query_param('status', ''), 24);
+
+    json_response([
+        'success'     => true,
+        'disclosures' => list_contact_disclosures(['status' => $status]),
+        'counts'      => [
+            'pending'  => count(list_contact_disclosures(['status' => 'pending'])),
+            'approved' => count(list_contact_disclosures(['status' => 'approved'])),
+            'rejected' => count(list_contact_disclosures(['status' => 'rejected'])),
+            'revoked'  => count(list_contact_disclosures(['status' => 'revoked'])),
+        ],
+        'validDays'   => CONTACT_DISCLOSURE_VALID_DAYS,
+    ]);
+}
+
+function handle_decide_contact_disclosure(array $params): void
+{
+    $admin = require_auth(['admin']);
+    $id = (string)($params[0] ?? '');
+    $input = request_json();
+
+    try {
+        $disclosure = decide_contact_disclosure(
+            $id,
+            $admin,
+            (string)($input['decision'] ?? ''),
+            (string)($input['note'] ?? '')
+        );
+    } catch (RuntimeException $e) {
+        error_response($e->getMessage(), 409);
+    } catch (InvalidArgumentException $e) {
+        error_response($e->getMessage(), 422);
+    }
+
+    json_response(['success' => true, 'disclosure' => $disclosure]);
 }
 
 function handle_set_viewing_fee_state(array $params): void
@@ -4432,43 +5306,24 @@ function handle_ai_describe(): void
  *
  * @return array{score: int, reason: string}
  */
+/**
+ * Score one listing against one rental request (Upgrade 2, B2).
+ *
+ * The arithmetic lives in `lib/matching.php` so the weights, the proximity rule
+ * and the explanation are in one place. This wrapper keeps the historic
+ * signature: callers get the score and the sentence, and now also the breakdown
+ * that produced them.
+ */
 function match_score(array $request, array $property): array
 {
-    $rent = (float)($property['rentGhs'] ?? 0);
-    $budgetMin = (float)($request['budgetMin'] ?? 0);
-    $budgetMax = (float)($request['budgetMax'] ?? PHP_INT_MAX);
-    $bedrooms = (int)($property['bedrooms'] ?? 0);
+    $result = match_score_breakdown($request, $property);
 
-    $score = 70;
-    if ($rent >= $budgetMin && $rent <= $budgetMax) {
-        $score += 20;
-    } elseif ($rent > $budgetMax) {
-        $score -= min(25, (int)(($rent - $budgetMax) / max(1, $budgetMax) * 50));
-    }
-    if ($bedrooms >= (int)($request['bedrooms'] ?? 0)) {
-        $score += 8;
-    }
-    foreach ((array)($request['preferredLocations'] ?? []) as $location) {
-        if (is_string($location) && $location !== '' && stripos((string)($property['location'] ?? ''), $location) !== false) {
-            $score += 5;
-            break;
-        }
-    }
-    if (($property['propertyType'] ?? '') === ($request['propertyType'] ?? '')) {
-        $score += 4;
-    }
-    $score = max(40, min(98, $score));
-
-    $reason = sprintf(
-        'Fits the GH₵ %s - GH₵ %s budget at GH₵ %s/month and offers %d bedroom(s) in %s.',
-        number_format($budgetMin, 0),
-        number_format($budgetMax, 0),
-        number_format($rent, 0),
-        $bedrooms,
-        (string)($property['location'] ?? 'Accra')
-    );
-
-    return ['score' => $score, 'reason' => $reason];
+    return [
+        'score'     => $result['score'],
+        'reason'    => $result['reason'],
+        'breakdown' => $result['breakdown'],
+        'band'      => match_score_band($result['score']),
+    ];
 }
 
 function handle_ai_match(): void
@@ -4525,27 +5380,55 @@ function handle_matches(): void
     foreach ($result['items'] as $property) {
         $scoredScore = match_score($request, $property);
         $scored[] = [
-            'property' => $property,
-            'score'    => $scoredScore['score'],
-            'reason'   => $scoredScore['reason'],
-            'curated'  => in_array((string)$property['id'], $curated, true),
+            'property'  => $property,
+            'score'     => $scoredScore['score'],
+            'reason'    => $scoredScore['reason'],
+            'breakdown' => $scoredScore['breakdown'],
+            'band'      => $scoredScore['band'],
+            'curated'   => in_array((string)$property['id'], $curated, true),
         ];
     }
 
-    usort($scored, static function (array $a, array $b): int {
-        if ($a['curated'] !== $b['curated']) {
-            return $a['curated'] ? -1 : 1;
+    // Upgrade 2 (B3): two lists, because they are two different promises.
+    //
+    //   curatedForYou  — properties an administrator chose for this tenant, in
+    //                    the order they chose them. These come first.
+    //   similarMatches — everything else, ordered by the documented score.
+    //
+    // A tenant must be able to tell which is which, so they are never merged
+    // into one unlabelled list.
+    $curatedMatches = [];
+    foreach ($curated as $propertyId) {
+        foreach ($scored as $candidate) {
+            if ((string)$candidate['property']['id'] === $propertyId) {
+                $curatedMatches[] = $candidate;
+                break;
+            }
         }
-        return $b['score'] <=> $a['score'];
-    });
+    }
 
-    $matches = array_slice($scored, 0, 12);
+    $similar = array_values(array_filter($scored, static fn(array $row): bool => !$row['curated']));
+    usort($similar, static fn(array $a, array $b): int => $b['score'] <=> $a['score']);
+    $similarMatches = array_slice($similar, 0, 12);
+
+    $curatedCount = count($curatedMatches);
 
     json_response([
-        'success'      => true,
-        'requestId'    => (string)$request['id'],
-        'topScore'     => $matches ? (int)$matches[0]['score'] : 0,
-        'matches'      => $matches,
+        'success'        => true,
+        'requestId'      => (string)$request['id'],
+        // Legacy key, in the order the console and dashboard have always read.
+        'matches'        => array_merge($curatedMatches, $similarMatches),
+        'curatedForYou'  => $curatedMatches,
+        'similarMatches' => $similarMatches,
+        'curatedCount'   => $curatedCount,
+        'curatedMinimum' => 3,
+        // Stated, not hidden: a shortlist of one or two is labelled as such.
+        'curationWarning' => $curatedCount > 0 && $curatedCount < 3
+            ? 'Only ' . $curatedCount . ' propert' . ($curatedCount === 1 ? 'y is' : 'ies are')
+                . ' marked as chosen for this tenant. Choose at least 3 so the shortlist reads as a recommendation.'
+            : null,
+        'topScore'       => $similarMatches ? (int)$similarMatches[0]['score'] : ($curatedMatches ? (int)$curatedMatches[0]['score'] : 0),
+        'scoreBands'     => ['strong' => 85, 'good' => 65, 'possible' => 45],
     ]);
 }
 

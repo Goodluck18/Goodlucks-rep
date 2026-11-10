@@ -210,9 +210,65 @@ test('the bottom bar tabs may shrink and truncate', () => {
 /* -------------------------------------------------------------------------- */
 
 test('image preview grids collapse to one or two columns on a small phone', () => {
-  const listProperty = byPath('src/components/ListPropertyView.tsx');
-  assert.match(listProperty, /grid grid-cols-1 min-\[380px\]:grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3/);
+  // Upgrade 2 (C3): the preview grid lives in the shared image picker.
+  const imagePicker = byPath('src/components/PropertyImagePicker.tsx');
+  assert.match(imagePicker, /grid grid-cols-1 min-\[380px\]:grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3/);
 
   const verificationPanel = byPath('src/components/VerificationPanel.tsx');
   assert.match(verificationPanel, /grid grid-cols-1 sm:grid-cols-2 gap-3/);
+});
+
+/* -------------------------------------------------------------------------- */
+/* 6. Mobile listing strip (Upgrade 2, A4)                                    */
+/* -------------------------------------------------------------------------- */
+
+test('a phone gets a swipeable row of compact horizontal listing cards', () => {
+  const grid = byPath('src/components/PropertyCardGrid.tsx');
+  const card = byPath('src/components/PropertyCard.tsx');
+
+  // The strip is a real scroll container with snap points, hidden below `sm`.
+  assert.match(grid, /role="list"/);
+  assert.match(grid, /sm:hidden/);
+  assert.match(grid, /flex snap-x snap-mandatory gap-3 overflow-x-auto/);
+  assert.match(grid, /snap-start/);
+  // Each card takes most of the screen but never more than a phone's width, so
+  // the next card is always peeking in from the right.
+  assert.match(grid, /w-\[78%\] max-w-\[320px\] shrink-0/);
+
+  // The compact card is a row, not a column: picture left, details right.
+  assert.match(card, /horizontal \? 'flex flex-row' : 'flex flex-col'/);
+  assert.match(card, /horizontal \? 'w-28 min-\[380px\]:w-32 shrink-0'/);
+  assert.match(card, /layout\?: 'vertical' \| 'horizontal'/);
+});
+
+test('tablet and desktop keep the existing grid', () => {
+  const grid = byPath('src/components/PropertyCardGrid.tsx');
+  // The desktop grid is hidden below `sm` and uses the same column classes the
+  // pages had; the default is the four-step catalogue grid.
+  assert.match(grid, /hidden sm:grid \$\{gridClassName\}/);
+  assert.match(grid, /sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6/);
+});
+
+test('every page that lists properties uses the shared grid', () => {
+  for (const page of [
+    'src/components/BrowseView.tsx',
+    'src/components/HomeView.tsx',
+    'src/components/PropertyDetailView.tsx',
+    'src/components/TenantDashboard.tsx',
+  ]) {
+    assert.match(byPath(page), /<PropertyCardGrid/, `${page} must use the shared grid`);
+    assert.ok(
+      !/<div className="grid grid-cols-2 sm:grid-cols-2/.test(byPath(page)),
+      `${page} must not keep a private mobile grid`
+    );
+  }
+});
+
+test('the strip scrolls inside its own box and hides only its scrollbar', () => {
+  assert.match(cssCode, /\.gl-property-strip \{[\s\S]*?scroll-snap-type: x mandatory/);
+  assert.match(cssCode, /\.gl-property-strip \{[\s\S]*?overscroll-behavior-x: contain/);
+  assert.match(cssCode, /\.gl-property-strip::-webkit-scrollbar \{\s*display: none;/);
+  // Hiding the page's overflow is still forbidden: the strip is the container.
+  assert.ok(!/html\s*\{[^}]*overflow-x\s*:\s*hidden/.test(cssCode));
+  assert.ok(!/body\s*\{[^}]*overflow-x\s*:\s*hidden/.test(cssCode));
 });

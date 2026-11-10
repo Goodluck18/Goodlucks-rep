@@ -39,7 +39,6 @@ export type RouteName =
   | 'contact'
   | 'blog'
   | 'blog-post'
-  | 'receipts'
   | 'list-property'
   | 'login'
   | 'register'
@@ -115,7 +114,6 @@ export const ROLE_SECTIONS: Record<'tenant' | 'landlord' | 'agent' | 'admin', Se
       properties: 'my-properties',
       'my-properties': 'my-properties',
       viewings: 'viewings',
-      receipts: 'receipts',
       profile: 'profile',
       verification: 'identity',
       identity: 'identity',
@@ -126,7 +124,6 @@ export const ROLE_SECTIONS: Record<'tenant' | 'landlord' | 'agent' | 'admin', Se
       overview: 'dashboard',
       'my-properties': 'properties',
       viewings: 'viewings',
-      receipts: 'receipts',
       profile: 'profile',
       identity: 'verification',
       notifications: 'notifications',
@@ -175,6 +172,9 @@ export const ROLE_SECTIONS: Record<'tenant' | 'landlord' | 'agent' | 'admin', Se
       finance: 'finance',
       blog: 'blog',
       'email-templates': 'email-templates',
+      // Upgrade 2 Phase 3: the user directory and bulk email.
+      users: 'users',
+      'bulk-email': 'bulk-email',
     },
     canonical: {
       analytics: 'analytics',
@@ -189,6 +189,8 @@ export const ROLE_SECTIONS: Record<'tenant' | 'landlord' | 'agent' | 'admin', Se
       finance: 'finance',
       blog: 'blog',
       'email-templates': 'email-templates',
+      users: 'users',
+      'bulk-email': 'bulk-email',
     },
     fallback: 'analytics',
   },
@@ -204,7 +206,6 @@ const PUBLIC_PATHS: Record<string, RouteName> = {
   // Task 07: the Blog & Learning Centre. Articles live one segment below it, so
   // the index is a real page and never a prefix of an article URL.
   '/blog': 'blog',
-  '/receipts': 'receipts',
   '/list-property': 'list-property',
   '/login': 'login',
   '/register': 'register',
@@ -515,13 +516,6 @@ export function accessDecision(route: RouteState, role: UserRole, currentPath: s
     return { action: 'redirect', to: dashboardPath(role) };
   }
 
-  // Correction 2: payment records and receipts are private account business.
-  // They are no longer in the public navigation, and opening the URL directly
-  // sends a signed-out visitor to sign in first — the page is never rendered
-  // for a guest. The API enforces the same thing (`GET /api/receipts` → 401).
-  if (route.name === 'receipts' && role === 'guest') {
-    return { action: 'login', to: `/login${buildQuery({ next: route.path })}`, next: route.path };
-  }
 
   if (route.name === 'admin-login') {
     // An admin who opens the admin login screen is already signed in: send them
@@ -570,8 +564,6 @@ export function viewForRoute(route: RouteState): string {
       return 'blog';
     case 'blog-post':
       return 'blog-post';
-    case 'receipts':
-      return 'receipts';
     case 'list-property':
       return 'list-property';
     case 'login':
@@ -653,8 +645,6 @@ export function pathForView(view: string, role: UserRole, current: RouteState): 
       if (role === 'admin') return '/admin';
       if (role === 'tenant' || role === 'landlord' || role === 'agent') return `/${role}/notifications`;
       return '/login';
-    case 'receipts':
-      return role === 'landlord' ? '/landlord/receipts' : '/receipts';
     default:
       return dashboardPath(role);
   }

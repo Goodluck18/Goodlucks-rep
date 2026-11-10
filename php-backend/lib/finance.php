@@ -84,6 +84,11 @@ function finance_can_view(?array $user = null): bool
     // The Increment E policy capabilities already implied sight of the ledger,
     // so they keep that meaning; `can_view_finance` is the explicit read-only
     // grant for staff who should not be able to change anything.
+    // Upgrade 2: the primary platform administrator reads the ledger without a
+    // separate grant. The distinctions below still apply to every other account.
+    if (is_primary_admin($user)) {
+        return true;
+    }
     return (int)($user['can_view_finance'] ?? 0) === 1
         || (int)($user['can_manage_fee_policies'] ?? 0) === 1
         || (int)($user['can_approve_fee_policies'] ?? 0) === 1;
@@ -92,6 +97,9 @@ function finance_can_view(?array $user = null): bool
 function finance_can_confirm(?array $user = null): bool
 {
     $user = $user ?? auth_user();
+    if (is_primary_admin($user)) {
+        return true;
+    }
     return $user !== null
         && (string)($user['role'] ?? '') === 'admin'
         && (int)($user['can_confirm_remittances'] ?? 0) === 1;

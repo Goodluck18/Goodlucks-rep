@@ -176,7 +176,6 @@ const EMPTY: Record<string, unknown> = {
   viewings: { viewings: [] },
   notifications: { notifications: [] },
   saved: { propertyIds: [] },
-  receipts: { receipts: [], issuingEnabled: false },
   'search-alerts': { alerts: [] },
   'admin/stats': {
     stats: zeroStats({
@@ -841,40 +840,30 @@ test('opening the notifications page marks nothing read and lists the account re
 /* Payment records are private (Correction 2)                                  */
 /* -------------------------------------------------------------------------- */
 
-test('a visitor opening /receipts is sent to sign in and sees no receipt data', async () => {
-  const app = await renderAt('/receipts');
-  // The guard replaces the page with the sign-in screen, carrying the intended
-  // destination with it.
-  assert.equal(app.path(), '/login?next=%2Freceipts');
-  assert.doesNotMatch(app.text(), /rent payment records/i);
-  assert.doesNotMatch(app.text(), /issuingEnabled|saved records/i);
-  await app.unmount();
+test('the rent-receipt screens are gone for every role (Upgrade 2, E1)', async () => {
+  // Not "hidden behind a guard": removed. No rent-receipt wording renders and
+  // the paths are unknown routes for every role.
+  for (const [path, role] of [
+    ['/receipts', null],
+    ['/receipts', 'landlord'],
+    ['/landlord/receipts', 'landlord'],
+  ] as Array<[string, 'tenant' | 'landlord' | null]>) {
+    const app = await renderAt(path, role);
+    assert.doesNotMatch(app.text(), /payment records/i, `${path} shows no payment-records screen`);
+    assert.doesNotMatch(app.text(), /saved records/i, `${path} shows no stored receipts`);
+    await app.unmount();
+  }
 });
 
-test('a signed-in member still reaches their payment records', async () => {
-  const app = await renderAt('/receipts', 'tenant');
-  assert.equal(app.path(), '/receipts');
-  assert.match(app.text(), /rent payment records/i);
-  await app.unmount();
-});
-
-test('the landlord dashboard keeps its own payment records section', async () => {
-  const app = await renderAt('/landlord/receipts', 'landlord');
-  assert.equal(app.path(), '/landlord/receipts');
+test('a tenant dashboard offers no receipt action at all', async () => {
+  const app = await renderAt('/tenant/dashboard', 'tenant');
+  assert.doesNotMatch(app.text(), /payment record/i);
   await app.unmount();
 });
 
 test('an empty notifications page says so instead of inventing records', async () => {
   const app = await renderAt('/landlord/notifications', 'landlord');
   assert.match(app.text(), /no notifications yet/i);
-  await app.unmount();
-});
-
-test('the landlord payment records section reuses the receipt view', async () => {
-  const app = await renderAt('/landlord/receipts', 'landlord');
-  const text = app.text();
-  assert.match(text, /payment records/i);
-  assert.match(text, /rent|receipt/i);
   await app.unmount();
 });
 
@@ -950,8 +939,8 @@ test('the guest quick bar and hamburger do not repeat one another', async () => 
   // Task 07 added one public page to the guest menu: the Learning Centre. It is
   // a menu row, not a quick-bar tab, so the two surfaces still do not repeat
   // one another.
-  // Correction 2 removed the Receipts entry: payment records are reachable only
-  // from a signed-in member's own dashboard.
+  // Correction 2 removed the Receipts entry; Upgrade 2 (E1) removed the feature
+  // entirely, so there is no receipt row for anyone now.
   assert.deepEqual(rows, ['List Property', 'Learning Centre', 'About', 'Contact', 'Create an account']);
   assert.ok(!rows.includes('Receipts'), 'a visitor is never offered receipts');
   for (const repeated of ['Home', 'Browse', 'Find Home']) {
@@ -1050,7 +1039,7 @@ test('the unread count sits on its own bell, never on the Profile tab', async ()
   await app.unmount();
 });
 
-test('a landlord keeps the submission action and finds receipts in the menu', async () => {
+test('a landlord keeps the submission action and finds verification in the menu', async () => {
   const app = await renderAt('/landlord/dashboard', 'landlord');
   assert.deepEqual(labels(quickLinks(app)), ['Dashboard', 'Properties', 'List', 'Viewings', 'Profile']);
 
@@ -1067,7 +1056,7 @@ test('a landlord keeps the submission action and finds receipts in the menu', as
   const again = await renderAt('/landlord/properties', 'landlord');
   await again.clickContaining('Open menu');
   const rows = labels(menuRows(again));
-  assert.deepEqual(rows.slice(0, 3), ['Receipts', 'Verification', 'Account settings']);
+  assert.deepEqual(rows.slice(0, 2), ['Verification', 'Account settings']);
   for (const tab of ['Dashboard', 'Properties', 'List', 'Viewings', 'Profile']) {
     assert.ok(!rows.includes(tab), `“${tab}” is already in the quick bar`);
   }

@@ -10,6 +10,11 @@
  */
 
 import type {
+  AdminActivityEntry,
+  AdminCampaign,
+  AdminCampaignSummary,
+  AdminUserActivityEntry,
+  AdminUserRecord,
   AdminAgentAccount,
   AgentProfile,
   AgentTierState,
@@ -18,6 +23,11 @@ import type {
   FeePolicyInput,
   FeePolicyOverview,
   FeePolicySnapshot,
+  AdminAgentTiers,
+  AreaAdjacency,
+  ContactDisclosure,
+  MatchFactor,
+  MatchBand,
   IdentityVerification,
   ProfessionalAuthorisation,
   VerificationDecisionEntry,
@@ -35,7 +45,6 @@ import type {
   PropertyViewingTerms,
   ViewingTermsChange,
   ViewingTermsValues,
-  RentReceipt,
   SearchAlertSubscription,
   FeePolicyStatus,
   TenantRequest,
@@ -183,6 +192,9 @@ export interface PropertyMatch {
   score: number;
   reason: string;
   curated: boolean;
+  /** Upgrade 2 (B2): the six weighted factors behind `score`. */
+  breakdown?: MatchFactor[];
+  band?: MatchBand;
 }
 
 export interface PropertyInput {
@@ -196,14 +208,23 @@ export interface PropertyInput {
   description: string;
   availability?: string;
   images: string[];
+  /** Canonical amenity keys (C5); unknown words are kept by the server. */
   amenities?: string[];
+  amenitiesNote?: string;
+  toilets?: number | null;
+  kitchens?: number | null;
+  furnishing?: string;
+  /** C4: YouTube, TikTok or Facebook video link, validated server-side. */
+  videoUrl?: string;
+  /** C6: the provider's expectation. Never a platform fee. */
+  providerCommissionPercent?: number | null;
+  providerCommissionNote?: string;
   nearbyPlaces?: { name: string; type: string; distance: string }[];
   featured?: boolean;
   status?: PropertyStatus;
   /**
-   * Agent submissions only (Increment F): who the agent says the landlord is.
-   * The server resolves the reference without telling the caller whether an
-   * account matched, and the agent never becomes the owner.
+   * Upgrade 2 (C1): these are accepted by the server only so an old client does
+   * not break — they are ignored. An agent listing has no landlord reference.
    */
   landlordName?: string;
   landlordEmail?: string;
@@ -434,7 +455,29 @@ export const api = {
     ),
 
   // --- Staff: agent account review (Increment C) -----------------------------
-  listAgents: () => request<{ agents: AdminAgentAccount[]; count: number }>('/admin/agents'),
+  /**
+   * Agent accounts (Upgrade 2, A8). `stage` is the console's three-way view of
+   * the LISTING authorisation decision (pending / approved_for_listing /
+   * suspended); `verification` is the separate identity decision.
+   */
+  listAgents: (
+    params: {
+      q?: string;
+      stage?: string;
+      verification?: string;
+      listing?: string;
+      accountStatus?: string;
+    } = {}
+  ) => {
+    const search = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== '') search.set(key, String(value));
+    });
+    const query = search.toString();
+    return request<{ agents: AdminAgentAccount[]; count: number; stageCounts: Record<string, number> }>(
+      `/admin/agents${query ? `?${query}` : ''}`
+    );
+  },
 
   /**
    * Approve, suspend or return an agent account to review. `canSubmitListings`
@@ -471,7 +514,9 @@ export const api = {
       if (value !== undefined && value !== '') search.set(key, String(value));
     });
     const query = search.toString();
-    return request<{ properties: Property[]; total: number }>(`/admin/properties${query ? `?${query}` : ''}`);
+    return request<{ properties: Property[]; total: number; count: number; page: number; perPage: number }>(
+      `/admin/properties${query ? `?${query}` : ''}`
+    );
   },
 
   getProperty: (id: string) => request<{ property: Property }>(`/properties/${encodeURIComponent(id)}`),
@@ -535,10 +580,21 @@ export const api = {
       body: { featured },
     }),
 
+  /**
+   * `POST /api/uploads/` — the TRAILING SLASH is deliberate (Upgrade 2, A1).
+   *
+   * On the deployed host `public_html/api/uploads` is a real directory. Apache's
+   * `mod_dir` answers a request for a directory without its trailing slash with a
+   * `301` to the slashed form, and a browser re-issues a redirected POST as a
+   * GET — which then reached the front controller as `GET /api/uploads/` and came
+   * back "Endpoint not found." Posting to the slashed path skips that redirect.
+   * The API directory's `.htaccess` also routes the bare path to `index.php`
+   * first, so both spellings work; the server accepts either (tests assert both).
+   */
   uploadImages: (files: File[]) => {
     const form = new FormData();
     files.forEach((file) => form.append('file', file, file.name));
-    return request<{ urls: string[]; warnings?: string[] }>('/uploads', { method: 'POST', formData: form });
+    return request<{ urls: string[]; warnings?: string[] }>('/uploads/', { method: 'POST', formData: form });
   },
 
   // -------------------------------------------------------------------------
@@ -547,13 +603,122 @@ export const api = {
   createEnquiry: (data: { name: string; email: string; phone?: string; message: string; propertyId?: string; source?: string }) =>
     request<{ success: boolean; message: string; enquiryId: string }>('/enquiries', { method: 'POST', body: data }),
 
-  listEnquiries: () => request<{ enquiries: Enquiry[] }>('/admin/enquiries'),
+  /** Web enquiries, newest first (Upgrade 2, A10). */
+  listEnquiries: (params: { q?: string; status?: string } = {}) => {
+    const search = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== '') search.set(key, String(value));
+    });
+    const query = search.toString();
+    return request<{
+      enquiries: Enquiry[];
+      count: number;
+      statusCounts: Record<string, number>;
+    }>(`/admin/enquiries${query ? `?${query}` : ''}`);
+  },
 
   updateEnquiryStatus: (id: string, status: Enquiry['status']) =>
     request<{ enquiry: Enquiry; message: string }>(`/admin/enquiries/${encodeURIComponent(id)}`, {
       method: 'PATCH',
       body: { status },
     }),
+
+  // -------------------------------------------------------------------------
+  // Administrator: user directory, profiles, activity and bulk email
+  // (Upgrade 2 Phase 3: A11, A13, A14, A12)
+  // -------------------------------------------------------------------------
+
+  /** A11. Search and filter run on the server, over every account. */
+  listAdminUsers: (
+    params: { q?: string; role?: string; status?: string; page?: number; perPage?: number } = {}
+  ) => {
+    const search = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== '') search.set(key, String(value));
+    });
+    const query = search.toString();
+    return request<{
+      users: AdminUserRecord[];
+      total: number;
+      count: number;
+      page: number;
+      perPage: number;
+      roles: string[];
+      statuses: string[];
+    }>(`/admin/users${query ? `?${query}` : ''}`);
+  },
+
+  /** A11/A13. One profile with its stored history (when permitted). */
+  getAdminUser: (id: string) =>
+    request<{
+      user: AdminUserRecord;
+      activity: AdminUserActivityEntry[];
+      canViewActivity: boolean;
+      /** Upgrade 2 (E2): whether this administrator may correct the classification. */
+      canCorrectClassification?: boolean;
+    }>(`/admin/users/${encodeURIComponent(id)}`),
+
+  /**
+   * Upgrade 2 (E2). Correct a provider's account type, with the reason that
+   * justifies it. Staff-only, audited, and never available for an administrator.
+   */
+  correctUserRole: (id: string, role: 'tenant' | 'landlord' | 'agent', reason: string) =>
+    request<{
+      user: AdminUserRecord;
+      corrected: { from: string; to: string };
+    }>(`/admin/users/${encodeURIComponent(id)}/role`, {
+      method: 'POST',
+      body: JSON.stringify({ role, reason }),
+    }),
+
+  /** A13. The history on its own, for a page refresh. */
+  getAdminUserActivity: (id: string, limit = 50) =>
+    request<{ userId: string; activity: AdminUserActivityEntry[] }>(
+      `/admin/users/${encodeURIComponent(id)}/activity?limit=${limit}`
+    ),
+
+  /** A14. Recent activity across the platform, from real records. */
+  getAdminActivity: (limit = 20) =>
+    request<{ activity: AdminActivityEntry[]; count: number }>(`/admin/activity?limit=${limit}`),
+
+  /** A12. Who would receive a campaign, before anything is written. */
+  previewCampaign: (params: { audience?: string; kind?: string } = {}) => {
+    const search = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== '') search.set(key, String(value));
+    });
+    const query = search.toString();
+    return request<{
+      audience: string;
+      kind: string;
+      total: number;
+      excludedUnsubscribed: number;
+      duplicatesRemoved: number;
+      recipients: Array<{ id: string; email: string; name: string; role: string; optedIn: boolean }>;
+    }>(`/admin/campaigns/preview${query ? `?${query}` : ''}`);
+  },
+
+  listCampaigns: (limit = 20) =>
+    request<{ campaigns: AdminCampaign[]; audiences: string[]; kinds: string[] }>(
+      `/admin/campaigns?limit=${limit}`
+    ),
+
+  createCampaign: (data: { subject: string; body: string; audience: string; kind: string }) =>
+    request<{ campaign: AdminCampaign }>('/admin/campaigns', { method: 'POST', body: data }),
+
+  getCampaign: (id: string) => request<AdminCampaignSummary>(`/admin/campaigns/${encodeURIComponent(id)}`),
+
+  queueCampaign: (id: string) =>
+    request<AdminCampaignSummary & { message: string }>(
+      `/admin/campaigns/${encodeURIComponent(id)}/queue`,
+      { method: 'POST', body: {} }
+    ),
+
+  retryCampaign: (id: string) =>
+    request<AdminCampaignSummary & { message: string }>(
+      `/admin/campaigns/${encodeURIComponent(id)}/retry`,
+      { method: 'POST', body: {} }
+    ),
 
   runAlertDigest: () =>
     request<{ success: boolean; properties: number; emails: number; message: string }>('/admin/alerts/run', {
@@ -569,7 +734,20 @@ export const api = {
 
   listTenantRequests: () => request<{ requests: TenantRequest[] }>('/tenant-requests'),
 
-  listAllTenantRequests: () => request<{ requests: TenantRequest[] }>('/admin/tenant-requests'),
+  /**
+   * Every rental request, with the console's search and stage filter
+   * (Upgrade 2, A7). `stageCounts` counts all requests, not the filtered list.
+   */
+  listAllTenantRequests: (params: { q?: string; stage?: string; status?: string } = {}) => {
+    const search = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== '') search.set(key, String(value));
+    });
+    const query = search.toString();
+    return request<{ requests: TenantRequest[]; stageCounts: Record<string, number> }>(
+      `/admin/tenant-requests${query ? `?${query}` : ''}`
+    );
+  },
 
   updateTenantRequest: (id: string, data: { status?: string; matchedPropertyIds?: string[] }) =>
     request<{ request: TenantRequest }>(`/tenant-requests/${encodeURIComponent(id)}`, { method: 'PATCH', body: data }),
@@ -614,7 +792,7 @@ export const api = {
   /** One endpoint per lifecycle action; each is validated on the server. */
   viewingAction: (
     id: string,
-    action: ViewingAction | 'reschedule' | 'request-reschedule' | 'no-show' | 'could-not-proceed',
+    action: ViewingAction | 'reschedule' | 'request-reschedule' | 'accept-reschedule' | 'decline-reschedule' | 'no-show' | 'could-not-proceed',
     body: { date?: string; time?: string; note?: string; reason?: string; who?: 'tenant' | 'agent' } = {}
   ) =>
     request<{ viewing: ViewingSchedule; message: string }>(
@@ -673,15 +851,6 @@ export const api = {
   // -------------------------------------------------------------------------
   // Rent payment records
   // -------------------------------------------------------------------------
-  /**
-   * Rent payment records. `issuingEnabled` is false while the server has
-   * receipt issuing switched off (the truthful payment model ships later).
-   */
-  listReceipts: () =>
-    request<{ receipts: RentReceipt[]; issuingEnabled?: boolean }>('/receipts'),
-
-  createReceipt: (data: Record<string, unknown>) =>
-    request<{ receipt: RentReceipt }>('/receipts', { method: 'POST', body: data }),
 
   // -------------------------------------------------------------------------
   // Notifications & admin
@@ -1010,6 +1179,60 @@ export const api = {
       body: { reason },
     }),
 
+  // Phase 4: deletes a policy that never priced anything and never went through
+  // approval. Anything else is refused with 409 and must be deactivated instead.
+  deleteFeePolicy: (id: string, reason: string) =>
+    request<{
+      success: boolean;
+      deleted: { id: string; name: string; tier: string; category: string; status: string };
+      reason: string;
+    }>(`/admin/fee-policies/${encodeURIComponent(id)}`, { method: 'DELETE', body: { reason } }),
+
+  adminAgentTiers: () => request<AdminAgentTiers>('/admin/agent-tiers'),
+
+  // --- Upgrade 2 Phase 5: contact disclosure (B6) -------------------------
+  requestContactDisclosure: (viewingId: string, reason: string) =>
+    request<{ success: boolean; message: string; disclosure: ContactDisclosure; viewing: ViewingSchedule }>(
+      `/viewings/${encodeURIComponent(viewingId)}/request-contact`,
+      { method: 'POST', body: { reason } }
+    ),
+
+  myContactDisclosures: (viewingId?: string) =>
+    request<{ success: boolean; disclosures: ContactDisclosure[] }>(
+      viewingId
+        ? `/contact-disclosures?viewingId=${encodeURIComponent(viewingId)}`
+        : '/contact-disclosures'
+    ),
+
+  adminContactDisclosures: (status?: string) =>
+    request<{
+      success: boolean;
+      disclosures: ContactDisclosure[];
+      counts: Record<string, number>;
+      validDays: number;
+    }>(`/admin/contact-disclosures${status ? `?status=${encodeURIComponent(status)}` : ''}`),
+
+  decideContactDisclosure: (id: string, decision: 'approve' | 'reject' | 'revoke', note: string) =>
+    request<{ success: boolean; disclosure: ContactDisclosure }>(
+      `/admin/contact-disclosures/${encodeURIComponent(id)}/decision`,
+      { method: 'POST', body: { decision, note } }
+    ),
+
+  // --- Upgrade 2 Phase 5: area proximity (B2) -----------------------------
+  areaAdjacency: () =>
+    request<{ success: boolean; adjacencies: AreaAdjacency[]; areas: string[]; validDays?: number }>(
+      '/admin/area-adjacency'
+    ),
+
+  saveAreaAdjacency: (data: { areaA: string; areaB: string; band: number; note?: string }) =>
+    request<{ success: boolean; adjacency: AreaAdjacency }>('/admin/area-adjacency', {
+      method: 'POST',
+      body: data,
+    }),
+
+  deleteAreaAdjacency: (id: string) =>
+    request<{ success: boolean }>(`/admin/area-adjacency/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+
   getAgentTier: (userId: string) =>
     request<{ agent: { userId: string; name: string; email: string }; tier: AgentTierState }>(
       `/admin/agents/${encodeURIComponent(userId)}/tier`
@@ -1052,10 +1275,21 @@ export const api = {
   }) => request<{ description: string; ai: boolean }>('/ai/describe', { method: 'POST', body: data }),
 
   // Scored shortlist from the backend (same engine as /ai/match).
+  // Upgrade 2 (B3): the API returns two lists — the staff's shortlist and the
+  // scored longlist — because they are two different promises to the tenant.
   matches: (requestId?: string) =>
-    request<{ success: boolean; requestId: string | null; topScore?: number; matches: PropertyMatch[] }>(
-      requestId ? `/matches?requestId=${encodeURIComponent(requestId)}` : '/matches'
-    ),
+    request<{
+      success: boolean;
+      requestId: string | null;
+      topScore?: number;
+      matches: PropertyMatch[];
+      curatedForYou?: PropertyMatch[];
+      similarMatches?: PropertyMatch[];
+      curatedCount?: number;
+      curatedMinimum?: number;
+      curationWarning?: string | null;
+      scoreBands?: Record<string, number>;
+    }>(requestId ? `/matches?requestId=${encodeURIComponent(requestId)}` : '/matches'),
 
   aiMatch: (tenantRequest: Partial<TenantRequest>, property: Partial<Property>) =>
     request<{ matchScore: number; aiMatchReason: string }>('/ai/match', {
