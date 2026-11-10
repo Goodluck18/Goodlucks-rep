@@ -301,7 +301,6 @@ export function dashboardNav(
       { key: 'overview', label: 'Overview', path: '/landlord/dashboard', icon: LayoutDashboard },
       { key: 'my-properties', label: 'My properties', path: '/landlord/properties', icon: Building2 },
       { key: 'viewings', label: 'Viewings', path: '/landlord/viewings', icon: CalendarCheck },
-      { key: 'receipts', label: 'Payment records', path: '/landlord/receipts', icon: ReceiptText },
       { key: 'identity', label: 'Verification', path: '/landlord/verification', icon: ShieldCheck },
       { key: 'notifications', label: 'Notifications', path: '/landlord/notifications', icon: Bell, badge: unread },
       { key: 'profile', label: 'Profile', path: '/landlord/profile', icon: UserRound },

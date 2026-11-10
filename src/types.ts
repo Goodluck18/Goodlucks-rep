@@ -726,32 +726,6 @@ export interface AnalyticsStats {
   monthlyTraffic: TrafficDataPoint[];
 }
 
-export interface RentReceipt {
-  id: string;
-  receiptNo: string;
-  propertyTitle: string;
-  propertyAddress: string;
-  tenantName: string;
-  tenantPhone: string;
-  landlordName: string;
-  amountGhs: number;
-  amountInWords: string;
-  paymentPurpose: string;
-  paymentMethod: 'MTN MoMo' | 'Telecel Cash' | 'Bank Transfer' | 'Card' | 'Cash';
-  transactionRef: string;
-  paymentDate: string;
-  issuedBy: string;
-  verificationCode: string;
-  /** Every stored rent record is a staff-entered claim, not a verified payment. */
-  recordState?: 'reported';
-  recordStateLabel?: string;
-  recipient?: { type: 'landlord'; name: string; verified: boolean };
-  goodlucksIsRecipient?: boolean;
-  /** True for references issued before Increment B ("VERIFIED-REC-..." prefix). */
-  legacyReference?: boolean;
-  createdAt: string;
-}
-
 /** One viewing fee in the Increment B ledger. */
 export interface ViewingFeeRecord {
   id: string;

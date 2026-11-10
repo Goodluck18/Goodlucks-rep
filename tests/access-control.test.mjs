@@ -89,6 +89,7 @@ before(async () => {
     TENANT_REQUEST_RATE_LIMIT_PER_HOUR: '200',
   };
   state.env = env;
+  state.dbPath = dbPath;
   server = await startApiServer({ port, env, quiet: true });
   baseUrl = server.baseUrl;
 
@@ -210,57 +211,28 @@ describe('Correction 1: only a tenant can submit a rent request', () => {
 });
 
 /* -------------------------------------------------------------------------- */
-/* Correction 2 — receipts are private                                        */
+/* Upgrade 2, E1 — rent receipts are gone (data preserved)                     */
 /* -------------------------------------------------------------------------- */
 
-describe('Correction 2 / Upgrade 2 E1: receipts need a signed-in provider account', () => {
-  test('a visitor cannot read the receipt list or a single record', async () => {
-    const list = await clients.guest.get('/api/receipts');
-    assert.equal(list.status, 401);
-
-    const one = await clients.guest.get('/api/receipts/rct-does-not-matter');
-    assert.equal(one.status, 401, 'the id must not be probed by a visitor');
-
-    const create = await clients.guest.post('/api/receipts', {});
-    assert.equal(create.status, 401);
+describe('Upgrade 2 E1: the rent-receipt feature is removed for every role', () => {
+  test('no role can read, probe or create a rent receipt', async () => {
+    const roles = [
+      ['guest', clients.guest],
+      ['tenant', clients.tenant],
+      ['landlord', clients.landlord],
+      ['agent', clients.agent],
+      ['admin', clients.admin],
+    ];
+    for (const [label, client] of roles) {
+      assert.equal((await client.get('/api/receipts')).status, 404, `${label} cannot list`);
+      assert.equal((await client.get('/api/receipts/rct-any-id')).status, 404, `${label} cannot fetch`);
+      assert.equal((await client.post('/api/receipts', {})).status, 404, `${label} cannot create`);
+    }
   });
 
-  test('an agent has no access at all (403) — records concern tenants and landlords', async () => {
-    assert.equal((await clients.agent.get('/api/receipts')).status, 403);
-  });
-
-  test('a tenant has no rent-receipt surface at all (Upgrade 2, E1)', async () => {
-    const tenant = await clients.tenant.get('/api/receipts');
-    assert.equal(tenant.status, 403, 'the tenant rent-receipt view was removed, not hidden');
-  });
-
-  test('the landlord and staff keep their access', async () => {
-    const landlord = await clients.landlord.get('/api/receipts');
-    assert.equal(landlord.status, 200);
-    assert.ok(Array.isArray(landlord.body.receipts));
-    assert.equal(landlord.body.issuingEnabled, false, 'issuing stays off until the payment model ships');
-
-    const staff = await clients.admin.get('/api/receipts');
-    assert.equal(staff.status, 200);
-  });
-
-  test('a tenant cannot invent a record (issuing is admin-only and switched off)', async () => {
-    const res = await clients.tenant.post('/api/receipts', {
-      propertyTitle: 'Attempted Tenant Receipt',
-      propertyAddress: 'Osu, Accra',
-      tenantName: 'Access Control Tenant',
-      tenantPhone: '+233 24 555 6666',
-      landlordName: 'Some Landlord',
-      amountGhs: 100,
-      paymentMethod: 'Cash',
-    });
-    assert.equal(res.status, 403);
-  });
-
-  test('existing receipt records are untouched by the access change', async () => {
-    // Planting a record uses the same fixture the finance suites use, so this
-    // proves that removing the public entry point did not remove the data path:
-    // the row is stored, staff and the parties can read it, and a visitor cannot.
+  test('a planted record survives the removal', async () => {
+    // The feature went; the history did not. The row is written straight to the
+    // table and read back with the SQLite tool, which is the only path left.
     const planted = runPhpScript(
       'tests/create-receipt.php',
       [
@@ -272,20 +244,20 @@ describe('Correction 2 / Upgrade 2 E1: receipts need a signed-in provider accoun
       state.env
     );
     assert.equal(planted.status, 0, planted.stdout + planted.stderr);
+    const id = JSON.parse(planted.stdout.trim()).id;
 
-    const list = await clients.admin.get('/api/receipts');
-    assert.equal(list.status, 200);
-    assert.ok(list.body.receipts.length > 0, 'the stored record is still readable');
-
-    const id = list.body.receipts[0].id;
-    assert.equal((await clients.guest.get(`/api/receipts/${id}`)).status, 401);
-    assert.equal((await clients.admin.get(`/api/receipts/${id}`)).status, 200);
-    assert.equal(
-      (await clients.tenant.get(`/api/receipts/${id}`)).status,
-      403,
-      'E1: a tenant no longer reads a receipt, even one that names them'
+    const inspected = runPhpScript(
+      'tests/sqlite-tool.php',
+      [`--path=${state.dbPath}`, '--mode=query', `--sql=SELECT id FROM rent_receipts WHERE id = '${id}'`],
+      state.env
     );
-    assert.equal((await clients.landlord.get(`/api/receipts/${id}`)).status, 200, 'the landlord keeps access');
-    assert.equal((await clients.agent.get(`/api/receipts/${id}`)).status, 403);
+    assert.equal(inspected.status, 0, inspected.stdout + inspected.stderr);
+    const rows = JSON.parse(inspected.stdout.trim()).rows;
+    assert.equal(rows.length, 1, 'the stored record is still there');
+  });
+
+  test('the fee ledger is untouched by the removal', async () => {
+    const ledger = await clients.admin.get('/api/admin/viewing-fees');
+    assert.ok([200, 403].includes(ledger.status), `the ledger route still exists (${ledger.status})`);
   });
 });

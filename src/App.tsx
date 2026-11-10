@@ -25,7 +25,6 @@ const AdminDashboard = lazy(() => import('./components/AdminDashboard').then((m)
 const AdminLoginView = lazy(() => import('./components/AdminLoginView').then((m) => ({ default: m.AdminLoginView })));
 const AboutView = lazy(() => import('./components/AboutView').then((m) => ({ default: m.AboutView })));
 const ContactView = lazy(() => import('./components/ContactView').then((m) => ({ default: m.ContactView })));
-const ReceiptsView = lazy(() => import('./components/ReceiptsView').then((m) => ({ default: m.ReceiptsView })));
 const BlogView = lazy(() => import('./components/BlogView').then((m) => ({ default: m.BlogView })));
 const BlogPostView = lazy(() => import('./components/BlogPostView').then((m) => ({ default: m.BlogPostView })));
 
@@ -113,8 +112,6 @@ const AppContent: React.FC = () => {
         return <BlogView />;
       case 'blog-post':
         return <BlogPostView />;
-      case 'receipts':
-        return <ReceiptsView />;
       case 'login':
       case 'register':
         // The sign-in screen is a modal over the landing page.

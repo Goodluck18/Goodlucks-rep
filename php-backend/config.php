@@ -217,7 +217,6 @@ define('VIEWING_ACTION_RATE_LIMIT_PER_HOUR', (int)cfg('VIEWING_ACTION_RATE_LIMIT
  * that a tenant actually paid to the landlord, so no new receipt may be issued.
  * Reading and printing existing records stays enabled.
  */
-define('RECEIPT_ISSUING_ENABLED', filter_var(cfg('RECEIPT_ISSUING_ENABLED', false), FILTER_VALIDATE_BOOLEAN));
 
 /**
  * Viewing-fee sharing policy — PROVISIONAL, NOT APPROVED, NEVER APPLIED.

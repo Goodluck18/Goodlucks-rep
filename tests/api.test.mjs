@@ -898,196 +898,98 @@ describe('Tenancy agreements retired & receipt issuance disabled', () => {
     assert.equal(single.status, 404);
   });
 
-  test('receipt issuing is disabled and limited to staff', async () => {
-    const payload = {
-      propertyTitle: 'The Pearl Executive 3-Bedroom Apartment',
-      propertyAddress: 'Cantonments, Accra',
-      tenantName: 'Test Tenant',
-      tenantPhone: '+233 24 123 4567',
-      landlordName: 'Abena Osei',
-      amountGhs: 6500,
-      paymentPurpose: 'Monthly rent',
-      paymentMethod: 'MTN MoMo',
-    };
+  test('the rent-receipt endpoints have been removed (Upgrade 2, E1)', async () => {
+    // Not disabled, not restricted: gone. Every role gets the router's 404, so
+    // there is no read path and no probe path left.
+    const payload = { propertyTitle: 'Removed Receipt', amountGhs: 100 };
 
-    const anonymous = await guest.post('/api/receipts', payload);
-    assert.equal(anonymous.status, 401);
-
-    // Tenants and landlords can no longer create Goodlucks-branded records.
-    const asTenant = await tenant.post('/api/receipts', payload);
-    assert.equal(asTenant.status, 403);
-
-    const asLandlord = await landlord.post('/api/receipts', payload);
-    assert.equal(asLandlord.status, 403);
-
-    // Staff are recognised, but issuing is switched off until Increment B.
-    const asAdmin = await admin.post('/api/receipts', payload);
-    assert.equal(asAdmin.status, 503);
-    assert.match(asAdmin.body.error, /disabled/i);
-
-    const list = await admin.get('/api/receipts');
-    assert.equal(list.status, 200);
-    assert.equal(list.body.issuingEnabled, false);
-    assert.ok(Array.isArray(list.body.receipts));
+    for (const [label, client] of [
+      ['guest', guest],
+      ['tenant', tenant],
+      ['landlord', landlord],
+      ['admin', admin],
+    ]) {
+      assert.equal((await client.get('/api/receipts')).status, 404, `${label} cannot list receipts`);
+      assert.equal((await client.post('/api/receipts', payload)).status, 404, `${label} cannot create one`);
+      assert.equal(
+        (await client.get('/api/receipts/rec-does-not-matter')).status,
+        404,
+        `${label} cannot fetch one`
+      );
+    }
   });
 });
 
 // ---------------------------------------------------------------------------
-describe('Receipt access control', () => {
+describe('Rent receipts removed, records preserved (Upgrade 2, E1)', () => {
   const access = {};
-  const clients = {};
 
-  const createParty = async (key, { name, phone, role }) => {
-    const email = uniqueEmail(key);
-    const script = runPhpScript(
-      'tests/create-user.php',
-      [
-        `--email=${email}`,
-        '--password=Access-Control-Pass-123',
-        `--name=${name}`,
-        `--role=${role}`,
-        `--phone=${phone}`,
-      ],
-      state.testEnv
-    );
-    assert.equal(script.status, 0, `${key} creation failed: ${script.stdout} ${script.stderr}`);
-
-    const client = new ApiClient(baseUrl);
-    const login = await client.post('/api/auth/login', { email, password: 'Access-Control-Pass-123' });
-    assert.equal(login.status, 200, `${key} login failed: ${JSON.stringify(login.body)}`);
-    clients[key] = client;
-    return login.body.user;
-  };
-
-  before(async () => {
-    access.admin = admin;
-
-    access.landlordA = await createParty('access-landlord-a', {
-      name: 'Access Landlord A',
-      phone: '+233 20 900 0001',
-      role: 'landlord',
-    });
-    access.tenantA = await createParty('access-tenant-a', {
-      name: 'Access Tenant A',
-      phone: '+233 24 900 0002',
-      role: 'tenant',
-    });
-    access.landlordB = await createParty('access-landlord-b', {
-      name: 'Access Landlord B',
-      phone: '+233 20 900 0003',
-      role: 'landlord',
-    });
-    access.tenantB = await createParty('access-tenant-b', {
-      name: 'Access Tenant B',
-      phone: '+233 24 900 0004',
-      role: 'tenant',
-    });
-
-    // Issuing is disabled over HTTP, so the record is planted directly and then
-    // read back through the real endpoints.
-    const created = runPhpScript(
+  test('a receipt row planted in the database stays there', async () => {
+    // The feature is gone; the history is not. A row written straight into the
+    // table by the same helper that used to seed the access tests must survive
+    // untouched — nothing in this phase deletes or rewrites `rent_receipts`.
+    const planted = runPhpScript(
       'tests/create-receipt.php',
       [
-        `--tenant-user=${access.tenantA.id}`,
-        `--landlord-user=${access.landlordA.id}`,
+        // --legacy: no user links are needed, we are checking the stored row.
+        '--legacy',
+        '--tenant-name=E1 Preserved Tenant',
+        '--landlord-name=E1 Preserved Landlord',
+        '--tenant-phone=+233 24 900 0770',
         '--amount=4200',
-        '--tenant-name=Access Tenant A',
-        '--landlord-name=Access Landlord A',
-        '--tenant-phone=+233 24 900 0002',
       ],
       state.testEnv
     );
-    assert.equal(created.status, 0, `receipt creation failed: ${created.stdout} ${created.stderr}`);
-    access.receiptId = JSON.parse(created.stdout.trim()).id;
-    assert.ok(access.receiptId, 'helper must return the receipt id');
+    assert.equal(planted.status, 0, planted.stdout + planted.stderr);
+    access.receiptId = JSON.parse(planted.stdout.trim()).id;
+
+    const inspected = runPhpScript(
+      'tests/sqlite-tool.php',
+      [
+        `--path=${dbPath}`,
+        '--mode=query',
+        `--sql=SELECT id, amount_ghs, tenant_name FROM rent_receipts WHERE id = '${access.receiptId}'`,
+      ],
+      state.testEnv
+    );
+    assert.equal(inspected.status, 0, inspected.stdout + inspected.stderr);
+    const rows = JSON.parse(inspected.stdout.trim()).rows;
+    assert.equal(rows.length, 1, 'the row is still stored');
+    assert.equal(Number(rows[0].amount_ghs), 4200);
+    assert.equal(rows[0].tenant_name, 'E1 Preserved Tenant');
   });
 
-  test('receipt lists are scoped to the landlord party and staff', async () => {
-    // Upgrade 2 (E1): the tenant rent-receipt view is gone, for the named party
-    // as much as for a stranger. The row itself is still there for staff and for
-    // the landlord it belongs to.
-    const tenantSees = await clients['access-tenant-a'].get('/api/receipts');
-    assert.equal(tenantSees.status, 403, 'a tenant is not a reader of rent receipts any more');
-
-    const strangerTenant = await clients['access-tenant-b'].get('/api/receipts');
-    assert.equal(strangerTenant.status, 403);
-
-    const landlordSees = await clients['access-landlord-a'].get('/api/receipts');
-    assert.ok(landlordSees.body.receipts.some((r) => r.id === access.receiptId));
-
-    const strangerLandlord = await clients['access-landlord-b'].get('/api/receipts');
-    assert.ok(!strangerLandlord.body.receipts.some((r) => r.id === access.receiptId));
-
-    const staff = await access.admin.get('/api/receipts');
-    assert.ok(staff.body.receipts.some((r) => r.id === access.receiptId));
+  test('the table itself is still part of the schema', async () => {
+    const tables = runPhpScript(
+      'tests/sqlite-tool.php',
+      [`--path=${dbPath}`, '--mode=tables'],
+      state.testEnv
+    );
+    assert.equal(tables.status, 0, tables.stdout + tables.stderr);
+    const names = JSON.parse(tables.stdout.trim()).tables;
+    assert.ok(names.includes('rent_receipts'), 'rent_receipts is never dropped');
+    assert.ok(names.includes('fee_remittances'), 'the fee ledger is intact');
+    assert.ok(names.includes('fee_policies'), 'the fee policies are intact');
   });
 
-  test('a single receipt is only readable by its landlord party and staff', async () => {
-    // E1: the tenant named on the record is no longer among its readers.
-    const party = await clients['access-tenant-a'].get(`/api/receipts/${access.receiptId}`);
-    assert.equal(party.status, 403);
-
-    const landlordParty = await clients['access-landlord-a'].get(`/api/receipts/${access.receiptId}`);
-    assert.equal(landlordParty.status, 200);
-
-    // E1: a tenant is refused by role before the record is even looked up, so a
-    // tenant gets 403 whether or not the id exists — ids stay unprobeable.
-    const strangerTenant = await clients['access-tenant-b'].get(`/api/receipts/${access.receiptId}`);
-    assert.equal(strangerTenant.status, 403);
-
-    const strangerLandlord = await clients['access-landlord-b'].get(`/api/receipts/${access.receiptId}`);
-    assert.equal(strangerLandlord.status, 404);
-
-    const anonymous = await guest.get(`/api/receipts/${access.receiptId}`);
-    assert.equal(anonymous.status, 401);
-
-    const missing = await access.admin.get('/api/receipts/does-not-exist');
-    assert.equal(missing.status, 404);
-
-    const staff = await access.admin.get(`/api/receipts/${access.receiptId}`);
-    assert.equal(staff.status, 200);
-  });
-
-  test('the audit trail is admin-only and carries no identity numbers', async () => {
-    const res = await access.admin.get('/api/admin/audit-logs?limit=200');
-    assert.equal(res.status, 200);
-    assert.ok(Array.isArray(res.body.logs));
-    assert.ok(res.body.logs.length > 0, 'earlier suites must have recorded sensitive actions');
-    for (const log of res.body.logs) {
-      assert.equal(typeof log.action, 'string');
-      assert.equal(typeof log.entityType, 'string');
-      assert.ok(log.createdAt);
-    }
-
-    const serialised = JSON.stringify(res.body.logs);
-    assert.ok(!/landlordGhanaCard|tenantGhanaCard/i.test(serialised));
-
-    const staffOnly = await clients['access-landlord-a'].get('/api/admin/audit-logs');
-    assert.equal(staffOnly.status, 403);
-
-    const anonymous = await guest.get('/api/admin/audit-logs');
-    assert.equal(anonymous.status, 401);
-  });
-
-  test('private documents are not reachable through the public uploads route', async () => {
-    fs.mkdirSync(privateDir, { recursive: true });
-    const name = `private-proof-${Date.now()}.png`;
-    const filePath = path.join(privateDir, name);
-    fs.writeFileSync(filePath, createPng(60, 60));
-
-    try {
-      const leaked = await guest.get(`/api/uploads/${name}`);
-      assert.equal(leaked.status, 404);
-
-      const traversal = await guest.get('/api/uploads/..%2Fconfig.php');
-      assert.equal(traversal.status, 404);
-    } finally {
-      fs.rmSync(filePath, { force: true });
-    }
+  test('the fee ledger, its reversals and the fee policies still work', async () => {
+    // E1 must not damage the *other* kind of receipt: money Goodlucks received.
+    assert.equal((await admin.get('/api/admin/finance/remittances')).status, 200);
+    const fees = await admin.get('/api/admin/viewing-fees');
+    assert.equal(fees.status, 200, JSON.stringify(fees.body));
+    // The reversal route is part of the fee ledger and stays reachable; an
+    // unknown id is refused by the handler, not by a missing route.
+    const reverse = await admin.post('/api/admin/finance/receipts/does-not-exist/reverse', {
+      amountGhs: 10,
+      reason: 'Checking that the reversal route still exists.',
+    });
+    // An unknown record is refused by the handler; the router must not be what
+    // answers, which is how a removed route would respond.
+    assert.doesNotMatch(String(reverse.body.error), /endpoint not found/i);
+    assert.match(String(reverse.body.error), /does not exist|not found/i, JSON.stringify(reverse.body));
   });
 });
 
-// ---------------------------------------------------------------------------
 describe('Registration: role handling, city and verification status', () => {
   // Registration signs the caller in, so these tests use throwaway clients: the
   // shared `guest` client must stay anonymous for every other suite.
@@ -1601,7 +1503,7 @@ describe('Agent accounts (Increment C)', () => {
     // Agents are not staff.
     assert.equal((await agent.clients.secondary.get('/api/admin/stats')).status, 403);
     assert.equal((await agent.clients.secondary.get('/api/admin/audit-logs')).status, 403);
-    assert.equal((await agent.clients.secondary.get('/api/receipts')).status, 403);
+    assert.equal((await agent.clients.secondary.get('/api/receipts')).status, 404);
     assert.equal((await agent.clients.secondary.get('/api/admin/viewing-fees')).status, 403);
 
     // Anonymous callers still see no user.
@@ -2337,9 +2239,9 @@ describe('Identity verification & professional authorisation (Increment D)', () 
   });
 
   test('Increments A, B and C still behave', async () => {
-    // A: tenancy agreements retired, receipts not issuable.
+    // A: tenancy agreements retired; Upgrade 2 (E1) then removed rent receipts.
     assert.equal((await admin.get('/api/agreements')).status, 404);
-    assert.equal((await admin.post('/api/receipts', {})).status, 503);
+    assert.equal((await admin.post('/api/receipts', {})).status, 404);
 
     // B: the viewing-fee ledger still refuses to apply a percentage.
     const policy = await admin.get('/api/admin/viewing-fees/policy');
@@ -2633,128 +2535,6 @@ describe('Viewing-fee ledger (Increment B)', () => {
 
     const remittanceLog = res.body.logs.find((log) => log.action === 'viewing_fee.remittance_recorded');
     assert.equal(remittanceLog.context.receivedBy, 'goodlucks');
-  });
-});
-
-// ---------------------------------------------------------------------------
-describe('Receipt labelling and legacy attribution', () => {
-  const receipts = {};
-
-  test('a stored rent record is labelled reported, never verified', async () => {
-    const list = await admin.get('/api/receipts');
-    assert.equal(list.status, 200);
-    assert.ok(list.body.receipts.length > 0, 'earlier suites plant at least one record');
-    for (const receipt of list.body.receipts) {
-      assert.equal(receipt.recordState, 'reported');
-      assert.equal(receipt.recordStateLabel, 'Reported record — not verified');
-      assert.equal(receipt.goodlucksIsRecipient, false);
-      assert.equal(receipt.recipient.type, 'landlord');
-      assert.equal(typeof receipt.recipient.verified, 'boolean');
-      assert.equal(receipt.recipient.verified, false);
-      assert.ok(!/verified/i.test(receipt.verificationCode), 'new references must not claim verification');
-    }
-  });
-
-  test('references issued from now on do not claim verification', async () => {
-    const created = runPhpScript(
-      'tests/create-receipt.php',
-      ['--legacy', '--tenant-name=Reference Tester', '--tenant-phone=+233 24 999 0001'],
-      state.testEnv
-    );
-    assert.equal(created.status, 0, created.stdout + created.stderr);
-    const id = JSON.parse(created.stdout.trim()).id;
-
-    const fetched = await admin.get(`/api/receipts/${id}`);
-    assert.equal(fetched.status, 200);
-    assert.match(fetched.body.receipt.verificationCode, /^REF-REC-/);
-    assert.equal(fetched.body.receipt.legacyReference, false);
-  });
-
-  test('a legacy VERIFIED-REC reference is flagged instead of trusted', async () => {
-    const created = runPhpScript(
-      'tests/create-receipt.php',
-      [
-        '--legacy',
-        '--legacy-reference',
-        '--tenant-name=Legacy Reference Tester',
-        '--tenant-phone=+233 24 999 0002',
-      ],
-      state.testEnv
-    );
-    assert.equal(created.status, 0, created.stdout + created.stderr);
-    const id = JSON.parse(created.stdout.trim()).id;
-
-    const fetched = await admin.get(`/api/receipts/${id}`);
-    assert.equal(fetched.status, 200);
-    assert.match(fetched.body.receipt.verificationCode, /^VERIFIED-REC-/);
-    assert.equal(fetched.body.receipt.legacyReference, true, 'the UI must be able to annotate it');
-    assert.equal(fetched.body.receipt.recordState, 'reported');
-  });
-
-  test('a legacy record is never attributed to a tenant, shared phone number or not', async () => {
-    const phone = '+233 24 999 0003';
-    const emailA = uniqueEmail('shared-a');
-    const emailB = uniqueEmail('shared-b');
-    const password = 'Shared-Phone-Pass-1';
-
-    const first = runPhpScript(
-      'tests/create-user.php',
-      [`--email=${emailA}`, `--password=${password}`, '--name=Shared Phone A', '--role=tenant', `--phone=${phone}`],
-      state.testEnv
-    );
-    assert.equal(first.status, 0, first.stdout + first.stderr);
-    const second = runPhpScript(
-      'tests/create-user.php',
-      [`--email=${emailB}`, `--password=${password}`, '--name=Shared Phone B', '--role=tenant', `--phone=${phone}`],
-      state.testEnv
-    );
-    assert.equal(second.status, 0, second.stdout + second.stderr);
-
-    const planted = runPhpScript(
-      'tests/create-receipt.php',
-      ['--legacy', '--tenant-name=Shared Phone Tenant', `--tenant-phone=${phone}`],
-      state.testEnv
-    );
-    assert.equal(planted.status, 0, planted.stdout + planted.stderr);
-    const receiptId = JSON.parse(planted.stdout.trim()).id;
-
-    const clientA = new ApiClient(baseUrl);
-    const clientB = new ApiClient(baseUrl);
-
-    const loginA = await clientA.post('/api/auth/login', { email: emailA, password });
-    assert.equal(loginA.status, 200, JSON.stringify(loginA.body));
-    const loginB = await clientB.post('/api/auth/login', { email: emailB, password });
-    assert.equal(loginB.status, 200, JSON.stringify(loginB.body));
-
-    // Upgrade 2 (E1): a tenant is refused outright, so the ambiguity is settled
-    // even more firmly than before — neither account can reach the list or the
-    // record, shared phone number or not.
-    for (const client of [clientA, clientB]) {
-      const list = await client.get('/api/receipts');
-      assert.equal(list.status, 403);
-      assert.equal((await client.get(`/api/receipts/${receiptId}`)).status, 403);
-    }
-
-    // Staff still see it — the record is not lost, only unattributable.
-    assert.equal((await admin.get(`/api/receipts/${receiptId}`)).status, 200);
-  });
-
-  test('a legacy record is never attributed to a landlord by name', async () => {
-    const planted = runPhpScript(
-      'tests/create-receipt.php',
-      ['--legacy', '--tenant-name=Name Match Tenant', '--tenant-phone=+233 24 999 0004', '--landlord-name=Access Landlord A'],
-      state.testEnv
-    );
-    assert.equal(planted.status, 0, planted.stdout + planted.stderr);
-    const receiptId = JSON.parse(planted.stdout.trim()).id;
-
-    const list = await landlord.get('/api/receipts');
-    assert.equal(list.status, 200);
-    assert.ok(
-      !list.body.receipts.some((receipt) => receipt.id === receiptId),
-      'a matching landlord name must not grant access'
-    );
-    assert.equal((await landlord.get(`/api/receipts/${receiptId}`)).status, 404);
   });
 });
 
@@ -4488,9 +4268,9 @@ describe('Fee policies & agent tiers (Increment E)', () => {
   });
 
   test('Increments A, B, C and D still behave', async () => {
-    // Agreements stay retired, receipt issuing stays disabled.
+    // Agreements stay retired, and rent receipts were removed in Phase 7 (E1).
     assert.equal((await admin.get('/api/agreements')).status, 404);
-    assert.equal((await admin.post('/api/receipts', {})).status, 503);
+    assert.equal((await admin.post('/api/receipts', {})).status, 404);
 
     // Increment D surfaces still work for the agent created here.
     const verification = await e.agents.standard.client.get('/api/verification');

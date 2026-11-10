@@ -45,7 +45,6 @@ import type {
   PropertyViewingTerms,
   ViewingTermsChange,
   ViewingTermsValues,
-  RentReceipt,
   SearchAlertSubscription,
   FeePolicyStatus,
   TenantRequest,
@@ -852,15 +851,6 @@ export const api = {
   // -------------------------------------------------------------------------
   // Rent payment records
   // -------------------------------------------------------------------------
-  /**
-   * Rent payment records. `issuingEnabled` is false while the server has
-   * receipt issuing switched off (the truthful payment model ships later).
-   */
-  listReceipts: () =>
-    request<{ receipts: RentReceipt[]; issuingEnabled?: boolean }>('/receipts'),
-
-  createReceipt: (data: Record<string, unknown>) =>
-    request<{ receipt: RentReceipt }>('/receipts', { method: 'POST', body: data }),
 
   // -------------------------------------------------------------------------
   // Notifications & admin

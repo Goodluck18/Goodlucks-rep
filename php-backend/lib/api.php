@@ -185,9 +185,6 @@ function resolve_route(string $method, string $path): ?array
         // --- Rent payment records ---------------------------------------
         // Tenancy-agreement drafting, signing and emailing were retired: the
         // platform does not prepare or execute tenancy agreements (Increment A).
-        ['GET',  '#^/receipts$#', 'handle_list_receipts'],
-        ['POST', '#^/receipts$#', 'handle_create_receipt'],
-        ['GET',  '#^/receipts/([A-Za-z0-9\-_]+)$#', 'handle_get_receipt'],
 
         // --- Viewing-fee ledger (Increment B) ---------------------------
         // Admin-only. These endpoints record what agents collected, what is
@@ -4366,115 +4363,18 @@ function handle_unsave_property(array $params): void
 }
 
 // ===========================================================================
-// Rent payment records
+// Rent payment records — removed (Upgrade 2, E1)
 //
-// Goodlucks no longer drafts, signs, emails or stores tenancy agreements. The
-// agreement handlers and routes were removed in Increment A; the
-// `tenancy_agreements` table is left untouched in the schema.
+// The tenant rent-receipt feature is gone: its routes and handlers were deleted
+// in Phase 7, and the client no longer has a screen, a menu entry or a type for
+// it. What remains in the database is the history itself — `rent_receipts` is
+// never dropped and its rows are never deleted. Rent is paid between a tenant
+// and a landlord; Goodlucks does not receive it, so it does not issue receipts
+// for it.
+//
+// The *fee* ledger below is a different system and is untouched: money Goodlucks
+// did receive (viewing fees, commissions), with its reversals.
 // ===========================================================================
-function handle_list_receipts(): void
-{
-    // Upgrade 2 (E1): tenants no longer have a rent-receipt surface at all. The
-    // records themselves stay in `rent_receipts` (and the fee ledger that reads
-    // them stays intact) — this is about who may open the screen, not about
-    // deleting history.
-    $user = require_auth(['admin', 'landlord']);
-    json_response([
-        'success'        => true,
-        'receipts'       => list_receipts($user, 200),
-        'issuingEnabled' => RECEIPT_ISSUING_ENABLED,
-    ]);
-}
-
-/**
- * One receipt, scoped to the people it concerns.
- *
- * Unauthorised callers get 404 rather than 403 so receipt ids cannot be probed
- * for existence.
- */
-function handle_get_receipt(array $params): void
-{
-    $user = require_auth(['admin', 'landlord']);
-    $row = find_receipt((string)($params[0] ?? ''));
-    if (!$row || !user_can_read_receipt($user, $row)) {
-        error_response('Receipt not found.', 404);
-    }
-
-    json_response(['success' => true, 'receipt' => shape_receipt($row)]);
-}
-
-function handle_create_receipt(): void
-{
-    // Landlords may no longer issue Goodlucks-branded receipts: the money in a
-    // rent payment goes to the landlord, not to Goodlucks.
-    $user = require_auth(['admin']);
-
-    // Issuing is disabled until the truthful transaction-record model ships
-    // (Increment B). Reads and printing of existing records stay available.
-    if (!RECEIPT_ISSUING_ENABLED) {
-        error_response(
-            'Receipt issuing is disabled while the payment-record model is corrected. '
-            . 'Existing records can still be viewed.',
-            503
-        );
-    }
-
-    $input = request_json();
-
-    $validator = new Validator();
-    foreach ([
-        'propertyTitle' => 'Property title',
-        'propertyAddress' => 'Property address',
-        'tenantName' => 'Tenant name',
-        'landlordName' => 'Landlord name',
-    ] as $field => $label) {
-        $validator->required($field, $input[$field] ?? '', $label, 2);
-    }
-    $amount = valid_money($input['amountGhs'] ?? null, 1);
-    if ($amount === null) {
-        $validator->add('amountGhs', 'Enter a valid amount.');
-    }
-    if ($validator->fails()) {
-        error_response('Please correct the highlighted fields.', 422, $validator->errors());
-    }
-
-    $tenantPhone = clean_string($input['tenantPhone'] ?? '', 40);
-
-    // Only staff can reach this handler. The landlord link stays NULL until the
-    // transaction-record model records the real recipient (Increment B); the
-    // tenant is linked by phone so receipts stay scoped to the people concerned.
-    $landlordUserId = null;
-    $tenantUserId = null;
-    $tenantMatch = find_user_by_phone($tenantPhone);
-    if ($tenantMatch && ($tenantMatch['role'] ?? '') === 'tenant') {
-        $tenantUserId = (string)$tenantMatch['id'];
-    }
-
-    $receipt = create_receipt([
-        'property_title'   => clean_string($input['propertyTitle'], 200),
-        'property_address' => clean_string($input['propertyAddress'], 255),
-        'tenant_name'      => clean_string($input['tenantName'], 120),
-        'tenant_phone'     => $tenantPhone,
-        'landlord_name'    => clean_string($input['landlordName'], 120),
-        'amount_ghs'       => $amount,
-        'amount_in_words'  => $input['amountInWords'] ?? '',
-        'payment_purpose'  => $input['paymentPurpose'] ?? 'Rent payment',
-        'payment_method'   => $input['paymentMethod'] ?? 'Cash',
-        'transaction_ref'  => $input['transactionRef'] ?? '',
-        'payment_date'     => valid_date_iso($input['paymentDate'] ?? null) ?? gmdate('Y-m-d'),
-        'issued_by'        => $input['issuedBy'] ?? (string)$user['name'],
-        'landlord_user_id' => $landlordUserId,
-        'tenant_user_id'   => $tenantUserId,
-    ]);
-
-    audit_log('receipt.issued', 'receipt', (string)($receipt['id'] ?? ''), [
-        'receiptNo' => $receipt['receiptNo'] ?? '',
-        'amountGhs' => $receipt['amountGhs'] ?? null,
-        'issuedBy'  => $receipt['issuedBy'] ?? '',
-    ]);
-
-    json_response(['success' => true, 'receipt' => $receipt], 201);
-}
 
 // ===========================================================================
 // Viewing-fee ledger (Increment B)

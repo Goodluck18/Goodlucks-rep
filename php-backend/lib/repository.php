@@ -342,96 +342,13 @@ function find_user_by_phone(?string $phone): ?array
     return null;
 }
 
-/** May this user read the receipt? */
-/**
- * True when two or more accounts share the same phone number key.
- *
- * Legacy receipts (no linked user ids) can only be attributed by phone number,
- * and `users.phone` has no uniqueness constraint. When a number is shared, the
- * safe answer is "not attributable": the record stays staff-only rather than
- * being shown to the wrong account.
- */
-function phone_shared_by_multiple_accounts(string $phoneKey): bool
-{
-    static $cache = [];
-    if ($phoneKey === '') {
-        return false;
-    }
-    if (array_key_exists($phoneKey, $cache)) {
-        return $cache[$phoneKey];
-    }
-
-    $rows = db_all("SELECT phone FROM users WHERE phone IS NOT NULL AND phone <> ''");
-    $matches = 0;
-    foreach ($rows as $row) {
-        if (phone_key((string)$row['phone']) === $phoneKey) {
-            $matches++;
-            if ($matches > 1) {
-                break;
-            }
-        }
-    }
-
-    return $cache[$phoneKey] = $matches > 1;
-}
-
-function user_can_read_receipt(array $user, array $row): bool
-{
-    if (($user['role'] ?? '') === 'admin') {
-        return true;
-    }
-
-    $userId = (string)($user['id'] ?? '');
-
-    // Upgrade 2 (E1): the tenant side of a rent receipt is gone. A tenant is
-    // never a reader of a receipt, and the legacy phone-number fallback that
-    // used to attribute an unlinked record to a tenant went with it — that
-    // fallback was the weakest link in this check anyway. What remains is
-    // staff, and the landlord actually linked to the record.
-    if ((string)($user['role'] ?? '') !== 'landlord') {
-        return false;
-    }
-
-    $linkedLandlordId = trim((string)($row['landlord_user_id'] ?? ''));
-
-    return $linkedLandlordId !== '' && $linkedLandlordId === $userId;
-}
-
-function shape_receipt(array $row): array
-{
-    return [
-        'id'               => (string)$row['id'],
-        'receiptNo'        => (string)$row['receipt_no'],
-        'propertyTitle'    => (string)$row['property_title'],
-        'propertyAddress'  => (string)$row['property_address'],
-        'tenantName'       => (string)$row['tenant_name'],
-        'tenantPhone'      => (string)($row['tenant_phone'] ?? ''),
-        'landlordName'     => (string)$row['landlord_name'],
-        'amountGhs'        => (float)$row['amount_ghs'],
-        'amountInWords'    => (string)($row['amount_in_words'] ?? ''),
-        'paymentPurpose'   => (string)($row['payment_purpose'] ?? ''),
-        'paymentMethod'    => (string)($row['payment_method'] ?? 'Cash'),
-        'transactionRef'   => (string)($row['transaction_ref'] ?? ''),
-        'paymentDate'      => (string)$row['payment_date'],
-        'issuedBy'         => (string)($row['issued_by'] ?? ''),
-        'verificationCode' => (string)$row['verification_code'],
-        // Increment B: every stored rent record is a claim typed in by staff.
-        // Nothing in the model verifies that money changed hands, so the API
-        // labels it instead of letting a template imply otherwise.
-        'recordState'      => 'reported',
-        'recordStateLabel' => 'Reported record — not verified',
-        'recipient'        => [
-            'type'     => 'landlord',
-            'name'     => (string)$row['landlord_name'],
-            'verified' => false,
-        ],
-        'goodlucksIsRecipient' => false,
-        // References issued before Increment B carry a "VERIFIED-REC-" prefix
-        // that never meant anything; the UI flags them as legacy.
-        'legacyReference'  => str_starts_with((string)$row['verification_code'], 'VERIFIED-'),
-        'createdAt'        => to_iso($row['created_at'] ?? null),
-    ];
-}
+// ---------------------------------------------------------------------------
+// Rent payment records — read path removed (Upgrade 2, E1)
+//
+// `user_can_read_receipt()`, `shape_receipt()` and the phone-sharing rule that
+// existed only to attribute a legacy record to a tenant were deleted with the
+// feature. The `rent_receipts` table and every row in it remain.
+// ---------------------------------------------------------------------------
 
 function shape_search_alert(array $row): array
 {
@@ -2207,95 +2124,14 @@ function delete_search_alert(string $id, array $user): bool
     return true;
 }
 
-function create_receipt(array $data): array
-{
-    $id = new_id('rec');
-    $receiptNo = 'GHL-REC-' . gmdate('Y') . '-' . strtoupper(bin2hex(random_bytes(3)));
-    // Increment B: the stored reference no longer claims verification. Nothing
-    // is verified when a staff member types a payment into the system, so a new
-    // reference reads REF-REC-... Historical rows keep their original value and
-    // are annotated as legacy references on render (see shape_receipt()).
-    $verification = 'REF-REC-' . strtoupper(bin2hex(random_bytes(3)));
-    db_exec(
-        'INSERT INTO rent_receipts (id, receipt_no, property_title, property_address, tenant_name, tenant_phone,
-                                    landlord_name, amount_ghs, amount_in_words, payment_purpose, payment_method,
-                                    transaction_ref, payment_date, issued_by, verification_code, created_at,
-                                    landlord_user_id, tenant_user_id)
-         VALUES (:id, :receipt_no, :title, :address, :tenant_name, :tenant_phone,
-                 :landlord_name, :amount, :words, :purpose, :method,
-                 :ref, :payment_date, :issued_by, :verification, :created,
-                 :landlord_user_id, :tenant_user_id)',
-        [
-            ':id'           => $id,
-            ':receipt_no'   => $receiptNo,
-            ':title'        => $data['property_title'],
-            ':address'      => $data['property_address'],
-            ':tenant_name'  => $data['tenant_name'],
-            ':tenant_phone' => $data['tenant_phone'] ?? '',
-            ':landlord_name'=> $data['landlord_name'],
-            ':amount'       => $data['amount_ghs'],
-            ':words'        => clean_string($data['amount_in_words'] ?? '', 300),
-            ':purpose'      => clean_string($data['payment_purpose'] ?? '', 200),
-            ':method'       => clean_string($data['payment_method'] ?? 'Cash', 60),
-            ':ref'          => clean_string($data['transaction_ref'] ?? '', 128),
-            ':payment_date' => $data['payment_date'],
-            ':issued_by'    => clean_string($data['issued_by'] ?? 'Goodlucks Homes Intermediary Desk', 200),
-            ':verification' => $verification,
-            ':created'      => db_now(),
-            ':landlord_user_id' => $data['landlord_user_id'] ?? null,
-            ':tenant_user_id'   => $data['tenant_user_id'] ?? null,
-        ]
-    );
-    $row = db_one('SELECT * FROM rent_receipts WHERE id = :id', [':id' => $id]);
-    return $row ? shape_receipt($row) : [];
-}
-
-/**
- * Receipts the viewer may read.
- *
- * Administrators see every receipt; a landlord sees the records whose stored
- * `landlord_user_id` is their own account. Tenants have no rent-receipt surface
- * any more (Upgrade 2, E1): the rows are kept, the fee ledger that reads them is
- * untouched, but a tenant account is never a reader. Unlinked legacy rows stay
- * visible to staff only — they are never attributed by name or phone, because
- * anyone can register under any name or phone.
- */
-function list_receipts(?array $user = null, int $limit = 200): array
-{
-    $user = $user ?? auth_user();
-    if (!$user) {
-        return [];
-    }
-
-    if (($user['role'] ?? '') === 'admin') {
-        $rows = db_all('SELECT * FROM rent_receipts ORDER BY created_at DESC' . db_limit_clause($limit, 0));
-        return array_map('shape_receipt', $rows);
-    }
-
-    // E1: only the landlord link is queried, because only a landlord can read a
-    // receipt now. A tenant id in the request can never widen this.
-    if ((string)$user['role'] !== 'landlord') {
-        return [];
-    }
-
-    $userId = (string)$user['id'];
-    $rows = db_all(
-        'SELECT * FROM rent_receipts
-         WHERE landlord_user_id = :uid
-         ORDER BY created_at DESC' . db_limit_clause($limit, 0),
-        [':uid' => $userId]
-    );
-
-    return array_map('shape_receipt', $rows);
-}
-
-/** Fetch one receipt row for authorisation checks. */
-function find_receipt(string $id): ?array
-{
-    $row = db_one('SELECT * FROM rent_receipts WHERE id = :id LIMIT 1', [':id' => $id]);
-
-    return $row ?: null;
-}
+// ---------------------------------------------------------------------------
+// Rent payment records — write/read helpers removed (Upgrade 2, E1)
+//
+// Nothing in the platform issues, lists or fetches a rent receipt any more. The
+// data stays: `rent_receipts` is untouched by this removal, and the fee ledger
+// (`fee_remittances`, its reversals and the fee policies) never used these
+// helpers.
+// ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
 // Notifications listing, email logs

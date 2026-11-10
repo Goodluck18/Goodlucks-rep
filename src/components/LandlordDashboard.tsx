@@ -17,13 +17,11 @@ import {
   Bell,
   ChevronRight,
   Check,
-  FileCheck,
   ArrowRight,
   Ban,
   Clock,
 } from 'lucide-react';
 import { VerificationPanel } from './VerificationPanel';
-import { ReceiptsView } from './ReceiptsView';
 import {
   Avatar,
   DashboardShell,
@@ -65,7 +63,6 @@ const LANDLORD_SECTIONS = [
   'overview',
   'my-properties',
   'viewings',
-  'receipts',
   'identity',
   'notifications',
   'profile',
@@ -89,7 +86,7 @@ export const LandlordDashboard: React.FC = () => {
   } = useApp();
 
   // Section state comes from the URL (/landlord/properties, /landlord/viewings,
-  // /landlord/receipts, /landlord/settings) so it survives a refresh and Back.
+  // /landlord/settings) so it survives a refresh and Back.
   const activeSection = (sectionTab || 'overview') as (typeof LANDLORD_SECTIONS)[number];
 
   const [deleteModalPropId, setDeleteModalPropId] = useState<string | null>(null);
@@ -360,14 +357,7 @@ export const LandlordDashboard: React.FC = () => {
           {/* Quick links */}
           <section className="bg-surface border border-line rounded-2xl p-5 space-y-3">
             <h2 className="text-xs font-extrabold uppercase tracking-wider text-ink">Quick links</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-              <button
-                type="button"
-                onClick={() => navigate('/landlord/receipts')}
-                className="px-3 py-2.5 rounded-xl bg-surface border border-line text-xs font-bold text-ink hover:border-interactive/40 transition-colors flex items-center gap-1.5"
-              >
-                <FileCheck className="w-3.5 h-3.5 text-ink" /> Payment records & receipts
-              </button>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <button
                 type="button"
                 onClick={() => navigate('/landlord/profile')}
@@ -578,17 +568,6 @@ export const LandlordDashboard: React.FC = () => {
               ))}
             </div>
           )}
-        </div>
-      )}
-
-      {/* ============================= RECEIPTS =========================== */}
-      {activeSection === 'receipts' && (
-        <div className="space-y-4 animate-fadeIn">
-          <SectionHeader
-            title="Payment records & receipts"
-            description="Records of rent paid directly between tenants and landlords. Goodlucks does not receive rent."
-          />
-          <ReceiptsView embedded />
         </div>
       )}
 
