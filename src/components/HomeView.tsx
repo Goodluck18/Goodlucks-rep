@@ -183,8 +183,9 @@ export const HomeView: React.FC = () => {
           </button>
         </div>
 
-        {/* PROPERTY LIST (Upgrade 2, A4): compact horizontal cards in a swipeable
-            row on a phone, the existing grid from `sm` upwards. */}
+        {/* PROPERTY LIST — the catalogue grid (two per row on a phone, four on a
+            wide desktop). The compact horizontal row is the blog article's
+            showcase, not the home page's. */}
         <PropertyCardGrid
           properties={filteredProperties.slice(0, 8)}
           label="Featured rentals"

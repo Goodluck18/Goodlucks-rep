@@ -736,12 +736,12 @@ export const TenantDashboard: React.FC = () => {
               <PropertyCardGrid
                 properties={curatedForYou.map((entry) => entry.property)}
                 label="Chosen for you"
-                renderCard={(property, layout) => (
-                  <div key={property.id} className="relative">
+                renderCard={(property) => (
+                  <div className="relative">
                     <div className="absolute top-3 left-3 z-20 bg-interactive text-ink font-black text-[10px] px-2 py-0.5 rounded-md shadow-md flex items-center gap-1">
                       <Sparkles className="w-3 h-3" /> Chosen for you
                     </div>
-                    <PropertyCard property={property} layout={layout} />
+                    <PropertyCard property={property} />
                   </div>
                 )}
               />
@@ -760,18 +760,18 @@ export const TenantDashboard: React.FC = () => {
               <PropertyCardGrid
                 properties={similarMatches.map((entry) => entry.property)}
                 label="Similar matches"
-                renderCard={(property, layout) => {
+                renderCard={(property) => {
                   const entry = similarMatches.find((candidate) => candidate.property.id === property.id);
                   if (!entry) return null;
                   return (
-                    <div key={property.id} className="relative">
+                    <div className="relative">
                       <div
                         title={entry.reason}
                         className="absolute top-3 left-3 z-20 bg-emerald-500 text-ink font-black text-[10px] px-2 py-0.5 rounded-md shadow-md flex items-center gap-1"
                       >
                         {entry.band?.label ?? 'Match'} · {entry.score}%
                       </div>
-                      <PropertyCard property={property} layout={layout} />
+                      <PropertyCard property={property} />
                     </div>
                   );
                 }}
@@ -884,7 +884,7 @@ export const TenantDashboard: React.FC = () => {
       {activeSection === 'saved' && (
         <div className="space-y-4 animate-fadeIn">
           <SectionHeader title="Saved properties" description="Homes you kept for later." />
-          {/* Saved listings (Upgrade 2, A4): same pattern as the matches above. */}
+          {/* Saved listings — the same catalogue grid as the matches above. */}
           {savedProps.length > 0 ? (
             <PropertyCardGrid properties={savedProps} label="Saved properties" />
           ) : (

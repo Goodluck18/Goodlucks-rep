@@ -219,56 +219,80 @@ test('image preview grids collapse to one or two columns on a small phone', () =
 });
 
 /* -------------------------------------------------------------------------- */
-/* 6. Mobile listing strip (Upgrade 2, A4)                                    */
+/* 6. Property cards: the catalogue grid, and the article showcase            */
 /* -------------------------------------------------------------------------- */
 
-test('a phone gets a swipeable row of compact horizontal listing cards', () => {
+test('every listing page shows the catalogue grid at every screen size', () => {
   const grid = byPath('src/components/PropertyCardGrid.tsx');
+
+  // A plain grid. It owns no second layout and no scroll container, so a phone
+  // gets exactly the columns the page asks for — the same as a desktop.
+  assert.match(grid, /className=\{`grid \$\{gridClassName\}`\}/);
+  assert.match(grid, /grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6/);
+  assert.ok(!/overflow-x-auto/.test(grid), 'the catalogue grid never scrolls sideways');
+  assert.ok(!/sm:hidden/.test(grid), 'no card layout is swapped at a breakpoint');
+  assert.ok(!/snap-/.test(grid), 'no snap strip on a listing page');
+  assert.match(grid, /data-property-grid/);
+});
+
+test('the shared listing card has one presentation, not a compact mode', () => {
   const card = byPath('src/components/PropertyCard.tsx');
 
-  // The strip is a real scroll container with snap points, hidden below `sm`.
-  assert.match(grid, /role="list"/);
-  assert.match(grid, /sm:hidden/);
-  assert.match(grid, /flex snap-x snap-mandatory gap-3 overflow-x-auto/);
-  assert.match(grid, /snap-start/);
-  // Each card takes most of the screen but never more than a phone's width, so
-  // the next card is always peeking in from the right.
-  assert.match(grid, /w-\[78%\] max-w-\[320px\] shrink-0/);
-
-  // The compact card is a row, not a column: picture left, details right.
-  assert.match(card, /horizontal \? 'flex flex-row' : 'flex flex-col'/);
-  assert.match(card, /horizontal \? 'w-28 min-\[380px\]:w-32 shrink-0'/);
-  assert.match(card, /layout\?: 'vertical' \| 'horizontal'/);
+  assert.match(card, /flex flex-col h-full/, 'a photograph on top, details underneath');
+  assert.match(card, /aspect-\[4\/3\] sm:aspect-\[16\/10\]/, 'the catalogue image ratio');
+  assert.ok(!/layout\?:/.test(card), 'the card cannot be switched into a compact row');
+  assert.ok(!/horizontal/.test(card), 'no compact card variant survives');
 });
 
-test('tablet and desktop keep the existing grid', () => {
-  const grid = byPath('src/components/PropertyCardGrid.tsx');
-  // The desktop grid is hidden below `sm` and uses the same column classes the
-  // pages had; the default is the four-step catalogue grid.
-  assert.match(grid, /hidden sm:grid \$\{gridClassName\}/);
-  assert.match(grid, /sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6/);
-});
-
-test('every page that lists properties uses the shared grid', () => {
+test('every page that lists properties uses the shared catalogue grid', () => {
   for (const page of [
     'src/components/BrowseView.tsx',
     'src/components/HomeView.tsx',
     'src/components/PropertyDetailView.tsx',
     'src/components/TenantDashboard.tsx',
   ]) {
-    assert.match(byPath(page), /<PropertyCardGrid/, `${page} must use the shared grid`);
+    const source = byPath(page);
+    assert.match(source, /<PropertyCardGrid/, `${page} must use the shared grid`);
     assert.ok(
-      !/<div className="grid grid-cols-2 sm:grid-cols-2/.test(byPath(page)),
-      `${page} must not keep a private mobile grid`
+      !/<div className="grid grid-cols-2 sm:grid-cols-2/.test(source),
+      `${page} must not keep its own copy of the grid`
     );
+    // The blog showcase is the only horizontal card row; a listing page that
+    // imported it would put the article layout back on the catalogue.
+    assert.ok(
+      !/import\s*\{[^}]*BlogPropertyShowcase/.test(source) && !/<BlogPropertyShowcase/.test(source),
+      `${page} must not use the article showcase`
+    );
+    assert.ok(!/data-blog-showcase/.test(source), `${page} must not render the article scroll row`);
   }
 });
 
-test('the strip scrolls inside its own box and hides only its scrollbar', () => {
-  assert.match(cssCode, /\.gl-property-strip \{[\s\S]*?scroll-snap-type: x mandatory/);
-  assert.match(cssCode, /\.gl-property-strip \{[\s\S]*?overscroll-behavior-x: contain/);
-  assert.match(cssCode, /\.gl-property-strip::-webkit-scrollbar \{\s*display: none;/);
-  // Hiding the page's overflow is still forbidden: the strip is the container.
+test('the blog article showcase is one horizontal, swipeable row', () => {
+  const showcase = byPath('src/components/BlogPropertyShowcase.tsx');
+
+  assert.match(showcase, /flex gap-3 overflow-x-auto/, 'the row is the scroll container');
+  assert.ok(!/flex-wrap/.test(showcase), 'cards must never wrap onto a second line');
+  assert.ok(!/grid-cols/.test(showcase), 'the article uses a row, not a grid');
+  // Fixed width + no shrinking = predictable, equal cards with a gap.
+  assert.match(showcase, /w-\[248px\] shrink-0 snap-start sm:w-\[268px\]/);
+  assert.match(showcase, /role="list"/);
+  assert.match(showcase, /tabIndex=\{0\}/, 'a keyboard user can scroll the row');
+  assert.match(showcase, /<BlogPropertyCard card=\{card\} dense \/>/, 'compact cards');
+});
+
+test('the article body renders the showcase instead of a grid of cards', () => {
+  const body = byPath('src/components/BlogArticleBody.tsx');
+
+  assert.match(body, /<BlogPropertyShowcase/);
+  assert.ok(!/grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3/.test(body), 'no wrapping card grid in an article');
+  assert.match(body, /cards\.length === 0 && hasShowcase/, 'an empty showcase still says so');
+});
+
+test('the article scroller keeps its swipe inside its own box', () => {
+  assert.match(cssCode, /\.gl-blog-showcase \{[\s\S]*?scroll-snap-type: x mandatory/);
+  assert.match(cssCode, /\.gl-blog-showcase \{[\s\S]*?overscroll-behavior-x: contain/);
+  assert.ok(!/gl-property-strip/.test(cssCode), 'the listing-page strip is gone');
+  // Hiding the page's overflow is still forbidden: the row is the container.
   assert.ok(!/html\s*\{[^}]*overflow-x\s*:\s*hidden/.test(cssCode));
   assert.ok(!/body\s*\{[^}]*overflow-x\s*:\s*hidden/.test(cssCode));
 });

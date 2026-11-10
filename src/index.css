@@ -145,21 +145,29 @@
     box-shadow: var(--shadow-raised);
   }
 
-  /* ---- Mobile listing strip (Upgrade 2, A4) ------------------------------ */
-  /* One horizontal row of compact property cards on a phone. The reader swipes
-     the row leftwards (right → left) to reach the next listing; each card snaps
-     to the left edge so a card is never left half-cut. The scrollbar is hidden
-     because the strip is a gesture surface, not a document — the same cards are
-     in the grid from `sm` upwards, so nothing is only reachable by swiping. */
-  .gl-property-strip {
+  /* ---- Blog article property showcase (Upgrade 2 correction) ------------- */
+  /* The one horizontal card row in the product: several live listings inside an
+     article, on one line, scrolled within this box. `overscroll-behavior-x`
+     keeps a sideways swipe inside the row instead of moving the article page,
+     and the scrollbar stays visible (just slim) because on a desktop the row is
+     the only hint that more cards continue to the right. */
+  .gl-blog-showcase {
     scroll-snap-type: x mandatory;
     scroll-behavior: smooth;
     overscroll-behavior-x: contain;
     -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
+    scrollbar-width: thin;
+    scroll-padding-inline: 0.25rem;
   }
-  .gl-property-strip::-webkit-scrollbar {
-    display: none;
+  .gl-blog-showcase::-webkit-scrollbar {
+    height: 6px;
+  }
+  .gl-blog-showcase::-webkit-scrollbar-thumb {
+    background-color: color-mix(in srgb, var(--color-ink) 22%, transparent);
+    border-radius: 999px;
+  }
+  .gl-blog-showcase::-webkit-scrollbar-track {
+    background-color: transparent;
   }
 
   .gl-panel {
